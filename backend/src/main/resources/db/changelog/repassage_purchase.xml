@@ -1,0 +1,39 @@
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <changeSet id="2025-11-01-90-repassage-purchase-seq" author="mrodek">
+        <createSequence sequenceName="seq_repassage_purchase_id" incrementBy="1" startValue="1"/>
+    </changeSet>
+
+    <changeSet id="2025-11-01-91-repassage-purchase" author="mrodek">
+        <createTable tableName="repassage_purchase">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tournament_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="pair_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="round_number" type="int"/>
+            <column name="kind" type="varchar(10)"/> <!-- FIRST | SECOND -->
+            <column name="paid_at" type="timestamptz"/>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="repassage_purchase" baseColumnNames="tournament_id"
+                                 referencedTableName="tournaments" referencedColumnNames="id" onDelete="CASCADE"
+                                 constraintName="fk_repassage_tournament"/>
+        <addForeignKeyConstraint baseTableName="repassage_purchase" baseColumnNames="pair_id"
+                                 referencedTableName="pairs" referencedColumnNames="id" onDelete="CASCADE"
+                                 constraintName="fk_repassage_pair"/>
+
+        <createIndex tableName="repassage_purchase" indexName="idx_repassage_tournament">
+            <column name="tournament_id"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

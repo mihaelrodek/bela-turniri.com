@@ -1,0 +1,701 @@
+import { useEffect, useMemo, useState } from "react"
+import {
+    Badge,
+    Box,
+    Button,
+    Card,
+    Heading,
+    HStack,
+    IconButton,
+    Image,
+    Input,
+    Skeleton,
+    Text,
+    VStack,
+} from "@chakra-ui/react"
+import { Link as RouterLink } from "react-router-dom"
+import { FiCalendar, FiChevronDown, FiChevronUp, FiClock, FiFilter, FiNavigation, FiPlus, FiSearch, FiUsers, FiX } from "react-icons/fi"
+import type { TournamentCard } from "../types/tournaments"
+import { fetchTournaments } from "../api/tournaments"
+import { useUserLocation } from "../hooks/useUserLocation"
+import { haversineKm } from "../utils/distance"
+
+/** The list DTO now includes a public UUID you want to route with */
+type TournamentCardWithUuid = TournamentCard & { uuid: string }
+
+// ---------- formatters ----------
+function formatDate(iso?: string | null) {
+    if (!iso) return "—"
+    const d = new Date(iso)
+    return new Intl.DateTimeFormat("hr-HR", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+    }).format(d)
+}
+function formatTime(iso?: string | null) {
+    if (!iso) return "—"
+    const d = new Date(iso)
+    return new Intl.DateTimeFormat("hr-HR", {
+        hour: "2-digit",
+        minute: "2-digit",
+    }).format(d)
+}
+function fmtEuro(n?: number | null) {
+    if (typeof n !== "number" || !isFinite(n)) return null
+    const s = n.toFixed(2)
+    const trimmed = s.endsWith(".00") ? s.slice(0, -3) : s
+    return `${trimmed}€`
+}
+
+/** Compact "Danas" / "Sutra" / "Za N dana" relative label, hr-HR. */
+function relativeDays(iso?: string | null): string | null {
+    if (!iso) return null
+    const startMs = new Date(iso).setHours(0, 0, 0, 0)
+    const todayMs = new Date().setHours(0, 0, 0, 0)
+    const diff = Math.round((startMs - todayMs) / (24 * 60 * 60 * 1000))
+    if (diff === 0) return "Danas"
+    if (diff === 1) return "Sutra"
+    if (diff > 1 && diff <= 14) return `Za ${diff} dana`
+    return null
+}
+
+// ---------- subcomponents ----------
+
+/** Image area with status badge overlays. */
+function CardBanner({
+                        t,
+                        variant,
+                    }: {
+    t: TournamentCardWithUuid
+    variant: "upcoming" | "finished"
+}) {
+    const isFull =
+        typeof t.registeredPairs === "number" &&
+        typeof t.maxPairs === "number" &&
+        t.registeredPairs >= t.maxPairs
+
+    const relative = relativeDays(t.startAt)
+
+    return (
+        <Box
+            position="relative"
+            bg="bg.muted"
+            h={{ base: "130px", md: "140px" }}
+            overflow="hidden"
+        >
+            {t.bannerUrl ? (
+                <Image
+                    src={t.bannerUrl}
+                    alt={t.name}
+                    w="100%"
+                    h="100%"
+                    objectFit="cover"
+                    objectPosition="top center"
+                    draggable={false}
+                    style={
+                        variant === "finished"
+                            ? { filter: "grayscale(0.6) brightness(0.92)" }
+                            : undefined
+                    }
+                />
+            ) : (
+                <Box
+                    w="100%"
+                    h="100%"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                >
+                    <Text color="fg.muted" fontSize="xs">Nema plakata</Text>
+                </Box>
+            )}
+
+            {/* Top-right: date pill */}
+            {t.startAt && (
+                <Box
+                    position="absolute"
+                    top="2"
+                    right="2"
+                    bg="blackAlpha.700"
+                    color="white"
+                    px="2"
+                    py="0.5"
+                    rounded="md"
+                    fontSize="xs"
+                    fontWeight="medium"
+                    backdropFilter="blur(4px)"
+                >
+                    {formatDate(t.startAt)}
+                </Box>
+            )}
+
+            {/* Top-left: status badge */}
+            <Box position="absolute" top="2" left="2">
+                {variant === "finished" ? (
+                    <Badge size="sm" colorPalette="gray" variant="solid">
+                        Završen
+                    </Badge>
+                ) : isFull ? (
+                    <Badge size="sm" colorPalette="orange" variant="solid">
+                        Mjesta puna
+                    </Badge>
+                ) : relative ? (
+                    <Badge size="sm" colorPalette="blue" variant="solid">
+                        {relative}
+                    </Badge>
+                ) : (
+                    <Badge size="sm" colorPalette="blue" variant="solid">
+                        Nadolazeći
+                    </Badge>
+                )}
+            </Box>
+        </Box>
+    )
+}
+
+/** Single tournament card. Whole card is the link, no nested links inside. */
+function TournamentCardView({
+                                t,
+                                variant,
+                            }: {
+    t: TournamentCardWithUuid
+    variant: "upcoming" | "finished"
+}) {
+    const price = fmtEuro(t.entryPrice)
+    const rep = fmtEuro(t.repassagePrice)
+    const priceBlock = price ? (rep ? `${price} + ${rep}` : price) : null
+
+    const winner = (t.winnerName ?? "").trim()
+
+    return (
+        <RouterLink
+            to={`/tournaments/${t.uuid}`}
+            style={{ display: "block", textDecoration: "none", color: "inherit" }}
+        >
+            <Box
+                borderWidth="1px"
+                borderColor="border.emphasized"
+                rounded="xl"
+                overflow="hidden"
+                bg="bg"
+                shadow="sm"
+                transition="transform .15s ease, box-shadow .15s ease, border-color .15s ease"
+                _hover={{
+                    shadow: "md",
+                    transform: "translateY(-2px)",
+                    borderColor: "border.emphasized",
+                }}
+                h="full"
+                display="flex"
+                flexDirection="column"
+            >
+                <CardBanner t={t} variant={variant} />
+
+                <VStack align="stretch" gap="2" p="3" flex="1">
+                    <Text
+                        fontWeight="semibold"
+                        fontSize={{ base: "sm", md: "md" }}
+                        lineHeight="short"
+                    >
+                        {t.name}
+                    </Text>
+
+                    {variant === "finished" && winner && (
+                        <HStack gap="1.5" align="center">
+                            <Text fontSize="xs" color="fg.muted">Pobjednik:</Text>
+                            <Badge size="sm" colorPalette="yellow" variant="subtle">
+                                {winner}
+                            </Badge>
+                        </HStack>
+                    )}
+
+                    <HStack
+                        gap="3"
+                        rowGap="1"
+                        wrap="wrap"
+                        fontSize="xs"
+                        color="fg.muted"
+                        mt="auto"
+                    >
+                        {t.startAt && (
+                            <HStack gap="1">
+                                <FiClock />
+                                <Text>{formatTime(t.startAt)}</Text>
+                            </HStack>
+                        )}
+                        {priceBlock && <Text>{priceBlock}</Text>}
+                        {typeof t.registeredPairs === "number" && (
+                            <HStack gap="1">
+                                <FiUsers />
+                                <Text>
+                                    {t.registeredPairs}
+                                    {typeof t.maxPairs === "number" ? ` / ${t.maxPairs}` : ""}
+                                </Text>
+                            </HStack>
+                        )}
+                    </HStack>
+                </VStack>
+            </Box>
+        </RouterLink>
+    )
+}
+
+/** Loading skeleton matching the card shape. */
+function CardSkeleton() {
+    return (
+        <Box
+            borderWidth="1px"
+            borderColor="border.emphasized"
+            rounded="xl"
+            overflow="hidden"
+        >
+            <Skeleton h={{ base: "130px", md: "140px" }} />
+            <VStack align="stretch" gap="2" p="3">
+                <Skeleton h="4" w="70%" />
+                <Skeleton h="3" w="50%" />
+            </VStack>
+        </Box>
+    )
+}
+
+/** Empty state with optional CTA. */
+function EmptyState({
+                        title,
+                        description,
+                        cta,
+                    }: {
+    title: string
+    description?: string
+    cta?: React.ReactNode
+}) {
+    return (
+        <Box
+            borderWidth="1px"
+            borderColor="border.emphasized"
+            borderStyle="dashed"
+            rounded="xl"
+            py="10"
+            px="6"
+        >
+            <VStack gap="2">
+                <Box color="fg.muted">
+                    <FiCalendar size={24} />
+                </Box>
+                <Text fontWeight="medium">{title}</Text>
+                {description && (
+                    <Text color="fg.muted" fontSize="sm" textAlign="center">
+                        {description}
+                    </Text>
+                )}
+                {cta && <Box mt="2">{cta}</Box>}
+            </VStack>
+        </Box>
+    )
+}
+
+// ---------- page ----------
+const FINISHED_PREVIEW_LIMIT = 6
+
+export default function TournamentsPage() {
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+
+    const [loadingFinished, setLoadingFinished] = useState(true)
+    const [errorFinished, setErrorFinished] = useState<string | null>(null)
+
+    const [upcoming, setUpcoming] = useState<TournamentCardWithUuid[]>([])
+    const [finished, setFinished] = useState<TournamentCardWithUuid[]>([])
+    const [showAllFinished, setShowAllFinished] = useState(false)
+
+    // ---- Search + filters (apply to upcoming) ----
+    const [filtersOpen, setFiltersOpen] = useState(false) // not expanded by default
+    const [search, setSearch] = useState("")
+    const [locationFilter, setLocationFilter] = useState("")
+    const [priceMin, setPriceMin] = useState("")
+    const [priceMax, setPriceMax] = useState("")
+    const [radiusKm, setRadiusKm] = useState<number | null>(null) // null = no distance filter
+
+    // User location (for nearby filter) — silently restored if previously granted
+    const {
+        pos: userPos,
+        status: geoStatus,
+        request: requestLocation,
+    } = useUserLocation()
+
+    const sanitizeNum = (s: string) => s.replace(/[^\d.,]/g, "").replace(",", ".")
+    const parseNum = (s: string): number | null => {
+        if (!s.trim()) return null
+        const n = parseFloat(s)
+        return Number.isFinite(n) ? n : null
+    }
+    const activeFilterCount =
+        (locationFilter.trim() ? 1 : 0) +
+        (priceMin.trim() ? 1 : 0) +
+        (priceMax.trim() ? 1 : 0) +
+        (radiusKm != null && userPos ? 1 : 0)
+    const resetFilters = () => {
+        setSearch("")
+        setLocationFilter("")
+        setPriceMin("")
+        setPriceMax("")
+        setRadiusKm(null)
+    }
+
+    useEffect(() => {
+        let cancelled = false
+        ;(async () => {
+            try {
+                setLoading(true); setError(null)
+                setLoadingFinished(true); setErrorFinished(null)
+
+                const [dataUpcoming, dataFinished] = await Promise.all([
+                    fetchTournaments("upcoming"),
+                    fetchTournaments("finished"),
+                ])
+
+                if (!cancelled) {
+                    setUpcoming(dataUpcoming as TournamentCardWithUuid[])
+                    setFinished(dataFinished as TournamentCardWithUuid[])
+                }
+            } catch (e: any) {
+                if (!cancelled) {
+                    setError(e?.message ?? "Failed to load tournaments")
+                    setErrorFinished(e?.message ?? "Failed to load finished tournaments")
+                    setUpcoming([])
+                    setFinished([])
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoading(false)
+                    setLoadingFinished(false)
+                }
+            }
+        })()
+        return () => { cancelled = true }
+    }, [])
+
+    const visibleFinished = useMemo(
+        () => (showAllFinished ? finished : finished.slice(0, FINISHED_PREVIEW_LIMIT)),
+        [finished, showAllFinished],
+    )
+    const finishedHasMore = finished.length > FINISHED_PREVIEW_LIMIT
+
+    // Apply search + filters to upcoming
+    const filteredUpcoming = useMemo(() => {
+        const q = search.trim().toLowerCase()
+        const loc = locationFilter.trim().toLowerCase()
+        const min = parseNum(priceMin)
+        const max = parseNum(priceMax)
+        const me = userPos ? { lat: userPos[0], lng: userPos[1] } : null
+        return upcoming.filter((t) => {
+            if (q && !t.name.toLowerCase().includes(q)) return false
+            if (loc && !(t.location ?? "").toLowerCase().includes(loc)) return false
+            if (typeof t.entryPrice === "number") {
+                if (min != null && t.entryPrice < min) return false
+                if (max != null && t.entryPrice > max) return false
+            } else {
+                // tournaments without a known entryPrice are filtered out only when a price filter is active
+                if (min != null || max != null) return false
+            }
+            // Nearby filter — only when both user location AND a radius are set
+            if (me && radiusKm != null) {
+                if (typeof t.latitude !== "number" || typeof t.longitude !== "number") {
+                    // tournament has no geocoded coords → exclude when filtering by distance
+                    return false
+                }
+                if (haversineKm(me, { lat: t.latitude, lng: t.longitude }) > radiusKm) return false
+            }
+            return true
+        })
+    }, [upcoming, search, locationFilter, priceMin, priceMax, userPos, radiusKm])
+
+    const isFiltering =
+        search.trim().length > 0 || activeFilterCount > 0
+
+    const gridCols = { base: "1fr", md: "1fr 1fr", lg: "1fr 1fr 1fr" }
+
+    return (
+        <VStack align="stretch" gap="8">
+            {/* ===================== Upcoming ===================== */}
+            <Box>
+                {/* Filter card + Kreiraj turnir, side-by-side on md+, stacked on mobile.
+                    align="stretch" so the button matches the card's height on md+. */}
+                {!loading && upcoming.length > 0 && (
+                    <HStack align="stretch" gap="3" wrap="wrap" mb="4">
+                    <Card.Root
+                        variant="outline"
+                        rounded="xl"
+                        borderColor="border.emphasized"
+                        shadow="sm"
+                        flex="1"
+                        minW={{ base: "100%", md: "0" }}
+                    >
+                        <Card.Body py="3" px={{ base: "3", md: "4" }}>
+                            <HStack gap="2" wrap="wrap">
+                                <Box position="relative" flex="1" minW={{ base: "100%", md: "260px" }}>
+                                    <Box
+                                        position="absolute"
+                                        left="3"
+                                        top="50%"
+                                        style={{ transform: "translateY(-50%)" }}
+                                        color="fg.muted"
+                                        pointerEvents="none"
+                                    >
+                                        <FiSearch />
+                                    </Box>
+                                    <Input
+                                        size="sm"
+                                        pl="9"
+                                        pr={search ? "9" : "3"}
+                                        placeholder="Pretraži po imenu turnira…"
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                    />
+                                    {search && (
+                                        <IconButton
+                                            aria-label="Očisti pretragu"
+                                            size="2xs"
+                                            variant="ghost"
+                                            position="absolute"
+                                            right="2"
+                                            top="50%"
+                                            style={{ transform: "translateY(-50%)" }}
+                                            onClick={() => setSearch("")}
+                                        >
+                                            <FiX />
+                                        </IconButton>
+                                    )}
+                                </Box>
+                                <Button
+                                    size="sm"
+                                    variant={activeFilterCount > 0 ? "solid" : "outline"}
+                                    colorPalette={activeFilterCount > 0 ? "blue" : "gray"}
+                                    onClick={() => setFiltersOpen((v) => !v)}
+                                    aria-expanded={filtersOpen}
+                                    title={filtersOpen ? "Sakrij filtere" : "Prikaži filtere"}
+                                >
+                                    <FiFilter /> Filteri
+                                    {activeFilterCount > 0 && (
+                                        <Badge ml="1" colorPalette="blue" variant="solid" size="sm">
+                                            {activeFilterCount}
+                                        </Badge>
+                                    )}
+                                    {filtersOpen ? <FiChevronUp /> : <FiChevronDown />}
+                                </Button>
+                                {isFiltering && (
+                                    <Button size="sm" variant="ghost" onClick={resetFilters}>
+                                        Očisti sve
+                                    </Button>
+                                )}
+                            </HStack>
+
+                            {filtersOpen && (
+                                <>
+                                    <Box
+                                        mt="3"
+                                        pt="3"
+                                        borderTopWidth="1px"
+                                        borderColor="border.emphasized"
+                                        display="grid"
+                                        gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }}
+                                        gap="3"
+                                    >
+                                        <Box>
+                                            <Text fontSize="xs" fontWeight="medium" color="fg.muted" mb="1">
+                                                Lokacija
+                                            </Text>
+                                            <Input
+                                                size="sm"
+                                                placeholder="npr. Zagreb"
+                                                value={locationFilter}
+                                                onChange={(e) => setLocationFilter(e.target.value)}
+                                            />
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="xs" fontWeight="medium" color="fg.muted" mb="1">
+                                                Kotizacija (€)
+                                            </Text>
+                                            <HStack gap="2">
+                                                <Input
+                                                    size="sm"
+                                                    inputMode="decimal"
+                                                    placeholder="od"
+                                                    value={priceMin}
+                                                    onChange={(e) => setPriceMin(sanitizeNum(e.target.value))}
+                                                />
+                                                <Text color="fg.muted">–</Text>
+                                                <Input
+                                                    size="sm"
+                                                    inputMode="decimal"
+                                                    placeholder="do"
+                                                    value={priceMax}
+                                                    onChange={(e) => setPriceMax(sanitizeNum(e.target.value))}
+                                                />
+                                            </HStack>
+                                        </Box>
+                                    </Box>
+
+                                    {/* Nearby radius row */}
+                                    <HStack
+                                        mt="3"
+                                        gap="2"
+                                        wrap="wrap"
+                                        align="center"
+                                    >
+                                        <Text fontSize="xs" fontWeight="medium" color="fg.muted">
+                                            U krugu od:
+                                        </Text>
+                                        {[
+                                            { label: "10 km", km: 10 as number | null },
+                                            { label: "20 km", km: 20 },
+                                            { label: "50 km", km: 50 },
+                                            { label: "100 km", km: 100 },
+                                            { label: "Sve", km: null },
+                                        ].map((opt) => {
+                                            const active = radiusKm === opt.km
+                                            return (
+                                                <Button
+                                                    key={opt.label}
+                                                    size="xs"
+                                                    variant={active ? "solid" : "outline"}
+                                                    colorPalette={active ? "blue" : "gray"}
+                                                    onClick={() => setRadiusKm(opt.km)}
+                                                    disabled={!userPos}
+                                                    title={!userPos ? "Najprije uključi lokaciju" : undefined}
+                                                >
+                                                    {opt.label}
+                                                </Button>
+                                            )
+                                        })}
+                                        {!userPos && (
+                                            <Button
+                                                size="xs"
+                                                variant="ghost"
+                                                colorPalette="blue"
+                                                onClick={requestLocation}
+                                                disabled={geoStatus === "asking" || geoStatus === "unsupported"}
+                                                loading={geoStatus === "asking"}
+                                            >
+                                                <FiNavigation /> Uključi lokaciju
+                                            </Button>
+                                        )}
+                                        {geoStatus === "denied" && (
+                                            <Text fontSize="xs" color="fg.muted">
+                                                Lokacija je odbijena u pregledniku.
+                                            </Text>
+                                        )}
+                                    </HStack>
+                                </>
+                            )}
+                        </Card.Body>
+                    </Card.Root>
+                        <Button
+                            asChild
+                            size="sm"
+                            variant="solid"
+                            colorPalette="blue"
+                            flexShrink={0}
+                            rounded="lg"
+                            alignSelf={{ base: "flex-end", md: "center" }}
+                        >
+                            <RouterLink to="/tournaments/new">
+                                <FiPlus /> Kreiraj turnir
+                            </RouterLink>
+                        </Button>
+                    </HStack>
+                )}
+
+                {/* When upcoming.length === 0, no separate create button is
+                    rendered here — the empty state below has its own inline
+                    CTA so we don't double up. */}
+
+                {loading ? (
+                    <Box display="grid" gridTemplateColumns={gridCols} gap="4">
+                        <CardSkeleton />
+                        <CardSkeleton />
+                        <CardSkeleton />
+                    </Box>
+                ) : upcoming.length === 0 ? (
+                    <EmptyState
+                        title={error ? "Nije moguće učitati turnire" : "Nema nadolazećih turnira"}
+                        description={
+                            error
+                                ? error
+                                : "Kreiraj prvi turnir i počni primati prijave parova."
+                        }
+                        cta={
+                            !error && (
+                                <Button asChild size="sm" colorPalette="blue">
+                                    <RouterLink to="/tournaments/new">
+                                        <FiPlus /> Kreiraj turnir
+                                    </RouterLink>
+                                </Button>
+                            )
+                        }
+                    />
+                ) : filteredUpcoming.length === 0 ? (
+                    <EmptyState
+                        title="Nema rezultata"
+                        description="Nijedan turnir ne odgovara odabranim filterima."
+                        cta={
+                            <Button size="sm" variant="outline" onClick={resetFilters}>
+                                Očisti filtere
+                            </Button>
+                        }
+                    />
+                ) : (
+                    <Box display="grid" gridTemplateColumns={gridCols} gap="4">
+                        {filteredUpcoming.map((t) => (
+                            <TournamentCardView key={t.uuid} t={t} variant="upcoming" />
+                        ))}
+                    </Box>
+                )}
+            </Box>
+
+            {/* ===================== Finished ===================== */}
+            <Box>
+                <HStack justify="space-between" mb="4" gap="3" wrap="wrap">
+                    <Heading size="lg">Završeni turniri</Heading>
+
+                    {!loadingFinished && finishedHasMore && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowAllFinished((v) => !v)}
+                        >
+                            {showAllFinished ? "Prikaži manje" : "Prikaži sve"}
+                        </Button>
+                    )}
+                </HStack>
+
+                {loadingFinished ? (
+                    <Box display="grid" gridTemplateColumns={gridCols} gap="4">
+                        <CardSkeleton />
+                        <CardSkeleton />
+                        <CardSkeleton />
+                    </Box>
+                ) : finished.length === 0 ? (
+                    <EmptyState
+                        title={
+                            errorFinished
+                                ? "Nije moguće učitati završene turnire"
+                                : "Još nema završenih turnira"
+                        }
+                        description={
+                            errorFinished
+                                ? errorFinished
+                                : "Završeni turniri će se ovdje pojaviti nakon što ih završiš."
+                        }
+                    />
+                ) : (
+                    <Box display="grid" gridTemplateColumns={gridCols} gap="4">
+                        {visibleFinished.map((t) => (
+                            <TournamentCardView key={t.uuid} t={t} variant="finished" />
+                        ))}
+                    </Box>
+                )}
+            </Box>
+        </VStack>
+    )
+}

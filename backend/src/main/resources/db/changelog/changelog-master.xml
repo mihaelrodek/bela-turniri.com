@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+    http://www.liquibase.org/xml/ns/dbchangelog
+    https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <include file="db/changelog/pgcrypto.xml"/>
+    <include file="/db/changelog/resources.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/tournaments.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/additional_options.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/tournament_additional_options.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/rounds.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/pairs.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/matches.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/repassage_purchase.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/standings.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/pair_requests.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/tournament_geocoding.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/pair_requests_phone_optional.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/tournament_creator.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/pairs_self_register.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/user_pair_presets.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/pair_requests_creator.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/user_profiles.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/user_profiles_slug.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/tournaments_soft_delete.xml" relativeToChangelogFile="false"/>
+
+</databaseChangeLog>

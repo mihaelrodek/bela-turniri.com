@@ -1,0 +1,41 @@
+package hr.mrodek.apps.bela_turniri.model;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "user_profiles")
+@Getter @Setter @NoArgsConstructor
+public class UserProfile {
+
+    /** Firebase UID, used as the primary key — one row per user. */
+    @Id
+    @Column(name = "user_uid", length = 64)
+    private String userUid;
+
+    @Column(name = "phone_country", length = 8)
+    private String phoneCountry;
+
+    @Column(name = "phone", length = 50)
+    private String phone;
+
+    /** Mirrored from Firebase on every /user/me/sync — used to label public profiles. */
+    @Column(name = "display_name", length = 200)
+    private String displayName;
+
+    /**
+     * Public, URL-safe handle used at /profile/{slug}. Derived from displayName
+     * with auto-numbered collision (-2, -3) and made unique by an index.
+     */
+    @Column(name = "slug", length = 200)
+    private String slug;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private OffsetDateTime updatedAt;
+}
