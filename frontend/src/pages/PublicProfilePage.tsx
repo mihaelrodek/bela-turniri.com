@@ -106,8 +106,8 @@ export default function PublicProfilePage() {
     const totalWins = (profile?.pairs ?? []).reduce((sum, p) => sum + (p.wins ?? 0), 0)
     useDocumentHead({
         title: profile?.displayName
-            ? `${profile.displayName} — Bela igrač | bela-turniri.hr`
-            : "Bela igrač — bela-turniri.hr",
+            ? `${profile.displayName} — Bela igrač | bela-turniri.com`
+            : "Bela igrač — bela-turniri.com",
         description: profile?.displayName
             ? `${profile.displayName} — povijest nastupa na Bela turnirima. ${totalTournaments} turnira, ${totalWins} pobjeda.`
             : undefined,
@@ -116,7 +116,7 @@ export default function PublicProfilePage() {
             ? `Povijest nastupa na Bela turnirima — ${totalTournaments} turnira, ${totalWins} pobjeda.`
             : undefined,
         ogType: "profile",
-        canonical: slug ? `https://bela-turniri.hr/profile/${slug}` : undefined,
+        canonical: slug ? `https://bela-turniri.com/profile/${slug}` : undefined,
     })
 
     useEffect(() => {

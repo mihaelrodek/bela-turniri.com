@@ -43,7 +43,7 @@ public class TournamentPreviewController {
     @Inject
     TournamentsRepository tournamentsRepo;
 
-    @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.hr")
+    @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.com")
     String publicBaseUrl;
 
     @ConfigProperty(name = "app.default-og-image", defaultValue = "")
@@ -89,7 +89,7 @@ public class TournamentPreviewController {
     /**
      * Compose the og:description as: "{location} • {datetime} • Kotizacija
      * {entry} € + repasaž {repassage} € • Prijavi se i pogledaj sve detalje
-     * turnira na bela-turniri.hr". Each segment is added only when its
+     * turnira na bela-turniri.com". Each segment is added only when its
      * source field is present so we don't ship dangling separators.
      */
     String buildDescription(Tournaments t) {
@@ -113,7 +113,7 @@ public class TournamentPreviewController {
             sb.append(" + repasaž ").append(formatEur(rep)).append(" €");
         }
 
-        sb.append(" • Prijavi se i pogledaj sve detalje turnira na bela-turniri.hr");
+        sb.append(" • Prijavi se i pogledaj sve detalje turnira na bela-turniri.com");
         return sb.toString();
     }
 
@@ -139,14 +139,14 @@ public class TournamentPreviewController {
         sb.append("<html lang=\"hr\">\n<head>\n");
         sb.append("<meta charset=\"UTF-8\">\n");
         sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
-        sb.append("<title>").append(escapeHtml(name)).append(" — bela-turniri.hr</title>\n");
+        sb.append("<title>").append(escapeHtml(name)).append(" — bela-turniri.com</title>\n");
         sb.append("<meta name=\"description\" content=\"").append(escapeAttr(description)).append("\">\n");
         sb.append("<link rel=\"canonical\" href=\"").append(escapeAttr(spaUrl)).append("\">\n");
 
         // OpenGraph
         sb.append("<meta property=\"og:type\" content=\"article\">\n");
         sb.append("<meta property=\"og:locale\" content=\"hr_HR\">\n");
-        sb.append("<meta property=\"og:site_name\" content=\"bela-turniri.hr\">\n");
+        sb.append("<meta property=\"og:site_name\" content=\"bela-turniri.com\">\n");
         sb.append("<meta property=\"og:title\" content=\"").append(escapeAttr(name)).append("\">\n");
         sb.append("<meta property=\"og:description\" content=\"").append(escapeAttr(description)).append("\">\n");
         sb.append("<meta property=\"og:url\" content=\"").append(escapeAttr(spaUrl)).append("\">\n");
@@ -181,7 +181,7 @@ public class TournamentPreviewController {
                 <!doctype html>
                 <html lang="hr"><head>
                 <meta charset="UTF-8">
-                <title>Turnir nije pronađen — bela-turniri.hr</title>
+                <title>Turnir nije pronađen — bela-turniri.com</title>
                 <meta name="description" content="Traženi turnir ne postoji ili je uklonjen.">
                 </head><body><p>Turnir nije pronađen.</p></body></html>
                 """;
@@ -195,13 +195,4 @@ public class TournamentPreviewController {
                 .replace(">", "&gt;");
     }
 
-    /** Stricter escape for attribute values (also escapes quotes). */
-    private static String escapeAttr(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#39;");
-    }
-}
+  

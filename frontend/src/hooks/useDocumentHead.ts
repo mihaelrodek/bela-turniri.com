@@ -16,11 +16,11 @@ import { useEffect } from "react"
  *
  * Usage:
  *   useDocumentHead({
- *     title: "Velika Bela Liga, Zagreb — bela-turniri.hr",
+ *     title: "Velika Bela Liga, Zagreb — bela-turniri.com",
  *     description: "...",
  *     ogTitle: "Velika Bela Liga, Zagreb",
  *     ogImage: "https://...",
- *     canonical: "https://bela-turniri.hr/tournaments/abc",
+ *     canonical: "https://bela-turniri.com/tournaments/abc",
  *   })
  */
 export type DocumentHead = {
@@ -33,9 +33,9 @@ export type DocumentHead = {
     canonical?: string
 }
 
-const DEFAULT_TITLE = "bela-turniri.hr — Bela turniri"
+const DEFAULT_TITLE = "bela-turniri.com — Bela turniri"
 const DEFAULT_DESCRIPTION =
-    "bela-turniri.hr — organiziraj i prati Bela turnire. Pretraži nadolazeće turnire, pridruži se paru i prati rezultate."
+    "bela-turniri.com — organiziraj i prati Bela turnire. Pretraži nadolazeće turnire, pridruži se paru i prati rezultate."
 
 export function useDocumentHead(head: DocumentHead) {
     useEffect(() => {

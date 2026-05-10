@@ -464,8 +464,8 @@ export default function TournamentDetailsPage() {
     // tournament loads, then upgrades in place. Description prefers the
     // organizer's `details` text, trimmed to ~160 characters.
     const headTitle = t?.name
-        ? `${t.name}${t.location ? `, ${t.location}` : ""} — bela-turniri.hr`
-        : "Turnir — bela-turniri.hr"
+        ? `${t.name}${t.location ? `, ${t.location}` : ""} — bela-turniri.com`
+        : "Turnir — bela-turniri.com"
     const headDesc = (() => {
         const raw = t?.details?.trim()
         const start = t?.startAt ? new Date(t.startAt).toLocaleDateString("hr-HR") : null
@@ -485,7 +485,7 @@ export default function TournamentDetailsPage() {
         ogDescription: headDesc,
         ogImage: t?.bannerUrl ?? undefined,
         ogType: "article",
-        canonical: uuid ? `https://bela-turniri.hr/tournaments/${uuid}` : undefined,
+        canonical: uuid ? `https://bela-turniri.com/tournaments/${uuid}` : undefined,
     })
 
     function enterDetailsEdit() {

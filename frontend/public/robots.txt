@@ -1,4 +1,4 @@
-# bela-turniri.hr — crawler instructions.
+# bela-turniri.com — crawler instructions.
 # The actual sitemap is generated dynamically by the backend so it always
 # reflects the current set of tournaments and player profiles.
 
@@ -9,4 +9,4 @@ Disallow: /tournaments/new
 Disallow: /find-pair
 Disallow: /api/
 
-Sitemap: https://bela-turniri.hr/api/sitemap.xml
+Sitemap: https://bela-turniri.com/api/sitemap.xml

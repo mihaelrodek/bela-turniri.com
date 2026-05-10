@@ -39,7 +39,7 @@ public class StartupSanityCheck {
     @ConfigProperty(name = "quarkus.oidc.client-id")
     String firebaseProjectId;
 
-    @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.hr")
+    @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.com")
     String publicBaseUrl;
 
     @ConfigProperty(name = "minio.endpoint")
@@ -59,7 +59,7 @@ public class StartupSanityCheck {
             warnings.add("CORS_ORIGINS is unset or points at localhost (current value: '"
                     + corsOrigins
                     + "'). The frontend will be rejected by the API. Set it to e.g. "
-                    + "'https://bela-turniri.hr,https://www.bela-turniri.hr'.");
+                    + "'https://bela-turniri.com,https://www.bela-turniri.com'.");
         }
 
         if (firebaseProjectId == null

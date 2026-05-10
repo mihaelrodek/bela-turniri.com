@@ -1,4 +1,4 @@
-# Caddy reverse proxy + SPA host for bela-turniri.hr.
+# Caddy reverse proxy + SPA host for bela-turniri.com.
 #
 # Runs inside the `edge` container (see frontend/Dockerfile). Talks to the
 # `backend` service over the internal Docker network. Auto-fetches and
@@ -15,7 +15,7 @@
     email mihael.rodek1@gmail.com
 }
 
-bela-turniri.hr, www.bela-turniri.hr {
+bela-turniri.com, www.bela-turniri.com {
     encode zstd gzip
 
     # ─── 1. API — pass through to backend ─────────────────────────────

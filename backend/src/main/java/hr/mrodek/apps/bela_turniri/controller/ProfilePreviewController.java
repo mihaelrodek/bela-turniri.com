@@ -39,7 +39,7 @@ public class ProfilePreviewController {
     @Inject UserPairPresetRepository presetRepo;
     @Inject PairsRepository pairRepo;
 
-    @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.hr")
+    @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.com")
     String publicBaseUrl;
 
     @ConfigProperty(name = "app.default-og-image", defaultValue = "")
@@ -90,7 +90,7 @@ public class ProfilePreviewController {
     /* ───────────────────── helpers ───────────────────── */
 
     /**
-     * "{name} — {total} turnira, {wins} pobjeda na bela-turniri.hr".
+     * "{name} — {total} turnira, {wins} pobjeda na bela-turniri.com".
      * Uses Croatian noun-form rules for "turnir" / "pobjeda" so the
      * preview reads naturally for 1, 2-4, and 5+ counts.
      */
@@ -100,7 +100,7 @@ public class ProfilePreviewController {
                 + totalTournaments + " " + plurariseTurnir(totalTournaments)
                 + ", "
                 + wins + " " + plurarisePobjeda(wins)
-                + " na bela-turniri.hr";
+                + " na bela-turniri.com";
     }
 
     /** Croatian plural rule for "turnir": 1=turnir, 2-4=turnira, 5+=turnira (genitive plural). */
@@ -127,13 +127,13 @@ public class ProfilePreviewController {
         sb.append("<html lang=\"hr\">\n<head>\n");
         sb.append("<meta charset=\"UTF-8\">\n");
         sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
-        sb.append("<title>").append(escapeHtml(name)).append(" — bela-turniri.hr</title>\n");
+        sb.append("<title>").append(escapeHtml(name)).append(" — bela-turniri.com</title>\n");
         sb.append("<meta name=\"description\" content=\"").append(escapeAttr(description)).append("\">\n");
         sb.append("<link rel=\"canonical\" href=\"").append(escapeAttr(spaUrl)).append("\">\n");
 
         sb.append("<meta property=\"og:type\" content=\"profile\">\n");
         sb.append("<meta property=\"og:locale\" content=\"hr_HR\">\n");
-        sb.append("<meta property=\"og:site_name\" content=\"bela-turniri.hr\">\n");
+        sb.append("<meta property=\"og:site_name\" content=\"bela-turniri.com\">\n");
         sb.append("<meta property=\"og:title\" content=\"").append(escapeAttr(name)).append("\">\n");
         sb.append("<meta property=\"og:description\" content=\"").append(escapeAttr(description)).append("\">\n");
         sb.append("<meta property=\"og:url\" content=\"").append(escapeAttr(spaUrl)).append("\">\n");
@@ -167,7 +167,7 @@ public class ProfilePreviewController {
                 <!doctype html>
                 <html lang="hr"><head>
                 <meta charset="UTF-8">
-                <title>Profil nije pronađen — bela-turniri.hr</title>
+                <title>Profil nije pronađen — bela-turniri.com</title>
                 <meta name="description" content="Traženi profil ne postoji.">
                 </head><body><p>Profil nije pronađen.</p></body></html>
                 """;
