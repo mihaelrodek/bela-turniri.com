@@ -82,19 +82,6 @@ const defaultTime = () => {
     const d = new Date()
     return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
-/**
- * "now" formatted for the {@code min} attribute of an
- * {@code <input type="datetime-local">}: {@code YYYY-MM-DDTHH:mm}. Built in
- * the user's local timezone, same as how the browser interprets the input
- * value, so you can't pick a moment earlier than now.
- */
-const nowLocalDatetime = () => {
-    const d = new Date()
-    return (
-        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-        `T${pad(d.getHours())}:${pad(d.getMinutes())}`
-    )
-}
 const toNumber = (v: string) => {
     const cleaned = v.replace(/[ €]/g, "").replace(",", ".")
     const n = parseFloat(cleaned)
@@ -119,71 +106,6 @@ const sanitizeInt = (raw: string) => raw.replace(/[^\d]/g, "")
  * a separate select, so a leading "+" or country digits aren't expected here.
  */
 const sanitizePhone = (raw: string) => raw.replace(/[^\d\s]/g, "")
-
-/* ───────────── HR date/time helpers ─────────────
- *
- * Native <input type="datetime-local"> defers to the OS/browser locale for
- * its rendered format — even with lang="hr-HR", a US-locale Windows install
- * shows AM/PM and MM/DD/YYYY. To guarantee dd/MM/yyyy + 24h regardless of
- * environment, we use plain text inputs with auto-formatting.
- *
- * State still stores ISO ("2026-04-22") and 24h time ("19:00") for the
- * backend; only the display layer is translated.
- */
-
-/** "2026-04-22" → "22/04/2026". Returns "" for empty/invalid input. */
-function isoDateToHR(iso: string): string {
-    if (!iso) return ""
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
-    if (!m) return ""
-    return `${m[3]}/${m[2]}/${m[1]}`
-}
-
-/** "22/04/2026" → "2026-04-22". Returns "" for incomplete or invalid input. */
-function hrDateToIso(hr: string): string {
-    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(hr)
-    if (!m) return ""
-    const day = parseInt(m[1], 10)
-    const month = parseInt(m[2], 10)
-    const year = parseInt(m[3], 10)
-    if (month < 1 || month > 12) return ""
-    if (day < 1 || day > 31) return ""
-    if (year < 1900 || year > 2999) return ""
-    // Verify the date round-trips (rejects e.g. 31/02/2026).
-    const d = new Date(year, month - 1, day)
-    if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return ""
-    return `${m[3]}-${m[2]}-${m[1]}`
-}
-
-/**
- * As-you-type formatter for the HR date input. Strips non-digits, inserts
- * slashes after positions 2 and 4, caps total digits at 8 → "dd/MM/yyyy".
- */
-function formatHRDateAsYouType(raw: string): string {
-    const digits = raw.replace(/\D/g, "").slice(0, 8)
-    const parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean)
-    return parts.join("/")
-}
-
-/** "19:00" passthrough — already 24h. Returns "" for invalid. */
-function normalizeTime(hhmm: string): string {
-    const m = /^(\d{2}):(\d{2})$/.exec(hhmm)
-    if (!m) return ""
-    const hh = parseInt(m[1], 10)
-    const mm = parseInt(m[2], 10)
-    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return ""
-    return `${m[1]}:${m[2]}`
-}
-
-/**
- * As-you-type formatter for the time input. Strips non-digits, inserts a
- * colon after position 2, caps at 4 digits → "HH:MM" (24h).
- */
-function formatTimeAsYouType(raw: string): string {
-    const digits = raw.replace(/\D/g, "").slice(0, 4)
-    if (digits.length <= 2) return digits
-    return `${digits.slice(0, 2)}:${digits.slice(2)}`
-}
 
 // local date+time → OffsetDateTime string (e.g. 2025-11-02T19:00:00+01:00)
 function toLocalOffsetIso(dateStr: string, timeStr: string): string | null {
