@@ -12,6 +12,7 @@ public interface PairRequestMapper {
     @Mappings({
             @Mapping(target = "uuid", source = "uuid"),
             @Mapping(target = "tournamentUuid", source = "tournament.uuid"),
+            @Mapping(target = "tournamentSlug", source = "tournament.slug"),
             @Mapping(target = "tournamentName", source = "tournament.name"),
             @Mapping(target = "tournamentLocation", source = "tournament.location"),
             @Mapping(target = "tournamentStartAt", source = "tournament.startAt"),

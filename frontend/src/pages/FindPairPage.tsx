@@ -465,10 +465,13 @@ export default function FindPairPage() {
                                                 flex="1"
                                                 size="sm"
                                                 type="tel"
-                                                inputMode="tel"
+                                                inputMode="numeric"
+                                                pattern="[0-9 ]*"
                                                 placeholder="91 234 5678"
                                                 value={phone}
-                                                onChange={(e) => setPhone(e.target.value)}
+                                                // Digits + spaces only — country dial code lives
+                                                // in the adjacent select.
+                                                onChange={(e) => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
                                             />
                                         </HStack>
                                     </Field.Root>
@@ -477,7 +480,7 @@ export default function FindPairPage() {
                                 <Field.Root>
                                     <Field.Label>Napomena (opcionalno)</Field.Label>
                                     <Textarea
-                                        placeholder="Razina igre, vremenske preferencije, gdje smo uobičajeno…"
+                                        placeholder="Iskustvo, način igranja, prijevoz..."
                                         value={note}
                                         onChange={(e) => setNote(e.target.value)}
                                         rows={3}
@@ -541,7 +544,7 @@ export default function FindPairPage() {
                             </Text>
                             <Input
                                 size="sm"
-                                placeholder="ime, turnir, lokacija…"
+                                placeholder="Pretraži po imenu, lokaciji…"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                             />
@@ -722,7 +725,7 @@ function RequestCard({
 
             {/* Tournament link */}
             <RouterLink
-                to={`/tournaments/${r.tournamentUuid}`}
+                to={`/tournaments/${r.tournamentSlug ?? r.tournamentUuid}`}
                 style={{ textDecoration: "none" }}
             >
                 <Box

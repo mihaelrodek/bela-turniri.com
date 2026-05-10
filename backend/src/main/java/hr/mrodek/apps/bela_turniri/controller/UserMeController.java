@@ -4,6 +4,7 @@ import hr.mrodek.apps.bela_turniri.dtos.MyTournamentParticipationDto;
 import hr.mrodek.apps.bela_turniri.dtos.SyncProfileRequest;
 import hr.mrodek.apps.bela_turniri.dtos.UserProfileDto;
 import hr.mrodek.apps.bela_turniri.model.Pairs;
+import hr.mrodek.apps.bela_turniri.model.Resources;
 import hr.mrodek.apps.bela_turniri.model.Tournaments;
 import hr.mrodek.apps.bela_turniri.model.UserPairPreset;
 import hr.mrodek.apps.bela_turniri.model.UserProfile;
@@ -11,11 +12,14 @@ import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
 import hr.mrodek.apps.bela_turniri.services.SlugService;
+import hr.mrodek.apps.bela_turniri.services.StorageService;
 import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
+import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -23,6 +27,8 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.jwt.JsonWebToken;
+import org.jboss.resteasy.reactive.RestForm;
+import org.jboss.resteasy.reactive.multipart.FileUpload;
 
 import java.util.List;
 
@@ -41,6 +47,7 @@ public class UserMeController {
     @Inject UserPairPresetRepository presetRepo;
     @Inject UserProfileRepository profileRepo;
     @Inject SlugService slugService;
+    @Inject StorageService storageService;
     @Inject JsonWebToken jwt;
 
     @GET
@@ -59,10 +66,11 @@ public class UserMeController {
 
     @GET
     @Path("/profile")
+    @Transactional   // touch the lazy avatar relation
     public UserProfileDto getProfile() {
         var p = profileRepo.findByUid(jwt.getSubject()).orElse(null);
-        if (p == null) return new UserProfileDto(null, null, null, null);
-        return new UserProfileDto(p.getPhoneCountry(), p.getPhone(), p.getDisplayName(), p.getSlug());
+        if (p == null) return new UserProfileDto(null, null, null, null, null);
+        return toDto(p);
     }
 
     @PUT
@@ -77,12 +85,10 @@ public class UserMeController {
         }
         existing.setPhoneCountry(blank(body.phoneCountry()));
         existing.setPhone(blank(body.phone()));
+        // body.avatarUrl is intentionally ignored — avatars are managed via
+        // the dedicated /avatar endpoints, not via PUT /profile.
         profileRepo.persist(existing);
-        return new UserProfileDto(
-                existing.getPhoneCountry(),
-                existing.getPhone(),
-                existing.getDisplayName(),
-                existing.getSlug());
+        return toDto(existing);
     }
 
     /**
@@ -103,15 +109,71 @@ public class UserMeController {
         String displayName = body == null ? null : blank(body.displayName());
         var profile = slugService.ensureProfile(uid, displayName);
         // ensureProfile returns the persisted entity with the slug guaranteed.
-        return new UserProfileDto(
-                profile.getPhoneCountry(),
-                profile.getPhone(),
-                profile.getDisplayName(),
-                profile.getSlug());
+        return toDto(profile);
+    }
+
+    /**
+     * Upload (or replace) the current user's avatar. Multipart form with a
+     * single {@code avatar} part. The previous avatar's resource row is
+     * unlinked but not deleted from MinIO — a future cleanup job can sweep
+     * orphans by querying for resources with no FK referrers.
+     */
+    @POST
+    @Path("/avatar")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    @Transactional
+    public UserProfileDto uploadAvatar(@RestForm("avatar") FileUpload avatar) {
+        if (avatar == null || avatar.size() == 0) {
+            throw new BadRequestException("Missing 'avatar' part");
+        }
+        String uid = jwt.getSubject();
+        var profile = profileRepo.findByUid(uid).orElse(null);
+        if (profile == null) {
+            // First-time uploaders may not have an entity yet — make one.
+            profile = new UserProfile();
+            profile.setUserUid(uid);
+        }
+        Resources newResource = storageService.uploadAvatar(avatar);
+        profile.setAvatar(newResource);
+        profileRepo.persist(profile);
+        return toDto(profile);
+    }
+
+    /** Remove the avatar from the current user's profile (FK set to NULL). */
+    @DELETE
+    @Path("/avatar")
+    @Transactional
+    public UserProfileDto deleteAvatar() {
+        String uid = jwt.getSubject();
+        var profile = profileRepo.findByUid(uid).orElse(null);
+        if (profile == null) return new UserProfileDto(null, null, null, null, null);
+        profile.setAvatar(null);
+        profileRepo.persist(profile);
+        return toDto(profile);
     }
 
     private static String blank(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
+    }
+
+    /**
+     * Build a UserProfileDto from an entity. Computes the proxied avatar URL
+     * from the joined Resources row id; same pattern TournamentMapper uses
+     * for posters. Caller must run inside an active transaction so the lazy
+     * {@code avatar} association can be resolved.
+     */
+    private static UserProfileDto toDto(UserProfile p) {
+        String avatarUrl = null;
+        Resources av = p.getAvatar();
+        if (av != null && av.getId() != null) {
+            avatarUrl = "/api/resources/" + av.getId() + "/image";
+        }
+        return new UserProfileDto(
+                p.getPhoneCountry(),
+                p.getPhone(),
+                p.getDisplayName(),
+                p.getSlug(),
+                avatarUrl);
     }
 
     private MyTournamentParticipationDto toDto(Pairs p) {
@@ -122,6 +184,7 @@ public class UserMeController {
                         && t.getWinnerName().trim().equalsIgnoreCase(p.getName().trim());
         return new MyTournamentParticipationDto(
                 t.getUuid(),
+                t.getSlug(),
                 t.getName(),
                 t.getLocation(),
                 t.getStartAt(),

@@ -12,6 +12,8 @@ import java.util.UUID;
 public class TournamentCardDto {
     private Long id;                 // numeric PK
     private UUID uuid;               // public id
+    /** Pretty URL slug (may be null for legacy rows pre-backfill). */
+    private String slug;
     private String name;
     private String location;
     private Double latitude;

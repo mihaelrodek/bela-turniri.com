@@ -80,10 +80,12 @@ public class PairRequestController {
     @Authenticated
     @Transactional
     public Response create(
-            @PathParam("tournamentUuid") UUID tournamentUuid,
+            @PathParam("tournamentUuid") String tournamentIdOrSlug,
             @Valid CreatePairRequestRequest body
     ) {
-        var t = tournamentsRepo.findByUuid(tournamentUuid).orElse(null);
+        // The path segment can be either a UUID (legacy clients) or the new
+        // tournament slug — both resolve via findByUuidOrSlug.
+        var t = tournamentsRepo.findByUuidOrSlug(tournamentIdOrSlug).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
 
         var r = new PairRequest();
@@ -113,8 +115,8 @@ public class PairRequestController {
 
     @GET
     @Path("/by-tournament/{tournamentUuid}")
-    public Response listForTournament(@PathParam("tournamentUuid") UUID tournamentUuid) {
-        var t = tournamentsRepo.findByUuid(tournamentUuid).orElse(null);
+    public Response listForTournament(@PathParam("tournamentUuid") String tournamentIdOrSlug) {
+        var t = tournamentsRepo.findByUuidOrSlug(tournamentIdOrSlug).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         return Response.ok(redactForAnonymous(mapper.toDtoList(repo.findByTournament_Id(t.getId())))).build();
     }

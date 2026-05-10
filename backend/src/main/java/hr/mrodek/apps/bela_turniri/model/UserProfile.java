@@ -35,6 +35,15 @@ public class UserProfile {
     @Column(name = "slug", length = 200)
     private String slug;
 
+    /**
+     * Optional profile picture. Lazy because most callers don't need the
+     * Resources row's bytes/metadata; the SPA only needs the proxied URL,
+     * which is computed from the resource id alone.
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "avatar_resource_id")
+    private Resources avatar;
+
     @UpdateTimestamp
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;

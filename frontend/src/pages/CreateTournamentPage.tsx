@@ -23,10 +23,19 @@ import {
     FiPhone,
     FiX,
 } from "react-icons/fi"
+import DatePicker, { registerLocale } from "react-datepicker"
+import { hr } from "date-fns/locale"
+import "react-datepicker/dist/react-datepicker.css"
+import "../datepicker.css"
 
 import { createTournament } from "../api/createTournament"
 import { LocationAutocomplete } from "../components/LocationAutocomplete"
 import type { CreateTournamentPayload, RewardType, RepassageUntil } from "../types/tournaments"
+
+// Register the Croatian locale once for the calendar UI (month/day names,
+// week-starts-Monday, etc.). The format itself is forced via the dateFormat
+// prop on each DatePicker so it never falls back to the OS region.
+registerLocale("hr", hr)
 
 // ---------- UI-only types ----------
 type RewardsMode = "fixed" | "percentage"
@@ -73,6 +82,19 @@ const defaultTime = () => {
     const d = new Date()
     return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
+/**
+ * "now" formatted for the {@code min} attribute of an
+ * {@code <input type="datetime-local">}: {@code YYYY-MM-DDTHH:mm}. Built in
+ * the user's local timezone, same as how the browser interprets the input
+ * value, so you can't pick a moment earlier than now.
+ */
+const nowLocalDatetime = () => {
+    const d = new Date()
+    return (
+        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+        `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    )
+}
 const toNumber = (v: string) => {
     const cleaned = v.replace(/[ €]/g, "").replace(",", ".")
     const n = parseFloat(cleaned)
@@ -91,6 +113,77 @@ const sanitizeMoneyInput = (raw: string) => {
     return s
 }
 const sanitizeInt = (raw: string) => raw.replace(/[^\d]/g, "")
+/**
+ * Strip everything except digits + spaces from a phone string. We keep spaces
+ * so users can type "91 234 5678" for readability; the country code is held in
+ * a separate select, so a leading "+" or country digits aren't expected here.
+ */
+const sanitizePhone = (raw: string) => raw.replace(/[^\d\s]/g, "")
+
+/* ───────────── HR date/time helpers ─────────────
+ *
+ * Native <input type="datetime-local"> defers to the OS/browser locale for
+ * its rendered format — even with lang="hr-HR", a US-locale Windows install
+ * shows AM/PM and MM/DD/YYYY. To guarantee dd/MM/yyyy + 24h regardless of
+ * environment, we use plain text inputs with auto-formatting.
+ *
+ * State still stores ISO ("2026-04-22") and 24h time ("19:00") for the
+ * backend; only the display layer is translated.
+ */
+
+/** "2026-04-22" → "22/04/2026". Returns "" for empty/invalid input. */
+function isoDateToHR(iso: string): string {
+    if (!iso) return ""
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+    if (!m) return ""
+    return `${m[3]}/${m[2]}/${m[1]}`
+}
+
+/** "22/04/2026" → "2026-04-22". Returns "" for incomplete or invalid input. */
+function hrDateToIso(hr: string): string {
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(hr)
+    if (!m) return ""
+    const day = parseInt(m[1], 10)
+    const month = parseInt(m[2], 10)
+    const year = parseInt(m[3], 10)
+    if (month < 1 || month > 12) return ""
+    if (day < 1 || day > 31) return ""
+    if (year < 1900 || year > 2999) return ""
+    // Verify the date round-trips (rejects e.g. 31/02/2026).
+    const d = new Date(year, month - 1, day)
+    if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return ""
+    return `${m[3]}-${m[2]}-${m[1]}`
+}
+
+/**
+ * As-you-type formatter for the HR date input. Strips non-digits, inserts
+ * slashes after positions 2 and 4, caps total digits at 8 → "dd/MM/yyyy".
+ */
+function formatHRDateAsYouType(raw: string): string {
+    const digits = raw.replace(/\D/g, "").slice(0, 8)
+    const parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean)
+    return parts.join("/")
+}
+
+/** "19:00" passthrough — already 24h. Returns "" for invalid. */
+function normalizeTime(hhmm: string): string {
+    const m = /^(\d{2}):(\d{2})$/.exec(hhmm)
+    if (!m) return ""
+    const hh = parseInt(m[1], 10)
+    const mm = parseInt(m[2], 10)
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return ""
+    return `${m[1]}:${m[2]}`
+}
+
+/**
+ * As-you-type formatter for the time input. Strips non-digits, inserts a
+ * colon after position 2, caps at 4 digits → "HH:MM" (24h).
+ */
+function formatTimeAsYouType(raw: string): string {
+    const digits = raw.replace(/\D/g, "").slice(0, 4)
+    if (digits.length <= 2) return digits
+    return `${digits.slice(0, 2)}:${digits.slice(2)}`
+}
 
 // local date+time → OffsetDateTime string (e.g. 2025-11-02T19:00:00+01:00)
 function toLocalOffsetIso(dateStr: string, timeStr: string): string | null {
@@ -202,8 +295,8 @@ function PerPairHint({ value }: { value: number }) {
     if (!Number.isFinite(value)) return null
     return (
         <Field.HelperText>
-            {formatMoney(value)}€ <chakra.span color="fg.muted">/par</chakra.span>{" "}
-            • {formatMoney(value / 2)}€ <chakra.span color="fg.muted">/igrač</chakra.span>
+            {formatMoney(value)}€<chakra.span color="fg.muted">/par</chakra.span>{" "}
+            • {formatMoney(value / 2)}€<chakra.span color="fg.muted">/igrač</chakra.span>
         </Field.HelperText>
     )
 }
@@ -237,6 +330,7 @@ export default function CreateTournamentPage() {
     const repPair = toNumber(form.repassagePrice)
     const rep2Pair = toNumber(form.repassageSecondPrice)
 
+
     // required-field summary for the sticky bar
     const missingRequired = useMemo(() => {
         const missing: string[] = []
@@ -256,6 +350,19 @@ export default function CreateTournamentPage() {
         form.fixed,
         form.percent,
     ])
+
+    /**
+     * True iff the user has picked a start moment in the past. Same idea as
+     * the {@code min} attribute on the input, but re-evaluated on every
+     * render so a slow form-fill can't slip behind "now". Used by submit to
+     * block creation outright.
+     */
+    const startInPast = useMemo(() => {
+        if (!form.startDate || !form.startTime) return false
+        const iso = toLocalOffsetIso(form.startDate, form.startTime)
+        if (!iso) return false
+        return new Date(iso).getTime() < Date.now()
+    }, [form.startDate, form.startTime])
 
     const onChange = <K extends keyof FormState>(key: K, value: FormState[K]) =>
         setForm((f) => ({ ...f, [key]: value }))
@@ -311,6 +418,14 @@ export default function CreateTournamentPage() {
     const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
         e.preventDefault()
 
+        // Block past dates outright. The {@code min} attribute on the input
+        // already prevents picking earlier than now, but a slow form-fill
+        // can drift behind, and clients can bypass the attribute anyway.
+        if (startInPast) {
+            alert("Datum i vrijeme turnira ne mogu biti u prošlosti.")
+            return
+        }
+
         const parsedMaxPairs = parseInt(form.maxPairs || "0", 10)
         const maxPairsSafe = Number.isFinite(parsedMaxPairs) && parsedMaxPairs >= 2 ? parsedMaxPairs : 16
 
@@ -356,7 +471,7 @@ export default function CreateTournamentPage() {
         try {
             setSubmitting(true)
             const created = await createTournament(payload, posterFile)
-            navigate(`/tournaments/${created.uuid}`)
+            navigate(`/tournaments/${created.slug ?? created.uuid}`)
         } catch (err: any) {
             console.error(err)
             alert(err?.message ?? "Failed to save tournament")
@@ -397,7 +512,7 @@ export default function CreateTournamentPage() {
                                 <LocationAutocomplete
                                     value={form.location}
                                     onChange={(v) => onChange("location", v)}
-                                    placeholder="npr. Caffe bar Panda, Zagreb"
+                                    placeholder="npr. Caffe bar Belot, Zagreb"
                                 />
                             </Field.Root>
                         </Box>
@@ -412,25 +527,52 @@ export default function CreateTournamentPage() {
                                 <Field.Label>
                                     Datum i vrijeme <Field.RequiredIndicator />
                                 </Field.Label>
-                                <Input
-                                    type="datetime-local"
-                                    value={
-                                        form.startDate && form.startTime
-                                            ? `${form.startDate}T${form.startTime}`
-                                            : ""
-                                    }
-                                    onChange={(e) => {
-                                        const v = e.target.value
-                                        if (!v) {
-                                            onChange("startDate", "")
-                                            onChange("startTime", "")
-                                            return
+                                {/* react-datepicker with HR locale + forced
+                                    dateFormat. This combo guarantees the visible
+                                    format is dd/MM/yyyy and 24h regardless of
+                                    OS region (which is what broke the native
+                                    datetime-local input). State still stores
+                                    ISO date + HH:mm so the backend payload is
+                                    unchanged. */}
+                                <Box className="bela-datepicker-wrap" w="full">
+                                    <DatePicker
+                                        selected={
+                                            form.startDate && form.startTime
+                                                ? new Date(
+                                                      `${form.startDate}T${form.startTime}:00`,
+                                                  )
+                                                : null
                                         }
-                                        const [d, t] = v.split("T")
-                                        onChange("startDate", d || "")
-                                        onChange("startTime", (t || "").slice(0, 5))
-                                    }}
-                                />
+                                        onChange={(d) => {
+                                            if (!d) {
+                                                onChange("startDate", "")
+                                                onChange("startTime", "")
+                                                return
+                                            }
+                                            const yyyy = d.getFullYear()
+                                            const mm = pad(d.getMonth() + 1)
+                                            const dd = pad(d.getDate())
+                                            const hh = pad(d.getHours())
+                                            const mi = pad(d.getMinutes())
+                                            onChange("startDate", `${yyyy}-${mm}-${dd}`)
+                                            onChange("startTime", `${hh}:${mi}`)
+                                        }}
+                                        showTimeSelect
+                                        timeIntervals={15}
+                                        timeFormat="HH:mm"
+                                        timeCaption="Vrijeme"
+                                        dateFormat="dd/MM/yyyy HH:mm"
+                                        locale="hr"
+                                        minDate={new Date()}
+                                        placeholderText="DD/MM/GGGG HH:MM"
+                                        // Stretch the underlying <input> to fill the
+                                        // field width — the library renders a tiny
+                                        // input by default.
+                                        wrapperClassName="bela-datepicker-input-wrap"
+                                        className="bela-datepicker-input"
+                                        popperPlacement="bottom-start"
+                                    />
+                                </Box>
                             </Field.Root>
                             <Field.Root>
                                 <Field.Label>Max. parova</Field.Label>
@@ -450,13 +592,10 @@ export default function CreateTournamentPage() {
                             <Field.Label>Detalji</Field.Label>
                             <Textarea
                                 rows={3}
-                                placeholder="Pravila, parking, hrana, piće..."
+                                placeholder="Dodatne informacije - pravila, parking, hrana, piće..."
                                 value={form.details}
                                 onChange={(e) => onChange("details", e.target.value)}
                             />
-                            <Field.HelperText>
-                                Sve što bi igrači trebali znati prije dolaska.
-                            </Field.HelperText>
                         </Field.Root>
 
                         {/* Poster picker — inline within the card */}
@@ -738,7 +877,7 @@ export default function CreateTournamentPage() {
                         <Field.Root>
                             <Field.Label>Ime</Field.Label>
                             <Input
-                                placeholder="Puno ime organizatora"
+                                placeholder="Ime organizatora"
                                 value={form.contactName}
                                 onChange={(e) => onChange("contactName", e.target.value)}
                             />
@@ -762,10 +901,11 @@ export default function CreateTournamentPage() {
                                 </NativeSelect.Root>
                                 <Input
                                     flex="1"
-                                    inputMode="tel"
+                                    inputMode="numeric"
+                                    pattern="[0-9 ]*"
                                     placeholder="91 234 5678"
                                     value={form.contactPhone}
-                                    onChange={(e) => onChange("contactPhone", e.target.value)}
+                                    onChange={(e) => onChange("contactPhone", sanitizePhone(e.target.value))}
                                 />
                             </HStack>
                         </Field.Root>

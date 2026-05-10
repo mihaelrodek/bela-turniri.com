@@ -34,6 +34,15 @@ public class Tournaments {
     @Column(nullable = false, unique = true)
     private UUID uuid; // DB default via gen_random_uuid(); or set in @PrePersist if you prefer
 
+    /**
+     * Human-readable URL slug, e.g. {@code "1st-bela-open-22-04-2026"}.
+     * Generated from name + startAt on insert/update by SlugGenerator.
+     * Nullable in the DB only because legacy rows are backfilled lazily on
+     * application startup; new rows always have a slug.
+     */
+    @Column(length = 220, unique = true)
+    private String slug;
+
     @Column(nullable = false, length = 200)
     private String name;
 

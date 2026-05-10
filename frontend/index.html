@@ -2,19 +2,24 @@
 <html lang="hr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/bela-turniri-logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#3182ce" />
     <meta name="description" content="bela-turniri.com — organiziraj i prati Bela turnire. Pretraži nadolazeće turnire, pridruži se paru i prati rezultate." />
 
-    <!-- Open Graph / link previews -->
+    <!-- Open Graph / link previews. og:image points at our brand SVG so a
+         link share without per-page <meta> overrides (e.g. the home page or
+         /tournaments) still gets a recognizable thumbnail in WhatsApp,
+         Slack, and Discord. Per-page overrides (poster art on tournament
+         detail, avatar on profile) are set client-side via useDocumentHead. -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="bela-turniri.com — Bela turniri u Hrvatskoj" />
+    <meta property="og:title" content="Bela turniri" />
     <meta property="og:description" content="Organiziraj i prati Bela turnire. Pretraži nadolazeće turnire, pridruži se paru i prati rezultate." />
+    <meta property="og:image" content="/bela-turniri-logo.svg" />
     <meta property="og:locale" content="hr_HR" />
     <meta name="twitter:card" content="summary" />
 
-    <title>bela-turniri.com — Bela turniri</title>
+    <title>Bela turniri</title>
   </head>
   <body>
     <div id="root"></div>

@@ -3,9 +3,13 @@ import * as React from "react"
 import { ThemeProvider, useTheme } from "next-themes"
 
 export function ColorModeProvider({ children }: { children: React.ReactNode }) {
-    // adds `class="light|dark"` to <html> and syncs with system
+    // Force light mode as the default on first visit, ignore the OS preference.
+    // Users can still toggle to dark via the moon icon in the navbar; their
+    // choice is persisted in localStorage by next-themes. Without
+    // `enableSystem={false}` the OS preference would override our default and
+    // dark-mode users would land in dark mode whether they wanted to or not.
     return (
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
             {children}
         </ThemeProvider>
     )

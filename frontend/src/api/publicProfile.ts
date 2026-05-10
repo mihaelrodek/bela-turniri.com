@@ -13,6 +13,15 @@ export type PublicProfile = {
     displayName: string | null
     phoneCountry: string | null
     phone: string | null
+    /**
+     * True when the user has a phone on file. Anonymous callers always see
+     * {@code phone = null} (redacted by the backend), so the SPA uses this
+     * flag to decide whether to render the blurred "Prijavi se da vidiš
+     * broj" placeholder vs. nothing.
+     */
+    hasPhone: boolean
+    /** Proxied URL for the user's avatar, or null if none. */
+    avatarUrl: string | null
     pairs: PairSummary[]
     tournaments: MyTournamentParticipation[]
 }

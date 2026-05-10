@@ -1,12 +1,12 @@
-import React from "react"
+import React, { useEffect, useState } from "react"
 import {
-    Box, Flex, HStack, IconButton, Button, Stack, Container, Menu, Text, useDisclosure,
+    Box, Flex, HStack, IconButton, Image, Button, Stack, Container, Menu, Text, useDisclosure,
 } from "@chakra-ui/react"
 import { Link as RouterLink, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
-// adjust the import path to wherever you put the v3 color-mode helpers
 import { useColorMode, useColorModeValue } from "../color-mode"
 import { FiLogOut, FiMenu, FiMoon, FiSun, FiUser, FiX } from "react-icons/fi"
 import { useAuth } from "../auth/AuthContext"
+import { getProfile } from "../api/userMe"
 
 function NavButton({
                        to, exact, children, onClick,
@@ -22,8 +22,15 @@ function NavButton({
     )
 }
 
-/** Compact user avatar — initials from displayName, email, or fallback. */
-function UserAvatar({ name, email }: { name?: string | null; email?: string | null }) {
+function UserAvatar({
+    name,
+    email,
+    avatarUrl,
+}: {
+    name?: string | null
+    email?: string | null
+    avatarUrl?: string | null
+}) {
     const source = (name || email || "?").trim()
     const initials =
         source
@@ -37,6 +44,7 @@ function UserAvatar({ name, email }: { name?: string | null; email?: string | nu
             w="28px"
             h="28px"
             rounded="full"
+            overflow="hidden"
             bg="blue.subtle"
             color="blue.fg"
             display="flex"
@@ -45,7 +53,17 @@ function UserAvatar({ name, email }: { name?: string | null; email?: string | nu
             fontWeight="semibold"
             fontSize="2xs"
         >
-            {initials}
+            {avatarUrl ? (
+                <Image
+                    src={avatarUrl}
+                    alt={name ?? "Profilna slika"}
+                    w="100%"
+                    h="100%"
+                    objectFit="cover"
+                />
+            ) : (
+                initials
+            )}
         </Box>
     )
 }
@@ -57,6 +75,30 @@ export default function NavBar() {
     const border = useColorModeValue("gray.200", "gray.700")
     const { user, signOut, loading } = useAuth()
     const navigate = useNavigate()
+
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+    useEffect(() => {
+        if (!user?.uid) {
+            setAvatarUrl(null)
+            return
+        }
+        let cancelled = false
+        const refresh = async () => {
+            try {
+                const p = await getProfile()
+                if (!cancelled) setAvatarUrl(p.avatarUrl ?? null)
+            } catch {
+                /* anonymous / network error */
+            }
+        }
+        refresh()
+        const handler = () => refresh()
+        window.addEventListener("bela:profile-updated", handler)
+        return () => {
+            cancelled = true
+            window.removeEventListener("bela:profile-updated", handler)
+        }
+    }, [user?.uid])
 
     async function onSignOut() {
         try {
@@ -84,7 +126,7 @@ export default function NavBar() {
             <Menu.Root>
                 <Menu.Trigger asChild>
                     <Button size="sm" variant="ghost">
-                        <UserAvatar name={user.displayName} email={user.email} />
+                        <UserAvatar name={user.displayName} email={user.email} avatarUrl={avatarUrl} />
                         <Box display={{ base: "none", lg: "block" }} fontSize="sm" fontWeight="medium">
                             {user.displayName || user.email}
                         </Box>
@@ -110,10 +152,13 @@ export default function NavBar() {
         )
     }
 
+    // zIndex must beat Leaflet's internal panes (controls go up to ~800)
+    // because Menu.Positioner is rendered inside this sticky header's
+    // stacking context — without it the profile dropdown ends up behind
+    // the Leaflet map on /map.
     return (
-        <Box as="header" bg={bg} borderBottomWidth="1px" borderColor={border} position="sticky" top={0} zIndex={10}>
+        <Box as="header" bg={bg} borderBottomWidth="1px" borderColor={border} position="sticky" top={0} zIndex={1000}>
             <Container maxW="6xl" py={3}>
-                {/* Desktop: 3-column grid: brand (left) | nav (centered) | auth + theme (right) */}
                 <Box
                     display={{ base: "none", md: "grid" }}
                     gridTemplateColumns="1fr auto 1fr"
@@ -121,8 +166,27 @@ export default function NavBar() {
                     gap={3}
                 >
                     <Box>
-                        <Button asChild variant="ghost" size="sm" fontWeight="semibold">
-                            <RouterLink to="/tournaments">Bela Turniri</RouterLink>
+                        <Button asChild variant="ghost" size="sm" fontWeight="semibold" px="2">
+                            <RouterLink
+                                to="/tournaments"
+                                aria-label="Bela Turniri — naslovnica"
+                                style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}
+                            >
+                                <Image
+                                    src="/bela-turniri-logo.svg"
+                                    alt=""
+                                    h={{ base: "28px", md: "34px" }}
+                                    w="auto"
+                                    draggable={false}
+                                />
+                                <Box
+                                    as="span"
+                                    display={{ base: "none", sm: "inline" }}
+                                    fontWeight="semibold"
+                                >
+                                    Bela Turniri
+                                </Box>
+                            </RouterLink>
                         </Button>
                     </Box>
 
@@ -131,11 +195,8 @@ export default function NavBar() {
                             Turniri
                         </NavButton>
                         <NavButton to="/calendar">Kalendar</NavButton>
-                        <NavButton to="/map">Karta</NavButton>
-                        {/* Always show "Kreiraj turnir". The route is wrapped in
-                            <RequireAuth>, so anonymous clicks bounce to /login and
-                            then back to /tournaments/new after a successful sign-in. */}
                         <NavButton to="/tournaments/new">Kreiraj turnir</NavButton>
+                        <NavButton to="/map">Karta</NavButton>
                         <NavButton to="/find-pair">Pronađi para</NavButton>
                     </HStack>
 
@@ -152,16 +213,54 @@ export default function NavBar() {
                     </HStack>
                 </Box>
 
-                {/* Mobile bar */}
                 <Flex display={{ base: "flex", md: "none" }} align="center">
-                    <Button asChild variant="ghost" size="sm" fontWeight="semibold">
-                        <RouterLink to="/tournaments">Bela Turniri</RouterLink>
+                    <Button asChild variant="ghost" size="sm" fontWeight="semibold" px="2">
+                        <RouterLink
+                            to="/tournaments"
+                            aria-label="Bela Turniri — naslovnica"
+                            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                        >
+                            <Image
+                                src="/bela-turniri-logo.svg"
+                                alt=""
+                                h="26px"
+                                w="auto"
+                                draggable={false}
+                            />
+                            <Box as="span" fontWeight="semibold">Bela Turniri</Box>
+                        </RouterLink>
                     </Button>
                     <Box flex="1" />
                     {!loading && user && (
-                        <Box mr={1}>
-                            <UserAvatar name={user.displayName} email={user.email} />
-                        </Box>
+                        <Menu.Root>
+                            <Menu.Trigger asChild>
+                                <Button
+                                    aria-label="Profil meni"
+                                    size="sm"
+                                    variant="ghost"
+                                    mr={1}
+                                    px={1}
+                                >
+                                    <UserAvatar name={user.displayName} email={user.email} avatarUrl={avatarUrl} />
+                                </Button>
+                            </Menu.Trigger>
+                            <Menu.Positioner>
+                                <Menu.Content minW="220px">
+                                    <Box px="3" py="2" borderBottomWidth="1px" borderColor="border.subtle">
+                                        <Text fontSize="xs" color="fg.muted">Prijavljen kao</Text>
+                                        <Text fontSize="sm" fontWeight="medium" truncate>
+                                            {user.email ?? user.displayName ?? "Anonimno"}
+                                        </Text>
+                                    </Box>
+                                    <Menu.Item value="profile" onSelect={() => navigate("/profile")}>
+                                        <FiUser /> Profil
+                                    </Menu.Item>
+                                    <Menu.Item value="logout" onSelect={onSignOut}>
+                                        <FiLogOut /> Odjavi se
+                                    </Menu.Item>
+                                </Menu.Content>
+                            </Menu.Positioner>
+                        </Menu.Root>
                     )}
                     <IconButton
                         aria-label="Toggle color mode"
@@ -182,7 +281,6 @@ export default function NavBar() {
                     </IconButton>
                 </Flex>
 
-                {/* Mobile menu */}
                 {open && (
                     <Box pt={3} pb={2} display={{ md: "none" }}>
                         <Stack gap={2} onClick={onClose}>
@@ -190,29 +288,19 @@ export default function NavBar() {
                                 Turniri
                             </NavButton>
                             <NavButton to="/calendar">Kalendar</NavButton>
-                            <NavButton to="/map">Karta</NavButton>
                             <NavButton to="/tournaments/new">Kreiraj turnir</NavButton>
+                            <NavButton to="/map">Karta</NavButton>
                             <NavButton to="/find-pair">Pronađi para</NavButton>
 
-                            {!loading && (
-                                user ? (
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={onSignOut}
-                                    >
-                                        <FiLogOut /> Odjavi se ({user.email ?? user.displayName ?? ""})
-                                    </Button>
-                                ) : (
-                                    <>
-                                        <NavButton to="/login">
-                                            <Box as="span" display="inline-flex" alignItems="center" gap="2">
-                                                <FiUser /> Prijava
-                                            </Box>
-                                        </NavButton>
-                                        <NavButton to="/register">Registracija</NavButton>
-                                    </>
-                                )
+                            {!loading && !user && (
+                                <>
+                                    <NavButton to="/login">
+                                        <Box as="span" display="inline-flex" alignItems="center" gap="2">
+                                            <FiUser /> Prijava
+                                        </Box>
+                                    </NavButton>
+                                    <NavButton to="/register">Registracija</NavButton>
+                                </>
                             )}
                         </Stack>
                     </Box>

@@ -171,7 +171,7 @@ function TournamentCardView({
 
     return (
         <RouterLink
-            to={`/tournaments/${t.uuid}`}
+            to={`/tournaments/${t.slug ?? t.uuid}`}
             style={{ display: "block", textDecoration: "none", color: "inherit" }}
         >
             <Box
@@ -634,7 +634,7 @@ export default function TournamentsPage() {
                         description={
                             error
                                 ? error
-                                : "Kreiraj prvi turnir i počni primati prijave parova."
+                                : "Kreiraj turnir i počni primati prijave parova."
                         }
                         cta={
                             !error && (
@@ -697,7 +697,7 @@ export default function TournamentsPage() {
                         description={
                             errorFinished
                                 ? errorFinished
-                                : "Završeni turniri će se ovdje pojaviti nakon što ih završiš."
+                                : "Završeni turniri će se pojaviti ovdje."
                         }
                     />
                 ) : (

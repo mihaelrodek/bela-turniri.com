@@ -2,6 +2,20 @@ import React, { useEffect, useMemo, useRef, useState } from "react"
 import { Box, chakra, HStack, Input, Spinner, Text, VStack } from "@chakra-ui/react"
 import { FiMapPin } from "react-icons/fi"
 
+type NominatimAddress = {
+    village?: string
+    hamlet?: string
+    suburb?: string
+    neighbourhood?: string
+    town?: string
+    city?: string
+    municipality?: string
+    county?: string
+    state?: string
+    country?: string
+    postcode?: string
+}
+
 type NominatimResult = {
     place_id: number
     display_name: string
@@ -9,6 +23,7 @@ type NominatimResult = {
     lon: string
     type?: string
     addresstype?: string
+    address?: NominatimAddress
 }
 
 export type LocationSuggestion = {
@@ -23,17 +38,45 @@ const MIN_CHARS = 3
 const DEBOUNCE_MS = 350
 
 /**
+ * Build a short, human-friendly label from a Nominatim address. We deliberately
+ * drop postcode, county, and country because:
+ *  - Tournament locations are within HR/BA/SI/RS/ME (already filtered) so the
+ *    country is redundant.
+ *  - Postcodes and counties bloat the label without helping a player decide
+ *    whether they want to attend ("Kamenica, Grad Lepoglava" is enough).
+ *  - The same string ends up in WhatsApp shares (og:title), where length
+ *    matters even more.
+ *
+ * Order of preference for the "place" part:
+ *   village → hamlet → suburb → neighbourhood → town → city
+ * Then we append the municipality (or city/town as fallback) when it's
+ * different from the place itself.
+ */
+export function formatNominatimAddress(r: NominatimResult): string {
+    const a = r.address
+    if (!a) return r.display_name
+
+    const place =
+        a.village ?? a.hamlet ?? a.suburb ?? a.neighbourhood ?? a.town ?? a.city
+    const region = a.municipality ?? a.city ?? a.town
+
+    if (place && region && place.toLowerCase() !== region.toLowerCase()) {
+        return `${place}, ${region}`
+    }
+    if (place) return place
+    if (region) return region
+
+    // No usable structured fields — fall back to the first 2 segments of
+    // the long display_name, which still trims country/postcode tail.
+    const parts = r.display_name.split(",").map((s) => s.trim()).filter(Boolean)
+    return parts.slice(0, 2).join(", ") || r.display_name
+}
+
+/**
  * Free-form text input with location suggestions powered by OpenStreetMap
  * Nominatim. The user can either pick a suggestion (which fills the input
  * with the formatted address and reports lat/lng to the parent) or keep
  * typing freely and submit any string — picking is not required.
- *
- * Nominatim usage policy compliance:
- *   - debounced 350ms so we don't fire one request per keystroke
- *   - response cache keyed by lowercased query keeps repeats free
- *   - results limited to 5 entries and to local-region country codes
- *   - browser sets a User-Agent automatically (the Referer is also fine
- *     per their policy for browser apps)
  */
 export function LocationAutocomplete({
     value,
@@ -43,9 +86,7 @@ export function LocationAutocomplete({
     disabled,
 }: {
     value: string
-    /** Called on every keystroke and when a suggestion is picked. */
     onChange: (value: string) => void
-    /** Called when the user actually picks a suggestion (gives lat/lng). */
     onPickSuggestion?: (s: LocationSuggestion) => void
     placeholder?: string
     disabled?: boolean
@@ -62,7 +103,6 @@ export function LocationAutocomplete({
 
     const query = useMemo(() => value.trim(), [value])
 
-    // Debounced fetch
     useEffect(() => {
         if (query.length < MIN_CHARS) {
             setResults([])
@@ -87,6 +127,7 @@ export function LocationAutocomplete({
 
             const url =
                 `${NOMINATIM_URL}?format=json&limit=5` +
+                `&addressdetails=1` +
                 `&countrycodes=${encodeURIComponent(COUNTRY_CODES)}` +
                 `&accept-language=hr` +
                 `&q=${encodeURIComponent(query)}`
@@ -115,7 +156,6 @@ export function LocationAutocomplete({
         return () => clearTimeout(handle)
     }, [query])
 
-    // Close on outside click
     useEffect(() => {
         function onDocClick(e: MouseEvent) {
             if (!wrapperRef.current) return
@@ -130,9 +170,14 @@ export function LocationAutocomplete({
     function pick(r: NominatimResult) {
         const lat = parseFloat(r.lat)
         const lng = parseFloat(r.lon)
-        onChange(r.display_name)
+        // Keep the user's typed text verbatim (e.g. "Kamenica 35k"). The
+        // dropdown is only used to attach geocoded lat/lng to whatever they
+        // wrote — we never overwrite it with Nominatim's verbose
+        // display_name (županija/postcode/country) or even our shorter
+        // formatted label, because the user's own wording (with house
+        // number, hall name, etc.) is what they want shared on WhatsApp.
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
-            onPickSuggestion?.({ displayName: r.display_name, latitude: lat, longitude: lng })
+            onPickSuggestion?.({ displayName: value, latitude: lat, longitude: lng })
         }
         setOpen(false)
     }
@@ -230,9 +275,19 @@ export function LocationAutocomplete({
                                         <Box color="fg.muted" mt="0.5" flexShrink={0}>
                                             <FiMapPin size={12} />
                                         </Box>
-                                        <Text fontSize="sm" lineHeight="short">
-                                            {r.display_name}
-                                        </Text>
+                                        <VStack gap="0" align="stretch" flex="1" minW="0">
+                                            <Text fontSize="sm" lineHeight="short">
+                                                {formatNominatimAddress(r)}
+                                            </Text>
+                                            <Text
+                                                fontSize="2xs"
+                                                color="fg.muted"
+                                                lineHeight="short"
+                                                truncate
+                                            >
+                                                {r.display_name}
+                                            </Text>
+                                        </VStack>
                                     </HStack>
                                 </chakra.button>
                             ))}

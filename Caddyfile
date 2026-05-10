@@ -24,10 +24,15 @@ bela-turniri.com, www.bela-turniri.com {
     }
 
     # ─── 2. Tournament SSR preview for crawlers ────────────────────────
-    # Match must include BOTH the tournament-UUID path AND a known
+    # Match must include BOTH a tournament-detail path AND a known
     # crawler User-Agent. Real users fall through to the SPA below.
+    # The path segment can be either a UUID (legacy URLs) or the new
+    # human-readable slug (e.g. "1-bela-open-22-04-2026"). The backend
+    # /api/preview/tournaments/{idOrSlug} endpoint accepts both.
+    # We deliberately exclude /tournaments/new so the crawler regex
+    # never collides with the create-tournament page.
     @tournament_for_bot {
-        path_regexp ^/tournaments/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+        path_regexp ^/tournaments/(?!new$)[a-z0-9][a-z0-9-]*$
         header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot)
     }
     handle @tournament_for_bot {

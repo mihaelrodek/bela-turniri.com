@@ -39,7 +39,7 @@ public class RoundService {
     RoundMatchMapper mapper;
 
     public List<RoundDto> listByTournamentUuid(String uuid) {
-        Tournaments t = tournamentsRepo.findByUuid(UUID.fromString(uuid)).orElse(null);
+        Tournaments t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return List.of();
         var rounds = roundsRepo.findByTournamentOrderByNumberAsc(t);
         List<RoundDto> out = new ArrayList<>();
@@ -53,7 +53,7 @@ public class RoundService {
 
     @Transactional
     public RoundDto drawNextRound(String uuid) {
-        Tournaments t = tournamentsRepo.findByUuid(UUID.fromString(uuid))
+        Tournaments t = tournamentsRepo.findByUuidOrSlug(uuid)
                 .orElseThrow(() -> new NoSuchElementException("Tournament not found"));
 
         int nextNumber = roundsRepo.findTopByTournamentOrderByNumberDesc(t)
@@ -253,7 +253,7 @@ public class RoundService {
 
     @Transactional
     public MatchDto updateMatchScore(String uuid, Long roundId, Long matchId, UpdateMatchRequest req) {
-        Tournaments t = tournamentsRepo.findByUuid(UUID.fromString(uuid))
+        Tournaments t = tournamentsRepo.findByUuidOrSlug(uuid)
                 .orElseThrow(() -> new NoSuchElementException("Tournament not found"));
 
         Rounds r = roundsRepo.findByIdOptional(roundId)
@@ -325,7 +325,7 @@ public class RoundService {
     @Transactional
     public void hardResetRound(String uuid, Long roundId) {
         // 0) Load + verify
-        Tournaments t = tournamentsRepo.findByUuid(UUID.fromString(uuid))
+        Tournaments t = tournamentsRepo.findByUuidOrSlug(uuid)
                 .orElseThrow(() -> new NoSuchElementException("Tournament not found"));
 
         Rounds r = roundsRepo.findByIdOptional(roundId)
@@ -385,7 +385,7 @@ public class RoundService {
 
     @Transactional
     public RoundDto finishRound(String uuid, Long roundId) {
-        Tournaments t = tournamentsRepo.findByUuid(UUID.fromString(uuid))
+        Tournaments t = tournamentsRepo.findByUuidOrSlug(uuid)
                 .orElseThrow(() -> new NoSuchElementException("Tournament not found"));
 
         Rounds r = roundsRepo.findByIdOptional(roundId)
@@ -446,7 +446,7 @@ public class RoundService {
 
     @Transactional
     public RoundDto overrideMatchScore(String uuid, Long roundId, Long matchId, UpdateMatchRequest req) {
-        var tournament = tournamentsRepo.findByUuid(UUID.fromString(uuid))
+        var tournament = tournamentsRepo.findByUuidOrSlug(uuid)
                 .orElseThrow(() -> new NoSuchElementException("Tournament not found"));
 
         var round = roundsRepo.findByIdOptional(roundId)

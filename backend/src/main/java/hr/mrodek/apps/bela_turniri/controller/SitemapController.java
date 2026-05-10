@@ -59,10 +59,20 @@ public class SitemapController {
         appendUrl(sb, base + "/map",         null, "weekly",  "0.7");
 
         // Tournament detail pages — one entry per non-deleted tournament.
+        // Prefer the pretty slug when present so the sitemap surfaces the
+        // canonical, shareable URL; fall back to UUID for any leftover row
+        // the slug-backfill hasn't touched yet.
         List<Tournaments> tournaments = tournamentsRepo.listAll();
         for (Tournaments t : tournaments) {
-            if (t.getUuid() == null) continue;
-            String loc = base + "/tournaments/" + t.getUuid();
+            String key;
+            if (t.getSlug() != null && !t.getSlug().isBlank()) {
+                key = t.getSlug();
+            } else if (t.getUuid() != null) {
+                key = t.getUuid().toString();
+            } else {
+                continue;
+            }
+            String loc = base + "/tournaments/" + key;
             OffsetDateTime lastMod = t.getUpdatedAt() != null ? t.getUpdatedAt() : t.getStartAt();
             appendUrl(sb, loc, lastMod == null ? null : iso.format(lastMod), "weekly", "0.8");
         }

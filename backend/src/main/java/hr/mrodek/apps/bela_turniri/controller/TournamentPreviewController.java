@@ -58,10 +58,11 @@ public class TournamentPreviewController {
             DateTimeFormatter.ofPattern("EEE, d. MMMM yyyy. 'u' HH:mm", Locale.forLanguageTag("hr-HR"));
 
     @GET
-    @Path("/{uuid}")
+    @Path("/{idOrSlug}")
     @Produces("text/html; charset=UTF-8")
-    public Response preview(@PathParam("uuid") UUID uuid) {
-        Tournaments t = tournamentsRepo.findByUuid(uuid).orElse(null);
+    public Response preview(@PathParam("idOrSlug") String idOrSlug) {
+        // Accept either UUID (legacy share URLs) or pretty slug (new format).
+        Tournaments t = tournamentsRepo.findByUuidOrSlug(idOrSlug).orElse(null);
         if (t == null) {
             return Response.status(Response.Status.NOT_FOUND)
                     .type("text/html; charset=UTF-8")
@@ -73,7 +74,7 @@ public class TournamentPreviewController {
         String description = buildDescription(t);
 
         String base = publicBaseUrl.replaceAll("/+$", "");
-        String spaUrl = base + "/tournaments/" + uuid;
+        String spaUrl = base + "/tournaments/" + idOrSlug;
 
 
         // og:image must be an absolute URL — bots fetch it directly from

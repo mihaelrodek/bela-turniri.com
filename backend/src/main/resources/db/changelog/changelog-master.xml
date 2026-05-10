@@ -26,5 +26,7 @@
     <include file="db/changelog/user_profiles.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/user_profiles_slug.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/tournaments_soft_delete.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/user_profiles_avatar.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/tournaments_slug.xml" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

@@ -14,6 +14,8 @@ import java.util.UUID;
 public class PairRequestDto {
     private UUID uuid;
     private UUID tournamentUuid;
+    /** Pretty URL slug for tournament-detail links; null on legacy rows. */
+    private String tournamentSlug;
     private String tournamentName;
     private String tournamentLocation;
     private OffsetDateTime tournamentStartAt;

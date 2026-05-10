@@ -33,17 +33,23 @@ export type DocumentHead = {
     canonical?: string
 }
 
-const DEFAULT_TITLE = "bela-turniri.com — Bela turniri"
+// Tab title is intentionally identical for every route. Per-page titles
+// fragmented the browser-tab UX (long noisy strings, language-specific
+// suffixes) for no real SEO win — JS-aware crawlers still pick up
+// per-page <meta> + og:title below, which is what actually drives search
+// snippets and WhatsApp/Slack link previews.
+const STATIC_TITLE = "Bela turniri"
 const DEFAULT_DESCRIPTION =
-    "bela-turniri.com — organiziraj i prati Bela turnire. Pretraži nadolazeće turnire, pridruži se paru i prati rezultate."
+    "Bela turniri — organiziraj i prati Bela turnire. Pretraži nadolazeće turnire, pridruži se paru i prati rezultate."
 
 export function useDocumentHead(head: DocumentHead) {
     useEffect(() => {
-        const previousTitle = document.title
         const previousMeta = snapshotMeta()
         const previousCanonical = currentCanonical()
 
-        if (head.title) document.title = head.title
+        // Force the static title regardless of what the caller passed —
+        // see STATIC_TITLE comment above. We deliberately ignore head.title.
+        document.title = STATIC_TITLE
         if (head.description) setMeta("name", "description", head.description)
         if (head.ogTitle) setMeta("property", "og:title", head.ogTitle)
         if (head.ogDescription) setMeta("property", "og:description", head.ogDescription)
@@ -51,15 +57,15 @@ export function useDocumentHead(head: DocumentHead) {
         if (head.ogType) setMeta("property", "og:type", head.ogType)
         if (head.canonical) setCanonical(head.canonical)
 
-        // On unmount: restore the original document head so navigating to a
-        // page that does NOT call this hook doesn't keep stale meta tags.
+        // On unmount: restore the meta + canonical the next route may want
+        // to reset, but keep the title pinned to STATIC_TITLE — there's
+        // nothing to "restore" because every route already wants it.
         return () => {
-            document.title = previousTitle
+            document.title = STATIC_TITLE
             restoreMeta(previousMeta)
             restoreCanonical(previousCanonical)
         }
     }, [
-        head.title,
         head.description,
         head.ogTitle,
         head.ogDescription,
@@ -113,7 +119,7 @@ function restoreMeta(snap: MetaSnapshot) {
         }
         setMeta(attr, key, previousValue)
     }
-    if (!snap["name:description"]) document.title = DEFAULT_TITLE
+    if (!snap["name:description"]) document.title = STATIC_TITLE
 }
 
 function currentCanonical(): string | null {

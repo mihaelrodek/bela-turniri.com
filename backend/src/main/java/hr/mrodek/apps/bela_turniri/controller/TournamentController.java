@@ -19,6 +19,7 @@ import hr.mrodek.apps.bela_turniri.services.GeocodeService;
 import hr.mrodek.apps.bela_turniri.services.RepassageService;
 import hr.mrodek.apps.bela_turniri.services.SlugService;
 import hr.mrodek.apps.bela_turniri.services.StorageService;
+import hr.mrodek.apps.bela_turniri.services.TournamentSlugService;
 import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.RolesAllowed;
 import io.quarkus.security.identity.SecurityIdentity;
@@ -49,6 +50,7 @@ public class TournamentController {
     @Inject StorageService storageService;
     @Inject GeocodeService geocodeService;
     @Inject SlugService slugService;
+    @Inject TournamentSlugService tournamentSlugService;
 
     @Inject TournamentsRepository tournamentsRepo;
     @Inject PairsRepository pairRepo;
@@ -125,15 +127,35 @@ public class TournamentController {
 
     /* ===================== Create ===================== */
 
+    /**
+     * Reject a request with a startAt in the past. Mirrors the frontend's
+     * {@code min} attribute and submit-time check — both layers exist
+     * because either can be bypassed (custom client, slow form-fill).
+     * Allows a 5-minute slack so clock skew between client and server
+     * doesn't reject borderline-valid creates.
+     */
+    private static void assertStartInFuture(OffsetDateTime startAt) {
+        if (startAt == null) return; // null is handled by other validation
+        OffsetDateTime cutoff = OffsetDateTime.now().minusMinutes(5);
+        if (startAt.isBefore(cutoff)) {
+            throw new BadRequestException("Datum i vrijeme turnira ne mogu biti u prošlosti.");
+        }
+    }
+
     @POST
     @Authenticated
     @Transactional
     public Response create(@Valid CreateTournamentRequest req) {
+        assertStartInFuture(req.startAt());
         Tournaments t = tournamentMapper.toEntity(req);
         stampCreator(t);
         applyGeocoding(t);
+        // Generate slug before save so the unique index sees it on first
+        // INSERT — the entity already has name + startAt populated by the
+        // mapper at this point.
+        t.setSlug(tournamentSlugService.generateUnique(t, null));
         Tournaments saved = tournamentsRepo.save(t);
-        return Response.created(URI.create("/tournaments/" + saved.getUuid()))
+        return Response.created(URI.create("/tournaments/" + saved.getSlug()))
                 .entity(tournamentMapper.toDetails(saved))
                 .build();
     }
@@ -164,6 +186,7 @@ public class TournamentController {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity("name is required").build();
         }
+        assertStartInFuture(req.startAt());
 
         Tournaments t = tournamentMapper.toEntity(req);
         stampCreator(t);
@@ -174,8 +197,9 @@ public class TournamentController {
         }
 
         applyGeocoding(t);
+        t.setSlug(tournamentSlugService.generateUnique(t, null));
         Tournaments saved = tournamentsRepo.save(t);
-        URI location = URI.create("/tournaments/" + saved.getUuid());
+        URI location = URI.create("/tournaments/" + saved.getSlug());
         return Response.created(location)
                 .entity(tournamentMapper.toDetails(saved))
                 .build();
@@ -187,21 +211,35 @@ public class TournamentController {
     @Path("/{uuid}")
     @Authenticated
     @Transactional
-    public Response update(@PathParam("uuid") UUID uuid, @Valid CreateTournamentRequest req) {
-        var t = tournamentsRepo.findByUuid(uuid).orElse(null);
+    public Response update(@PathParam("uuid") String uuid, @Valid CreateTournamentRequest req) {
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         assertCanEdit(t);
+        // Block moving the date into the past on edit too. Editing a
+        // currently-running or finished tournament's date isn't sensible.
+        assertStartInFuture(req.startAt());
 
         // Mapper applies all updatable fields in place. Status, winner, poster, and
         // matchmaking preference are intentionally NOT touched here — they're owned by
         // dedicated endpoints (/start, /finish, /reset, /multipart, /preserve-matchmaking).
         String previousLocation = t.getLocation();
+        String previousName = t.getName();
+        OffsetDateTime previousStartAt = t.getStartAt();
         tournamentMapper.applyUpdate(t, req);
         t.setUpdatedAt(OffsetDateTime.now());
 
         // Re-geocode only when the location actually changed — saves Nominatim hits.
         if (!java.util.Objects.equals(previousLocation, t.getLocation())) {
             applyGeocoding(t);
+        }
+
+        // Regenerate the slug if the name or start date changed — those are the
+        // only inputs that go into the slug. We pass the current id so the row's
+        // existing slug doesn't trip the uniqueness check against itself.
+        boolean nameChanged = !java.util.Objects.equals(previousName, t.getName());
+        boolean dateChanged = !java.util.Objects.equals(previousStartAt, t.getStartAt());
+        if (nameChanged || dateChanged || t.getSlug() == null || t.getSlug().isBlank()) {
+            t.setSlug(tournamentSlugService.generateUnique(t, t.getId()));
         }
 
         return Response.ok(tournamentMapper.toDetails(t)).build();
@@ -249,8 +287,8 @@ public class TournamentController {
     @Path("/{uuid}/start")
     @Authenticated
     @Transactional
-    public Response startTournament(@PathParam("uuid") UUID uuid) {
-        var t = tournamentsRepo.findByUuid(uuid).orElse(null);
+    public Response startTournament(@PathParam("uuid") String uuid) {
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         assertCanEdit(t);
 
@@ -285,8 +323,8 @@ public class TournamentController {
     @Path("/{uuid}/finish")
     @Authenticated
     @Transactional
-    public Response finishTournament(@PathParam("uuid") UUID uuid) {
-        var t = tournamentsRepo.findByUuid(uuid).orElse(null);
+    public Response finishTournament(@PathParam("uuid") String uuid) {
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         assertCanEdit(t);
 
@@ -326,8 +364,8 @@ public class TournamentController {
     @Path("/{uuid}/reset")
     @Authenticated
     @Transactional
-    public Response resetTournament(@PathParam("uuid") UUID uuid) {
-        var t = tournamentsRepo.findByUuid(uuid).orElse(null);
+    public Response resetTournament(@PathParam("uuid") String uuid) {
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         assertCanEdit(t);
 
@@ -356,10 +394,10 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response setPreserveMatchmaking(
-            @PathParam("uuid") UUID uuid,
+            @PathParam("uuid") String uuid,
             @Valid PreserveMatchmakingRequest body
     ) {
-        var t = tournamentsRepo.findByUuid(uuid).orElse(null);
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         assertCanEdit(t);
 
@@ -392,8 +430,10 @@ public class TournamentController {
 
     @GET
     @Path("/{uuid}")
-    public Response getById(@PathParam("uuid") UUID uuid) {
-        return tournamentsRepo.findByUuid(uuid)
+    public Response getById(@PathParam("uuid") String idOrSlug) {
+        // Accepts either a UUID (legacy / shared URLs from before slugs landed)
+        // or the new pretty slug, so existing bookmarks keep working.
+        return tournamentsRepo.findByUuidOrSlug(idOrSlug)
                 .map(tournamentMapper::toDetails)
                 .map(dto -> Response.ok(dto).build())
                 .orElseGet(() -> Response.status(Response.Status.NOT_FOUND).build());
@@ -403,8 +443,8 @@ public class TournamentController {
 
     @GET
     @Path("/{uuid}/pairs")
-    public Response listPairs(@PathParam("uuid") UUID uuid) {
-        var t = tournamentsRepo.findByUuid(uuid).orElse(null);
+    public Response listPairs(@PathParam("uuid") String uuid) {
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         var pairs = pairRepo.findByTournament_Id(t.getId());
         return Response.ok(pairMapper.toDtoListEnriched(pairs, fetchSubmitterProfiles(pairs))).build();
@@ -424,10 +464,10 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response replacePairs(
-            @PathParam("uuid") UUID uuid,
+            @PathParam("uuid") String uuid,
             @Valid List<@Valid PairDto> payload
     ) {
-        var tournament = tournamentsRepo.findByUuid(uuid).orElse(null);
+        var tournament = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (tournament == null) return Response.status(Response.Status.NOT_FOUND).build();
         assertCanEdit(tournament);
 
@@ -493,10 +533,12 @@ public class TournamentController {
             @PathParam("uuid") String uuid,
             @PathParam("pairId") Long pairId
     ) {
-        var t = tournamentsRepo.findByUuid(java.util.UUID.fromString(uuid)).orElse(null);
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         assertCanEdit(t);
-        return Response.ok(repassageService.buyExtraLife(uuid, pairId)).build();
+        // Pass the resolved canonical UUID into the service so the inner
+        // lookup doesn't have to also handle slugs.
+        return Response.ok(repassageService.buyExtraLife(t.getUuid().toString(), pairId)).build();
     }
 
     /**
@@ -509,10 +551,10 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response selfRegisterPair(
-            @PathParam("uuid") UUID uuid,
+            @PathParam("uuid") String uuid,
             @Valid SelfRegisterPairRequest body
     ) {
-        var t = tournamentsRepo.findByUuid(uuid).orElse(null);
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
 
         if (t.getStatus() == TournamentStatus.STARTED || t.getStatus() == TournamentStatus.FINISHED) {
@@ -582,10 +624,10 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response approvePair(
-            @PathParam("uuid") UUID uuid,
+            @PathParam("uuid") String uuid,
             @PathParam("pairId") Long pairId
     ) {
-        var t = tournamentsRepo.findByUuid(uuid).orElse(null);
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         assertCanEdit(t);
 
@@ -605,11 +647,11 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response setPairPaid(
-            @PathParam("uuid") UUID uuid,
+            @PathParam("uuid") String uuid,
             @PathParam("pairId") Long pairId,
             @Valid PaidRequest body
     ) {
-        var t = tournamentsRepo.findByUuid(uuid).orElse(null);
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         assertCanEdit(t);
 
@@ -638,10 +680,10 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response deletePair(
-            @PathParam("uuid") UUID uuid,
+            @PathParam("uuid") String uuid,
             @PathParam("pairId") Long pairId
     ) {
-        var t = tournamentsRepo.findByUuid(uuid).orElse(null);
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         assertCanEdit(t);
 
@@ -674,13 +716,13 @@ public class TournamentController {
     @Path("/{uuid}")
     @Authenticated
     @Transactional
-    public Response softDeleteTournament(@PathParam("uuid") UUID uuid) {
+    public Response softDeleteTournament(@PathParam("uuid") String uuid) {
         boolean admin = identity != null && identity.hasRole("admin");
         if (!admin) {
             return Response.status(Response.Status.FORBIDDEN)
                     .entity("Samo administrator može obrisati turnir.").build();
         }
-        var t = tournamentsRepo.findByUuid(uuid).orElse(null);
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         t.setDeleted(true);
         return Response.noContent().build();

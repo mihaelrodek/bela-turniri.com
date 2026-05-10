@@ -21,6 +21,7 @@ public interface TournamentMapper {
     @Mappings({
             @Mapping(target = "id", source = "id"),
             @Mapping(target = "uuid", source = "uuid"),
+            @Mapping(target = "slug", source = "slug"),
             @Mapping(target = "location", source = "location"),
             @Mapping(target = "latitude", source = "latitude"),
             @Mapping(target = "longitude", source = "longitude"),
@@ -41,6 +42,7 @@ public interface TournamentMapper {
     @Mappings({
             @Mapping(target = "id", source = "id"),
             @Mapping(target = "uuid", source = "uuid"),
+            @Mapping(target = "slug", source = "slug"),
             @Mapping(target = "entryPrice", source = "entryPrice"),
             @Mapping(target = "maxPairs", source = "maxPairs"),
             @Mapping(target = "status", source = "status", qualifiedByName = "enumToName"), // <-- NEW
@@ -66,6 +68,7 @@ public interface TournamentMapper {
     @Mappings({
             @Mapping(target = "id", ignore = true),
             @Mapping(target = "uuid", ignore = true),
+            @Mapping(target = "slug", ignore = true),
             @Mapping(target = "createdAt", ignore = true),
             @Mapping(target = "updatedAt", ignore = true),
 
@@ -103,6 +106,7 @@ public interface TournamentMapper {
     @Mappings({
             @Mapping(target = "id", ignore = true),
             @Mapping(target = "uuid", ignore = true),
+            @Mapping(target = "slug", ignore = true),
             @Mapping(target = "createdAt", ignore = true),
             @Mapping(target = "updatedAt", ignore = true),
             @Mapping(target = "status", ignore = true),

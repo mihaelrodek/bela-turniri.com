@@ -485,7 +485,15 @@ export default function TournamentDetailsPage() {
         ogDescription: headDesc,
         ogImage: t?.bannerUrl ?? undefined,
         ogType: "article",
-        canonical: uuid ? `https://bela-turniri.com/tournaments/${uuid}` : undefined,
+        // Prefer the canonical pretty slug returned by the backend so search
+        // engines and social previews don't see a UUID variant — fall back to
+        // whatever route segment we have (uuid, or the slug if the visitor
+        // already came in via a slug URL).
+        canonical: t?.slug
+            ? `https://bela-turniri.com/tournaments/${t.slug}`
+            : uuid
+                ? `https://bela-turniri.com/tournaments/${uuid}`
+                : undefined,
     })
 
     function enterDetailsEdit() {
@@ -2328,9 +2336,23 @@ export default function TournamentDetailsPage() {
                             )
                         }
 
+                        // For a non-owner viewing a tournament that hasn't started
+                        // yet, the entire rounds tab is empty — no toolbar
+                        // actions, no rounds list, no informative state. Showing
+                        // the dashed "Još nema rundi — prvo startaj turnir" box
+                        // (which only the organizer can act on) just looks ugly.
+                        // We render nothing in that case; once the tournament
+                        // starts and rounds appear, everyone gets the full view.
+                        if (!canEditTournament && !tournamentStarted) return null
+
+                        // Toolbar carries owner-only settings + actions plus the
+                        // Sažmi/Proširi sve toggle (which depends on rounds
+                        // existing). Hide it whenever it would be empty.
+                        const showToolbar = canEditTournament || rounds.length > 0
                         return (
                             <VStack align="stretch" gap="4">
                                 {/* ===== Toolbar ===== */}
+                                {showToolbar && (
                                 <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
                                     <Card.Body py="3" px={{ base: "3", md: "4" }}>
                                         <Box
@@ -2339,36 +2361,41 @@ export default function TournamentDetailsPage() {
                                             gap={{ base: "3", lg: "6" }}
                                             alignItems="center"
                                         >
-                                        {/* Settings */}
-                                        <HStack
-                                            gap="3"
-                                            align="center"
-                                            wrap="wrap"
-                                            borderRightWidth={{ base: "0", lg: "1px" }}
-                                            borderRightColor="border.subtle"
-                                            pr={{ base: "0", lg: "6" }}
-                                        >
-                                            <Box>
-                                                <Text fontSize="sm" fontWeight="medium" lineHeight="short">
-                                                    Ponavljanje istih parova
-                                                </Text>
-                                                <Text fontSize="xs" color="fg.muted">
-                                                    Dopusti da isti parovi igraju ponovno
-                                                </Text>
-                                            </Box>
-                                            <Switch.Root
-                                                checked={allowRepeats}
-                                                onCheckedChange={(e) => onToggleAllowRepeats(e.checked)}
-                                                colorPalette={allowRepeats ? "green" : "gray"}
-                                                disabled={savingPM}
+                                        {/* Settings — owner/admin only. The repeats
+                                            switch directly mutates pairing rules, so
+                                            anonymous viewers and other players see
+                                            no toggle here. */}
+                                        {canEditTournament && (
+                                            <HStack
+                                                gap="3"
+                                                align="center"
+                                                wrap="wrap"
+                                                borderRightWidth={{ base: "0", lg: "1px" }}
+                                                borderRightColor="border.subtle"
+                                                pr={{ base: "0", lg: "6" }}
                                             >
-                                                <Switch.HiddenInput />
-                                                <Switch.Control cursor={savingPM ? "not-allowed" : "pointer"}>
-                                                    <Switch.Thumb />
-                                                </Switch.Control>
-                                            </Switch.Root>
-                                            {savingPM && <Spinner size="xs" />}
-                                        </HStack>
+                                                <Box>
+                                                    <Text fontSize="sm" fontWeight="medium" lineHeight="short">
+                                                        Ponavljanje istih parova
+                                                    </Text>
+                                                    <Text fontSize="xs" color="fg.muted">
+                                                        Dopusti da isti parovi igraju ponovno
+                                                    </Text>
+                                                </Box>
+                                                <Switch.Root
+                                                    checked={allowRepeats}
+                                                    onCheckedChange={(e) => onToggleAllowRepeats(e.checked)}
+                                                    colorPalette={allowRepeats ? "green" : "gray"}
+                                                    disabled={savingPM}
+                                                >
+                                                    <Switch.HiddenInput />
+                                                    <Switch.Control cursor={savingPM ? "not-allowed" : "pointer"}>
+                                                        <Switch.Thumb />
+                                                    </Switch.Control>
+                                                </Switch.Root>
+                                                {savingPM && <Spinner size="xs" />}
+                                            </HStack>
+                                        )}
 
                                         {/* Actions */}
                                         <HStack gap="2" wrap="wrap" justify={{ base: "flex-start", lg: "flex-end" }}>
@@ -2404,7 +2431,7 @@ export default function TournamentDetailsPage() {
                                                     <FiPlay /> Startaj turnir
                                                 </Button>
                                             )}
-                                            {tournamentStarted && t?.status !== "FINISHED" && (
+                                            {tournamentStarted && t?.status !== "FINISHED" && canEditTournament && (
                                                 <>
                                                     <Button
                                                         size="sm"
@@ -2444,6 +2471,7 @@ export default function TournamentDetailsPage() {
                                         </Box>
                                     </Card.Body>
                                 </Card.Root>
+                                )}
 
                                 {/* ===== Rounds ===== */}
                                 {rounds.length === 0 ? (

@@ -27,7 +27,8 @@ public class RepassageService {
 
     @Transactional
     public PairDto buyExtraLife(String uuid, Long pairId) {
-        Tournaments t = tournamentsRepo.findByUuid(UUID.fromString(uuid))
+        // Caller may pass a UUID or a slug — both resolve via the same helper.
+        Tournaments t = tournamentsRepo.findByUuidOrSlug(uuid)
                 .orElseThrow(() -> new NoSuchElementException("Tournament not found"));
 
         Pairs p = pairsRepo.findByIdOptional(pairId)

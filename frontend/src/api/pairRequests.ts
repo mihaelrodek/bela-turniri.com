@@ -4,6 +4,8 @@ import { http } from "./http"
 export type PairRequest = {
     uuid: string
     tournamentUuid: string
+    /** Pretty URL slug; null on legacy rows pre-backfill. */
+    tournamentSlug?: string | null
     tournamentName: string
     tournamentLocation?: string | null
     tournamentStartAt?: string | null

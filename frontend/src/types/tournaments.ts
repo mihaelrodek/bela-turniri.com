@@ -5,6 +5,8 @@ export type TournamentStatus = "DRAFT" | "STARTED" | "FINISHED";
 export type TournamentCard = {
     id: number;                // UUID
     uuid: string;                // UUID
+    /** Pretty URL slug, e.g. "1-bela-open-22-04-2026". Null on legacy rows. */
+    slug?: string | null;
     name: string;
     location?: string | null;
     latitude?: number | null;
@@ -21,6 +23,8 @@ export type TournamentCard = {
 export type TournamentDetails = {
     id: string; // UUID
     uuid: string;
+    /** Pretty URL slug, e.g. "1-bela-open-22-04-2026". Null on legacy rows. */
+    slug?: string | null;
     name: string;
     location?: string | null;
     details?: string | null;

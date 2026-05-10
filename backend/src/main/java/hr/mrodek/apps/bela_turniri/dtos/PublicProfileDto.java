@@ -5,13 +5,25 @@ import java.util.List;
 /**
  * Everything a public profile page needs in one shot. Phone is nullable —
  * the user may not have set it, but when present it's deliberately exposed
- * (per product decision: profiles are publicly visible).
+ * (per product decision: profiles are publicly visible). Anonymous reads
+ * receive null phone fields per {@code PublicProfileController#redactForAnonymous}.
  */
 public record PublicProfileDto(
         String slug,
         String displayName,
         String phoneCountry,
         String phone,
+
+        /**
+         * True when the user actually has a phone on file. Anonymous callers
+         * see {@code phone = null} (redaction), so the SPA needs a separate
+         * signal to know whether to show the "log in to see phone" prompt vs
+         * just rendering nothing because the user never set one.
+         */
+        boolean hasPhone,
+
+        /** Proxied avatar URL ({@code /api/resources/<id>/image}) or null. */
+        String avatarUrl,
 
         /** Distinct pair names this user has played as, with how many tournaments each. */
         List<PairSummary> pairs,

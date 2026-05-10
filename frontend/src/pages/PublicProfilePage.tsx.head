@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import {
     Badge,
     Box,
@@ -10,7 +10,6 @@ import {
     Heading,
     HStack,
     IconButton,
-    Image,
     Input,
     NativeSelect,
     Skeleton,
@@ -43,7 +42,7 @@ import {
     type PublicProfile,
 } from "../api/publicProfile"
 import type { MyTournamentParticipation } from "../api/userMe"
-import { deleteAvatar, getProfile, syncProfile, updateProfile, uploadAvatar } from "../api/userMe"
+import { getProfile, syncProfile, updateProfile } from "../api/userMe"
 import {
     createPreset,
     deletePreset,
@@ -230,7 +229,7 @@ export default function PublicProfilePage() {
                             {/* Header — title flips between "Parovi" and "Parovi — <active>" */}
                             <HStack justify="space-between" wrap="wrap" gap="2">
                                 <Heading size="md">
-                                    Turniri
+                                    Parovi
                                     {activePair ? <chakra.span color="fg.muted"> — {activePair}</chakra.span> : null}
                                 </Heading>
                                 {activePair && profile.pairs.length > 0 && (
@@ -252,7 +251,7 @@ export default function PublicProfilePage() {
                                     textAlign="center"
                                 >
                                     <Text color="fg.muted" fontSize="sm">
-                                        Igrač nije odigrao niti jedan turnir.
+                                        Igrač nije još igrao niti jedan turnir.
                                     </Text>
                                 </Box>
                             ) : (
@@ -327,109 +326,26 @@ function ProfileHeader({
     onProfileChanged: () => Promise<void> | void
 }) {
     const [editOpen, setEditOpen] = useState(false)
-    const [uploading, setUploading] = useState(false)
-    const fileInputRef = useRef<HTMLInputElement | null>(null)
-    // For the "blurred phone → click to log in" affordance below.
-    const navigate = useNavigate()
-
-    function onPickAvatar() {
-        fileInputRef.current?.click()
-    }
-
-    async function onAvatarChosen(e: React.ChangeEvent<HTMLInputElement>) {
-        const f = e.target.files?.[0]
-        // Reset value so picking the same file again still fires onChange.
-        e.target.value = ""
-        if (!f) return
-        try {
-            setUploading(true)
-            await uploadAvatar(f)
-            await onProfileChanged()
-            window.dispatchEvent(new CustomEvent("bela:profile-updated"))
-        } catch (err: any) {
-            alert(
-                err?.response?.data?.message
-                    ?? err?.response?.data
-                    ?? err?.message
-                    ?? "Neuspjelo učitavanje slike.",
-            )
-        } finally {
-            setUploading(false)
-        }
-    }
-
-    async function onRemoveAvatar() {
-        if (!confirm("Ukloniti profilnu sliku?")) return
-        try {
-            setUploading(true)
-            await deleteAvatar()
-            await onProfileChanged()
-            window.dispatchEvent(new CustomEvent("bela:profile-updated"))
-        } catch (err: any) {
-            alert(err?.response?.data ?? err?.message ?? "Neuspjelo brisanje slike.")
-        } finally {
-            setUploading(false)
-        }
-    }
 
     return (
         <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
             <Card.Body p={{ base: "5", md: "5" }}>
                 <VStack align="stretch" gap="3">
                     <HStack gap="3" align="start">
-                        {/* Avatar — image when uploaded, initials otherwise. */}
-                        <Box position="relative" flexShrink={0}>
-                            <Box
-                                w="48px"
-                                h="48px"
-                                rounded="full"
-                                overflow="hidden"
-                                bg="blue.subtle"
-                                color="blue.fg"
-                                display="flex"
-                                alignItems="center"
-                                justifyContent="center"
-                                fontWeight="bold"
-                                fontSize="md"
-                            >
-                                {profile.avatarUrl ? (
-                                    <Image
-                                        src={profile.avatarUrl}
-                                        alt={profile.displayName ?? "Profilna slika"}
-                                        w="100%"
-                                        h="100%"
-                                        objectFit="cover"
-                                    />
-                                ) : (
-                                    initialsOf(profile.displayName)
-                                )}
-                            </Box>
-                            {isOwner && (
-                                <>
-                                    <IconButton
-                                        aria-label={profile.avatarUrl ? "Promijeni profilnu sliku" : "Učitaj profilnu sliku"}
-                                        title={profile.avatarUrl ? "Promijeni profilnu sliku" : "Učitaj profilnu sliku"}
-                                        size="2xs"
-                                        position="absolute"
-                                        bottom="-2px"
-                                        right="-2px"
-                                        rounded="full"
-                                        colorPalette="blue"
-                                        variant="solid"
-                                        loading={uploading}
-                                        onClick={onPickAvatar}
-                                    >
-                                        <FiEdit2 />
-                                    </IconButton>
-                                    <chakra.input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept="image/jpeg,image/png,image/webp"
-                                        display="none"
-                                        onChange={onAvatarChosen}
-                                    />
-                                </>
-                            )}
+                        <Box
+                            w="48px"
+                            h="48px"
+                            rounded="full"
+                            bg="blue.subtle"
+                            color="blue.fg"
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="center"
+                            fontWeight="bold"
+                            fontSize="md"
+                            flexShrink={0}
+                        >
+                            {initialsOf(profile.displayName)}
                         </Box>
                         <VStack align="stretch" gap="0.5" flex="1" minW="0">
                             <HStack gap="1" align="center" minW="0">
@@ -448,22 +364,10 @@ function ProfileHeader({
                                     </IconButton>
                                 )}
                             </HStack>
-                            {isOwner && profile.avatarUrl && (
-                                <Button
-                                    size="2xs"
-                                    variant="ghost"
-                                    colorPalette="red"
-                                    onClick={onRemoveAvatar}
-                                    loading={uploading}
-                                    alignSelf="flex-start"
-                                >
-                                    <FiTrash2 /> Ukloni profilnu sliku
-                                </Button>
-                            )}
                         </VStack>
                     </HStack>
 
-                    {profile.phone ? (
+                    {profile.phone && (
                         <chakra.a
                             href={`tel:${(profile.phoneCountry ?? "")}${profile.phone}`.replace(/\s+/g, "")}
                             color="blue.fg"
@@ -484,43 +388,7 @@ function ProfileHeader({
                             )}
                             {profile.phoneCountry ? `${profile.phoneCountry} ` : ""}{profile.phone}
                         </chakra.a>
-                    ) : profile.hasPhone ? (
-                        // Anonymous viewer: backend redacted phone (null) but
-                        // told us hasPhone=true. Show a blurred CSS placeholder
-                        // that links to /login with a redirect back to this
-                        // profile so the user lands here logged-in afterward.
-                        <chakra.button
-                            type="button"
-                            onClick={() =>
-                                navigate("/login", {
-                                    state: { from: { pathname: window.location.pathname } },
-                                })
-                            }
-                            color="blue.fg"
-                            fontSize="sm"
-                            fontWeight="medium"
-                            display="inline-flex"
-                            alignItems="center"
-                            gap="1.5"
-                            cursor="pointer"
-                            bg="transparent"
-                            border="0"
-                            p="0"
-                            title="Prijavi se da vidiš broj"
-                            _hover={{ textDecoration: "underline" }}
-                        >
-                            <FiPhone size={13} />
-                            <chakra.span
-                                style={{ filter: "blur(5px)", userSelect: "none" }}
-                                aria-hidden
-                            >
-                                +385 99 123 4567
-                            </chakra.span>
-                            <chakra.span fontSize="xs" color="fg.muted">
-                                (prijavi se)
-                            </chakra.span>
-                        </chakra.button>
-                    ) : null}
+                    )}
                 </VStack>
             </Card.Body>
 
@@ -668,15 +536,10 @@ function EditProfileDialog({
                                                 flex="1"
                                                 size="sm"
                                                 type="tel"
-                                                inputMode="numeric"
-                                                pattern="[0-9 ]*"
+                                                inputMode="tel"
                                                 placeholder="91 234 5678"
                                                 value={phone}
-                                                // Strip non-digits (and non-spaces) so the saved
-                                                // value never contains stray "(", "-", or "+"
-                                                // characters — the country dial code lives in a
-                                                // separate select.
-                                                onChange={(e) => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
+                                                onChange={(e) => setPhone(e.target.value)}
                                             />
                                         </HStack>
                                     )}
@@ -844,7 +707,7 @@ function TournamentRow({
                             ))}
                             <HStack pt="2" justify="flex-end">
                                 <Button size="xs" variant="ghost" asChild>
-                                    <RouterLink to={`/tournaments/${row.tournamentSlug ?? row.tournamentUuid}`}>
+                                    <RouterLink to={`/tournaments/${row.tournamentUuid}`}>
                                         Otvori turnir
                                     </RouterLink>
                                 </Button>

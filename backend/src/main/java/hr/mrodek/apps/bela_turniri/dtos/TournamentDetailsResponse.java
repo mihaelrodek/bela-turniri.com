@@ -8,6 +8,12 @@ import java.util.UUID;
 public record TournamentDetailsResponse(
         Long id,
         UUID uuid,
+        /**
+         * Pretty URL slug (e.g. {@code "1-bela-open-22-04-2026"}). May be null
+         * for legacy rows that haven't been backfilled yet — frontend should
+         * fall back to {@code uuid} when null.
+         */
+        String slug,
         String name,
         String location,
         String details,

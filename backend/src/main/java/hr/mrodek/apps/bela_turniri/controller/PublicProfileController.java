@@ -106,17 +106,29 @@ public class PublicProfileController {
 
         // Phone is hidden from anonymous callers so this endpoint can't be
         // used as a one-click PII scraper. Logged-in users get the real
-        // value; anonymous callers see nulls and the SPA shows "Prijavi
-        // se da vidiš kontakt" or similar in that case.
+        // value; anonymous callers see nulls AND a hasPhone=true flag so the
+        // SPA can render a blurred placeholder that links to /login.
         boolean anon = isAnonymous();
+        boolean hasPhone = profile.getPhone() != null && !profile.getPhone().isBlank();
         String phoneCountry = anon ? null : profile.getPhoneCountry();
         String phone = anon ? null : profile.getPhone();
+
+        // Avatar — proxied URL pattern, same as posters. Public per product
+        // decision (the page itself is anonymous-readable). Touching the
+        // lazy association requires an active transaction; the surrounding
+        // request scope provides one.
+        String avatarUrl = null;
+        if (profile.getAvatar() != null && profile.getAvatar().getId() != null) {
+            avatarUrl = "/api/resources/" + profile.getAvatar().getId() + "/image";
+        }
 
         return new PublicProfileDto(
                 profile.getSlug(),
                 profile.getDisplayName(),
                 phoneCountry,
                 phone,
+                hasPhone,
+                avatarUrl,
                 pairs,
                 participationDtos
         );
@@ -193,6 +205,7 @@ public class PublicProfileController {
                         && t.getWinnerName().trim().equalsIgnoreCase(p.getName().trim());
         return new MyTournamentParticipationDto(
                 t.getUuid(),
+                t.getSlug(),
                 t.getName(),
                 t.getLocation(),
                 t.getStartAt(),

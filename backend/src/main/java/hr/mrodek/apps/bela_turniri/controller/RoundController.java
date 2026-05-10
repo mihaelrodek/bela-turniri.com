@@ -30,8 +30,10 @@ public class RoundController {
     @Inject JsonWebToken jwt;
 
     /** Throws 403 if the current user is neither the tournament's creator nor an admin. */
-    private void assertCanEdit(String uuid) {
-        Tournaments t = tournamentsRepo.findByUuid(UUID.fromString(uuid)).orElse(null);
+    private void assertCanEdit(String idOrSlug) {
+        // Accept slug or UUID — the URL the user is on may be either form
+        // because tournaments now expose a pretty slug.
+        Tournaments t = tournamentsRepo.findByUuidOrSlug(idOrSlug).orElse(null);
         if (t == null) throw new NotFoundException();
         boolean admin = identity != null && identity.hasRole("admin");
         if (admin) return;
