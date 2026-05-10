@@ -27,8 +27,14 @@ RUN mvn -B -e -ntp dependency:go-offline
 
 # Now copy the source and build. -DskipTests because the smoke test boots
 # Quarkus and we'd need a DB on the build host; run tests in CI instead.
+# -Dquarkus.package.jar.type=fast-jar forces the layered fast-jar output
+# at target/quarkus-app/ in case a global Quarkus config has changed it.
 COPY src/ src/
-RUN mvn -B -e -ntp -DskipTests package
+RUN mvn -B -e -ntp -DskipTests -Dquarkus.package.jar.type=fast-jar package \
+ && echo "=== target/ contents ===" \
+ && ls -la target/ \
+ && echo "=== target/quarkus-app/ contents ===" \
+ && ls -la target/quarkus-app/
 
 # ─────────────────────────── Stage 2: runtime ───────────────────────────
 FROM eclipse-temurin:21-jre
@@ -41,12 +47,11 @@ RUN groupadd --system --gid 1001 quarkus \
 
 WORKDIR /deployments
 
-# Quarkus's fast-jar layout — copy the four directories the runtime needs.
-# Copying them as separate layers keeps unchanged libs cached.
-COPY --from=build --chown=1001:1001 /workspace/target/quarkus-app/lib/      lib/
-COPY --from=build --chown=1001:1001 /workspace/target/quarkus-app/*.jar     ./
-COPY --from=build --chown=1001:1001 /workspace/target/quarkus-app/app/      app/
-COPY --from=build --chown=1001:1001 /workspace/target/quarkus-app/quarkus/  quarkus/
+# Copy the entire Quarkus fast-jar layout in one go. This is more robust
+# than splitting into four separate COPYs (lib/, *.jar, app/, quarkus/) —
+# if any subdirectory is missing, a single COPY just copies what's there
+# rather than failing the whole build.
+COPY --from=build --chown=1001:1001 /workspace/target/quarkus-app/ ./
 
 USER 1001
 
