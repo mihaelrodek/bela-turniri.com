@@ -173,9 +173,9 @@ export default function NavBar() {
                                 style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}
                             >
                                 <Image
-                                    src="/bela-turniri-logo.svg"
+                                    src="/bela-turniri-symbol.svg"
                                     alt=""
-                                    h={{ base: "28px", md: "34px" }}
+                                    h={{ base: "32px", md: "40px" }}
                                     w="auto"
                                     draggable={false}
                                 />
@@ -221,9 +221,9 @@ export default function NavBar() {
                             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
                         >
                             <Image
-                                src="/bela-turniri-logo.svg"
+                                src="/bela-turniri-symbol.svg"
                                 alt=""
-                                h="26px"
+                                h="32px"
                                 w="auto"
                                 draggable={false}
                             />

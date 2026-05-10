@@ -2,22 +2,37 @@
 <html lang="hr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/bela-turniri-logo.svg" />
+    <link rel="icon" type="image/svg+xml" href="/bela-turniri-symbol.svg" />
+    <!-- Apple touch icon — uses the PNG because iOS doesn't accept SVG here
+         and falls back to a generic blank tile if it can't decode the favicon. -->
+    <link rel="apple-touch-icon" href="/bela-turniri-symbol.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#3182ce" />
     <meta name="description" content="bela-turniri.com — organiziraj i prati Bela turnire. Pretraži nadolazeće turnire, pridruži se paru i prati rezultate." />
 
-    <!-- Open Graph / link previews. og:image points at our brand SVG so a
-         link share without per-page <meta> overrides (e.g. the home page or
-         /tournaments) still gets a recognizable thumbnail in WhatsApp,
-         Slack, and Discord. Per-page overrides (poster art on tournament
-         detail, avatar on profile) are set client-side via useDocumentHead. -->
+    <!-- Open Graph / link previews. og:image must be a raster format
+         (PNG/JPEG) — WhatsApp and Facebook crawlers silently drop SVG
+         and the share renders without a thumbnail. The 1200x1200 PNG
+         is rendered from bela-turniri-symbol.svg at build time and
+         checked into public/. og:image:secure_url and the explicit
+         dimensions help platforms cache and lay out the card correctly.
+
+         Per-page overrides (poster art on tournament detail, avatar on
+         profile) are set client-side via useDocumentHead and take
+         precedence over these defaults. -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Bela turniri" />
     <meta property="og:title" content="Bela turniri" />
     <meta property="og:description" content="Organiziraj i prati Bela turnire. Pretraži nadolazeće turnire, pridruži se paru i prati rezultate." />
-    <meta property="og:image" content="/bela-turniri-logo.svg" />
+    <meta property="og:image" content="https://bela-turniri.com/bela-turniri-symbol.png" />
+    <meta property="og:image:secure_url" content="https://bela-turniri.com/bela-turniri-symbol.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="1200" />
+    <meta property="og:image:alt" content="Bela turniri logo — četiri belotska adutska znaka" />
     <meta property="og:locale" content="hr_HR" />
     <meta name="twitter:card" content="summary" />
+    <meta name="twitter:image" content="https://bela-turniri.com/bela-turniri-symbol.png" />
 
     <title>Bela turniri</title>
   </head>

@@ -1,7 +1,8 @@
-import axios from "axios";
 import type { PairShort } from "../types/pairs";
-
-const api = axios.create({ baseURL: "/api" });
+// Use the shared http instance so this file inherits the Firebase auth header
+// AND the global success/error toast interceptors. The standalone axios.create
+// it used before bypassed both.
+import { http as api } from "./http";
 
 export async function getPairs(tournamentId: string): Promise<PairShort[]> {
     const { data } = await api.get(`/tournaments/${tournamentId}/pairs`);
@@ -9,15 +10,15 @@ export async function getPairs(tournamentId: string): Promise<PairShort[]> {
         id: String(p.id),
         name: p.name,
         isEliminated: !!p.isEliminated,
-        extraLife: !!p.extraLife, // <— NEW
+        extraLife: !!p.extraLife,
     }));
 }
 
 export type PairUpsert = {
-    id?: string;           // omit/undefined for new pairs
+    id?: string;
     name: string;
     isEliminated?: boolean;
-    extraLife?: boolean;   // <— NEW
+    extraLife?: boolean;
 };
 
 export async function replacePairs(
@@ -29,6 +30,6 @@ export async function replacePairs(
         id: String(p.id),
         name: p.name,
         isEliminated: !!p.isEliminated,
-        extraLife: !!p.extraLife, // <— NEW
+        extraLife: !!p.extraLife,
     }));
 }

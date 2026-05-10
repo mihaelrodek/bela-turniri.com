@@ -19,12 +19,17 @@ export async function createTournament(
         // Do NOT set Content-Type; your http client (e.g. axios) will add the boundary automatically.
         const res = await http.post<TournamentDetails>("/tournaments/multipart", fd, {
             // Let the browser set the proper multipart boundary
-            headers: { "Content-Type": undefined as any }
-        })
+            headers: { "Content-Type": undefined as any },
+            successMessage: "Turnir je kreiran.",
+        } as any)
         return res.data
     }
 
     // No file: keep the old JSON endpoint
-    const res = await http.post<TournamentDetails>("/tournaments", data)
+    const res = await http.post<TournamentDetails>(
+        "/tournaments",
+        data,
+        { successMessage: "Turnir je kreiran." } as any,
+    )
     return res.data
 }

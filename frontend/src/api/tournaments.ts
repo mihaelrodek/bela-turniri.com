@@ -1,4 +1,3 @@
-// src/api/tournaments.ts
 import { http } from "./http";
 import type {
     CreateTournamentPayload,
@@ -7,9 +6,7 @@ import type {
 } from "../types/tournaments";
 import type { PairDraft, PairShort } from "../types/pairs";
 
-/** Create a tournament with all fields (new names). */
 export async function createTournament(payload: CreateTournamentPayload): Promise<TournamentDetails> {
-    // client-side defaults to satisfy not-null constraints
     const body: CreateTournamentPayload = {
         name: payload.name.trim(),
         location: payload.location ?? null,
@@ -30,11 +27,14 @@ export async function createTournament(payload: CreateTournamentPayload): Promis
         resourceId: payload.resourceId ?? null,
     };
 
-    const { data } = await http.post<TournamentDetails>("/tournaments", body);
+    const { data } = await http.post<TournamentDetails>(
+        "/tournaments",
+        body,
+        { successMessage: "Turnir je kreiran." } as any,
+    );
     return data;
 }
 
-/** List tournaments for a status bucket ("upcoming" or "finished"). */
 export async function fetchTournaments(
     status: "upcoming" | "finished" = "upcoming",
 ): Promise<TournamentCard[]> {
@@ -42,26 +42,23 @@ export async function fetchTournaments(
     return data;
 }
 
-/** Full details by id (UUID). */
 export async function fetchTournamentDetails(uuid: string): Promise<TournamentDetails> {
     const { data } = await http.get<TournamentDetails>(`/tournaments/${uuid}`);
     return data;
 }
 
-/**
- * Update an existing tournament. Same payload shape as create — backend ignores
- * fields that are owned by other endpoints (status, winner, poster, matchmaking pref).
- * Poster changes still go through the multipart endpoint.
- */
 export async function updateTournament(
     uuid: string,
     payload: CreateTournamentPayload,
 ): Promise<TournamentDetails> {
-    const { data } = await http.put<TournamentDetails>(`/tournaments/${uuid}`, payload);
+    const { data } = await http.put<TournamentDetails>(
+        `/tournaments/${uuid}`,
+        payload,
+        { successMessage: "Turnir je ažuriran." } as any,
+    );
     return data;
 }
 
-/** Get pairs for a tournament (ids are Long). */
 export async function fetchPairs(tournamentId: string): Promise<PairShort[]> {
     const { data } = await http.get<PairShort[]>(`/tournaments/${tournamentId}/pairs`);
     return data;
@@ -72,7 +69,6 @@ export async function fetchTournamentPairs(uuid: string): Promise<PairShort[]> {
     return data
 }
 
-/** Replace pairs (full-list PUT). */
 export async function replacePairs(tournamentId: string, pairs: Array<PairShort | PairDraft>): Promise<PairShort[]> {
     const hasEmpty = pairs.some(p => !p.name || p.name.trim() === "");
     if (hasEmpty) throw new Error("Pair name cannot be empty.");
@@ -90,20 +86,30 @@ export async function replacePairs(tournamentId: string, pairs: Array<PairShort 
     return data;
 }
 
-
-/** Buy extra life for a pair; backend validates eligibility. */
 export async function buyExtraLife(tournamentUuid: string, pairId: number): Promise<PairShort> {
-    const { data } = await http.post<PairShort>(`/tournaments/${tournamentUuid}/pairs/${pairId}/extra-life`)
+    const { data } = await http.post<PairShort>(
+        `/tournaments/${tournamentUuid}/pairs/${pairId}/extra-life`,
+        undefined,
+        { successMessage: "Dodatni život je kupljen." } as any,
+    )
     return data
 }
 
 export async function finishTournament(uuid: string): Promise<TournamentDetails> {
-    const { data } = await http.post<TournamentDetails>(`/tournaments/${uuid}/finish`)
+    const { data } = await http.post<TournamentDetails>(
+        `/tournaments/${uuid}/finish`,
+        undefined,
+        { successMessage: "Turnir je završen." } as any,
+    )
     return data
 }
 
 export async function startTournament(uuid: string): Promise<TournamentDetails> {
-    const { data } = await http.put<TournamentDetails>(`/tournaments/${uuid}/start`)
+    const { data } = await http.put<TournamentDetails>(
+        `/tournaments/${uuid}/start`,
+        undefined,
+        { successMessage: "Turnir je pokrenut." } as any,
+    )
     return data
 }
 
@@ -117,46 +123,47 @@ export async function setAllowRepeats(
 }
 
 export async function resetTournament(uuid: string): Promise<TournamentDetails> {
-    const res = await http.post<TournamentDetails>(`/tournaments/${uuid}/reset`, {})
+    const res = await http.post<TournamentDetails>(
+        `/tournaments/${uuid}/reset`,
+        {},
+        { successMessage: "Turnir je resetiran." } as any,
+    )
     return res.data
 }
 
 export async function setPairPaid(uuid: string, pairId: number, paid: boolean) {
-    // Adjust path/verb to match your backend when you add it.
-    // Using PATCH since it's a partial update of a single field.
     const { data } = await http.patch(`/tournaments/${uuid}/pairs/${pairId}/paid`, { paid });
-    return data; // ideally returns the updated Pair DTO (including .paid)
+    return data;
 }
 
-/**
- * Any authenticated user can self-register a pair against a not-yet-started
- * tournament. Returned pair has pendingApproval=true until the organizer flips it.
- */
 export async function selfRegisterPair(tournamentUuid: string, name: string): Promise<PairShort> {
     const { data } = await http.post<PairShort>(
         `/tournaments/${tournamentUuid}/pairs/self-register`,
         { name },
+        { successMessage: "Prijava poslana." } as any,
     )
     return data
 }
 
-/** Organizer (or admin) approves a previously self-registered pair. */
 export async function approvePair(tournamentUuid: string, pairId: number): Promise<PairShort> {
     const { data } = await http.post<PairShort>(
         `/tournaments/${tournamentUuid}/pairs/${pairId}/approve`,
+        undefined,
+        { successMessage: "Par je odobren." } as any,
     )
     return data
 }
 
-/** Delete a single pair from a tournament (organizer/admin only, pre-start). */
 export async function deletePair(tournamentUuid: string, pairId: number): Promise<void> {
-    await http.delete(`/tournaments/${tournamentUuid}/pairs/${pairId}`)
+    await http.delete(
+        `/tournaments/${tournamentUuid}/pairs/${pairId}`,
+        { successMessage: "Par je obrisan." } as any,
+    )
 }
 
-/**
- * Soft-delete a tournament. Admin-only on the backend — the row stays in
- * the DB but is invisible to every read path via the entity's @Where filter.
- */
 export async function deleteTournament(tournamentUuid: string): Promise<void> {
-    await http.delete(`/tournaments/${tournamentUuid}`)
+    await http.delete(
+        `/tournaments/${tournamentUuid}`,
+        { successMessage: "Turnir je obrisan." } as any,
+    )
 }

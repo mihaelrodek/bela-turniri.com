@@ -2336,19 +2336,61 @@ export default function TournamentDetailsPage() {
                             )
                         }
 
-                        // For a non-owner viewing a tournament that hasn't started
-                        // yet, the entire rounds tab is empty — no toolbar
-                        // actions, no rounds list, no informative state. Showing
-                        // the dashed "Još nema rundi — prvo startaj turnir" box
-                        // (which only the organizer can act on) just looks ugly.
-                        // We render nothing in that case; once the tournament
-                        // starts and rounds appear, everyone gets the full view.
-                        if (!canEditTournament && !tournamentStarted) return null
+                        // Pre-start, the ždrijeb tab gets a single friendly
+                        // "Turnir još nije započeo" card. The organizer also
+                        // sees the toolbar above it so they can hit "Startaj
+                        // turnir"; everyone else just sees the message.
+                        if (!tournamentStarted) {
+                            return (
+                                <VStack align="stretch" gap="4">
+                                    {canEditTournament && (
+                                        <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
+                                            <Card.Body py="3" px={{ base: "3", md: "4" }}>
+                                                <HStack gap="2" wrap="wrap" justify="flex-end">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="solid"
+                                                        colorPalette="orange"
+                                                        onClick={onStartTournament}
+                                                        disabled={!canStart}
+                                                        title={
+                                                            !canStart
+                                                                ? "Treba najmanje 2 plaćena para za start"
+                                                                : "Pokreni turnir"
+                                                        }
+                                                    >
+                                                        <FiPlay /> Startaj turnir
+                                                    </Button>
+                                                </HStack>
+                                            </Card.Body>
+                                        </Card.Root>
+                                    )}
+                                    <Box
+                                        borderWidth="1px"
+                                        borderColor="border.emphasized"
+                                        borderStyle="dashed"
+                                        rounded="xl"
+                                        py="12"
+                                        px="6"
+                                    >
+                                        <VStack gap="2">
+                                            <Box color="fg.muted"><FiLayers size={28} /></Box>
+                                            <Text fontWeight="medium">Turnir još nije započeo</Text>
+                                            <Text color="fg.muted" fontSize="sm" textAlign="center">
+                                                {canEditTournament
+                                                    ? "Klikni \"Startaj turnir\" iznad kad su svi parovi spremni."
+                                                    : "Organizator još nije pokrenuo turnir. Provjerite kasnije."}
+                                            </Text>
+                                        </VStack>
+                                    </Box>
+                                </VStack>
+                            )
+                        }
 
-                        // Toolbar carries owner-only settings + actions plus the
-                        // Sažmi/Proširi sve toggle (which depends on rounds
-                        // existing). Hide it whenever it would be empty.
-                        const showToolbar = canEditTournament || rounds.length > 0
+                        // Tournament has started — show the full toolbar +
+                        // rounds list. The Sažmi/Proširi sve toggle depends
+                        // on rounds existing; it's safely scoped below.
+                        const showToolbar = true
                         return (
                             <VStack align="stretch" gap="4">
                                 {/* ===== Toolbar ===== */}
