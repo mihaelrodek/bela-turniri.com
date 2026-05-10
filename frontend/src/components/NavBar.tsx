@@ -112,15 +112,13 @@ export default function NavBar() {
     function AuthArea() {
         if (loading) return null
         if (!user) {
+            // Single Prijava button — the login page itself has a "Nemaš
+            // račun? Registriraj se" link, so showing both buttons in the
+            // navbar was redundant noise.
             return (
-                <HStack gap="1.5">
-                    <Button asChild size="sm" variant="ghost">
-                        <RouterLink to="/login">Prijava</RouterLink>
-                    </Button>
-                    <Button asChild size="sm" variant="solid" colorPalette="blue">
-                        <RouterLink to="/register">Registracija</RouterLink>
-                    </Button>
-                </HStack>
+                <Button asChild size="sm" variant="solid" colorPalette="blue">
+                    <RouterLink to="/login">Prijava</RouterLink>
+                </Button>
             )
         }
         return (
@@ -330,14 +328,11 @@ export default function NavBar() {
                             <NavButton to="/find-pair">Pronađi para</NavButton>
 
                             {!loading && !user && (
-                                <>
-                                    <NavButton to="/login">
-                                        <Box as="span" display="inline-flex" alignItems="center" gap="2">
-                                            <FiUser /> Prijava
-                                        </Box>
-                                    </NavButton>
-                                    <NavButton to="/register">Registracija</NavButton>
-                                </>
+                                <NavButton to="/login">
+                                    <Box as="span" display="inline-flex" alignItems="center" gap="2">
+                                        <FiUser /> Prijava
+                                    </Box>
+                                </NavButton>
                             )}
                         </Stack>
                     </Box>

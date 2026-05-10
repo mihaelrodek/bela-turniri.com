@@ -1788,7 +1788,7 @@ export default function TournamentDetailsPage() {
                                                     <FiCheck /> Odobri
                                                 </Button>
                                             )}
-                                            {!tournamentAlready && !isPending ? (
+                                            {!tournamentAlready && !isPending && canEditTournament ? (
                                                 <Button
                                                     size="xs"
                                                     variant={paid ? "outline" : "solid"}
@@ -1827,7 +1827,11 @@ export default function TournamentDetailsPage() {
                                                 </Button>
                                             ) : null}
 
-                                            {!tournamentAlready && (
+                                            {/* Owner/admin only — non-owners shouldn't see
+                                                the trash icon at all. The backend would 403
+                                                them anyway, but rendering the button gives
+                                                the wrong impression that they can delete. */}
+                                            {!tournamentAlready && canEditTournament && (
                                                 <IconButton
                                                     aria-label="Ukloni par"
                                                     size="xs"

@@ -432,29 +432,25 @@ export default function TournamentsPage() {
         <VStack align="stretch" gap="8">
             {/* ===================== Upcoming ===================== */}
             <Box>
-                {/* Filter card + Kreiraj turnir, side-by-side on md+, stacked on mobile.
-                    align="stretch" so the button matches the card's height on md+. */}
+                {/* Single rounded card holding search, filter toggle, AND the
+                    create-tournament CTA. Putting the button INSIDE the card
+                    (instead of beside it) means on mobile all three controls
+                    can sit on the same row when there's room, and the page
+                    saves the visual height of the previously-separate button
+                    block. */}
                 {!loading && upcoming.length > 0 && (
-                    <Stack
-                        direction={{ base: "column", md: "row" }}
-                        align={{ base: "stretch", md: "stretch" }}
-                        gap="3"
-                        wrap="wrap"
-                        mb="4"
-                    >
                     <Card.Root
                         variant="outline"
                         rounded="xl"
                         borderColor="border.emphasized"
                         shadow="sm"
-                        flex="1"
-                        minW={{ base: "100%", md: "0" }}
+                        mb="4"
                     >
                         <Card.Body py="3" px={{ base: "3", md: "4" }}>
-                            {/* Mobile: search on its own row, then filter button
-                                full-width below it. The thumb-size tap targets
-                                matter more than horizontal density on phones.
-                                Desktop: search + filter inline as before. */}
+                            {/* Mobile: search on its own row; below it Filteri,
+                                Očisti sve, and Kreiraj turnir share a flex row
+                                so the create CTA never disappears below the
+                                fold. Desktop: everything inline. */}
                             <Stack
                                 direction={{ base: "column", md: "row" }}
                                 gap="2"
@@ -522,6 +518,21 @@ export default function TournamentsPage() {
                                             Očisti sve
                                         </Button>
                                     )}
+                                    {/* Create-tournament CTA — sits inline with
+                                        the filter controls. Solid blue so the
+                                        primary action stays visually distinct
+                                        from the outlined Filteri button. */}
+                                    <Button
+                                        asChild
+                                        size={{ base: "md", md: "sm" }}
+                                        variant="solid"
+                                        colorPalette="blue"
+                                        flex={{ base: "1", md: "none" }}
+                                    >
+                                        <RouterLink to="/tournaments/new">
+                                            <FiPlus /> Kreiraj turnir
+                                        </RouterLink>
+                                    </Button>
                                 </HStack>
                             </Stack>
 
@@ -625,23 +636,6 @@ export default function TournamentsPage() {
                             )}
                         </Card.Body>
                     </Card.Root>
-                        <Button
-                            asChild
-                            size={{ base: "md", md: "sm" }}
-                            variant="solid"
-                            colorPalette="blue"
-                            flexShrink={0}
-                            rounded="lg"
-                            // Center horizontally on mobile (the user explicitly
-                            // asked for this); on md+ the button sits beside the
-                            // filter card and self-centers vertically.
-                            alignSelf={{ base: "center", md: "center" }}
-                        >
-                            <RouterLink to="/tournaments/new">
-                                <FiPlus /> Kreiraj turnir
-                            </RouterLink>
-                        </Button>
-                    </Stack>
                 )}
 
                 {/* When upcoming.length === 0, no separate create button is
