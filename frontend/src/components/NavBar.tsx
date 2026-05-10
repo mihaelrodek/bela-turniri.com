@@ -7,6 +7,7 @@ import { useColorMode, useColorModeValue } from "../color-mode"
 import { FiLogOut, FiMenu, FiMoon, FiSun, FiUser, FiX } from "react-icons/fi"
 import { useAuth } from "../auth/AuthContext"
 import { getProfile } from "../api/userMe"
+import { InstallAppButton } from "./InstallAppButton"
 
 function NavButton({
                        to, exact, children, onClick,
@@ -218,6 +219,9 @@ export default function NavBar() {
                     </HStack>
 
                     <HStack justify="end" gap="1.5">
+                        {/* Conditional install button — renders nothing on
+                            browsers that can't or already have installed. */}
+                        <InstallAppButton size="sm" variant="outline" />
                         <AuthArea />
                         <IconButton
                             aria-label="Toggle color mode"
@@ -329,6 +333,12 @@ export default function NavBar() {
                                     <NavButton to="/register">Registracija</NavButton>
                                 </>
                             )}
+
+                            {/* Install button — sits at the bottom of the
+                                mobile menu so it's the last thing in the
+                                drawer when expanded. fullWidth keeps the
+                                visual rhythm of the NavButton stack above. */}
+                            <InstallAppButton size="sm" variant="solid" fullWidth />
                         </Stack>
                     </Box>
                 )}

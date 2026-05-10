@@ -3,11 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/bela-turniri-symbol.svg" />
-    <!-- Apple touch icon — uses the PNG because iOS doesn't accept SVG here
-         and falls back to a generic blank tile if it can't decode the favicon. -->
-    <link rel="apple-touch-icon" href="/bela-turniri-symbol.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Apple touch icon — 180x180 PNG with white padding so iOS doesn't
+         clip the suits when it rounds the corners on the home screen. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#3182ce" />
+
+    <!-- ── PWA / Add to Home Screen ─────────────────────────────────────
+         Installable web app metadata. With the manifest below, Chrome
+         (Android/desktop) shows an "Install app" option in the URL bar;
+         Safari (iOS) supports "Add to Home Screen" via the share menu.
+         The four apple-mobile-web-app-* meta tags are iOS-only, since
+         iOS Safari predates and ignores parts of the W3C manifest.
+
+         When launched from the home-screen icon the app runs in
+         "standalone" mode (no Safari/Chrome chrome around the page),
+         which is what makes it feel like a native app. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="application-name" content="Bela Turniri" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Bela Turniri" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="description" content="bela-turniri.com — organiziraj i prati Bela turnire. Pretraži nadolazeće turnire, pridruži se paru i prati rezultate." />
 
     <!-- Open Graph / link previews. og:image must be a raster format
