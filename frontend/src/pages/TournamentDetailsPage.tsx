@@ -28,6 +28,7 @@ import {
     FiCheckCircle,
     FiChevronDown,
     FiChevronRight,
+    FiChevronUp,
     FiClock,
     FiDollarSign,
     FiEdit2,
@@ -1751,9 +1752,23 @@ export default function TournamentDetailsPage() {
                                                     {p.wins}W – {p.losses}L
                                                 </Badge>
                                             )}
-                                            {p.extraLife && (
+                                            {/* Život status badges — read-only for everyone.
+                                                "Ima život" (green): pair still on its first
+                                                life, hasn't lost a game yet. "Nema život"
+                                                (red): pair already burned through its first
+                                                life and bought the safety-net extra life,
+                                                so the next loss eliminates them. A pair
+                                                with one loss but no extraLife is in the
+                                                "buy now" middle zone and shows neither
+                                                badge — only the organizer's Život button. */}
+                                            {tournamentAlready && !isPending && !eliminated && p.losses === 0 && (
+                                                <Badge variant="subtle" colorPalette="green">
+                                                    <HStack gap="1"><FiHeart size={10} /> Ima život</HStack>
+                                                </Badge>
+                                            )}
+                                            {tournamentAlready && !isPending && !eliminated && p.extraLife && (
                                                 <Badge variant="subtle" colorPalette="red">
-                                                    <HStack gap="1"><FiHeart size={10} /> Život</HStack>
+                                                    <HStack gap="1"><FiHeart size={10} /> Nema život</HStack>
                                                 </Badge>
                                             )}
                                             {eliminated && (
@@ -1798,26 +1813,20 @@ export default function TournamentDetailsPage() {
                                                 >
                                                     {paid ? "Označi neplaćeno" : "Plati"}
                                                 </Button>
-                                            ) : !tournamentLocked && !isPending && canEditTournament && !eliminated ? (
-                                                // Život button — owner/admin only. Hidden
-                                                // entirely once the pair is fully eliminated
-                                                // (the user can no longer buy a life that
-                                                // would matter). Non-owners can't click this
-                                                // because the backend rejects buy-extra-life
-                                                // requests from anyone but the organizer; we
-                                                // hide it here so they don't see it at all.
-                                                //
-                                                // Visual: green "Ima život" once bought,
-                                                // red "Nema život" while it's still up for
-                                                // grabs. Both states use a solid fill so the
-                                                // contrast against neighbouring outline
-                                                // buttons stays high; click-through is
-                                                // gated by extraBtnDisabled (already-bought
-                                                // or not yet eligible).
+                                            ) : !tournamentLocked && !isPending && canEditTournament ? (
+                                                // Život buy-button — owner/admin only.
+                                                // Status (Ima/Nema život) is shown by the
+                                                // read-only badges above; this button is
+                                                // strictly the action that lets the
+                                                // organizer purchase a safety-net life
+                                                // for a pair after their first loss.
+                                                // Disabled (and tooltip-explained) when
+                                                // already bought, not yet eligible, or
+                                                // the pair hasn't been saved server-side.
                                                 <Button
                                                     size="xs"
                                                     variant="solid"
-                                                    colorPalette={p.extraLife ? "green" : "red"}
+                                                    colorPalette={p.extraLife ? "gray" : eligible ? "green" : "gray"}
                                                     disabled={extraBtnDisabled}
                                                     onClick={async () => {
                                                         if (extraBtnDisabled) return
@@ -1829,16 +1838,13 @@ export default function TournamentDetailsPage() {
                                                         }
                                                     }}
                                                     title={
-                                                        p.extraLife ? "Život je kupljen"
+                                                        p.extraLife ? "Već kupljeno"
                                                             : eligible ? "Kupi život"
                                                             : !hasServerId ? "Spremi prvo"
                                                             : "Nije dostupno"
                                                     }
                                                 >
-                                                    <HStack gap="1">
-                                                        <FiHeart />
-                                                        {p.extraLife ? "Ima život" : "Nema život"}
-                                                    </HStack>
+                                                    <HStack gap="1"><FiHeart /> Život</HStack>
                                                 </Button>
                                             ) : null}
 
@@ -2414,9 +2420,16 @@ export default function TournamentDetailsPage() {
                         }
 
                         // Tournament has started — show the full toolbar +
-                        // rounds list. The Sažmi/Proširi sve toggle depends
-                        // on rounds existing; it's safely scoped below.
-                        const showToolbar = true
+                        // rounds list. The toolbar contains owner-only settings
+                        // (repeats switch) and owner-only actions (Generiraj /
+                        // Završi / Resetiraj turnir) plus the Sažmi/Proširi sve
+                        // toggle. For non-owners only the toggle would render,
+                        // floating alone inside an empty grid column — that's
+                        // the "really stranger" layout the user reported. So
+                        // we hide the entire toolbar for non-owners; the
+                        // per-round chevron in each round's header still gives
+                        // them a way to collapse rounds individually.
+                        const showToolbar = canEditTournament
                         return (
                             <VStack align="stretch" gap="4">
                                 {/* ===== Toolbar ===== */}
@@ -2480,7 +2493,9 @@ export default function TournamentDetailsPage() {
                                                         })
                                                     }
                                                 >
-                                                    {allCollapsed ? "Proširi sve" : "Sažmi sve"}
+                                                    {allCollapsed
+                                                        ? <><FiChevronDown /> Proširi sve</>
+                                                        : <><FiChevronUp /> Sažmi sve</>}
                                                 </Button>
                                             )}
                                             {!tournamentStarted && canEditTournament && (
@@ -2595,13 +2610,21 @@ export default function TournamentDetailsPage() {
                                                     >
                                                         <HStack justify="space-between" wrap="wrap" gap="2">
                                                             <HStack gap="2" align="center">
+                                                                {/* Round collapse toggle. Bumped from
+                                                                    size="xs" to "sm" because the xs
+                                                                    icon-button shrinks the chevron to
+                                                                    near-invisible on some browsers; the
+                                                                    explicit `size={18}` on the SVG
+                                                                    overrides any inherited font-size
+                                                                    quirks so the glyph always renders. */}
                                                                 <IconButton
                                                                     aria-label={collapsed ? "Proširi rundu" : "Sažmi rundu"}
-                                                                    size="xs"
+                                                                    title={collapsed ? "Proširi rundu" : "Sažmi rundu"}
+                                                                    size="sm"
                                                                     variant="ghost"
                                                                     onClick={() => toggleRoundCollapsed(r.id)}
                                                                 >
-                                                                    {collapsed ? <FiChevronRight /> : <FiChevronDown />}
+                                                                    {collapsed ? <FiChevronRight size={18} /> : <FiChevronDown size={18} />}
                                                                 </IconButton>
                                                                 <Heading size="sm">Runda {r.number}</Heading>
                                                                 <Badge
