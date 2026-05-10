@@ -144,12 +144,26 @@
 
     <build>
         <plugins>
-            <!-- Quarkus build/dev/native -->
+            <!-- Quarkus build/dev/native.
+                 The <executions> block is what binds Quarkus's `build` and
+                 `generate-code` goals to the Maven `package` phase. Without
+                 these executions, `mvn package` runs only the standard jar
+                 plugin and `target/quarkus-app/` is never produced — the
+                 docker build fails to find it. -->
             <plugin>
                 <groupId>io.quarkus.platform</groupId>
                 <artifactId>quarkus-maven-plugin</artifactId>
                 <version>${quarkus.platform.version}</version>
                 <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                            <goal>generate-code</goal>
+                            <goal>generate-code-tests</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- Give the compiler plugin an explicit version -->
