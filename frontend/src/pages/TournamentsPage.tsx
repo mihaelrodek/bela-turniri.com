@@ -10,6 +10,7 @@ import {
     Image,
     Input,
     Skeleton,
+    Stack,
     Text,
     VStack,
 } from "@chakra-ui/react"
@@ -434,7 +435,13 @@ export default function TournamentsPage() {
                 {/* Filter card + Kreiraj turnir, side-by-side on md+, stacked on mobile.
                     align="stretch" so the button matches the card's height on md+. */}
                 {!loading && upcoming.length > 0 && (
-                    <HStack align="stretch" gap="3" wrap="wrap" mb="4">
+                    <Stack
+                        direction={{ base: "column", md: "row" }}
+                        align={{ base: "stretch", md: "stretch" }}
+                        gap="3"
+                        wrap="wrap"
+                        mb="4"
+                    >
                     <Card.Root
                         variant="outline"
                         rounded="xl"
@@ -444,7 +451,15 @@ export default function TournamentsPage() {
                         minW={{ base: "100%", md: "0" }}
                     >
                         <Card.Body py="3" px={{ base: "3", md: "4" }}>
-                            <HStack gap="2" wrap="wrap">
+                            {/* Mobile: search on its own row, then filter button
+                                full-width below it. The thumb-size tap targets
+                                matter more than horizontal density on phones.
+                                Desktop: search + filter inline as before. */}
+                            <Stack
+                                direction={{ base: "column", md: "row" }}
+                                gap="2"
+                                align="stretch"
+                            >
                                 <Box position="relative" flex="1" minW={{ base: "100%", md: "260px" }}>
                                     <Box
                                         position="absolute"
@@ -457,7 +472,7 @@ export default function TournamentsPage() {
                                         <FiSearch />
                                     </Box>
                                     <Input
-                                        size="sm"
+                                        size={{ base: "md", md: "sm" }}
                                         pl="9"
                                         pr={search ? "9" : "3"}
                                         placeholder="Pretraži po imenu turnira…"
@@ -467,7 +482,7 @@ export default function TournamentsPage() {
                                     {search && (
                                         <IconButton
                                             aria-label="Očisti pretragu"
-                                            size="2xs"
+                                            size="xs"
                                             variant="ghost"
                                             position="absolute"
                                             right="2"
@@ -479,28 +494,36 @@ export default function TournamentsPage() {
                                         </IconButton>
                                     )}
                                 </Box>
-                                <Button
-                                    size="sm"
-                                    variant={activeFilterCount > 0 ? "solid" : "outline"}
-                                    colorPalette={activeFilterCount > 0 ? "blue" : "gray"}
-                                    onClick={() => setFiltersOpen((v) => !v)}
-                                    aria-expanded={filtersOpen}
-                                    title={filtersOpen ? "Sakrij filtere" : "Prikaži filtere"}
-                                >
-                                    <FiFilter /> Filteri
-                                    {activeFilterCount > 0 && (
-                                        <Badge ml="1" colorPalette="blue" variant="solid" size="sm">
-                                            {activeFilterCount}
-                                        </Badge>
-                                    )}
-                                    {filtersOpen ? <FiChevronUp /> : <FiChevronDown />}
-                                </Button>
-                                {isFiltering && (
-                                    <Button size="sm" variant="ghost" onClick={resetFilters}>
-                                        Očisti sve
+                                <HStack gap="2" wrap="wrap">
+                                    <Button
+                                        size={{ base: "md", md: "sm" }}
+                                        variant={activeFilterCount > 0 ? "solid" : "outline"}
+                                        colorPalette={activeFilterCount > 0 ? "blue" : "gray"}
+                                        onClick={() => setFiltersOpen((v) => !v)}
+                                        aria-expanded={filtersOpen}
+                                        title={filtersOpen ? "Sakrij filtere" : "Prikaži filtere"}
+                                        flex={{ base: "1", md: "none" }}
+                                    >
+                                        <FiFilter /> Filteri
+                                        {activeFilterCount > 0 && (
+                                            <Badge ml="1" colorPalette="blue" variant="solid" size="sm">
+                                                {activeFilterCount}
+                                            </Badge>
+                                        )}
+                                        {filtersOpen ? <FiChevronUp /> : <FiChevronDown />}
                                     </Button>
-                                )}
-                            </HStack>
+                                    {isFiltering && (
+                                        <Button
+                                            size={{ base: "md", md: "sm" }}
+                                            variant="ghost"
+                                            onClick={resetFilters}
+                                            flex={{ base: "1", md: "none" }}
+                                        >
+                                            Očisti sve
+                                        </Button>
+                                    )}
+                                </HStack>
+                            </Stack>
 
                             {filtersOpen && (
                                 <>
@@ -604,18 +627,21 @@ export default function TournamentsPage() {
                     </Card.Root>
                         <Button
                             asChild
-                            size="sm"
+                            size={{ base: "md", md: "sm" }}
                             variant="solid"
                             colorPalette="blue"
                             flexShrink={0}
                             rounded="lg"
-                            alignSelf={{ base: "flex-end", md: "center" }}
+                            // Center horizontally on mobile (the user explicitly
+                            // asked for this); on md+ the button sits beside the
+                            // filter card and self-centers vertically.
+                            alignSelf={{ base: "center", md: "center" }}
                         >
                             <RouterLink to="/tournaments/new">
                                 <FiPlus /> Kreiraj turnir
                             </RouterLink>
                         </Button>
-                    </HStack>
+                    </Stack>
                 )}
 
                 {/* When upcoming.length === 0, no separate create button is

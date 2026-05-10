@@ -4,7 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="" />
+    <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/FirstRunInstallPrompt.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/FirstRunInstallPrompt.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -206,7 +211,7 @@
       <workItem from="1777145110930" duration="882000" />
       <workItem from="1777185645412" duration="23139000" />
       <workItem from="1778220843096" duration="3548000" />
-      <workItem from="1778233909398" duration="18596000" />
+      <workItem from="1778233909398" duration="19224000" />
     </task>
     <servers />
   </component>
