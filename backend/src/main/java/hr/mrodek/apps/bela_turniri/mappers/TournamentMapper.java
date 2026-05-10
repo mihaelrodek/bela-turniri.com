@@ -158,9 +158,21 @@ public interface TournamentMapper {
         // repassageSecondPrice intentionally may be null
     }
 
-    // Safely read the public URL from the linked resource
+    /**
+     * Stable poster URL for the SPA. Always returns a backend-proxied path
+     * ({@code /api/resources/<id>/image}) — never the MinIO direct URL —
+     * because the MinIO bucket is private. The proxy controller streams the
+     * bytes through with proper Content-Type and a 1-year immutable cache.
+     *
+     * <p>The legacy {@code Resources.publicUrl} column may still hold MinIO
+     * URLs from earlier uploads; we deliberately ignore it and compute the
+     * proxied URL from the resource id instead, so old and new rows behave
+     * identically without a backfill migration.
+     */
     default String publicUrl(Tournaments t) {
         if (t == null || t.getResource() == null) return null;
-        return t.getResource().getPublicUrl();
+        Long rid = t.getResource().getId();
+        if (rid == null) return null;
+        return "/api/resources/" + rid + "/image";
     }
 }

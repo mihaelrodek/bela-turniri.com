@@ -5,14 +5,25 @@ import hr.mrodek.apps.bela_turniri.model.Matches;
 import hr.mrodek.apps.bela_turniri.model.Pairs;
 import hr.mrodek.apps.bela_turniri.model.Rounds;
 import hr.mrodek.apps.bela_turniri.model.Tournaments;
-import io.quarkus.hibernate.orm.panache.Panache;
+import io.quarkus.panache.common.Parameters;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
 
 import java.util.List;
 
 @ApplicationScoped
 public class MatchesRepository implements AppRepository<Matches, Long> {
+
+    /**
+     * CDI-injected {@link EntityManager} for the rare scalar/projection query
+     * Panache's entity-shaped {@code find()} can't express. Same EM instance
+     * Panache uses internally — preferred over {@code Panache.getEntityManager()}
+     * because injection is the standard Quarkus + Hibernate ORM pattern and
+     * is easier to mock if we ever add tests against this repo.
+     */
+    @Inject EntityManager em;
 
     public List<Matches> findByRound(Rounds round) {
         return list("round", round);
@@ -24,7 +35,7 @@ public class MatchesRepository implements AppRepository<Matches, Long> {
      * EntityManager rather than Panache's entity-shaped {@code find()}.
      */
     public Integer findLastLossRoundNumber(Tournaments tournament, Pairs pair) {
-        return Panache.getEntityManager().createQuery("""
+        return em.createQuery("""
                         select max(m.round.number)
                         from Matches m
                         where m.tournament = :t
@@ -71,15 +82,16 @@ public class MatchesRepository implements AppRepository<Matches, Long> {
      */
     public List<Matches> findByPairId(Long pairId) {
         if (pairId == null) return List.of();
-        return Panache.getEntityManager().createQuery("""
-                        select m from Matches m
-                        join fetch m.round r
-                        left join fetch m.pair1
-                        left join fetch m.pair2
-                        where m.pair1.id = :pid or m.pair2.id = :pid
-                        order by r.number asc, m.tableNo asc nulls last, m.id asc
-                        """, Matches.class)
-                .setParameter("pid", pairId)
-                .getResultList();
+        // Full JPQL via Panache's list(...) — entity-shaped, so we can stay
+        // on Panache rather than dropping to EntityManager. The "from" prefix
+        // tells Panache this is a complete query, not a where-clause shortcut.
+        return list("""
+                from Matches m
+                join fetch m.round r
+                left join fetch m.pair1
+                left join fetch m.pair2
+                where m.pair1.id = :pid or m.pair2.id = :pid
+                order by r.number asc, m.tableNo asc nulls last, m.id asc
+                """, Parameters.with("pid", pairId));
     }
 }

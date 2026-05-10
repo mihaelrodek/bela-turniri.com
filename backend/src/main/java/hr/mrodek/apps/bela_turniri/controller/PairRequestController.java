@@ -53,6 +53,28 @@ public class PairRequestController {
         }
     }
 
+    /**
+     * True when no Firebase ID token was presented (or it didn't verify).
+     * SecurityIdentity is always injected; for anonymous traffic it's marked
+     * anonymous because Quarkus OIDC is in lazy mode (proactive=false).
+     */
+    private boolean isAnonymous() {
+        return identity == null || identity.isAnonymous();
+    }
+
+    /**
+     * Strip phone numbers from list responses served to unauthenticated callers.
+     * The product still wants pair-finding requests visible to anonymous browsers
+     * (so people can see "this tournament has 3 people looking for a partner"),
+     * but exposing phone numbers without auth turned the endpoint into a
+     * one-click PII scraper. Logged-in users get the full payload.
+     */
+    private List<PairRequestDto> redactForAnonymous(List<PairRequestDto> dtos) {
+        if (!isAnonymous()) return dtos;
+        for (PairRequestDto d : dtos) d.setPhone(null);
+        return dtos;
+    }
+
     @POST
     @Path("/by-tournament/{tournamentUuid}")
     @Authenticated
@@ -79,11 +101,11 @@ public class PairRequestController {
     @GET
     public List<PairRequestDto> list(@QueryParam("status") String status) {
         if (status == null || status.isBlank()) {
-            return mapper.toDtoList(repo.findAllOrderByCreatedDesc());
+            return redactForAnonymous(mapper.toDtoList(repo.findAllOrderByCreatedDesc()));
         }
         try {
             PairRequestStatus s = PairRequestStatus.valueOf(status.toUpperCase());
-            return mapper.toDtoList(repo.findByStatus(s));
+            return redactForAnonymous(mapper.toDtoList(repo.findByStatus(s)));
         } catch (IllegalArgumentException ex) {
             return List.of();
         }
@@ -94,7 +116,7 @@ public class PairRequestController {
     public Response listForTournament(@PathParam("tournamentUuid") UUID tournamentUuid) {
         var t = tournamentsRepo.findByUuid(tournamentUuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        return Response.ok(mapper.toDtoList(repo.findByTournament_Id(t.getId()))).build();
+        return Response.ok(redactForAnonymous(mapper.toDtoList(repo.findByTournament_Id(t.getId())))).build();
     }
 
     /**

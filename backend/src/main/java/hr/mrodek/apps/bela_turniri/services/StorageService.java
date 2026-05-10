@@ -13,7 +13,6 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -28,12 +27,25 @@ public class StorageService {
     @ConfigProperty(name = "minio.bucket")
     String bucket;
 
-    @ConfigProperty(name = "minio.publicBaseUrl")
-    String publicBaseUrl;
+    /**
+     * Hard cap on poster size (bytes). The global Quarkus body-size limit is
+     * 15 MiB, but a tournament poster has no business being more than a few
+     * MB even at high resolution. This is the defense-in-depth check that
+     * stops a logged-in user from filling MinIO with 15 MB images repeatedly.
+     */
+    private static final long MAX_POSTER_BYTES = 6L * 1024 * 1024;
 
     /** Upload using RESTEasy Reactive FileUpload (Quarkus) */
     public Resources uploadPoster(org.jboss.resteasy.reactive.multipart.FileUpload file) {
         try {
+            // Per-image size cap, separate from the global body limit. We
+            // check before reading bytes so a large file is rejected as
+            // cheaply as possible.
+            if (file.size() > MAX_POSTER_BYTES) {
+                throw new IllegalArgumentException(
+                        "Slika je prevelika. Maksimum: " + (MAX_POSTER_BYTES / (1024 * 1024)) + " MB.");
+            }
+
             // Ensure bucket exists (no-op if it already does)
             boolean exists = minio.bucketExists(
                     io.minio.BucketExistsArgs.builder().bucket(bucket).build()
@@ -46,12 +58,34 @@ public class StorageService {
             try (java.io.InputStream in = java.nio.file.Files.newInputStream(path)) {
                 String originalName = file.fileName();
                 String ext = sanitizeExt(org.apache.commons.io.FilenameUtils.getExtension(originalName));
+                // Reject anything that didn't make it through the whitelist. Without this
+                // a client could upload `evil.html` and we'd store it as `bin`, then later
+                // serve it back from the public bucket with whatever Content-Type they
+                // chose — see contentTypeForExt() below for the safe-list mapping.
+                if ("bin".equals(ext)) {
+                    throw new IllegalArgumentException(
+                            "Unsupported image type. Allowed: jpg, jpeg, png, webp.");
+                }
                 String objectKey = buildObjectKey(ext);
+
+                // SECURITY: derive the stored Content-Type from the validated extension
+                // — never trust the client-supplied file.contentType(). Combined with
+                // X-Content-Type-Options: nosniff at the proxy, this means the browser
+                // will only ever render uploads as images.
+                String safeContentType = contentTypeForExt(ext);
 
                 var put = io.minio.PutObjectArgs.builder()
                         .bucket(bucket)
                         .object(objectKey)
-                        .contentType(file.contentType() != null ? file.contentType() : "application/octet-stream")
+                        .contentType(safeContentType)
+                        // Force inline image disposition; browsers will not execute
+                        // this even if the bytes happen to look like HTML.
+                        // (MinIO 8.5 has BaseArgs.Builder.extraHeaders(Map<String,String>);
+                        //  headers(...) takes a Guava Multimap, which we don't import.)
+                        .extraHeaders(java.util.Map.of(
+                                "Content-Disposition", "inline",
+                                "X-Content-Type-Options", "nosniff"
+                        ))
                         .stream(in, file.size(), -1)
                         .build();
 
@@ -60,10 +94,15 @@ public class StorageService {
                 Resources r = new Resources();
                 r.setBucketName(bucket);
                 r.setObjectKey(objectKey);
-                r.setContentType(file.contentType());
+                r.setContentType(safeContentType);
                 r.setSizeBytes(file.size());
                 r.setEtag(result.etag());
-                r.setPublicUrl(buildPublicUrl(objectKey));
+                // publicUrl is intentionally left null. The MinIO bucket is
+                // private; the SPA fetches images via the backend proxy at
+                // /api/resources/{id}/image, which TournamentMapper.publicUrl()
+                // computes from the resource id. Older rows may still have a
+                // MinIO URL stored here from before this change — that's fine,
+                // the mapper ignores the column either way.
                 r.setCreatedAt(java.time.OffsetDateTime.now());
                 r.setUpdatedAt(java.time.OffsetDateTime.now());
 
@@ -78,6 +117,9 @@ public class StorageService {
             }
         } catch (io.minio.errors.MinioException me) {
             throw new RuntimeException("MinIO error: " + me.getMessage(), me);
+        } catch (IllegalArgumentException iae) {
+            // Don't wrap — let the IllegalArgumentExceptionMapper turn this into 400.
+            throw iae;
         } catch (Exception e) {
             throw new RuntimeException("Failed to upload poster", e);
         }
@@ -94,21 +136,25 @@ public class StorageService {
         };
     }
 
+    /**
+     * Map our internal extension token to the Content-Type we want stored on the
+     * MinIO object. Decoupled from request input so a malicious client can't
+     * trick us into serving uploaded bytes as HTML/JS/SVG.
+     */
+    private String contentTypeForExt(String ext) {
+        return switch (ext) {
+            case "jpg" -> "image/jpeg";
+            case "png" -> "image/png";
+            case "webp" -> "image/webp";
+            // Should be unreachable — uploadPoster() rejects "bin" before this point —
+            // but keep the fallback restrictive just in case.
+            default -> "application/octet-stream";
+        };
+    }
+
     private String buildObjectKey(String ext) {
         // e.g. posters/ab/uuid.jpg
         String id = UUID.randomUUID().toString();
         return "posters/%s/%s.%s".formatted(id.substring(0, 2), id, ext);
-    }
-
-    private String buildPublicUrl(String objectKey) {
-        String encodedKey = java.net.URLEncoder
-                .encode(objectKey, StandardCharsets.UTF_8)
-                .replace("+", "%20")
-                .replace("%2F", "/"); // keep slashes
-        return "%s/%s/%s".formatted(
-                publicBaseUrl.replaceAll("/+$", ""),
-                bucket,
-                encodedKey
-        );
     }
 }

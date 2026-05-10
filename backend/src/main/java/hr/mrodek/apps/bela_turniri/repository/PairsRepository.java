@@ -1,13 +1,24 @@
 package hr.mrodek.apps.bela_turniri.repository;
 
 import hr.mrodek.apps.bela_turniri.model.Pairs;
-import io.quarkus.hibernate.orm.panache.Panache;
+import io.quarkus.panache.common.Parameters;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
 
+import java.util.Collection;
 import java.util.List;
 
 @ApplicationScoped
 public class PairsRepository implements AppRepository<Pairs, Long> {
+
+    /**
+     * CDI-injected {@link EntityManager} for tuple-shaped projections that
+     * Panache's entity-only {@code find()} can't express (e.g. GROUP BY
+     * returning {@code Object[]} rows). Same EM instance Panache uses
+     * internally.
+     */
+    @Inject EntityManager em;
 
     public List<Pairs> findByTournament_Id(Long tournamentId) {
         return list("tournament.id", tournamentId);
@@ -26,32 +37,33 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
      *
      * Pass an empty list of presets to skip the by-name OR clause entirely.
      */
-    @SuppressWarnings("unchecked")
-    public List<Pairs> findMyParticipations(String uid, java.util.Collection<String> presetNames) {
+    public List<Pairs> findMyParticipations(String uid, Collection<String> presetNames) {
         if (uid == null || uid.isBlank()) return List.of();
 
-        java.util.List<String> lowered = presetNames == null
-                ? java.util.List.of()
+        List<String> lowered = presetNames == null
+                ? List.of()
                 : presetNames.stream()
                         .filter(s -> s != null && !s.isBlank())
                         .map(s -> s.trim().toLowerCase())
                         .toList();
 
+        // Build the JPQL dynamically — the OR-by-name clause is only added
+        // when the user has saved pair-name presets. Stays on Panache:
+        // entity-shaped result, full "from" prefix tells Panache this is
+        // a complete query, named params via Parameters builder.
         StringBuilder jpql = new StringBuilder("""
-                SELECT p FROM Pairs p
-                JOIN FETCH p.tournament t
-                WHERE p.submittedByUid = :uid
+                from Pairs p
+                join fetch p.tournament t
+                where p.submittedByUid = :uid
                 """);
+        Parameters params = Parameters.with("uid", uid);
         if (!lowered.isEmpty()) {
-            jpql.append(
-                    " OR (p.submittedByUid IS NULL AND LOWER(TRIM(p.name)) IN :names)");
+            jpql.append(" or (p.submittedByUid is null and lower(trim(p.name)) in :names)");
+            params = params.and("names", lowered);
         }
-        jpql.append(" ORDER BY t.startAt DESC NULLS LAST");
+        jpql.append(" order by t.startAt desc nulls last");
 
-        var q = Panache.getEntityManager().createQuery(jpql.toString())
-                .setParameter("uid", uid);
-        if (!lowered.isEmpty()) q.setParameter("names", lowered);
-        return q.getResultList();
+        return list(jpql.toString(), params);
     }
 
     public boolean existsByTournament_IdAndPaidFalse(Long tournamentId) {
@@ -59,18 +71,19 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
     }
 
     /**
-     * Returns rows of [tournamentId, count] for the given tournament ids.
-     * Implemented via {@code EntityManager} because Panache {@code find()} is
-     * entity-shaped and not suited for projections / GROUP BY.
+     * Returns rows of {@code [tournamentId, count]} for the given tournament
+     * ids. Tuple-shaped projection — Panache {@code find()} is entity-shaped
+     * and can't return {@code Object[]} from GROUP BY, so this goes through
+     * the injected EntityManager.
      */
     @SuppressWarnings("unchecked")
     public List<Object[]> countByTournamentIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) return List.of();
-        return Panache.getEntityManager().createQuery("""
-                        SELECT p.tournament.id, COUNT(p)
-                        FROM Pairs p
-                        WHERE p.tournament.id IN :ids
-                        GROUP BY p.tournament.id
+        return em.createQuery("""
+                        select p.tournament.id, count(p)
+                        from Pairs p
+                        where p.tournament.id in :ids
+                        group by p.tournament.id
                         """)
                 .setParameter("ids", ids)
                 .getResultList();

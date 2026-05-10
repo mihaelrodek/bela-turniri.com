@@ -51,6 +51,7 @@ import {
     type UserPairPreset,
 } from "../api/userPairPresets"
 import { useAuth } from "../auth/AuthContext"
+import { useDocumentHead } from "../hooks/useDocumentHead"
 
 /** Country dial codes shared with FindPair / CreateTournament. */
 const PHONE_COUNTRIES = [
@@ -97,6 +98,26 @@ export default function PublicProfilePage() {
 
     const [activePair, setActivePair] = useState<string | null>(null) // pair name (case preserved)
     const [search, setSearch] = useState("")
+
+    // Per-route SEO. We deliberately do NOT include the user's phone in any
+    // meta tag — phone display is a product call on the page itself, but
+    // there's no need to make it any more discoverable than it already is.
+    const totalTournaments = profile?.tournaments?.length ?? 0
+    const totalWins = (profile?.pairs ?? []).reduce((sum, p) => sum + (p.wins ?? 0), 0)
+    useDocumentHead({
+        title: profile?.displayName
+            ? `${profile.displayName} — Bela igrač | bela-turniri.hr`
+            : "Bela igrač — bela-turniri.hr",
+        description: profile?.displayName
+            ? `${profile.displayName} — povijest nastupa na Bela turnirima. ${totalTournaments} turnira, ${totalWins} pobjeda.`
+            : undefined,
+        ogTitle: profile?.displayName ?? undefined,
+        ogDescription: profile?.displayName
+            ? `Povijest nastupa na Bela turnirima — ${totalTournaments} turnira, ${totalWins} pobjeda.`
+            : undefined,
+        ogType: "profile",
+        canonical: slug ? `https://bela-turniri.hr/profile/${slug}` : undefined,
+    })
 
     useEffect(() => {
         if (!slug) return

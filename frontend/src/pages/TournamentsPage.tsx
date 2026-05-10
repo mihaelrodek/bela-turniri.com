@@ -19,6 +19,7 @@ import type { TournamentCard } from "../types/tournaments"
 import { fetchTournaments } from "../api/tournaments"
 import { useUserLocation } from "../hooks/useUserLocation"
 import { haversineKm } from "../utils/distance"
+import { useDocumentHead } from "../hooks/useDocumentHead"
 
 /** The list DTO now includes a public UUID you want to route with */
 type TournamentCardWithUuid = TournamentCard & { uuid: string }
@@ -298,6 +299,17 @@ function EmptyState({
 const FINISHED_PREVIEW_LIMIT = 6
 
 export default function TournamentsPage() {
+    useDocumentHead({
+        title: "Bela turniri u Hrvatskoj — bela-turniri.hr",
+        description:
+            "Pregled svih nadolazećih i odigranih Bela turnira u Hrvatskoj i regiji. Pretraži po lokaciji, datumu i cijeni.",
+        ogTitle: "Bela turniri u Hrvatskoj",
+        ogDescription:
+            "Pregled svih nadolazećih i odigranih Bela turnira u Hrvatskoj i regiji.",
+        ogType: "website",
+        canonical: "https://bela-turniri.hr/tournaments",
+    })
+
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 

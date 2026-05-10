@@ -20,6 +20,7 @@ import hr.mrodek.apps.bela_turniri.services.RepassageService;
 import hr.mrodek.apps.bela_turniri.services.SlugService;
 import hr.mrodek.apps.bela_turniri.services.StorageService;
 import io.quarkus.security.Authenticated;
+import jakarta.annotation.security.RolesAllowed;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -210,10 +211,15 @@ public class TournamentController {
      * One-shot backfill: geocodes every tournament that has a location but no coords.
      * Sleeps 1s between calls to respect Nominatim's usage policy. Returns a small
      * summary so the operator can see what happened.
+     *
+     * Admin-only: a regular logged-in user could otherwise pin the request thread
+     * for several minutes per call (1s sleep × N tournaments) and burn the shared
+     * Nominatim usage budget. The {@code role: "admin"} custom claim is set via
+     * {@code scripts/set-admin.mjs}.
      */
     @POST
     @Path("/geocode-missing")
-    @Authenticated
+    @RolesAllowed("admin")
     @Transactional
     public Response geocodeMissing() {
         var all = tournamentsRepo.listAll();

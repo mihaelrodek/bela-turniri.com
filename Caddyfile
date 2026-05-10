@@ -1,0 +1,80 @@
+# Caddy reverse proxy + SPA host for bela-turniri.hr.
+#
+# Runs inside the `edge` container (see frontend/Dockerfile). Talks to the
+# `backend` service over the internal Docker network. Auto-fetches and
+# renews TLS certs from Let's Encrypt on first start.
+#
+# Routing logic, top to bottom:
+#   1. /api/*                     → backend (JSON API)
+#   2. /tournaments/<uuid>  +bot  → /api/preview/tournaments/<uuid>  (OG preview)
+#   3. /profile/<slug>      +bot  → /api/preview/profiles/<slug>     (OG preview)
+#   4. anything else              → SPA (file_server with index.html fallback)
+
+{
+    # Email Let's Encrypt uses for expiry warnings. Update if you switch.
+    email mihael.rodek1@gmail.com
+}
+
+bela-turniri.hr, www.bela-turniri.hr {
+    encode zstd gzip
+
+    # ─── 1. API — pass through to backend ─────────────────────────────
+    handle /api/* {
+        reverse_proxy backend:8085
+    }
+
+    # ─── 2. Tournament SSR preview for crawlers ────────────────────────
+    # Match must include BOTH the tournament-UUID path AND a known
+    # crawler User-Agent. Real users fall through to the SPA below.
+    @tournament_for_bot {
+        path_regexp ^/tournaments/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+        header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot)
+    }
+    handle @tournament_for_bot {
+        rewrite * /api/preview{path}
+        reverse_proxy backend:8085
+    }
+
+    # ─── 3. Profile SSR preview for crawlers ──────────────────────────
+    # SPA route is /profile/<slug> (singular); backend endpoint is
+    # /api/preview/profiles/<slug> (plural) — so we capture the slug
+    # and rewrite the path explicitly.
+    @profile_for_bot {
+        path_regexp profile ^/profile/([a-z0-9][a-z0-9-]*)$
+        header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot)
+    }
+    handle @profile_for_bot {
+        rewrite * /api/preview/profiles/{re.profile.1}
+        reverse_proxy backend:8085
+    }
+
+    # ─── 4. SPA fallback ───────────────────────────────────────────────
+    # Static files from /srv (baked in by frontend/Dockerfile). Any
+    # unknown path falls back to /index.html so React Router can take over.
+    handle {
+        root * /srv
+        file_server
+        try_files {path} /index.html
+    }
+
+    # ─── Security headers (defense-in-depth) ───────────────────────────
+    # The backend has its own SecurityHeadersFilter; setting them here too
+    # covers static-asset responses where the backend filter never runs.
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(self), camera=(), microphone=(), payment=(), interest-cohort=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Don't advertise the server name.
+        -Server
+    }
+
+    # Smaller-than-default access log to stderr; tweak when you wire up
+    # log aggregation.
+    log {
+        output stderr
+        format console
+        level INFO
+    }
+}

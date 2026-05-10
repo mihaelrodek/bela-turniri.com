@@ -11,6 +11,7 @@ import hr.mrodek.apps.bela_turniri.repository.MatchesRepository;
 import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -29,7 +30,12 @@ import java.util.Map;
 /**
  * Anonymous-readable profile pages. Anyone can hit these — there is no
  * {@code @Authenticated} on the class — because the product decision is
- * that profiles (including phone numbers) are publicly visible.
+ * that profile *pages* are publicly visible (so people can share a link to
+ * their tournament history).
+ *
+ * <p>Phone numbers, however, are redacted for unauthenticated callers so the
+ * endpoint can't be used as an anonymous PII scraper. Logged-in users see
+ * the full profile.
  *
  * Routes:
  *   GET /public/users/{slug}                              — profile + pairs + tournaments
@@ -44,6 +50,16 @@ public class PublicProfileController {
     @Inject UserPairPresetRepository presetRepo;
     @Inject PairsRepository pairRepo;
     @Inject MatchesRepository matchRepo;
+    @Inject SecurityIdentity identity;
+
+    /**
+     * True when no Firebase ID token was presented (or it didn't verify).
+     * Quarkus OIDC runs in lazy mode (proactive=false), so anonymous
+     * traffic still gets a SecurityIdentity — just one marked anonymous.
+     */
+    private boolean isAnonymous() {
+        return identity == null || identity.isAnonymous();
+    }
 
     @GET
     @Path("/{slug}")
@@ -88,11 +104,19 @@ public class PublicProfileController {
         // Most-played pair first so the UI default selection is the strongest signal.
         pairs.sort((a, b) -> Integer.compare(b.tournamentCount(), a.tournamentCount()));
 
+        // Phone is hidden from anonymous callers so this endpoint can't be
+        // used as a one-click PII scraper. Logged-in users get the real
+        // value; anonymous callers see nulls and the SPA shows "Prijavi
+        // se da vidiš kontakt" or similar in that case.
+        boolean anon = isAnonymous();
+        String phoneCountry = anon ? null : profile.getPhoneCountry();
+        String phone = anon ? null : profile.getPhone();
+
         return new PublicProfileDto(
                 profile.getSlug(),
                 profile.getDisplayName(),
-                profile.getPhoneCountry(),
-                profile.getPhone(),
+                phoneCountry,
+                phone,
                 pairs,
                 participationDtos
         );

@@ -4,8 +4,11 @@
 .env
 .env.local
 .env.*.local
+.env.prod
+.env.staging
 *.env
 !.env.example
+!.env.prod.example
 # Firebase Admin SDK service-account key — full project access
 scripts/service-account.json
 scripts/node_modules/

@@ -80,6 +80,7 @@ import { approvePair, buyExtraLife, deletePair, deleteTournament, selfRegisterPa
 import { listPresets, type UserPairPreset } from "../api/userPairPresets"
 import { listPairRequestsForTournament, type PairRequest } from "../api/pairRequests"
 import { useAuth } from "../auth/AuthContext"
+import { useDocumentHead } from "../hooks/useDocumentHead"
 
 /* ---------- Local UI types ---------- */
 type MatchLocal = MatchDto & {
@@ -458,6 +459,34 @@ export default function TournamentDetailsPage() {
 
     // pair info dialog (match history)
     const [infoPairId, setInfoPairId] = useState<number | null>(null)
+
+    // Per-route SEO meta. Title falls back to a generic label until the
+    // tournament loads, then upgrades in place. Description prefers the
+    // organizer's `details` text, trimmed to ~160 characters.
+    const headTitle = t?.name
+        ? `${t.name}${t.location ? `, ${t.location}` : ""} — bela-turniri.hr`
+        : "Turnir — bela-turniri.hr"
+    const headDesc = (() => {
+        const raw = t?.details?.trim()
+        const start = t?.startAt ? new Date(t.startAt).toLocaleDateString("hr-HR") : null
+        if (raw) return raw.length > 160 ? raw.slice(0, 157) + "…" : raw
+        if (t?.name) {
+            const parts: string[] = [`Bela turnir ${t.name}`]
+            if (t.location) parts.push(`u ${t.location}`)
+            if (start) parts.push(`— ${start}`)
+            return parts.join(" ")
+        }
+        return undefined
+    })()
+    useDocumentHead({
+        title: headTitle,
+        description: headDesc,
+        ogTitle: t?.name ?? undefined,
+        ogDescription: headDesc,
+        ogImage: t?.bannerUrl ?? undefined,
+        ogType: "article",
+        canonical: uuid ? `https://bela-turniri.hr/tournaments/${uuid}` : undefined,
+    })
 
     function enterDetailsEdit() {
         if (!t) return
@@ -3133,7 +3162,7 @@ export default function TournamentDetailsPage() {
                                     try {
                                         setDeletingPair(true)
                                         await deletePair(uuid, pendingDeletePair.id)
-                                        setPairs((ps) => ps.filter((x) => x.id !== pendingDeletePair.id))
+                                        setPairs(ps => ps.filter(x => x.id !== pendingDeletePair.id))
                                         setPendingDeletePair(null)
                                     } catch (err: any) {
                                         alert(String(err?.response?.data ?? err?.message ?? "Failed to delete pair."))

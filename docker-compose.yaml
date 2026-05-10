@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "5435:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -26,8 +26,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "9000:9000"  # S3 API
-      - "9001:9001"  # Web console
+      - "9010:9000"  # S3 API
+      - "9011:9001"  # Web console
     volumes:
       - minio_data:/data
     healthcheck:
