@@ -11,12 +11,11 @@ import {
 } from "@chakra-ui/react"
 import { FiDownload, FiX } from "react-icons/fi"
 import { useInstallPrompt } from "../hooks/useInstallPrompt"
+import IosInstallSteps from "./IosInstallSteps"
 
 /**
  * One-time coach mark that nudges first-time visitors toward the install
- * flow. Renders a slide-up dialog at the bottom of the screen with the logo,
- * a short blurb, and a primary "Instaliraj" action that fires the same
- * install flow as the navbar button.
+ * flow.
  *
  * Visibility rules — all must hold for the dialog to appear:
  *   1. App is not already installed (display-mode != standalone).
@@ -24,9 +23,15 @@ import { useInstallPrompt } from "../hooks/useInstallPrompt"
  *      beforeinstallprompt) OR we're on iOS Safari (instructions path).
  *   3. The user hasn't dismissed the hint before (localStorage flag).
  *
- * It auto-shows after a short delay so the SPA has time to paint and the
- * beforeinstallprompt event has time to fire — opening it instantly feels
- * jarring and risks the prompt not being captured yet.
+ * On Chrome/Android the dialog has a primary "Instaliraj" button that
+ * fires the browser's install prompt directly. On iOS the steps are shown
+ * INLINE in the same dialog (instead of routing the user to a separate
+ * navbar dialog) — that's the whole point of the popup, and pointing at
+ * a navbar icon as a follow-up is just an extra click for no reason.
+ *
+ * Auto-shows after a short delay so the SPA has time to paint and the
+ * beforeinstallprompt event has time to fire — opening it instantly
+ * risks the prompt not being captured yet.
  */
 
 const STORAGE_KEY = "bela:install-hint-dismissed"
@@ -72,16 +77,14 @@ export default function FirstRunInstallPrompt() {
     }
 
     async function onInstallClick() {
-        // For canInstall, fire the native prompt directly. For iOS, the
-        // navbar's InstallAppButton already owns the instructions dialog —
-        // we just close the hint and rely on the user clicking that button.
         if (canInstall) {
             await install().catch(() => {
                 /* user dismissed or browser refused — close anyway */
             })
+            dismiss()
         }
-        // Either way, this hint has done its job.
-        dismiss()
+        // For iOS there is no programmatic install — we don't reach here
+        // because the iOS dialog has a different button (see render below).
     }
 
     if (dismissed || installed) return null
@@ -93,13 +96,13 @@ export default function FirstRunInstallPrompt() {
             onOpenChange={(e) => {
                 if (!e.open) dismiss()
             }}
-            placement="bottom"
+            placement="center"
             motionPreset="slide-in-bottom"
         >
             <Portal>
                 <Dialog.Backdrop />
                 <Dialog.Positioner>
-                    <Dialog.Content maxW={{ base: "100%", md: "md" }}>
+                    <Dialog.Content maxW={{ base: "92%", md: "md" }}>
                         <Dialog.Body py="5" px={{ base: "4", md: "6" }}>
                             <VStack align="stretch" gap="4">
                                 <HStack gap="3" align="center">
@@ -112,41 +115,38 @@ export default function FirstRunInstallPrompt() {
                                     />
                                     <Box flex="1">
                                         <Text fontWeight="semibold" fontSize="md">
-                                            Instaliraj ovdje
+                                            Instaliraj Bela Turniri
                                         </Text>
                                         <Text fontSize="sm" color="fg.muted">
                                             {isIos
-                                                ? "Dodaj Bela Turniri na svoj iPhone — otvara se kao samostalna aplikacija."
+                                                ? "Dodaj aplikaciju na svoj iPhone u 3 koraka:"
                                                 : "Spremi Bela Turniri kao aplikaciju i otvori je jednim klikom s početnog zaslona."}
                                         </Text>
                                     </Box>
                                 </HStack>
 
+                                {/* iOS gets the inline three-step walkthrough.
+                                    No "Instaliraj" button on iOS because Safari
+                                    has no JS API for it — the user must do
+                                    Share -> Add to Home Screen themselves. */}
+                                {isIos && <IosInstallSteps />}
+
                                 <HStack gap="2" justify="flex-end" wrap="wrap">
                                     <Button variant="ghost" size="sm" onClick={dismiss}>
-                                        <FiX /> Možda kasnije
+                                        <FiX />
+                                        {isIos ? " Razumijem" : " Možda kasnije"}
                                     </Button>
-                                    <Button
-                                        variant="solid"
-                                        colorPalette="blue"
-                                        size="sm"
-                                        onClick={onInstallClick}
-                                    >
-                                        <FiDownload />
-                                        {isIos ? " Pokaži upute" : " Instaliraj"}
-                                    </Button>
+                                    {canInstall && (
+                                        <Button
+                                            variant="solid"
+                                            colorPalette="blue"
+                                            size="sm"
+                                            onClick={onInstallClick}
+                                        >
+                                            <FiDownload /> Instaliraj
+                                        </Button>
+                                    )}
                                 </HStack>
-
-                                {/* On iOS we can't trigger the install programmatically.
-                                    The "Pokaži upute" button just closes this hint and
-                                    points the user at the navbar button, which has the
-                                    detailed Share-menu walkthrough. */}
-                                {isIos && (
-                                    <Text fontSize="xs" color="fg.muted">
-                                        Klikni gumb <strong>Instaliraj na iPhone</strong> u izborniku
-                                        na vrhu stranice za detaljne upute.
-                                    </Text>
-                                )}
                             </VStack>
                         </Dialog.Body>
                     </Dialog.Content>

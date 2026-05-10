@@ -219,10 +219,11 @@ export default function NavBar() {
                     </HStack>
 
                     <HStack justify="end" gap="1.5">
-                        {/* Conditional install button — renders nothing on
-                            browsers that can't or already have installed. */}
-                        <InstallAppButton size="sm" variant="outline" />
                         <AuthArea />
+                        {/* Conditional install icon — sits between the auth
+                            cluster and the color-mode toggle. Renders nothing
+                            on browsers that can't install or already have. */}
+                        <InstallAppButton size="sm" />
                         <IconButton
                             aria-label="Toggle color mode"
                             onClick={toggleColorMode}
@@ -293,6 +294,11 @@ export default function NavBar() {
                             </Menu.Positioner>
                         </Menu.Root>
                     )}
+                    {/* Install icon — between the avatar (or its absence)
+                        and the color-mode toggle. mr matches the toggle's. */}
+                    <Box mr={1}>
+                        <InstallAppButton size="sm" />
+                    </Box>
                     <IconButton
                         aria-label="Toggle color mode"
                         onClick={toggleColorMode}
@@ -333,12 +339,6 @@ export default function NavBar() {
                                     <NavButton to="/register">Registracija</NavButton>
                                 </>
                             )}
-
-                            {/* Install button — sits at the bottom of the
-                                mobile menu so it's the last thing in the
-                                drawer when expanded. fullWidth keeps the
-                                visual rhythm of the NavButton stack above. */}
-                            <InstallAppButton size="sm" variant="solid" fullWidth />
                         </Stack>
                     </Box>
                 )}

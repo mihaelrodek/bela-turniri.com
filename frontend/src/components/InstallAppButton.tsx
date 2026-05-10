@@ -1,180 +1,108 @@
 import { useState } from "react"
 import {
-    Box,
     Button,
     Dialog,
     HStack,
+    IconButton,
     Image,
     Portal,
-    Text,
-    VStack,
 } from "@chakra-ui/react"
-import { FiDownload, FiShare, FiPlusSquare } from "react-icons/fi"
+import { FiDownload } from "react-icons/fi"
 import { useInstallPrompt } from "../hooks/useInstallPrompt"
+import IosInstallSteps from "./IosInstallSteps"
 
 /**
- * Renders an "Instaliraj aplikaciju" button when:
+ * Compact icon-only install affordance. Renders a circular IconButton with
+ * just the download glyph — no text label — so it tucks neatly between the
+ * auth area and the color-mode toggle without bloating the navbar.
+ *
+ * Visibility:
  *   - the app is not yet installed (display-mode != standalone), AND
  *   - either the browser fired beforeinstallprompt (Chrome / Edge / Android),
  *     OR we're on iOS Safari (no API available — show step instructions).
  *
  * On all other browsers (already installed, or Firefox desktop, etc.) it
- * renders nothing, so the parent layout is unaffected.
+ * renders nothing, so the parent layout is unaffected. The aria-label and
+ * native `title` give the icon a name for screen readers and a hover
+ * tooltip for sighted desktop users.
  *
- * Pass `variant="solid"` to make the button stand out (used in the mobile
- * menu where space is generous); the default ghost variant blends quietly
- * into a NavBar.
+ * iOS path opens a dialog with the shared IosInstallSteps walkthrough,
+ * which is the same component the FirstRunInstallPrompt uses inline —
+ * one source of truth for the Croatian Share-menu copy.
  */
 export function InstallAppButton({
     size = "sm",
-    variant = "ghost",
-    fullWidth = false,
 }: {
     size?: "xs" | "sm" | "md"
-    variant?: "ghost" | "solid" | "outline"
-    fullWidth?: boolean
 }) {
     const { canInstall, isIos, install } = useInstallPrompt()
     const [iosOpen, setIosOpen] = useState(false)
 
     if (!canInstall && !isIos) return null
 
-    if (canInstall) {
-        return (
-            <Button
-                size={size}
-                variant={variant}
-                colorPalette="blue"
-                width={fullWidth ? "full" : undefined}
-                onClick={() => install()}
-            >
-                <FiDownload /> Instaliraj aplikaciju
-            </Button>
-        )
+    const label = isIos ? "Instaliraj na iPhone" : "Instaliraj aplikaciju"
+
+    function handleClick() {
+        if (canInstall) {
+            install().catch(() => {
+                /* user dismissed or browser refused — no-op */
+            })
+        } else {
+            // iOS path. Open the steps dialog. We don't gate this on isIos
+            // because the early-return above already guarantees that one of
+            // the two conditions is true.
+            setIosOpen(true)
+        }
     }
 
-    // iOS Safari path — open a small dialog with the manual share-menu steps.
     return (
         <>
-            <Button
+            <IconButton
+                aria-label={label}
+                title={label}
                 size={size}
-                variant={variant}
+                variant="outline"
+                rounded="full"
                 colorPalette="blue"
-                width={fullWidth ? "full" : undefined}
-                onClick={() => setIosOpen(true)}
+                onClick={handleClick}
             >
-                <FiDownload /> Instaliraj na iPhone
-            </Button>
-            <IosInstallDialog open={iosOpen} onClose={() => setIosOpen(false)} />
+                <FiDownload />
+            </IconButton>
+            <Dialog.Root
+                open={iosOpen}
+                onOpenChange={(e) => {
+                    if (!e.open) setIosOpen(false)
+                }}
+                placement="center"
+                motionPreset="slide-in-bottom"
+            >
+                <Portal>
+                    <Dialog.Backdrop />
+                    <Dialog.Positioner>
+                        <Dialog.Content maxW={{ base: "92%", md: "md" }}>
+                            <Dialog.Header>
+                                <HStack gap="2" align="center">
+                                    <Image
+                                        src="/bela-turniri-symbol.svg"
+                                        alt=""
+                                        h="28px"
+                                        w="auto"
+                                    />
+                                    <Dialog.Title>Instaliraj Bela Turniri</Dialog.Title>
+                                </HStack>
+                            </Dialog.Header>
+                            <Dialog.Body>
+                                <IosInstallSteps />
+                            </Dialog.Body>
+                            <Dialog.Footer>
+                                <Button variant="ghost" onClick={() => setIosOpen(false)}>
+                                    Zatvori
+                                </Button>
+                            </Dialog.Footer>
+                        </Dialog.Content>
+                    </Dialog.Positioner>
+                </Portal>
+            </Dialog.Root>
         </>
-    )
-}
-
-/** Step-by-step instructions for iOS Safari users. */
-function IosInstallDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-    return (
-        <Dialog.Root
-            open={open}
-            onOpenChange={(e) => {
-                if (!e.open) onClose()
-            }}
-            placement="center"
-            motionPreset="slide-in-bottom"
-        >
-            <Portal>
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content>
-                        <Dialog.Header>
-                            <HStack gap="2" align="center">
-                                <Image
-                                    src="/bela-turniri-symbol.svg"
-                                    alt=""
-                                    h="28px"
-                                    w="auto"
-                                />
-                                <Dialog.Title>Instaliraj Bela Turniri</Dialog.Title>
-                            </HStack>
-                        </Dialog.Header>
-                        <Dialog.Body>
-                            <VStack align="stretch" gap="3">
-                                <Text fontSize="sm" color="fg.muted">
-                                    Otvori stranicu u Safari pregledniku, a zatim:
-                                </Text>
-                                <HStack align="start" gap="3">
-                                    <Box
-                                        minW="28px"
-                                        h="28px"
-                                        rounded="full"
-                                        bg="blue.subtle"
-                                        color="blue.fg"
-                                        display="flex"
-                                        alignItems="center"
-                                        justifyContent="center"
-                                        fontWeight="bold"
-                                        fontSize="sm"
-                                    >
-                                        1
-                                    </Box>
-                                    <Text fontSize="sm">
-                                        Klikni ikonu <Box as="span" display="inline-flex" alignItems="center"><FiShare /></Box>{" "}
-                                        <strong>Podijeli</strong> u donjem dijelu Safarija.
-                                    </Text>
-                                </HStack>
-                                <HStack align="start" gap="3">
-                                    <Box
-                                        minW="28px"
-                                        h="28px"
-                                        rounded="full"
-                                        bg="blue.subtle"
-                                        color="blue.fg"
-                                        display="flex"
-                                        alignItems="center"
-                                        justifyContent="center"
-                                        fontWeight="bold"
-                                        fontSize="sm"
-                                    >
-                                        2
-                                    </Box>
-                                    <Text fontSize="sm">
-                                        Pomakni se i odaberi{" "}
-                                        <Box as="span" display="inline-flex" alignItems="center"><FiPlusSquare /></Box>{" "}
-                                        <strong>Dodaj na početni zaslon</strong>.
-                                    </Text>
-                                </HStack>
-                                <HStack align="start" gap="3">
-                                    <Box
-                                        minW="28px"
-                                        h="28px"
-                                        rounded="full"
-                                        bg="blue.subtle"
-                                        color="blue.fg"
-                                        display="flex"
-                                        alignItems="center"
-                                        justifyContent="center"
-                                        fontWeight="bold"
-                                        fontSize="sm"
-                                    >
-                                        3
-                                    </Box>
-                                    <Text fontSize="sm">
-                                        Potvrdi <strong>Dodaj</strong> u gornjem desnom kutu.
-                                    </Text>
-                                </HStack>
-                                <Text fontSize="xs" color="fg.muted" pt="2">
-                                    Nakon dodavanja, ikona aplikacije će se pojaviti na tvojem
-                                    početnom zaslonu i otvarati će se kao samostalna aplikacija.
-                                </Text>
-                            </VStack>
-                        </Dialog.Body>
-                        <Dialog.Footer>
-                            <Button variant="ghost" onClick={onClose}>
-                                Zatvori
-                            </Button>
-                        </Dialog.Footer>
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Portal>
-        </Dialog.Root>
     )
 }
