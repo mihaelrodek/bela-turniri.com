@@ -1798,14 +1798,26 @@ export default function TournamentDetailsPage() {
                                                 >
                                                     {paid ? "Označi neplaćeno" : "Plati"}
                                                 </Button>
-                                            ) : !tournamentLocked && !isPending ? (
-                                                // Život only makes sense once a pair has actually
-                                                // entered the tournament — pending self-registrations
-                                                // can't buy a second life before they're approved.
+                                            ) : !tournamentLocked && !isPending && canEditTournament && !eliminated ? (
+                                                // Život button — owner/admin only. Hidden
+                                                // entirely once the pair is fully eliminated
+                                                // (the user can no longer buy a life that
+                                                // would matter). Non-owners can't click this
+                                                // because the backend rejects buy-extra-life
+                                                // requests from anyone but the organizer; we
+                                                // hide it here so they don't see it at all.
+                                                //
+                                                // Visual: green "Ima život" once bought,
+                                                // red "Nema život" while it's still up for
+                                                // grabs. Both states use a solid fill so the
+                                                // contrast against neighbouring outline
+                                                // buttons stays high; click-through is
+                                                // gated by extraBtnDisabled (already-bought
+                                                // or not yet eligible).
                                                 <Button
                                                     size="xs"
                                                     variant="solid"
-                                                    colorPalette={p.extraLife ? "gray" : eligible ? "green" : "gray"}
+                                                    colorPalette={p.extraLife ? "green" : "red"}
                                                     disabled={extraBtnDisabled}
                                                     onClick={async () => {
                                                         if (extraBtnDisabled) return
@@ -1817,13 +1829,16 @@ export default function TournamentDetailsPage() {
                                                         }
                                                     }}
                                                     title={
-                                                        p.extraLife ? "Već kupljeno"
+                                                        p.extraLife ? "Život je kupljen"
                                                             : eligible ? "Kupi život"
                                                             : !hasServerId ? "Spremi prvo"
                                                             : "Nije dostupno"
                                                     }
                                                 >
-                                                    <HStack gap="1"><FiHeart /> Život</HStack>
+                                                    <HStack gap="1">
+                                                        <FiHeart />
+                                                        {p.extraLife ? "Ima život" : "Nema život"}
+                                                    </HStack>
                                                 </Button>
                                             ) : null}
 
@@ -2302,9 +2317,16 @@ export default function TournamentDetailsPage() {
                                         </Text>
                                     </HStack>
 
-                                    {/* Action */}
+                                    {/* Action — owner/admin only. Match-score
+                                        edits and saves are owner mutations and
+                                        the backend rejects them with 403, so
+                                        rendering the buttons for non-owners
+                                        was misleading. The score input fields
+                                        themselves are still visible (their
+                                        readOnly is gated separately further up
+                                        in the form). */}
                                     <Box flexShrink={0} justifySelf={{ base: "stretch", md: "end" }}>
-                                        {editing ? (
+                                        {canEditTournament && editing ? (
                                             <HStack gap="1">
                                                 <Button size="2xs" variant="solid" colorPalette="green"
                                                         onClick={() => saveEditedMatch(r.id, m)}>
@@ -2315,7 +2337,7 @@ export default function TournamentDetailsPage() {
                                                     Odustani
                                                 </Button>
                                             </HStack>
-                                        ) : !isFinished && r.status !== "COMPLETED" ? (
+                                        ) : canEditTournament && !isFinished && r.status !== "COMPLETED" ? (
                                             <Button
                                                 size="2xs"
                                                 variant="solid"
@@ -2325,7 +2347,7 @@ export default function TournamentDetailsPage() {
                                             >
                                                 <FiCheck /> Spremi
                                             </Button>
-                                        ) : isFinished && canEditNow ? (
+                                        ) : canEditTournament && isFinished && canEditNow ? (
                                             <Button
                                                 size="2xs"
                                                 variant="ghost"
@@ -2533,9 +2555,17 @@ export default function TournamentDetailsPage() {
                                             <Box color="fg.muted"><FiLayers size={28} /></Box>
                                             <Text fontWeight="medium">Još nema rundi</Text>
                                             <Text color="fg.muted" fontSize="sm" textAlign="center">
-                                                {tournamentStarted
-                                                    ? "Klikni \"Generiraj prvu rundu\" da započneš ždrijeb."
-                                                    : "Prvo startaj turnir kad su svi parovi spremni."}
+                                                {/* Only the organizer sees the actionable
+                                                    instructions ("klikni Generiraj…",
+                                                    "prvo startaj…") — for everyone else
+                                                    that text is misleading because they
+                                                    have no buttons to act on. They get
+                                                    a neutral "waiting" message instead. */}
+                                                {canEditTournament
+                                                    ? tournamentStarted
+                                                        ? "Klikni \"Generiraj prvu rundu\" da započneš ždrijeb."
+                                                        : "Prvo startaj turnir kad su svi parovi spremni."
+                                                    : "Organizator još nije generirao parove. Provjerite kasnije."}
                                             </Text>
                                         </VStack>
                                     </Box>
@@ -2597,7 +2627,12 @@ export default function TournamentDetailsPage() {
                                                                 >
                                                                     <FiMaximize2 /> Puni zaslon
                                                                 </Button>
-                                                                {!completed && (
+                                                                {/* Round-level mutations are
+                                                                    owner/admin only. Hide
+                                                                    the buttons for everyone
+                                                                    else so the round card is
+                                                                    a clean read-only view. */}
+                                                                {!completed && canEditTournament && (
                                                                     <Button
                                                                         size="xs"
                                                                         variant="ghost"
@@ -2608,7 +2643,7 @@ export default function TournamentDetailsPage() {
                                                                         <FiRotateCcw /> Resetiraj
                                                                     </Button>
                                                                 )}
-                                                                {!completed && (
+                                                                {!completed && canEditTournament && (
                                                                     <Button
                                                                         size="xs"
                                                                         variant="solid"
