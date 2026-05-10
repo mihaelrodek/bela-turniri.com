@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react"
 import {
-    Box, Flex, HStack, IconButton, Image, Button, Stack, Container, Menu, Text, useDisclosure,
+    Box, Flex, HStack, IconButton, Image, Button, Stack, Container, Menu, Text, chakra, useDisclosure,
 } from "@chakra-ui/react"
 import { Link as RouterLink, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
 import { useColorMode, useColorModeValue } from "../color-mode"
@@ -166,11 +166,28 @@ export default function NavBar() {
                     gap={3}
                 >
                     <Box>
-                        <Button asChild variant="ghost" size="sm" fontWeight="semibold" px="2">
+                        {/* Brand mark — rendered as a plain link, NOT a Button.
+                            We don't want the ghost-button hover/active background
+                            washing across the logo when the mouse passes over.
+                            The chakra factory call gives us style props on a
+                            real <a>; visited/focus/active styles are reset to
+                            keep it visually quiet, while the link still
+                            navigates and shows a keyboard focus ring. */}
+                        <chakra.a
+                            asChild
+                            display="inline-flex"
+                            alignItems="center"
+                            gap="2"
+                            color="fg"
+                            fontWeight="semibold"
+                            textDecoration="none"
+                            _hover={{ textDecoration: "none", color: "fg" }}
+                            _active={{ color: "fg" }}
+                            _focusVisible={{ outline: "2px solid", outlineColor: "blue.solid", outlineOffset: "2px", borderRadius: "md" }}
+                        >
                             <RouterLink
                                 to="/tournaments"
                                 aria-label="Bela Turniri — naslovnica"
-                                style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}
                             >
                                 <Image
                                     src="/bela-turniri-symbol.svg"
@@ -187,7 +204,7 @@ export default function NavBar() {
                                     Bela Turniri
                                 </Box>
                             </RouterLink>
-                        </Button>
+                        </chakra.a>
                     </Box>
 
                     <HStack gap={2} justify="center">
@@ -214,11 +231,21 @@ export default function NavBar() {
                 </Box>
 
                 <Flex display={{ base: "flex", md: "none" }} align="center">
-                    <Button asChild variant="ghost" size="sm" fontWeight="semibold" px="2">
+                    <chakra.a
+                        asChild
+                        display="inline-flex"
+                        alignItems="center"
+                        gap="1.5"
+                        color="fg"
+                        fontWeight="semibold"
+                        textDecoration="none"
+                        _hover={{ textDecoration: "none", color: "fg" }}
+                        _active={{ color: "fg" }}
+                        _focusVisible={{ outline: "2px solid", outlineColor: "blue.solid", outlineOffset: "2px", borderRadius: "md" }}
+                    >
                         <RouterLink
                             to="/tournaments"
                             aria-label="Bela Turniri — naslovnica"
-                            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
                         >
                             <Image
                                 src="/bela-turniri-symbol.svg"
@@ -229,7 +256,7 @@ export default function NavBar() {
                             />
                             <Box as="span" fontWeight="semibold">Bela Turniri</Box>
                         </RouterLink>
-                    </Button>
+                    </chakra.a>
                     <Box flex="1" />
                     {!loading && user && (
                         <Menu.Root>
