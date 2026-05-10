@@ -15,6 +15,7 @@ import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -46,8 +47,11 @@ public class TournamentPreviewController {
     @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.com")
     String publicBaseUrl;
 
-    @ConfigProperty(name = "app.default-og-image", defaultValue = "")
-    String defaultOgImage;
+    // Optional<> rather than a defaulted String — Quarkus refuses to register
+    // an empty defaultValue, so a non-Optional String here would crash boot
+    // when APP_DEFAULT_OG_IMAGE isn't set in the environment.
+    @ConfigProperty(name = "app.default-og-image")
+    Optional<String> defaultOgImage;
 
     /** Croatian-localized formatter, e.g. "ned, 24. svibnja 2026. u 18:00". */
     private static final DateTimeFormatter HR_DATETIME =
@@ -71,14 +75,15 @@ public class TournamentPreviewController {
         String base = publicBaseUrl.replaceAll("/+$", "");
         String spaUrl = base + "/tournaments/" + uuid;
 
+
         // og:image must be an absolute URL — bots fetch it directly from
         // wherever they are. Point them at the backend image proxy on the
         // public hostname; the proxy reads from the (private) MinIO bucket.
         String image = null;
         if (t.getResource() != null && t.getResource().getId() != null) {
             image = base + "/api/resources/" + t.getResource().getId() + "/image";
-        } else if (defaultOgImage != null && !defaultOgImage.isBlank()) {
-            image = defaultOgImage;
+        } else {
+            image = defaultOgImage.filter(s -> !s.isBlank()).orElse(null);
         }
 
         return Response.ok(renderHtml(name, description, image, spaUrl)).build();

@@ -17,6 +17,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * Server-side rendered preview HTML for crawlers (WhatsApp, Slack, Facebook,
@@ -42,8 +43,11 @@ public class ProfilePreviewController {
     @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.com")
     String publicBaseUrl;
 
-    @ConfigProperty(name = "app.default-og-image", defaultValue = "")
-    String defaultOgImage;
+    // Optional<> rather than a defaulted String — Quarkus refuses to register
+    // an empty defaultValue, so a non-Optional String would crash boot when
+    // APP_DEFAULT_OG_IMAGE isn't set in the environment.
+    @ConfigProperty(name = "app.default-og-image")
+    Optional<String> defaultOgImage;
 
     @GET
     @Path("/{slug}")
@@ -82,7 +86,7 @@ public class ProfilePreviewController {
 
         String base = publicBaseUrl.replaceAll("/+$", "");
         String spaUrl = base + "/profile/" + slug;
-        String image = (defaultOgImage != null && !defaultOgImage.isBlank()) ? defaultOgImage : null;
+        String image = defaultOgImage.filter(s -> !s.isBlank()).orElse(null);
 
         return Response.ok(renderHtml(displayName, description, image, spaUrl)).build();
     }
