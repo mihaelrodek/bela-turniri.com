@@ -29,10 +29,13 @@ bela-turniri.com, www.bela-turniri.com {
     # The path segment can be either a UUID (legacy URLs) or the new
     # human-readable slug (e.g. "1-bela-open-22-04-2026"). The backend
     # /api/preview/tournaments/{idOrSlug} endpoint accepts both.
-    # We deliberately exclude /tournaments/new so the crawler regex
-    # never collides with the create-tournament page.
+    #
+    # Caddy uses Go's RE2 regex engine, which does NOT support negative
+    # lookaheads — that's why `/tournaments/new` is excluded with a
+    # separate `not path` matcher rather than `(?!new$)` inline.
     @tournament_for_bot {
-        path_regexp ^/tournaments/(?!new$)[a-z0-9][a-z0-9-]*$
+        path_regexp ^/tournaments/[a-z0-9][a-z0-9-]*$
+        not path /tournaments/new
         header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot)
     }
     handle @tournament_for_bot {
