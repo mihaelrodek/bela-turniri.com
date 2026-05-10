@@ -195,4 +195,13 @@ public class TournamentPreviewController {
                 .replace(">", "&gt;");
     }
 
-  
+    /** Stricter escape for attribute values (also escapes quotes). */
+    private static String escapeAttr(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+}

@@ -5,25 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.env.prod.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.prod.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DEPLOY.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEPLOY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/docker/Dockerfile.jvm" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/docker/Dockerfile.jvm" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/StartupSanityCheck.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/StartupSanityCheck.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/ProfilePreviewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/ProfilePreviewController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/SitemapController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/SitemapController.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentPreviewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentPreviewController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/GeocodeService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/GeocodeService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.prod.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.prod.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/public/robots.txt" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/robots.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/hooks/useDocumentHead.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/hooks/useDocumentHead.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentDetailsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentDetailsPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -224,7 +206,7 @@
       <workItem from="1777145110930" duration="882000" />
       <workItem from="1777185645412" duration="23139000" />
       <workItem from="1778220843096" duration="3548000" />
-      <workItem from="1778233909398" duration="4429000" />
+      <workItem from="1778233909398" duration="4958000" />
     </task>
     <servers />
   </component>
