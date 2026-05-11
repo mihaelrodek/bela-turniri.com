@@ -20,6 +20,18 @@ type ToastOpts = {
     successMessage?: string
     /** Override the error toast title (the body message becomes the description). */
     errorMessage?: string
+    /**
+     * Suppress the auto-generated error toast for certain failures without
+     * suppressing success toasts on the happy path. Useful when the caller
+     * already shows its own context-aware UI for specific status codes —
+     * e.g. starting a tournament returns 409 UNPAID_REQUIRED and the page
+     * opens an "unpaid pairs" modal; a generic red toast saying
+     * UNPAID_REQUIRED on top of that would be noise.
+     *
+     * Pass `true` to silence ALL error toasts for this call, or an array of
+     * HTTP status codes to silence only specific ones.
+     */
+    silentErrorStatuses?: true | number[]
 }
 
 declare module "axios" {
@@ -93,9 +105,16 @@ http.interceptors.response.use(
     },
     (err: AxiosError) => {
         const cfg = (err.config ?? {}) as InternalAxiosRequestConfig
-        if (!cfg.silent) {
+        const status = err.response?.status
+        const suppress =
+            cfg.silent === true
+            || cfg.silentErrorStatuses === true
+            || (Array.isArray(cfg.silentErrorStatuses)
+                && typeof status === "number"
+                && cfg.silentErrorStatuses.includes(status))
+        if (!suppress) {
             const serverMsg = extractServerMessage(err)
-            const fallback = statusFallback(err.response?.status)
+            const fallback = statusFallback(status)
             // Prefer the explicit per-call title when set; else the server's
             // own message; else a status-derived fallback. Description is the
             // server message when we used a per-call title (so both show).

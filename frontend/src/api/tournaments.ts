@@ -130,10 +130,16 @@ export async function finishTournament(uuid: string): Promise<TournamentDetails>
 }
 
 export async function startTournament(uuid: string): Promise<TournamentDetails> {
+    // 409 statuses (UNPAID_REQUIRED, INSUFFICIENT_PAIRS, ALREADY_FINISHED)
+    // are handled by the caller with bespoke modals/alerts — suppress the
+    // generic red toast so the user doesn't see two error messages stacked.
     const { data } = await http.put<TournamentDetails>(
         `/tournaments/${uuid}/start`,
         undefined,
-        { successMessage: "Turnir je pokrenut." } as any,
+        {
+            successMessage: "Turnir je pokrenut.",
+            silentErrorStatuses: [409],
+        } as any,
     )
     return data
 }

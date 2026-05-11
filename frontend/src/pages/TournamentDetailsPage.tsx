@@ -3229,7 +3229,7 @@ export default function TournamentDetailsPage() {
                         <Dialog.Backdrop />
                         <Dialog.Positioner>
                             <Dialog.Content maxW="sm">
-                                <Dialog.Header>Ne može početi</Dialog.Header>
+                                <Dialog.Header>Turnir ne može početi</Dialog.Header>
                                 <Dialog.Body>
                                     <Text>
                                         Turnir se ne može startati dok sve ekipe nemaju označenu <b>kotizaciju</b>.

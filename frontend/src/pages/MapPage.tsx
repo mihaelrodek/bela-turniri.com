@@ -7,7 +7,7 @@ import {
     VStack,
 } from "@chakra-ui/react"
 import { Link as RouterLink } from "react-router-dom"
-import { FiCalendar, FiEyeOff, FiMapPin, FiNavigation } from "react-icons/fi"
+import { FiCalendar, FiDollarSign, FiEyeOff, FiMapPin, FiNavigation } from "react-icons/fi"
 
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
@@ -377,6 +377,32 @@ export default function MapPage() {
                                                 <span>{t.location}</span>
                                             </div>
                                         )}
+                                        {/* Pricing summary — kotizacija (entry fee)
+                                            and repasaž (repassage / second-chance
+                                            fee), pulled from the same card payload
+                                            the list uses. Hide the row when both
+                                            are zero/missing so we don't clutter the
+                                            popup with "0€". */}
+                                        {(() => {
+                                            const fmt = (n?: number | null) => {
+                                                if (typeof n !== "number" || !Number.isFinite(n)) return null
+                                                const s = n.toFixed(2)
+                                                return (s.endsWith(".00") ? s.slice(0, -3) : s) + "€"
+                                            }
+                                            const entry = fmt(t.entryPrice)
+                                            const rep = fmt(t.repassagePrice)
+                                            if (!entry && !rep) return null
+                                            return (
+                                                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                                                    <FiDollarSign size={12} />
+                                                    <span>
+                                                        {entry && <>Kotizacija: <strong>{entry}</strong></>}
+                                                        {entry && rep && " • "}
+                                                        {rep && <>Repasaž: <strong>{rep}</strong></>}
+                                                    </span>
+                                                </div>
+                                            )
+                                        })()}
                                         <RouterLink
                                             to={`/tournaments/${t.slug ?? t.uuid}`}
                                             style={{

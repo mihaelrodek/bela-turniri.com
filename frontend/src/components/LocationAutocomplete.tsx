@@ -170,15 +170,14 @@ export function LocationAutocomplete({
     function pick(r: NominatimResult) {
         const lat = parseFloat(r.lat)
         const lng = parseFloat(r.lon)
-        // Fill the input with our SHORT formatted label (e.g.
-        // "Kamenica, Grad Lepoglava") — never Nominatim's verbose
-        // display_name, which includes postcode, county, and country.
-        // The user can still edit the result afterwards if they want to
-        // append a house number or hall name.
-        const label = formatNominatimAddress(r)
-        onChange(label)
+        // Fill the input with Nominatim's full display_name — postcode,
+        // county, country and all. Restored after a brief stint with a
+        // shorter formatted label: the verbose form gives WhatsApp shares
+        // and the map pin enough context to be unambiguous, and the user
+        // can always trim it manually afterwards.
+        onChange(r.display_name)
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
-            onPickSuggestion?.({ displayName: label, latitude: lat, longitude: lng })
+            onPickSuggestion?.({ displayName: r.display_name, latitude: lat, longitude: lng })
         }
         setOpen(false)
     }
