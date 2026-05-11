@@ -37,6 +37,8 @@ public class RoundService {
     PairsRepository pairsRepo;
     @Inject
     RoundMatchMapper mapper;
+    @Inject
+    PushService pushService;
 
     public List<RoundDto> listByTournamentUuid(String uuid) {
         Tournaments t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
@@ -174,6 +176,50 @@ public class RoundService {
         }
 
         var saved = matchesRepo.saveAll(toSave);
+
+        // Notify every player whose pair has a known user UID — one push per
+        // device telling them which round / table / opponent to head to.
+        // Skip BYE matches (pair2 == null): there's no real game to attend.
+        // Errors inside sendToUser are swallowed by PushService, so a flaky
+        // push provider can never roll back the round.
+        String tournamentRef = (t.getSlug() != null && !t.getSlug().isBlank())
+                ? t.getSlug()
+                : (t.getUuid() != null ? t.getUuid().toString() : "");
+        String tournamentUrl = "/tournaments/" + tournamentRef;
+        for (Matches m : saved) {
+            if (m.getPair2() == null) continue; // BYE — no opponent
+            Pairs p1 = m.getPair1();
+            Pairs p2 = m.getPair2();
+            if (p1 == null) continue;
+            Integer tbl = m.getTableNo();
+            String title = "Runda " + round.getNumber();
+            String body = p1.getName() + " vs " + p2.getName()
+                    + (tbl != null ? " na stolu " + tbl : "");
+            // Tag groups notifications per round so a re-draw or a follow-up
+            // notification for the same player+round replaces the previous
+            // instead of stacking on the lock screen.
+            String tag = "round-" + round.getId() + "-pair-";
+            if (p1.getSubmittedByUid() != null && !p1.getSubmittedByUid().isBlank()) {
+                pushService.sendToUser(
+                        p1.getSubmittedByUid(),
+                        new PushService.PushPayload(
+                                title, body, tournamentUrl,
+                                "/bela-turniri-symbol.png",
+                                tag + p1.getId()
+                        )
+                );
+            }
+            if (p2.getSubmittedByUid() != null && !p2.getSubmittedByUid().isBlank()) {
+                pushService.sendToUser(
+                        p2.getSubmittedByUid(),
+                        new PushService.PushPayload(
+                                title, body, tournamentUrl,
+                                "/bela-turniri-symbol.png",
+                                tag + p2.getId()
+                        )
+                );
+            }
+        }
 
         var dto = mapper.toRoundDto(round);
         return new RoundDto(dto.id(), dto.number(), dto.status(), mapper.toMatchDtoList(saved));

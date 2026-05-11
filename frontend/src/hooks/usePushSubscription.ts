@@ -14,14 +14,19 @@ import {
  *  4. an active service worker registration
  *
  * "On by default for everyone" — per product decision — so this hook
- * actively requests permission on first login. If the user later
- * disables notifications via the OS or browser settings, the next
- * mount will see `Notification.permission === "denied"` and bail.
+ * actively requests permission on first login.
  *
- * The hook is idempotent: it's safe to mount it in many places, but
- * we only mount it once (at the app root) to keep the permission
- * prompt from firing repeatedly. The local `attemptedRef` guards
- * against the React Strict-Mode double-invoke in dev.
+ * iOS Safari quirk: even inside a PWA installed to the home screen,
+ * `Notification.requestPermission()` only works when called *inside a
+ * user gesture handler*. Calling it from a `useEffect` silently
+ * resolves to "default" forever. So when the current permission is
+ * `default`, we don't prompt eagerly — we attach a one-shot listener
+ * for the next pointer/touch/click on the document and run the prompt
+ * from there. Android tolerates either path; iOS requires the gesture.
+ *
+ * If permission is already `granted` we run the subscribe flow
+ * immediately (no gesture needed once granted), so users who accepted
+ * on a previous visit get re-synced on every login.
  */
 export function usePushSubscription() {
     const { user, loading } = useAuth()
@@ -43,10 +48,14 @@ export function usePushSubscription() {
 
         // Bail if the user previously denied — we can't reprompt
         // without them changing the browser setting themselves.
-        if (Notification.permission === "denied") return
+        if (Notification.permission === "denied") {
+            console.info("[push] permission denied — skipping")
+            return
+        }
 
         let cancelled = false
-        ;(async () => {
+
+        const runSubscribeFlow = async () => {
             try {
                 // Wait for the SW to be ready (it registers in main.tsx
                 // after `load`). If it never registers — e.g. in dev
@@ -56,14 +65,16 @@ export function usePushSubscription() {
                 if (cancelled) return
 
                 // Ask for permission only if not already decided. On
-                // iOS this MUST happen inside a user gesture if the
-                // app isn't installed to the home screen; we hide the
-                // failure quietly there and rely on the explicit
-                // toggle in the profile screen as a fallback.
+                // iOS this MUST be called from inside a user gesture
+                // (see the listener wiring further down) — by the time
+                // we get here, we're already inside that gesture.
                 if (Notification.permission === "default") {
                     const result = await Notification.requestPermission()
                     if (cancelled) return
-                    if (result !== "granted") return
+                    if (result !== "granted") {
+                        console.info("[push] permission not granted:", result)
+                        return
+                    }
                 } else if (Notification.permission !== "granted") {
                     return
                 }
@@ -77,6 +88,7 @@ export function usePushSubscription() {
                     if (json.endpoint && json.keys?.p256dh && json.keys?.auth) {
                         await registerPushSubscription(json).catch(() => {})
                     }
+                    console.info("[push] re-synced existing subscription")
                     return
                 }
 
@@ -92,17 +104,13 @@ export function usePushSubscription() {
                 const applicationServerKey = urlBase64ToUint8Array(publicKey)
                 const sub = await reg.pushManager.subscribe({
                     userVisibleOnly: true,
-                    // TS 5.7+ types Uint8Array as generic over its buffer
-                    // kind (ArrayBuffer | SharedArrayBuffer). At runtime
-                    // this is always plain-ArrayBuffer-backed, but the
-                    // PushManager DOM types only accept the ArrayBuffer
-                    // flavour — hence the cast.
                     applicationServerKey: applicationServerKey as BufferSource,
                 })
                 if (cancelled) return
                 const json = sub.toJSON() as PushSubscriptionJSON
                 if (json.endpoint && json.keys?.p256dh && json.keys?.auth) {
                     await registerPushSubscription(json)
+                    console.info("[push] subscribed and registered")
                 }
             } catch (err) {
                 // Permission flow can throw for all kinds of reasons:
@@ -111,10 +119,40 @@ export function usePushSubscription() {
                 // None of these are fatal — log for the curious and move on.
                 console.warn("[push] subscription failed:", err)
             }
-        })()
+        }
+
+        // If permission is already granted, run immediately — no
+        // gesture needed, and we want to re-sync the endpoint with
+        // the backend on every login (cheap idempotent upsert).
+        if (Notification.permission === "granted") {
+            void runSubscribeFlow()
+            return () => {
+                cancelled = true
+            }
+        }
+
+        // Permission === "default". Defer the prompt to the next
+        // user gesture. iOS Safari REQUIRES this; Android tolerates
+        // either approach. We listen for the broadest set of gesture
+        // events to catch whichever fires first on whichever device.
+        const onFirstGesture = () => {
+            document.removeEventListener("pointerdown", onFirstGesture, true)
+            document.removeEventListener("touchend", onFirstGesture, true)
+            document.removeEventListener("click", onFirstGesture, true)
+            document.removeEventListener("keydown", onFirstGesture, true)
+            void runSubscribeFlow()
+        }
+        document.addEventListener("pointerdown", onFirstGesture, { capture: true, once: true })
+        document.addEventListener("touchend", onFirstGesture, { capture: true, once: true })
+        document.addEventListener("click", onFirstGesture, { capture: true, once: true })
+        document.addEventListener("keydown", onFirstGesture, { capture: true, once: true })
 
         return () => {
             cancelled = true
+            document.removeEventListener("pointerdown", onFirstGesture, true)
+            document.removeEventListener("touchend", onFirstGesture, true)
+            document.removeEventListener("click", onFirstGesture, true)
+            document.removeEventListener("keydown", onFirstGesture, true)
         }
     }, [user?.uid, loading])
 }
