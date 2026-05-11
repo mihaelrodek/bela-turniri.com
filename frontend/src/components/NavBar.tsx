@@ -292,8 +292,19 @@ export default function NavBar() {
                             </Menu.Positioner>
                         </Menu.Root>
                     )}
-                    {/* Install icon — between the avatar (or its absence)
-                        and the color-mode toggle. mr matches the toggle's. */}
+                    {/* Inline Prijava for anonymous mobile users — previously
+                        only reachable via the hamburger drawer. Showing it in
+                        the top bar means a one-tap sign-in path without
+                        having to discover the menu first. Hidden when the
+                        user is already logged in (the avatar menu replaces
+                        it above). */}
+                    {!loading && !user && (
+                        <Button asChild size="sm" variant="solid" colorPalette="blue" mr={1}>
+                            <RouterLink to="/login">Prijava</RouterLink>
+                        </Button>
+                    )}
+                    {/* Install icon — between the auth/avatar slot and the
+                        color-mode toggle. mr matches the toggle's. */}
                     <Box mr={1}>
                         <InstallAppButton size="sm" />
                     </Box>
@@ -327,13 +338,9 @@ export default function NavBar() {
                             <NavButton to="/map">Karta</NavButton>
                             <NavButton to="/find-pair">Pronađi para</NavButton>
 
-                            {!loading && !user && (
-                                <NavButton to="/login">
-                                    <Box as="span" display="inline-flex" alignItems="center" gap="2">
-                                        <FiUser /> Prijava
-                                    </Box>
-                                </NavButton>
-                            )}
+                            {/* Prijava is now permanently visible in the mobile
+                                top bar next to the install icon — no need to
+                                duplicate it inside the drawer. */}
                         </Stack>
                     </Box>
                 )}

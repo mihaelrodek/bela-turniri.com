@@ -609,6 +609,17 @@ export default function TournamentDetailsPage() {
                 })),
             }))
         )
+        // Collapse all rounds by default so the page opens compact — users
+        // explicitly expand the round they want to look at. Preserves any
+        // existing collapse state on subsequent refreshes (don't reset what
+        // the user already toggled), but seeds new round ids to collapsed.
+        setCollapsedRounds((prev) => {
+            const next: Record<number, boolean> = { ...prev }
+            for (const r of roundList) {
+                if (next[r.id] === undefined) next[r.id] = true
+            }
+            return next
+        })
     }
 
     useEffect(() => {
@@ -1357,20 +1368,39 @@ export default function TournamentDetailsPage() {
                                 alignSelf="start"
                             >
                                 <Card.Root variant="outline" rounded="xl" overflow="hidden" borderColor="border.emphasized" shadow="sm">
-                                    <Box bg="bg.muted" h={{ base: "240px", md: "320px", lg: "380px" }} overflow="hidden">
+                                    {/* Poster frame. On mobile we let the poster's
+                                        natural aspect ratio decide the height (capped
+                                        by maxH so a freakishly tall poster doesn't
+                                        eat the screen) and use objectFit="contain" so
+                                        the whole image is visible — no edges clipped
+                                        off the way "cover" was doing on portrait
+                                        posters. The neutral bg fills any letterbox
+                                        bars cleanly. Desktop keeps a fixed sticky
+                                        height because the side-by-side layout needs
+                                        a predictable row. */}
+                                    <Box
+                                        bg="bg.muted"
+                                        h={{ base: "auto", md: "320px", lg: "380px" }}
+                                        maxH={{ base: "70vh", md: "320px", lg: "380px" }}
+                                        overflow="hidden"
+                                        display="flex"
+                                        alignItems="center"
+                                        justifyContent="center"
+                                    >
                                         {t.bannerUrl ? (
                                             <Image
                                                 src={t.bannerUrl}
                                                 alt={t.name}
                                                 w="100%"
-                                                h="100%"
-                                                objectFit="cover"
+                                                h={{ base: "auto", md: "100%" }}
+                                                maxH={{ base: "70vh", md: "100%" }}
+                                                objectFit={{ base: "contain", md: "cover" }}
                                                 draggable={false}
                                             />
                                         ) : (
                                             <Box
                                                 w="100%"
-                                                h="100%"
+                                                h="240px"
                                                 display="flex"
                                                 alignItems="center"
                                                 justifyContent="center"
@@ -1673,27 +1703,57 @@ export default function TournamentDetailsPage() {
                             const extraBtnDisabled = p.extraLife || !eligible || !hasServerId
 
                             const isPending = !!p.pendingApproval
+                            // Winner detection — case-insensitive trim match against
+                            // tournament.winnerName, only meaningful once the
+                            // tournament is finished. The badge + gold styling
+                            // identifies the champion at a glance on the pairs grid.
+                            const isWinnerPair =
+                                t?.status === "FINISHED"
+                                && !!t?.winnerName
+                                && !!p.name
+                                && t.winnerName.trim().toLowerCase() === p.name.trim().toLowerCase()
                             return (
                                 <Box
                                     key={p.id}
-                                    borderWidth={isPending ? "2px" : "1px"}
+                                    borderWidth={isWinnerPair ? "2px" : isPending ? "2px" : "1px"}
                                     borderColor={
-                                        isPending ? "yellow.solid"
+                                        isWinnerPair ? "yellow.solid"
+                                        : isPending ? "yellow.solid"
                                         : eliminated ? "border.emphasized"
                                         : paid && !tournamentAlready ? "green.muted"
                                         : "border.emphasized"
                                     }
                                     rounded="lg"
                                     p="3"
-                                    bg={isPending ? "yellow.subtle" : eliminated ? "bg.subtle" : "bg"}
-                                    opacity={eliminated ? 0.85 : 1}
+                                    bg={
+                                        isWinnerPair ? "yellow.subtle"
+                                        : isPending ? "yellow.subtle"
+                                        : eliminated ? "bg.subtle"
+                                        : "bg"
+                                    }
+                                    // Champion pair gets a soft golden glow so the
+                                    // winner card pops even when the grid is busy.
+                                    boxShadow={isWinnerPair ? "0 0 0 3px var(--chakra-colors-yellow-muted)" : undefined}
+                                    // Winner is always full opacity even if technically
+                                    // "eliminated" by the data model — they won, after
+                                    // all. Otherwise eliminated pairs fade out.
+                                    opacity={!isWinnerPair && eliminated ? 0.85 : 1}
                                     display="flex"
                                     flexDirection="column"
                                     gap="2"
                                 >
                                     {/* Top row: avatar + name input + info button */}
                                     <HStack gap="2" align="center">
-                                        <PairAvatar name={p.name} eliminated={eliminated} />
+                                        <PairAvatar name={p.name} eliminated={eliminated && !isWinnerPair} />
+                                        {/* Gold trophy in front of the name for the
+                                            winning pair — only ever set once tournament
+                                            status is FINISHED, so it never mis-fires
+                                            on still-in-progress events. */}
+                                        {isWinnerPair && (
+                                            <Box color="yellow.fg" flexShrink={0}>
+                                                <FaTrophy size={20} />
+                                            </Box>
+                                        )}
                                         <Box flex="1" minW="0">
                                             <Input
                                                 size="sm"
@@ -1702,7 +1762,8 @@ export default function TournamentDetailsPage() {
                                                 onChange={(e) => changePairName(p.id, e.target.value)}
                                                 placeholder="Ime para"
                                                 disabled={tournamentAlready || tournamentLocked}
-                                                fontWeight="medium"
+                                                fontWeight={isWinnerPair ? "bold" : "medium"}
+                                                color={isWinnerPair ? "yellow.fg" : undefined}
                                             />
                                         </Box>
                                         <IconButton
@@ -2196,6 +2257,45 @@ export default function TournamentDetailsPage() {
                                 )
                             }
 
+                            // Action button(s) reused by both desktop and mobile
+                            // layouts. Wrapping it in a memoised JSX node avoids
+                            // duplicating the canEditTournament/editing tree in
+                            // two places. Same component instance is rendered
+                            // inside the desktop grid and the mobile header row.
+                            const actionEl = (
+                                canEditTournament && editing ? (
+                                    <HStack gap="1">
+                                        <Button size="2xs" variant="solid" colorPalette="green"
+                                                onClick={() => saveEditedMatch(r.id, m)}>
+                                            Spremi
+                                        </Button>
+                                        <Button size="2xs" variant="ghost"
+                                                onClick={() => cancelEdit(r.id, m.id)}>
+                                            Odustani
+                                        </Button>
+                                    </HStack>
+                                ) : canEditTournament && !isFinished && r.status !== "COMPLETED" ? (
+                                    <Button
+                                        size="2xs"
+                                        variant="solid"
+                                        colorPalette="green"
+                                        onClick={() => saveMatch(r.id, m)}
+                                        disabled={!m._dirty}
+                                    >
+                                        <FiCheck /> Spremi
+                                    </Button>
+                                ) : canEditTournament && isFinished && canEditNow ? (
+                                    <Button
+                                        size="2xs"
+                                        variant="ghost"
+                                        onClick={() => enterEdit(r.id, m.id)}
+                                        title="Uredi rezultat meča"
+                                    >
+                                        <FiEdit2 />
+                                    </Button>
+                                ) : null
+                            )
+
                             return (
                                 <Box
                                     key={m.id}
@@ -2213,156 +2313,203 @@ export default function TournamentDetailsPage() {
                                     }
                                     px="2.5"
                                     py="1.5"
-                                    display="grid"
-                                    gridTemplateColumns={{ base: "1fr", md: "auto 1fr auto 1fr auto" }}
-                                    alignItems="center"
-                                    gap={{ base: "1.5", md: "2" }}
                                 >
-                                    {/* Table chip */}
-                                    <Badge
-                                        variant="subtle"
-                                        colorPalette="gray"
-                                        size="sm"
-                                        flexShrink={0}
-                                        justifySelf={{ base: "start", md: "auto" }}
-                                    >
-                                        Stol {m.tableNo}
-                                    </Badge>
+                                    {/* Mobile layout — scoreboard style. Tall rows
+                                        with one pair per line, the score input at
+                                        the right edge of each line, and a header
+                                        bar carrying the table chip + action. The
+                                        winner pair gets a green-tinted row so the
+                                        result is obvious at a glance. */}
+                                    <Box display={{ base: "flex", md: "none" }} flexDirection="column" gap="2">
+                                        <HStack justify="space-between" align="center">
+                                            <Badge variant="subtle" colorPalette="gray" size="sm">
+                                                Stol {m.tableNo}
+                                            </Badge>
+                                            {actionEl}
+                                        </HStack>
+                                        {/* Pair A row */}
+                                        <HStack
+                                            gap="2"
+                                            px="2"
+                                            py="1.5"
+                                            rounded="sm"
+                                            bg={aIsWinner ? "green.subtle" : "transparent"}
+                                            borderLeftWidth={aIsWinner ? "3px" : "0"}
+                                            borderLeftColor={aIsWinner ? "green.solid" : "transparent"}
+                                        >
+                                            {aIsWinner && (
+                                                <Box color="green.fg" flexShrink={0}>
+                                                    <FiAward size={14} />
+                                                </Box>
+                                            )}
+                                            <Text
+                                                fontWeight={aIsWinner ? "semibold" : "medium"}
+                                                fontSize="sm"
+                                                overflow="hidden"
+                                                textOverflow="ellipsis"
+                                                whiteSpace="nowrap"
+                                                flex="1"
+                                                minW="0"
+                                            >
+                                                {a}
+                                            </Text>
+                                            <Input
+                                                size="xs"
+                                                type="text"
+                                                inputMode="numeric"
+                                                w="52px"
+                                                textAlign="center"
+                                                fontWeight="bold"
+                                                value={m._score1 ?? ""}
+                                                onChange={(e) => setLocalMatchScore(r.id, m.id, "A", e.target.value)}
+                                                disabled={!inputsEnabled}
+                                            />
+                                        </HStack>
+                                        {/* Pair B row */}
+                                        <HStack
+                                            gap="2"
+                                            px="2"
+                                            py="1.5"
+                                            rounded="sm"
+                                            bg={bIsWinner ? "green.subtle" : "transparent"}
+                                            borderLeftWidth={bIsWinner ? "3px" : "0"}
+                                            borderLeftColor={bIsWinner ? "green.solid" : "transparent"}
+                                        >
+                                            {bIsWinner && (
+                                                <Box color="green.fg" flexShrink={0}>
+                                                    <FiAward size={14} />
+                                                </Box>
+                                            )}
+                                            <Text
+                                                fontWeight={bIsWinner ? "semibold" : "medium"}
+                                                fontSize="sm"
+                                                overflow="hidden"
+                                                textOverflow="ellipsis"
+                                                whiteSpace="nowrap"
+                                                flex="1"
+                                                minW="0"
+                                            >
+                                                {b}
+                                            </Text>
+                                            <Input
+                                                size="xs"
+                                                type="text"
+                                                inputMode="numeric"
+                                                w="52px"
+                                                textAlign="center"
+                                                fontWeight="bold"
+                                                value={m._score2 ?? ""}
+                                                onChange={(e) => setLocalMatchScore(r.id, m.id, "B", e.target.value)}
+                                                disabled={!inputsEnabled}
+                                            />
+                                        </HStack>
+                                    </Box>
 
-                                    {/* Pair A */}
-                                    <HStack
-                                        gap="1.5"
-                                        px="1.5"
-                                        py="1"
-                                        rounded="sm"
-                                        bg={aIsWinner ? "green.subtle" : "transparent"}
-                                        borderLeftWidth={aIsWinner ? "2px" : "0"}
-                                        borderLeftColor={aIsWinner ? "green.solid" : "transparent"}
-                                        minW="0"
+                                    {/* Desktop layout — keep the existing dense
+                                        5-column grid. Plenty of horizontal room
+                                        on md+ so the score-vs-score middle works
+                                        as before; mobile rebuilt above for a
+                                        more glanceable read. */}
+                                    <Box
+                                        display={{ base: "none", md: "grid" }}
+                                        gridTemplateColumns="auto 1fr auto 1fr auto"
+                                        alignItems="center"
+                                        gap="2"
                                     >
-                                        {aIsWinner && (
-                                            <Box color="green.fg" flexShrink={0}>
-                                                <FiAward size={13} />
-                                            </Box>
-                                        )}
-                                        <Text
-                                            fontWeight={aIsWinner ? "semibold" : "medium"}
-                                            fontSize="sm"
-                                            overflow="hidden"
-                                            textOverflow="ellipsis"
-                                            whiteSpace="nowrap"
-                                            flex="1"
+                                        <Badge variant="subtle" colorPalette="gray" size="sm" flexShrink={0}>
+                                            Stol {m.tableNo}
+                                        </Badge>
+
+                                        {/* Pair A */}
+                                        <HStack
+                                            gap="1.5"
+                                            px="1.5"
+                                            py="1"
+                                            rounded="sm"
+                                            bg={aIsWinner ? "green.subtle" : "transparent"}
+                                            borderLeftWidth={aIsWinner ? "2px" : "0"}
+                                            borderLeftColor={aIsWinner ? "green.solid" : "transparent"}
                                             minW="0"
                                         >
-                                            {a}
-                                        </Text>
-                                    </HStack>
-
-                                    {/* Score */}
-                                    <HStack gap="1" justify="center" flexShrink={0}>
-                                        <Input
-                                            size="xs"
-                                            type="text"
-                                            inputMode="numeric"
-                                            w="44px"
-                                            textAlign="center"
-                                            fontWeight="semibold"
-                                            value={m._score1 ?? ""}
-                                            onChange={(e) => setLocalMatchScore(r.id, m.id, "A", e.target.value)}
-                                            disabled={!inputsEnabled}
-                                        />
-                                        <Text fontSize="sm" fontWeight="bold" color="fg.muted">:</Text>
-                                        <Input
-                                            size="xs"
-                                            type="text"
-                                            inputMode="numeric"
-                                            w="44px"
-                                            textAlign="center"
-                                            fontWeight="semibold"
-                                            value={m._score2 ?? ""}
-                                            onChange={(e) => setLocalMatchScore(r.id, m.id, "B", e.target.value)}
-                                            disabled={!inputsEnabled}
-                                        />
-                                    </HStack>
-
-                                    {/* Pair B */}
-                                    <HStack
-                                        gap="1.5"
-                                        px="1.5"
-                                        py="1"
-                                        rounded="sm"
-                                        bg={bIsWinner ? "green.subtle" : "transparent"}
-                                        borderRightWidth={{ base: "0", md: bIsWinner ? "2px" : "0" }}
-                                        borderRightColor={bIsWinner ? "green.solid" : "transparent"}
-                                        borderLeftWidth={{ base: bIsWinner ? "2px" : "0", md: "0" }}
-                                        borderLeftColor={{ base: bIsWinner ? "green.solid" : "transparent", md: "transparent" }}
-                                        justifyContent={{ base: "flex-start", md: "flex-end" }}
-                                        minW="0"
-                                    >
-                                        {bIsWinner && (
-                                            <Box
-                                                color="green.fg"
-                                                flexShrink={0}
-                                                order={{ base: 0, md: 1 }}
+                                            {aIsWinner && (
+                                                <Box color="green.fg" flexShrink={0}>
+                                                    <FiAward size={13} />
+                                                </Box>
+                                            )}
+                                            <Text
+                                                fontWeight={aIsWinner ? "semibold" : "medium"}
+                                                fontSize="sm"
+                                                overflow="hidden"
+                                                textOverflow="ellipsis"
+                                                whiteSpace="nowrap"
+                                                flex="1"
+                                                minW="0"
                                             >
-                                                <FiAward size={13} />
-                                            </Box>
-                                        )}
-                                        <Text
-                                            fontWeight={bIsWinner ? "semibold" : "medium"}
-                                            fontSize="sm"
-                                            overflow="hidden"
-                                            textOverflow="ellipsis"
-                                            whiteSpace="nowrap"
-                                            textAlign={{ base: "left", md: "right" }}
-                                            flex="1"
+                                                {a}
+                                            </Text>
+                                        </HStack>
+
+                                        {/* Score */}
+                                        <HStack gap="1" justify="center" flexShrink={0}>
+                                            <Input
+                                                size="xs"
+                                                type="text"
+                                                inputMode="numeric"
+                                                w="44px"
+                                                textAlign="center"
+                                                fontWeight="semibold"
+                                                value={m._score1 ?? ""}
+                                                onChange={(e) => setLocalMatchScore(r.id, m.id, "A", e.target.value)}
+                                                disabled={!inputsEnabled}
+                                            />
+                                            <Text fontSize="sm" fontWeight="bold" color="fg.muted">:</Text>
+                                            <Input
+                                                size="xs"
+                                                type="text"
+                                                inputMode="numeric"
+                                                w="44px"
+                                                textAlign="center"
+                                                fontWeight="semibold"
+                                                value={m._score2 ?? ""}
+                                                onChange={(e) => setLocalMatchScore(r.id, m.id, "B", e.target.value)}
+                                                disabled={!inputsEnabled}
+                                            />
+                                        </HStack>
+
+                                        {/* Pair B */}
+                                        <HStack
+                                            gap="1.5"
+                                            px="1.5"
+                                            py="1"
+                                            rounded="sm"
+                                            bg={bIsWinner ? "green.subtle" : "transparent"}
+                                            borderRightWidth={bIsWinner ? "2px" : "0"}
+                                            borderRightColor={bIsWinner ? "green.solid" : "transparent"}
+                                            justifyContent="flex-end"
                                             minW="0"
-                                            order={{ base: 1, md: 0 }}
                                         >
-                                            {b}
-                                        </Text>
-                                    </HStack>
+                                            <Text
+                                                fontWeight={bIsWinner ? "semibold" : "medium"}
+                                                fontSize="sm"
+                                                overflow="hidden"
+                                                textOverflow="ellipsis"
+                                                whiteSpace="nowrap"
+                                                textAlign="right"
+                                                flex="1"
+                                                minW="0"
+                                            >
+                                                {b}
+                                            </Text>
+                                            {bIsWinner && (
+                                                <Box color="green.fg" flexShrink={0}>
+                                                    <FiAward size={13} />
+                                                </Box>
+                                            )}
+                                        </HStack>
 
-                                    {/* Action — owner/admin only. Match-score
-                                        edits and saves are owner mutations and
-                                        the backend rejects them with 403, so
-                                        rendering the buttons for non-owners
-                                        was misleading. The score input fields
-                                        themselves are still visible (their
-                                        readOnly is gated separately further up
-                                        in the form). */}
-                                    <Box flexShrink={0} justifySelf={{ base: "stretch", md: "end" }}>
-                                        {canEditTournament && editing ? (
-                                            <HStack gap="1">
-                                                <Button size="2xs" variant="solid" colorPalette="green"
-                                                        onClick={() => saveEditedMatch(r.id, m)}>
-                                                    Spremi
-                                                </Button>
-                                                <Button size="2xs" variant="ghost"
-                                                        onClick={() => cancelEdit(r.id, m.id)}>
-                                                    Odustani
-                                                </Button>
-                                            </HStack>
-                                        ) : canEditTournament && !isFinished && r.status !== "COMPLETED" ? (
-                                            <Button
-                                                size="2xs"
-                                                variant="solid"
-                                                colorPalette="green"
-                                                onClick={() => saveMatch(r.id, m)}
-                                                disabled={!m._dirty}
-                                            >
-                                                <FiCheck /> Spremi
-                                            </Button>
-                                        ) : canEditTournament && isFinished && canEditNow ? (
-                                            <Button
-                                                size="2xs"
-                                                variant="ghost"
-                                                onClick={() => enterEdit(r.id, m.id)}
-                                                title="Uredi rezultat meča"
-                                            >
-                                                <FiEdit2 />
-                                            </Button>
-                                        ) : null}
+                                        <Box flexShrink={0} justifySelf="end">
+                                            {actionEl}
+                                        </Box>
                                     </Box>
                                 </Box>
                             )
@@ -2419,17 +2566,19 @@ export default function TournamentDetailsPage() {
                             )
                         }
 
-                        // Tournament has started — show the full toolbar +
-                        // rounds list. The toolbar contains owner-only settings
-                        // (repeats switch) and owner-only actions (Generiraj /
-                        // Završi / Resetiraj turnir) plus the Sažmi/Proširi sve
-                        // toggle. For non-owners only the toggle would render,
-                        // floating alone inside an empty grid column — that's
-                        // the "really stranger" layout the user reported. So
-                        // we hide the entire toolbar for non-owners; the
-                        // per-round chevron in each round's header still gives
-                        // them a way to collapse rounds individually.
-                        const showToolbar = canEditTournament
+                        // Tournament has started — show the toolbar. It hosts
+                        // owner-only settings (repeats switch) and owner-only
+                        // actions (Generiraj / Završi / Resetiraj turnir) plus
+                        // the Sažmi/Proširi sve toggle which everyone benefits
+                        // from. Render the toolbar for non-owners too once
+                        // rounds exist — they need Sažmi sve as much as the
+                        // organizer does. The internal grid collapses to a
+                        // single column for non-owners so the Sažmi button
+                        // doesn't sit alone in an awkward empty grid slot.
+                        const tournamentFinished = t?.status === "FINISHED"
+                        const showToolbar = (canEditTournament && !tournamentFinished) || rounds.length > 0
+                        const showRepeatsSetting = canEditTournament && !tournamentFinished
+                        const toolbarTwoColumn = showRepeatsSetting
                         return (
                             <VStack align="stretch" gap="4">
                                 {/* ===== Toolbar ===== */}
@@ -2438,15 +2587,18 @@ export default function TournamentDetailsPage() {
                                     <Card.Body py="3" px={{ base: "3", md: "4" }}>
                                         <Box
                                             display="grid"
-                                            gridTemplateColumns={{ base: "1fr", lg: "auto 1fr" }}
+                                            gridTemplateColumns={toolbarTwoColumn
+                                                ? { base: "1fr", lg: "auto 1fr" }
+                                                : "1fr"}
                                             gap={{ base: "3", lg: "6" }}
                                             alignItems="center"
                                         >
-                                        {/* Settings — owner/admin only. The repeats
-                                            switch directly mutates pairing rules, so
-                                            anonymous viewers and other players see
-                                            no toggle here. */}
-                                        {canEditTournament && (
+                                        {/* Settings — owner only AND only while the
+                                            tournament isn't finished. Once it's over
+                                            the matchmaking rule can't be changed
+                                            anymore and the toggle just clutters the
+                                            results screen. */}
+                                        {showRepeatsSetting && (
                                             <HStack
                                                 gap="3"
                                                 align="center"
@@ -2638,9 +2790,6 @@ export default function TournamentDetailsPage() {
                                                                         "Igra se"
                                                                     )}
                                                                 </Badge>
-                                                                <Text fontSize="xs" color="fg.muted">
-                                                                    {r.matches.length} {r.matches.length === 1 ? "meč" : "mečeva"}
-                                                                </Text>
                                                             </HStack>
                                                             <HStack gap="1.5" wrap="wrap" justify="flex-end">
                                                                 <Button
@@ -2797,6 +2946,13 @@ export default function TournamentDetailsPage() {
                                                     const a = m.pair1Id ? pairById.get(m.pair1Id)?.name ?? "—" : "—"
                                                     const b = m.pair2Id ? pairById.get(m.pair2Id)?.name ?? "—" : "—"
                                                     const isBye = !m.pair2Id
+                                                    // Winner highlight — only meaningful for
+                                                    // finished matches. Tints the winner side
+                                                    // green so a quick glance at fullscreen
+                                                    // shows who took each table. Byes stay blue.
+                                                    const fsWinner = m.status === "FINISHED" ? winnerOf(m) : null
+                                                    const aWon = fsWinner != null && fsWinner === m.pair1Id
+                                                    const bWon = fsWinner != null && fsWinner === m.pair2Id
                                                     return (
                                                         <Box
                                                             key={m.id}
@@ -2817,7 +2973,12 @@ export default function TournamentDetailsPage() {
                                                                 {/* Pair A */}
                                                                 <Box
                                                                     fontSize={{ base: "xl", md: "2xl", lg: "3xl" }}
-                                                                    fontWeight="semibold"
+                                                                    fontWeight={aWon ? "bold" : "semibold"}
+                                                                    color={aWon ? "green.fg" : undefined}
+                                                                    bg={aWon ? "green.subtle" : undefined}
+                                                                    rounded={aWon ? "md" : undefined}
+                                                                    px={aWon ? "3" : undefined}
+                                                                    py={aWon ? "2" : undefined}
                                                                     lineHeight="short"
                                                                     textAlign="center"
                                                                     overflow="hidden"
@@ -2865,8 +3026,12 @@ export default function TournamentDetailsPage() {
                                                                 {/* Pair B / bye */}
                                                                 <Box
                                                                     fontSize={{ base: "xl", md: "2xl", lg: "3xl" }}
-                                                                    fontWeight={isBye ? "medium" : "semibold"}
-                                                                    color={isBye ? "blue.fg" : undefined}
+                                                                    fontWeight={isBye ? "medium" : bWon ? "bold" : "semibold"}
+                                                                    color={isBye ? "blue.fg" : bWon ? "green.fg" : undefined}
+                                                                    bg={bWon ? "green.subtle" : undefined}
+                                                                    rounded={bWon ? "md" : undefined}
+                                                                    px={bWon ? "3" : undefined}
+                                                                    py={bWon ? "2" : undefined}
                                                                     fontStyle={isBye ? "italic" : undefined}
                                                                     lineHeight="short"
                                                                     textAlign="center"
