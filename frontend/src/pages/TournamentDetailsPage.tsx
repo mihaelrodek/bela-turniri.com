@@ -732,23 +732,110 @@ export default function TournamentDetailsPage() {
         setPairs((ps) => ps.filter((p) => p.id !== id))
     }
 
-    async function savePairsAll() {
-        if (!uuid) return
-        if (pairs.some((p) => !p.name || p.name.trim() === "")) {
-            alert("Pair name cannot be empty.")
-            return
-        }
-        const payload = pairs.map((p) => ({
+    /**
+     * Single-flight guard for the pair-list bulk save. Without it the
+     * name-input onBlur and the Plati click race each other when the user
+     * types a name then immediately taps Plati — both would call
+     * replacePairs back-to-back with the same temp pair, and the second
+     * call would create a duplicate row server-side.
+     */
+    const savingPairsRef = React.useRef(false)
+
+    /**
+     * Build the bulk-save payload from the current pair list. Optional
+     * `paidOverride` lets the caller flip a single pair's `paid` flag
+     * atomically with the save — used by Plati on a not-yet-persisted
+     * (temp-id) pair so name + paid commit in a single round trip.
+     */
+    function buildPairsPayload(paidOverride?: { pairId: number; paid: boolean }) {
+        return pairs.map((p) => ({
             id: p.id > 0 ? p.id : undefined,
             name: p.name,
             isEliminated: !!p.isEliminated,
             extraLife: !!p.extraLife,
             wins: p.wins ?? 0,
             losses: p.losses ?? 0,
-            paid: !!p.paid,      // <-- include paid
+            paid: paidOverride && paidOverride.pairId === p.id ? paidOverride.paid : !!p.paid,
         }))
-        const saved = await replacePairs(uuid, payload)
-        setPairs(saved)
+    }
+
+    async function savePairsAll() {
+        if (!uuid) return
+        if (savingPairsRef.current) return
+        if (pairs.some((p) => !p.name || p.name.trim() === "")) {
+            alert("Pair name cannot be empty.")
+            return
+        }
+        savingPairsRef.current = true
+        try {
+            const saved = await replacePairs(uuid, buildPairsPayload())
+            setPairs(saved)
+        } finally {
+            savingPairsRef.current = false
+        }
+    }
+
+    /**
+     * Auto-save handler fired by the pair-name input's blur event. Behaviour:
+     *   - Temp pair (negative id) with empty name → silently drop the row
+     *     locally. The user clearly didn't intend to add a pair.
+     *   - Temp pair with a real name → bulk-save so the pair gets a server
+     *     id immediately. Skips when a save is already in flight to avoid
+     *     duplicate rows from racing with the Plati click handler.
+     *   - Server-saved pair → no-op. Rename of existing pairs still flows
+     *     through the explicit "Spremi promjene" button to keep the bulk
+     *     editor mental model intact.
+     */
+    function onPairNameBlur(p: PairShort) {
+        if (p.id > 0) return
+        if (!p.name.trim()) {
+            removePair(p.id)
+            return
+        }
+        if (savingPairsRef.current) return
+        if (!uuid) return
+        if (pairs.some((q) => !q.name || q.name.trim() === "")) {
+            // Don't auto-save while another row is still blank — the bulk
+            // endpoint rejects it anyway and the toast would be noisy.
+            return
+        }
+        savingPairsRef.current = true
+        ;(async () => {
+            try {
+                const saved = await replacePairs(uuid, buildPairsPayload())
+                setPairs(saved)
+            } catch {
+                /* error toast already surfaced by axios interceptor */
+            } finally {
+                savingPairsRef.current = false
+            }
+        })()
+    }
+
+    /**
+     * "Plati" click handler for a not-yet-persisted pair. Saves the whole
+     * list with the paid flag flipped for the target pair, so a single
+     * round-trip both persists the row AND records the kotizacija status.
+     * No more "pair not found" 404s from the legacy split flow where the
+     * user had to hit Spremi promjene before Plati would work.
+     */
+    async function saveTempPairWithPaid(pairId: number, nextPaid: boolean) {
+        if (!uuid) return
+        const target = pairs.find((p) => p.id === pairId)
+        if (!target || !target.name.trim()) {
+            alert("Unesite ime para prije plaćanja.")
+            return
+        }
+        if (savingPairsRef.current) return
+        savingPairsRef.current = true
+        try {
+            const saved = await replacePairs(uuid, buildPairsPayload({ pairId, paid: nextPaid }))
+            setPairs(saved)
+        } catch (e: any) {
+            alert(e?.response?.data ?? e?.message ?? "Neuspjelo spremanje.")
+        } finally {
+            savingPairsRef.current = false
+        }
     }
 
     async function saveEditedMatch(roundId: number, m: MatchLocal) {
@@ -1028,6 +1115,14 @@ export default function TournamentDetailsPage() {
 
     async function onTogglePaid(pairId: number, nextPaid: boolean) {
         if (!uuid) return
+        // Pair not yet saved server-side — route through the temp-pair
+        // path so name + paid are persisted in one bulk call. Without this
+        // the legacy setPairPaid hits /pairs/{id} which 404s because the
+        // negative id never reached the database.
+        if (pairId < 0) {
+            await saveTempPairWithPaid(pairId, nextPaid)
+            return
+        }
         // optimistic
         setPairs(ps => ps.map(x => x.id === pairId ? ({ ...(x as any), paid: nextPaid }) : x))
         try {
@@ -1755,6 +1850,7 @@ export default function TournamentDetailsPage() {
                                                 variant="flushed"
                                                 value={p.name}
                                                 onChange={(e) => changePairName(p.id, e.target.value)}
+                                                onBlur={() => onPairNameBlur(p)}
                                                 placeholder="Ime para"
                                                 disabled={tournamentAlready || tournamentLocked}
                                                 fontWeight={isWinnerPair ? "bold" : "medium"}
@@ -3002,9 +3098,16 @@ export default function TournamentDetailsPage() {
                                                                     {a}
                                                                 </Box>
 
-                                                                {/* Stol N separator (replaces vs) */}
+                                                                {/* Stol N separator (replaces vs).
+                                                                    Suppressed for bye matches — the
+                                                                    pair gets a free pass through
+                                                                    the round and isn't seated at a
+                                                                    table. Bye cards just show a
+                                                                    plain horizontal divider where
+                                                                    the Stol chip would have been. */}
                                                                 <HStack gap="3" align="center">
                                                                     <Box flex="1" h="1px" bg="border.emphasized" />
+                                                                    {!isBye && (
                                                                     <Box
                                                                         bg="blue.solid"
                                                                         color="white"
@@ -3034,6 +3137,7 @@ export default function TournamentDetailsPage() {
                                                                             {m.tableNo}
                                                                         </Text>
                                                                     </Box>
+                                                                    )}
                                                                     <Box flex="1" h="1px" bg="border.emphasized" />
                                                                 </HStack>
 

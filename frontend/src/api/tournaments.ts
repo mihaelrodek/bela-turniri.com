@@ -92,6 +92,11 @@ export async function replacePairs(tournamentId: string, pairs: Array<PairShort 
     const hasEmpty = pairs.some(p => !p.name || p.name.trim() === "");
     if (hasEmpty) throw new Error("Pair name cannot be empty.");
 
+    // Include `paid` in the wire payload — backend PairDto carries it and
+    // PairMapper persists it (target=paid, source=paid). Without this the
+    // bulk save would silently reset paid=false on every replacePairs call,
+    // and the "Plati on a not-yet-saved pair" flow would lose its kotizacija
+    // flag the moment the pair gets a real id.
     const payload = pairs.map(p => ({
         id: typeof p.id === "number" && p.id > 0 ? p.id : null,
         name: p.name.trim(),
@@ -99,6 +104,7 @@ export async function replacePairs(tournamentId: string, pairs: Array<PairShort 
         extraLife: !!p.extraLife,
         wins: Number.isFinite(p.wins) ? p.wins : 0,
         losses: Number.isFinite(p.losses) ? p.losses : 0,
+        paid: !!(p as any).paid,
     }));
 
     const { data } = await http.put<PairShort[]>(`/tournaments/${tournamentId}/pairs`, payload);
