@@ -52,6 +52,18 @@
     <meta name="twitter:image" content="https://bela-turniri.com/bela-turniri-symbol.png" />
 
     <title>Bela turniri</title>
+
+    <!-- Reserve the vertical-scrollbar gutter unconditionally. Without this
+         rule a route swap from a short page (Kalendar — fits in viewport,
+         no scrollbar) to a tall page (Kreiraj turnir — scrollbar appears)
+         shifts every centred element ~17px left, which the user spots as a
+         jarring layout jump. `scrollbar-gutter: stable` keeps the gutter
+         present always, even when content fits, so the content area's
+         width is identical between routes. Falls back gracefully on older
+         browsers (no jump, just the original behaviour). -->
+    <style>
+      html { scrollbar-gutter: stable; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

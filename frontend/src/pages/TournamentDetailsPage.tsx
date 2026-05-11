@@ -742,21 +742,48 @@ export default function TournamentDetailsPage() {
     const savingPairsRef = React.useRef(false)
 
     /**
+     * Pending paid-flag overrides captured BEFORE state has flushed —
+     * Plati's onMouseDown stamps the desired value here, so the blur save
+     * that fires immediately afterwards (mousedown → blur → click in DOM
+     * event order) can include the right paid value in its payload.
+     *
+     * Without this ref, the user-types-then-clicks-Plati flow would race:
+     * blur would save the pair with paid=false (the React state hasn't
+     * re-rendered yet from the click), and the click handler would then
+     * see `savingPairsRef=true` and skip its own save. The pair ends up
+     * persisted but unpaid. The ref bypasses that race entirely.
+     */
+    const pendingPaidRef = React.useRef<Map<number, boolean>>(new Map())
+
+    /**
      * Build the bulk-save payload from the current pair list. Optional
      * `paidOverride` lets the caller flip a single pair's `paid` flag
      * atomically with the save — used by Plati on a not-yet-persisted
      * (temp-id) pair so name + paid commit in a single round trip.
+     *
+     * In addition to the explicit override, this also consults
+     * pendingPaidRef so a click that arrived AFTER blur (via the
+     * mousedown-pre-blur path) still wins.
      */
     function buildPairsPayload(paidOverride?: { pairId: number; paid: boolean }) {
-        return pairs.map((p) => ({
-            id: p.id > 0 ? p.id : undefined,
-            name: p.name,
-            isEliminated: !!p.isEliminated,
-            extraLife: !!p.extraLife,
-            wins: p.wins ?? 0,
-            losses: p.losses ?? 0,
-            paid: paidOverride && paidOverride.pairId === p.id ? paidOverride.paid : !!p.paid,
-        }))
+        return pairs.map((p) => {
+            const pendingPaid = pendingPaidRef.current.get(p.id)
+            const paid =
+                paidOverride && paidOverride.pairId === p.id
+                    ? paidOverride.paid
+                    : pendingPaid !== undefined
+                        ? pendingPaid
+                        : !!p.paid
+            return {
+                id: p.id > 0 ? p.id : undefined,
+                name: p.name,
+                isEliminated: !!p.isEliminated,
+                extraLife: !!p.extraLife,
+                wins: p.wins ?? 0,
+                losses: p.losses ?? 0,
+                paid,
+            }
+        })
     }
 
     async function savePairsAll() {
@@ -770,6 +797,9 @@ export default function TournamentDetailsPage() {
         try {
             const saved = await replacePairs(uuid, buildPairsPayload())
             setPairs(saved)
+            // Temp ids that we were tracking have been replaced by real ids
+            // — drop the now-meaningless overrides.
+            pendingPaidRef.current.clear()
         } finally {
             savingPairsRef.current = false
         }
@@ -804,6 +834,7 @@ export default function TournamentDetailsPage() {
             try {
                 const saved = await replacePairs(uuid, buildPairsPayload())
                 setPairs(saved)
+                pendingPaidRef.current.clear()
             } catch {
                 /* error toast already surfaced by axios interceptor */
             } finally {
@@ -831,6 +862,7 @@ export default function TournamentDetailsPage() {
         try {
             const saved = await replacePairs(uuid, buildPairsPayload({ pairId, paid: nextPaid }))
             setPairs(saved)
+            pendingPaidRef.current.clear()
         } catch (e: any) {
             alert(e?.response?.data ?? e?.message ?? "Neuspjelo spremanje.")
         } finally {
@@ -1960,6 +1992,23 @@ export default function TournamentDetailsPage() {
                                                     size="xs"
                                                     variant={paid ? "outline" : "solid"}
                                                     colorPalette={paid ? "green" : "red"}
+                                                    // onMouseDown fires BEFORE the name-input's blur, so
+                                                    // we stamp the intended paid value into a ref now.
+                                                    // The blur save runs next, reads the ref, and bakes
+                                                    // the new paid into its payload — no race with the
+                                                    // subsequent click handler. For temp pairs we also
+                                                    // optimistically flip the visible state so the
+                                                    // button colour updates instantly.
+                                                    onMouseDown={() => {
+                                                        if (p.id < 0) {
+                                                            pendingPaidRef.current.set(p.id, !paid)
+                                                            setPairs((ps) =>
+                                                                ps.map((x) =>
+                                                                    x.id === p.id ? ({ ...(x as any), paid: !paid }) : x,
+                                                                ),
+                                                            )
+                                                        }
+                                                    }}
                                                     onClick={() => onTogglePaid(p.id, !paid)}
                                                     title={paid ? "Označi kao neplaćeno" : "Označi kao plaćeno"}
                                                 >
