@@ -77,3 +77,59 @@ self.addEventListener("fetch", (event) => {
         })
     );
 });
+
+// ─────────────────────────────────────────────────────────────────────
+//  Web Push: receive + click handling
+// ─────────────────────────────────────────────────────────────────────
+// `push` fires whenever the browser's push service delivers a message
+// signed with our VAPID key. The payload is JSON written by the backend
+// (PushService.PushPayload): { title, body, url?, icon?, tag? }.
+//
+// `notificationclick` fires when the user taps the notification. We focus
+// an existing open tab on the target URL if one exists, otherwise we open
+// a new tab. This is the standard PWA re-engagement pattern.
+
+self.addEventListener("push", (event) => {
+    if (!event.data) return;
+    let data = {};
+    try {
+        data = event.data.json();
+    } catch {
+        // Backend always sends JSON, but fall back to plain text just in
+        // case a debug curl came through.
+        data = { title: "Bela turniri", body: event.data.text() };
+    }
+    const title = data.title || "Bela turniri";
+    const options = {
+        body: data.body || "",
+        icon: data.icon || "/bela-turniri-symbol.png",
+        badge: "/bela-turniri-symbol.png",
+        // `tag` groups notifications so a new one with the same tag replaces
+        // the previous (avoids stacking 5 "approved" toasts if the organizer
+        // batch-approves a queue). Most flows leave it undefined.
+        tag: data.tag,
+        data: { url: data.url || "/" },
+    };
+    event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    const targetUrl = (event.notification.data && event.notification.data.url) || "/";
+    event.waitUntil(
+        self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((all) => {
+            // If a window for this app is already open, focus it and route
+            // to the target URL via postMessage — React Router can then do
+            // a client-side navigate without a full reload.
+            for (const client of all) {
+                if (client.url.startsWith(self.location.origin)) {
+                    client.focus();
+                    client.postMessage({ type: "bela:navigate", url: targetUrl });
+                    return;
+                }
+            }
+            // No window open — launch a new one straight at the target.
+            return self.clients.openWindow(targetUrl);
+        })
+    );
+});

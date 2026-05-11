@@ -1802,17 +1802,18 @@ export default function TournamentDetailsPage() {
                         const atCapacity = capacity != null && pairs.length >= capacity
                         const canEditTournament =
                             isAdmin || (!!user?.uid && user.uid === t.createdByUid)
-                        // True when the current user already has a pair (pending or
-                        // approved) in this tournament. Drives the "Prijavi par" button
-                        // → "Već si prijavljen" badge swap below so we don't let users
-                        // hit the API a second time and bounce off the 409.
+                        // True when the current user already has at least one pair
+                        // (pending or approved) in this tournament. We DON'T use this
+                        // to hide the button anymore — multiple registrations are
+                        // legitimate (e.g. a captain entering several teams). It's
+                        // only used to relabel the button so a user who already has a
+                        // pair sees "Prijavi još jedan par" instead of the default.
                         const userAlreadyRegistered =
                             !!user?.uid &&
                             pairs.some((p) => p.submittedByUid === user.uid)
                         // Self-registration is offered to everyone until the tournament
-                        // starts. Anonymous users get bounced to /login on click. Hidden
-                        // entirely once the user has registered — they get a badge instead.
-                        const showSelfRegisterButton = !tournamentAlready && !userAlreadyRegistered
+                        // starts. Anonymous users get bounced to /login on click.
+                        const showSelfRegisterButton = !tournamentAlready
 
                         const renderPair = (p: PairShort, _idx: number, eliminated: boolean) => {
                             const hasServerId = typeof p.id === "number" && p.id > 0
@@ -2147,15 +2148,11 @@ export default function TournamentDetailsPage() {
                                                             setSelfRegOpen(true)
                                                         }}
                                                     >
-                                                        <FiPlus /> Prijavi par za turnir
+                                                        <FiPlus />
+                                                        {userAlreadyRegistered
+                                                            ? " Prijavi još jedan par"
+                                                            : " Prijavi par za turnir"}
                                                     </Button>
-                                                )}
-                                                {!tournamentAlready && userAlreadyRegistered && (
-                                                    <Badge variant="subtle" colorPalette="green">
-                                                        <HStack gap="1">
-                                                            <FiCheck size={11} /> Već si prijavljen
-                                                        </HStack>
-                                                    </Badge>
                                                 )}
                                                 {/* Organizer / admin: full pair management */}
                                                 {!tournamentLocked && canEditTournament && (

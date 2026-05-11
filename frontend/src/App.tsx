@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Container } from '@chakra-ui/react'
 import NavBar from './components/NavBar'
+import PushBootstrap from './components/PushBootstrap'
 import TournamentsPage from './pages/TournamentsPage'
 import CreateTournamentPage from './pages/CreateTournamentPage'
 import TournamentDetailsPage from './pages/TournamentDetailsPage'
@@ -18,6 +19,10 @@ export default function App() {
     return (
         <>
             <NavBar />
+            {/* Auto-subscribes the user to Web Push once we know who they
+                are. Also listens for SW notification-click navigation
+                messages and routes the SPA without a reload. */}
+            <PushBootstrap />
             <Container maxW="6xl" py={6}>
                 <Routes>
                     <Route path="/" element={<Navigate to="/tournaments" replace />} />

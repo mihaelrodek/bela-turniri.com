@@ -128,6 +128,21 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Web Push (VAPID-signed payloads to browser push endpoints).
+             nl.martijndwars:web-push is the canonical Java implementation;
+             BouncyCastle is its transitive crypto dependency but pinning it
+             here makes the version explicit. -->
+        <dependency>
+            <groupId>nl.martijndwars</groupId>
+            <artifactId>web-push</artifactId>
+            <version>5.1.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.78.1</version>
+        </dependency>
+
         <!-- Tests -->
         <dependency>
             <groupId>io.quarkus</groupId>

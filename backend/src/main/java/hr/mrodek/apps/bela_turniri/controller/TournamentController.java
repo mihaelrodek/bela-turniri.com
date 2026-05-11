@@ -16,6 +16,7 @@ import hr.mrodek.apps.bela_turniri.repository.TournamentsRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
 import hr.mrodek.apps.bela_turniri.services.GeocodeService;
+import hr.mrodek.apps.bela_turniri.services.PushService;
 import hr.mrodek.apps.bela_turniri.services.RepassageService;
 import hr.mrodek.apps.bela_turniri.services.SlugService;
 import hr.mrodek.apps.bela_turniri.services.StorageService;
@@ -51,6 +52,7 @@ public class TournamentController {
     @Inject GeocodeService geocodeService;
     @Inject SlugService slugService;
     @Inject TournamentSlugService tournamentSlugService;
+    @Inject PushService pushService;
 
     @Inject TournamentsRepository tournamentsRepo;
     @Inject PairsRepository pairRepo;
@@ -669,7 +671,26 @@ public class TournamentController {
         if (pair.getTournament() == null || !Objects.equals(pair.getTournament().getId(), t.getId())) {
             return Response.status(Response.Status.FORBIDDEN).build();
         }
+        boolean wasPending = pair.isPendingApproval();
         pair.setPendingApproval(false);
+
+        // Notify the player whose pair just got approved. Only push when
+        // the row was actually pending — re-approving an already-approved
+        // pair would be a confusing duplicate notification.
+        if (wasPending && pair.getSubmittedByUid() != null) {
+            String tournamentRef = t.getSlug() != null && !t.getSlug().isBlank()
+                    ? t.getSlug()
+                    : (t.getUuid() != null ? t.getUuid().toString() : "");
+            pushService.sendToUser(
+                    pair.getSubmittedByUid(),
+                    new PushService.PushPayload(
+                            "Prijava odobrena",
+                            "Tvoj par \"" + pair.getName() + "\" je prihvaćen na turniru " + t.getName() + ".",
+                            "/tournaments/" + tournamentRef
+                    )
+            );
+        }
+
         return Response.ok(pairMapper.toDtoEnriched(pair, fetchSubmitterProfiles(List.of(pair)))).build();
     }
 
