@@ -92,7 +92,12 @@ export function usePushSubscription() {
                 const applicationServerKey = urlBase64ToUint8Array(publicKey)
                 const sub = await reg.pushManager.subscribe({
                     userVisibleOnly: true,
-                    applicationServerKey,
+                    // TS 5.7+ types Uint8Array as generic over its buffer
+                    // kind (ArrayBuffer | SharedArrayBuffer). At runtime
+                    // this is always plain-ArrayBuffer-backed, but the
+                    // PushManager DOM types only accept the ArrayBuffer
+                    // flavour — hence the cast.
+                    applicationServerKey: applicationServerKey as BufferSource,
                 })
                 if (cancelled) return
                 const json = sub.toJSON() as PushSubscriptionJSON
