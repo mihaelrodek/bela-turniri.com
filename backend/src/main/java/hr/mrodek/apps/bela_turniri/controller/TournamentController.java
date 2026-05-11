@@ -410,11 +410,26 @@ public class TournamentController {
     /* ===================== Read ===================== */
 
     @GET
-    public List<TournamentCardDto> list(@QueryParam("status") @DefaultValue("upcoming") String status) {
-        var now = OffsetDateTime.now();
-        List<Tournaments> items = "finished".equalsIgnoreCase(status)
-                ? tournamentsRepo.findByStartAtBeforeOrderByStartAtDesc(now)
-                : tournamentsRepo.findByStartAtGreaterThanEqualOrderByStartAtAsc(now);
+    public List<TournamentCardDto> list(
+            @QueryParam("status") @DefaultValue("upcoming") String status,
+            @QueryParam("offset") @DefaultValue("0") int offset,
+            @QueryParam("limit") @DefaultValue("0") int limit) {
+        // "finished" means explicit TournamentStatus.FINISHED — date isn't
+        // the source of truth (a tournament that started today and is still
+        // being scored is in progress, not finished). The other bucket
+        // covers DRAFT + STARTED, sorted by startAt ascending so the soonest
+        // event is first. Pagination is opt-in via offset/limit: pass
+        // limit=0 (default) to get everything, or a positive limit to page.
+        final List<Tournaments> items;
+        if ("finished".equalsIgnoreCase(status)) {
+            if (limit > 0) {
+                items = tournamentsRepo.findFinishedPaged(Math.max(0, offset), limit);
+            } else {
+                items = tournamentsRepo.findFinishedPaged(0, Integer.MAX_VALUE);
+            }
+        } else {
+            items = tournamentsRepo.findNotFinishedOrderByStartAtAsc();
+        }
 
         if (items.isEmpty()) return List.of();
 
@@ -426,6 +441,22 @@ public class TournamentController {
                 ));
 
         return tournamentMapper.toCardList(items, counts);
+    }
+
+    /**
+     * Lightweight count for paginated finished listings — the SPA hits this
+     * once to know whether to render the "Učitaj više" button after the
+     * initial page of finished tournaments.
+     */
+    @GET
+    @Path("/count")
+    public java.util.Map<String, Long> count(
+            @QueryParam("status") @DefaultValue("finished") String status) {
+        if ("finished".equalsIgnoreCase(status)) {
+            return java.util.Map.of("total", tournamentsRepo.countFinished());
+        }
+        // Other buckets aren't paged today so they don't need a count.
+        return java.util.Map.of("total", 0L);
     }
 
     @GET

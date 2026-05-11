@@ -37,9 +37,28 @@ export async function createTournament(payload: CreateTournamentPayload): Promis
 
 export async function fetchTournaments(
     status: "upcoming" | "finished" = "upcoming",
+    opts?: { offset?: number; limit?: number },
 ): Promise<TournamentCard[]> {
-    const { data } = await http.get<TournamentCard[]>("/tournaments", { params: { status } });
+    const params: Record<string, string | number> = { status };
+    if (opts?.offset != null) params.offset = opts.offset;
+    if (opts?.limit != null) params.limit = opts.limit;
+    const { data } = await http.get<TournamentCard[]>("/tournaments", { params });
     return data;
+}
+
+/**
+ * Backend-side total count for a status bucket. Used by the "Učitaj više"
+ * button on the finished list to know when to stop offering more.
+ */
+export async function fetchTournamentsCount(
+    status: "finished" = "finished",
+): Promise<number> {
+    const { data } = await http.get<{ total: number }>("/tournaments/count", {
+        params: { status },
+        // No success toast for a background count.
+        silent: true,
+    } as any);
+    return data.total
 }
 
 export async function fetchTournamentDetails(uuid: string): Promise<TournamentDetails> {

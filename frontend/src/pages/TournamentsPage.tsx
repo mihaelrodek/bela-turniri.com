@@ -17,7 +17,7 @@ import {
 import { Link as RouterLink } from "react-router-dom"
 import { FiCalendar, FiChevronDown, FiChevronUp, FiClock, FiFilter, FiNavigation, FiPlus, FiSearch, FiUsers, FiX } from "react-icons/fi"
 import type { TournamentCard } from "../types/tournaments"
-import { fetchTournaments } from "../api/tournaments"
+import { fetchTournaments, fetchTournamentsCount } from "../api/tournaments"
 import { useUserLocation } from "../hooks/useUserLocation"
 import { haversineKm } from "../utils/distance"
 import { useDocumentHead } from "../hooks/useDocumentHead"
@@ -205,7 +205,7 @@ function TournamentCardView({
 
                     {variant === "finished" && winner && (
                         <HStack gap="1.5" align="center">
-                            <Text fontSize="xs" color="fg.muted">Pobjednik:</Text>
+                            <Text fontSize="xs" color="fg.muted">Pobjednici -</Text>
                             <Badge size="sm" colorPalette="yellow" variant="subtle">
                                 {winner}
                             </Badge>
@@ -319,7 +319,12 @@ export default function TournamentsPage() {
 
     const [upcoming, setUpcoming] = useState<TournamentCardWithUuid[]>([])
     const [finished, setFinished] = useState<TournamentCardWithUuid[]>([])
-    const [showAllFinished, setShowAllFinished] = useState(false)
+    // Finished list is paginated server-side — the initial fetch returns
+    // FINISHED_PAGE_SIZE rows; "Učitaj više" appends the next page until
+    // every finished tournament is loaded. finishedTotal lets us know when
+    // there's nothing more to fetch.
+    const [finishedTotal, setFinishedTotal] = useState(0)
+    const [loadingMoreFinished, setLoadingMoreFinished] = useState(false)
 
     // ---- Search + filters (apply to upcoming) ----
     const [filtersOpen, setFiltersOpen] = useState(false) // not expanded by default
@@ -362,14 +367,19 @@ export default function TournamentsPage() {
                 setLoading(true); setError(null)
                 setLoadingFinished(true); setErrorFinished(null)
 
-                const [dataUpcoming, dataFinished] = await Promise.all([
+                // Fetch upcoming (no pagination — typically small), the
+                // first page of finished, and the total finished count
+                // (so we know whether to show the "Učitaj više" button).
+                const [dataUpcoming, dataFinishedPage, finishedTotalCount] = await Promise.all([
                     fetchTournaments("upcoming"),
-                    fetchTournaments("finished"),
+                    fetchTournaments("finished", { offset: 0, limit: FINISHED_PREVIEW_LIMIT }),
+                    fetchTournamentsCount("finished"),
                 ])
 
                 if (!cancelled) {
                     setUpcoming(dataUpcoming as TournamentCardWithUuid[])
-                    setFinished(dataFinished as TournamentCardWithUuid[])
+                    setFinished(dataFinishedPage as TournamentCardWithUuid[])
+                    setFinishedTotal(finishedTotalCount)
                 }
             } catch (e: any) {
                 if (!cancelled) {
@@ -377,6 +387,7 @@ export default function TournamentsPage() {
                     setErrorFinished(e?.message ?? "Failed to load finished tournaments")
                     setUpcoming([])
                     setFinished([])
+                    setFinishedTotal(0)
                 }
             } finally {
                 if (!cancelled) {
@@ -388,11 +399,30 @@ export default function TournamentsPage() {
         return () => { cancelled = true }
     }, [])
 
-    const visibleFinished = useMemo(
-        () => (showAllFinished ? finished : finished.slice(0, FINISHED_PREVIEW_LIMIT)),
-        [finished, showAllFinished],
-    )
-    const finishedHasMore = finished.length > FINISHED_PREVIEW_LIMIT
+    /**
+     * Append the next page of finished tournaments. Idempotent — re-clicking
+     * "Učitaj više" while a fetch is in-flight is a no-op thanks to
+     * loadingMoreFinished. We use the current length as the offset so the
+     * server returns rows we don't already have.
+     */
+    async function loadMoreFinished() {
+        if (loadingMoreFinished) return
+        if (finished.length >= finishedTotal) return
+        setLoadingMoreFinished(true)
+        try {
+            const next = await fetchTournaments("finished", {
+                offset: finished.length,
+                limit: FINISHED_PREVIEW_LIMIT,
+            })
+            setFinished((prev) => [...prev, ...(next as TournamentCardWithUuid[])])
+        } catch {
+            // Toast surfaces the error; no extra UI needed.
+        } finally {
+            setLoadingMoreFinished(false)
+        }
+    }
+
+    const finishedHasMore = finished.length < finishedTotal
 
     // Apply search + filters to upcoming
     const filteredUpcoming = useMemo(() => {
@@ -687,19 +717,7 @@ export default function TournamentsPage() {
 
             {/* ===================== Finished ===================== */}
             <Box>
-                <HStack justify="space-between" mb="4" gap="3" wrap="wrap">
-                    <Heading size="lg">Završeni turniri</Heading>
-
-                    {!loadingFinished && finishedHasMore && (
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setShowAllFinished((v) => !v)}
-                        >
-                            {showAllFinished ? "Prikaži manje" : "Prikaži sve"}
-                        </Button>
-                    )}
-                </HStack>
+                <Heading size="lg" mb="4">Završeni turniri</Heading>
 
                 {loadingFinished ? (
                     <Box display="grid" gridTemplateColumns={gridCols} gap="4">
@@ -721,11 +739,30 @@ export default function TournamentsPage() {
                         }
                     />
                 ) : (
-                    <Box display="grid" gridTemplateColumns={gridCols} gap="4">
-                        {visibleFinished.map((t) => (
-                            <TournamentCardView key={t.uuid} t={t} variant="finished" />
-                        ))}
-                    </Box>
+                    <>
+                        <Box display="grid" gridTemplateColumns={gridCols} gap="4">
+                            {finished.map((t) => (
+                                <TournamentCardView key={t.uuid} t={t} variant="finished" />
+                            ))}
+                        </Box>
+                        {/* Učitaj više — fetches the next page from the backend
+                            and appends it. Hidden when we've already loaded all
+                            finished tournaments. Shows a loading state on the
+                            button itself so the user gets immediate feedback. */}
+                        {finishedHasMore && (
+                            <HStack justify="center" mt="4">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    colorPalette="blue"
+                                    onClick={loadMoreFinished}
+                                    loading={loadingMoreFinished}
+                                >
+                                    Učitaj više ({finishedTotal - finished.length})
+                                </Button>
+                            </HStack>
+                        )}
+                    </>
                 )}
             </Box>
         </VStack>

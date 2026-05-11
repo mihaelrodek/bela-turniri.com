@@ -1050,11 +1050,6 @@ export default function TournamentDetailsPage() {
             <HStack justify="space-between" mb="3" wrap="wrap" gap="2">
                 <Heading size="lg">
                     {t?.name ?? "Tournament"}{" "}
-                    {t?.status === "FINISHED" && t?.winnerName ? (
-                        <Text as="span" fontSize="sm" color="fg.muted">
-                            — Pobjednici: <b>{t.winnerName}</b>
-                        </Text>
-                    ) : null}
                 </Heading>
                 <Button asChild variant="ghost" size="sm">
                     <RouterLink to="/tournaments">Natrag na popis</RouterLink>
@@ -2246,9 +2241,11 @@ export default function TournamentDetailsPage() {
                                         gap="3"
                                         flexWrap="wrap"
                                     >
-                                        <Badge variant="solid" colorPalette="gray" size="sm">
-                                            Stol {m.tableNo}
-                                        </Badge>
+                                        {/* No Stol N chip for bye matches — the
+                                            pair doesn't actually play on a table,
+                                            and showing the chip implies otherwise.
+                                            Pair name + the "Slobodan prolaz" badge
+                                            is enough on its own. */}
                                         <Text fontWeight="semibold" flex="1" minW="0">{a}</Text>
                                         <Badge variant="solid" colorPalette="blue">
                                             <HStack gap="1"><FiCheckCircle size={11}/> Slobodan prolaz</HStack>
@@ -2570,21 +2567,38 @@ export default function TournamentDetailsPage() {
                         // owner-only settings (repeats switch) and owner-only
                         // actions (Generiraj / Završi / Resetiraj turnir) plus
                         // the Sažmi/Proširi sve toggle which everyone benefits
-                        // from. Render the toolbar for non-owners too once
-                        // rounds exist — they need Sažmi sve as much as the
-                        // organizer does. The internal grid collapses to a
-                        // single column for non-owners so the Sažmi button
-                        // doesn't sit alone in an awkward empty grid slot.
+                        // from. The toolbar renders inside a bordered Card.Root
+                        // ONLY when the organizer has settings/actions to show;
+                        // for non-owners (or after the tournament is finished)
+                        // the Sažmi sve button stands alone in a slim flex row
+                        // without the heavy card frame.
                         const tournamentFinished = t?.status === "FINISHED"
-                        const showToolbar = (canEditTournament && !tournamentFinished) || rounds.length > 0
-                        const showRepeatsSetting = canEditTournament && !tournamentFinished
+                        const ownerToolbar = canEditTournament && !tournamentFinished
+                        const showToolbar = ownerToolbar || rounds.length > 0
+                        const showRepeatsSetting = ownerToolbar
                         const toolbarTwoColumn = showRepeatsSetting
+                        // Inner JSX is the same in both wrappers — the only
+                        // difference is whether the outer container is the
+                        // bordered Card.Root or a plain Box.
+                        const ToolbarShell = ownerToolbar ? Card.Root : Box
+                        const toolbarShellProps = ownerToolbar
+                            ? {
+                                variant: "outline" as const,
+                                rounded: "xl" as const,
+                                borderColor: "border.emphasized" as const,
+                                shadow: "sm" as const,
+                              }
+                            : {}
+                        const InnerWrap = ownerToolbar ? Card.Body : Box
+                        const innerWrapProps = ownerToolbar
+                            ? { py: "3", px: { base: "3", md: "4" } }
+                            : { py: "0", px: "0" }
                         return (
                             <VStack align="stretch" gap="4">
                                 {/* ===== Toolbar ===== */}
                                 {showToolbar && (
-                                <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
-                                    <Card.Body py="3" px={{ base: "3", md: "4" }}>
+                                <ToolbarShell {...toolbarShellProps}>
+                                    <InnerWrap {...innerWrapProps}>
                                         <Box
                                             display="grid"
                                             gridTemplateColumns={toolbarTwoColumn
@@ -2704,8 +2718,8 @@ export default function TournamentDetailsPage() {
                                             )}
                                         </HStack>
                                         </Box>
-                                    </Card.Body>
-                                </Card.Root>
+                                    </InnerWrap>
+                                </ToolbarShell>
                                 )}
 
                                 {/* ===== Rounds ===== */}

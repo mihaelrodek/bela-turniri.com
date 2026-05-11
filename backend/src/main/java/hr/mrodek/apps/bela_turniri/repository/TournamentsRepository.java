@@ -1,6 +1,8 @@
 package hr.mrodek.apps.bela_turniri.repository;
 
+import hr.mrodek.apps.bela_turniri.enums.TournamentStatus;
 import hr.mrodek.apps.bela_turniri.model.Tournaments;
+import io.quarkus.panache.common.Page;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -47,5 +49,36 @@ public class TournamentsRepository implements AppRepository<Tournaments, Long> {
 
     public List<Tournaments> findByStartAtGreaterThanEqualOrderByStartAtAsc(OffsetDateTime now) {
         return list("startAt >= ?1", Sort.by("startAt").ascending(), now);
+    }
+
+    /**
+     * "Finished" listing is gated on explicit {@code status == FINISHED} now,
+     * not on the start date. A tournament's clock can pass {@code startAt}
+     * while the organizer is still entering results — those rows belong in
+     * the in-progress bucket, not under "Završeni". Paged so the SPA can
+     * lazy-load older results behind a "Učitaj više" button.
+     */
+    public List<Tournaments> findFinishedPaged(int offset, int limit) {
+        return find("status = ?1",
+                Sort.by("startAt").descending(),
+                TournamentStatus.FINISHED)
+                .page(Page.of(offset / Math.max(1, limit), Math.max(1, limit)))
+                .list();
+    }
+
+    public long countFinished() {
+        return count("status = ?1", TournamentStatus.FINISHED);
+    }
+
+    /**
+     * "Upcoming / in progress" listing — anything not yet {@code FINISHED}.
+     * Mirrors the user's mental model where any tournament not explicitly
+     * marked finished is treated as still alive, regardless of whether its
+     * scheduled start has passed.
+     */
+    public List<Tournaments> findNotFinishedOrderByStartAtAsc() {
+        return list("status <> ?1",
+                Sort.by("startAt").ascending(),
+                TournamentStatus.FINISHED);
     }
 }
