@@ -127,6 +127,12 @@ services:
       # Public-facing config used by the sitemap / preview / startup checks.
       CORS_ORIGINS: ${CORS_ORIGINS}
       APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL}
+
+      # Web Push (VAPID). If unset the backend boots but /push/public-key
+      # returns ready=false and the frontend hook silently no-ops.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:mihael.rodek1@gmail.com}
     networks:
       - bela_internal
 

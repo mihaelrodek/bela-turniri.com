@@ -46,13 +46,16 @@ public class PushService {
     @Inject PushSubscriptionRepository subRepo;
     @Inject ObjectMapper objectMapper;
 
-    @ConfigProperty(name = "push.vapid.public-key")
+    // defaultValue="" so SmallRye Config doesn't bail at startup when the
+    // VAPID env vars are unset (push is optional — backend boots without it
+    // and /push/public-key reports ready=false).
+    @ConfigProperty(name = "push.vapid.public-key", defaultValue = "")
     String vapidPublicKey;
 
-    @ConfigProperty(name = "push.vapid.private-key")
+    @ConfigProperty(name = "push.vapid.private-key", defaultValue = "")
     String vapidPrivateKey;
 
-    @ConfigProperty(name = "push.vapid.subject")
+    @ConfigProperty(name = "push.vapid.subject", defaultValue = "mailto:noreply@bela-turniri.com")
     String vapidSubject;
 
     /** Lazily-built singleton — null until VAPID config is present. */
