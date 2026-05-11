@@ -39,4 +39,17 @@ public class Matches {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20)
     private MatchStatus status = MatchStatus.SCHEDULED;
+
+    /**
+     * Set when the bartender marks the table's drinks bill as collected.
+     * Independent of {@link #status} (the match's competitive result) —
+     * a finished match can be unpaid; an in-progress match can be paid
+     * (rare but possible if drinks were prepaid).
+     */
+    @Column(name = "paid_at")
+    private java.time.OffsetDateTime paidAt;
+
+    /** Firebase UID of whoever marked the bill paid (today: the owner only). */
+    @Column(name = "paid_by_uid", length = 64)
+    private String paidByUid;
 }

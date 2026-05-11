@@ -29,5 +29,6 @@
     <include file="db/changelog/user_profiles_avatar.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/tournaments_slug.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/push_subscriptions.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/cjenik.xml" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

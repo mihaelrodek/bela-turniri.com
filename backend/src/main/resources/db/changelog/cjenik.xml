@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      Cjenik (price list) + match billing.
+
+      Three new tables:
+        * tournament_drink_prices  — per-tournament drink price list
+        * user_drink_templates     — owner's reusable template (saved from a
+                                     past tournament; can be imported into a
+                                     new one).
+        * match_drinks             — drinks attached to a match (the
+                                     bartender records what was drunk; the
+                                     loser pays the table total).
+
+      Plus two columns on `matches` to track paid status.
+    -->
+
+    <changeSet id="2026-05-11-cjenik" author="mrodek">
+
+        <!-- =========================================================
+             Per-tournament cjenik
+             ========================================================= -->
+        <createTable tableName="tournament_drink_prices">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tournament_id" type="bigint">
+                <constraints nullable="false"
+                             foreignKeyName="fk_tdp_tournament"
+                             references="tournaments(id)"
+                             deleteCascade="true"/>
+            </column>
+            <column name="name" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="price" type="numeric(10,2)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Drives display order; default 0 so a fresh row sorts at top. -->
+            <column name="sort_order" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="tournament_drink_prices" indexName="idx_tdp_tournament">
+            <column name="tournament_id"/>
+            <column name="sort_order"/>
+        </createIndex>
+
+        <!-- =========================================================
+             Reusable per-user template
+             ========================================================= -->
+        <createTable tableName="user_drink_templates">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_uid" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="price" type="numeric(10,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sort_order" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="user_drink_templates" indexName="idx_udt_user_uid">
+            <column name="user_uid"/>
+            <column name="sort_order"/>
+        </createIndex>
+
+        <!-- =========================================================
+             Drinks attached to a match
+             =========================================================
+             We snapshot name + unit price at attach time so editing or
+             deleting an entry on the cjenik later doesn't retroactively
+             change a recorded bill. price_id is kept as a soft link so
+             we can offer "increment last drink" UX, but it's nullable
+             and ON DELETE SET NULL — the snapshot is the source of truth.
+        -->
+        <createTable tableName="match_drinks">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="match_id" type="bigint">
+                <constraints nullable="false"
+                             foreignKeyName="fk_md_match"
+                             references="matches(id)"
+                             deleteCascade="true"/>
+            </column>
+            <column name="price_id" type="bigint">
+                <constraints nullable="true"
+                             foreignKeyName="fk_md_price"
+                             references="tournament_drink_prices(id)"/>
+            </column>
+            <column name="name_snapshot" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="price_snapshot" type="numeric(10,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="quantity" type="int" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="match_drinks" indexName="idx_md_match">
+            <column name="match_id"/>
+        </createIndex>
+
+        <!-- price_id is nullable so we can't add a NOT NULL fk; manual ON DELETE rule -->
+        <sql>
+            ALTER TABLE match_drinks DROP CONSTRAINT IF EXISTS fk_md_price;
+            ALTER TABLE match_drinks
+                ADD CONSTRAINT fk_md_price
+                FOREIGN KEY (price_id)
+                REFERENCES tournament_drink_prices(id)
+                ON DELETE SET NULL;
+        </sql>
+
+        <!-- =========================================================
+             Paid status on matches
+             ========================================================= -->
+        <addColumn tableName="matches">
+            <column name="paid_at" type="timestamptz"/>
+            <column name="paid_by_uid" type="varchar(64)"/>
+        </addColumn>
+
+    </changeSet>
+</databaseChangeLog>

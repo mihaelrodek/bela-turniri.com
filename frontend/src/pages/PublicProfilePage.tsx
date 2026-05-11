@@ -51,6 +51,14 @@ import {
     updatePreset,
     type UserPairPreset,
 } from "../api/userPairPresets"
+import {
+    fetchMyDrinkTemplate,
+    saveMyDrinkTemplate,
+    fetchMyInvoices,
+    type DrinkPriceDto,
+    type UserInvoiceDto,
+} from "../api/cjenik"
+import { groupedPresets } from "../utils/drinkPresets"
 import { useAuth } from "../auth/AuthContext"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 
@@ -220,6 +228,8 @@ export default function PublicProfilePage() {
                     onProfileChanged={refreshProfile}
                 />
                 {isOwner && <PresetsCard />}
+                {isOwner && <DrinkTemplateCard />}
+                {isOwner && <InvoicesCard />}
             </VStack>
 
             {/* === RIGHT — pairs picker + tournaments in a single card === */}
@@ -1097,6 +1107,340 @@ function PresetsCard() {
                     </Dialog.Content>
                 </Dialog.Positioner>
             </Dialog.Root>
+        </Card.Root>
+    )
+}
+
+/* ============================================================
+   Drink-price template card — saved cjenik for reuse on new
+   tournaments. Mirrors the Presets pattern: load on mount,
+   edit inline, save the whole list with one button.
+   ============================================================ */
+
+type DrinkTemplateRow = {
+    _key: string
+    id: number | null
+    name: string
+    price: string
+}
+
+let _drinkTplKey = 0
+function nextDrinkTplKey(): string {
+    _drinkTplKey += 1
+    return `dt-${_drinkTplKey}-${Math.random().toString(36).slice(2, 6)}`
+}
+
+function rowFromDto(d: DrinkPriceDto): DrinkTemplateRow {
+    return {
+        _key: d.id != null ? `srv-${d.id}` : nextDrinkTplKey(),
+        id: d.id ?? null,
+        name: d.name,
+        price: d.price == null ? "" : String(d.price),
+    }
+}
+
+function DrinkTemplateCard() {
+    const [rows, setRows] = React.useState<DrinkTemplateRow[]>([])
+    const [loading, setLoading] = React.useState(true)
+    const [saving, setSaving] = React.useState(false)
+    const [dirty, setDirty] = React.useState(false)
+
+    React.useEffect(() => {
+        let cancelled = false
+        ;(async () => {
+            setLoading(true)
+            try {
+                const data = await fetchMyDrinkTemplate()
+                if (cancelled) return
+                setRows(data.map(rowFromDto))
+                setDirty(false)
+            } catch {
+                if (!cancelled) setRows([])
+            } finally {
+                if (!cancelled) setLoading(false)
+            }
+        })()
+        return () => {
+            cancelled = true
+        }
+    }, [])
+
+    const addRow = () => {
+        setRows((r) => [...r, { _key: nextDrinkTplKey(), id: null, name: "", price: "" }])
+        setDirty(true)
+    }
+    const addPresetRow = (label: string) => {
+        if (rows.some((r) => r.name.trim().toLowerCase() === label.toLowerCase())) {
+            return
+        }
+        setRows((r) => [...r, { _key: nextDrinkTplKey(), id: null, name: label, price: "" }])
+        setDirty(true)
+    }
+    const removeRow = (key: string) => {
+        setRows((r) => r.filter((x) => x._key !== key))
+        setDirty(true)
+    }
+    const patch = (key: string, p: Partial<DrinkTemplateRow>) => {
+        setRows((r) => r.map((x) => (x._key === key ? { ...x, ...p } : x)))
+        setDirty(true)
+    }
+
+    const onSave = async () => {
+        setSaving(true)
+        try {
+            const items: DrinkPriceDto[] = rows
+                .filter((r) => r.name.trim() !== "")
+                .map((r, i) => ({
+                    id: r.id ?? null,
+                    name: r.name.trim(),
+                    price: Number((r.price || "0").replace(",", ".")) || 0,
+                    sortOrder: i,
+                }))
+            const fresh = await saveMyDrinkTemplate(items)
+            setRows(fresh.map(rowFromDto))
+            setDirty(false)
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    return (
+        <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
+            <Card.Body p={{ base: "4", md: "5" }}>
+                <VStack align="stretch" gap="3">
+                    <Box>
+                        <Heading size="sm">Cjenik – predložak</Heading>
+                        <Text fontSize="xs" color="fg.muted">
+                            Spremljeni cjenik pića koji možeš učitati na novom turniru jednim klikom.
+                        </Text>
+                    </Box>
+
+                    {/* Predefined drinks — quick-add chips grouped by category. */}
+                    {!loading && (
+                        <Box
+                            p="3"
+                            rounded="md"
+                            borderWidth="1px"
+                            borderColor="border.emphasized"
+                            bg="bg.subtle"
+                        >
+                            <Text fontSize="xs" color="fg.muted" mb="2">
+                                Brzo dodaj:
+                            </Text>
+                            <VStack align="stretch" gap="1.5">
+                                {groupedPresets().map((g) => (
+                                    <HStack key={g.category} gap="2" wrap="wrap">
+                                        <Text fontSize="xs" color="fg.muted" minW="92px">
+                                            {g.category}:
+                                        </Text>
+                                        {g.items.map((p) => (
+                                            <Button
+                                                key={p.label}
+                                                size="2xs"
+                                                variant="outline"
+                                                onClick={() => addPresetRow(p.label)}
+                                                disabled={saving}
+                                            >
+                                                {p.label.slice(g.category.length + 1)}
+                                            </Button>
+                                        ))}
+                                    </HStack>
+                                ))}
+                            </VStack>
+                        </Box>
+                    )}
+
+                    {loading ? (
+                        <VStack align="stretch" gap="2"><Skeleton h="9" /><Skeleton h="9" /></VStack>
+                    ) : (
+                        <VStack align="stretch" gap="1.5">
+                            {rows.length === 0 && (
+                                <Text fontSize="sm" color="fg.muted">
+                                    Nemaš spremljen predložak.
+                                </Text>
+                            )}
+                            {rows.map((row) => (
+                                <HStack key={row._key} gap="2" align="center" minW="0">
+                                    <Input
+                                        size="sm"
+                                        placeholder="Naziv (npr. Pivo)"
+                                        value={row.name}
+                                        onChange={(e) => patch(row._key, { name: e.target.value })}
+                                        flex="1"
+                                        minW="0"
+                                    />
+                                    <Input
+                                        size="sm"
+                                        placeholder="Cijena"
+                                        value={row.price}
+                                        onChange={(e) =>
+                                            patch(row._key, {
+                                                price: e.target.value.replace(",", "."),
+                                            })
+                                        }
+                                        inputMode="decimal"
+                                        w="90px"
+                                    />
+                                    <Text fontSize="sm" color="fg.muted">€</Text>
+                                    <IconButton
+                                        aria-label="Ukloni"
+                                        size="xs"
+                                        variant="ghost"
+                                        colorPalette="red"
+                                        flexShrink={0}
+                                        onClick={() => removeRow(row._key)}
+                                    >
+                                        <FiTrash2 />
+                                    </IconButton>
+                                </HStack>
+                            ))}
+                        </VStack>
+                    )}
+
+                    <HStack justify="space-between">
+                        <Button size="sm" variant="outline" onClick={addRow} disabled={saving}>
+                            <FiPlus /> Dodaj
+                        </Button>
+                        <Button
+                            size="sm"
+                            colorPalette="blue"
+                            onClick={onSave}
+                            loading={saving}
+                            disabled={!dirty || saving}
+                        >
+                            Spremi predložak
+                        </Button>
+                    </HStack>
+                </VStack>
+            </Card.Body>
+        </Card.Root>
+    )
+}
+
+/* ============================================================
+   Invoice history — every bill the current user was a party to,
+   across all tournaments they played in. Read-only; loads
+   /user/me/invoices once on mount. Only the profile owner sees
+   this card (gated upstream by isOwner).
+   ============================================================ */
+
+function formatEurAmount(value: number | string | null | undefined): string {
+    if (value == null || value === "") return "—"
+    const n = typeof value === "string" ? Number(value.replace(",", ".")) : value
+    if (!Number.isFinite(n)) return "—"
+    return new Intl.NumberFormat("hr-HR", {
+        style: "currency",
+        currency: "EUR",
+    }).format(n as number)
+}
+
+function InvoicesCard() {
+    const [invoices, setInvoices] = React.useState<UserInvoiceDto[]>([])
+    const [loading, setLoading] = React.useState(true)
+
+    React.useEffect(() => {
+        let cancelled = false
+        ;(async () => {
+            setLoading(true)
+            try {
+                const data = await fetchMyInvoices()
+                if (!cancelled) setInvoices(data)
+            } catch {
+                if (!cancelled) setInvoices([])
+            } finally {
+                if (!cancelled) setLoading(false)
+            }
+        })()
+        return () => {
+            cancelled = true
+        }
+    }, [])
+
+    return (
+        <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
+            <Card.Body p={{ base: "4", md: "5" }}>
+                <VStack align="stretch" gap="3">
+                    <Box>
+                        <Heading size="sm">Tvoji računi</Heading>
+                        <Text fontSize="xs" color="fg.muted">
+                            Pregled računa za stolove na turnirima na kojima si igrao.
+                        </Text>
+                    </Box>
+
+                    {loading ? (
+                        <VStack align="stretch" gap="2">
+                            <Skeleton h="14" /><Skeleton h="14" />
+                        </VStack>
+                    ) : invoices.length === 0 ? (
+                        <Text fontSize="sm" color="fg.muted">
+                            Nemaš još nijedan račun.
+                        </Text>
+                    ) : (
+                        <VStack align="stretch" gap="2">
+                            {invoices.map((inv) => (
+                                <Box
+                                    key={inv.matchId}
+                                    borderWidth="1px"
+                                    borderColor="border.emphasized"
+                                    rounded="md"
+                                    p="3"
+                                >
+                                    <HStack justify="space-between" align="start" gap="2">
+                                        <Box flex="1" minW="0">
+                                            <RouterLink to={`/tournaments/${inv.tournamentRef}`}>
+                                                <Text
+                                                    fontWeight="medium"
+                                                    color="blue.600"
+                                                    _hover={{ textDecoration: "underline" }}
+                                                    truncate
+                                                >
+                                                    {inv.tournamentName}
+                                                </Text>
+                                            </RouterLink>
+                                            <Text fontSize="xs" color="fg.muted">
+                                                {inv.tournamentStartAt
+                                                    ? formatDate(inv.tournamentStartAt)
+                                                    : "—"}
+                                                {inv.roundNumber != null
+                                                    ? ` · Runda ${inv.roundNumber}`
+                                                    : ""}
+                                                {inv.tableNo != null
+                                                    ? ` · Stol ${inv.tableNo}`
+                                                    : ""}
+                                            </Text>
+                                            <Text fontSize="sm" mt="1" truncate>
+                                                {inv.myPairName ?? "—"}{" "}
+                                                <Text as="span" color="fg.muted">
+                                                    vs
+                                                </Text>{" "}
+                                                {inv.opponentPairName ?? "—"}
+                                            </Text>
+                                        </Box>
+                                        <VStack align="end" gap="1" flexShrink={0}>
+                                            <Text fontWeight="bold">
+                                                {formatEurAmount(inv.total)}
+                                            </Text>
+                                            {inv.paidAt ? (
+                                                <Badge colorPalette="green" size="sm">
+                                                    Plaćeno
+                                                </Badge>
+                                            ) : inv.finished && inv.lost ? (
+                                                <Badge colorPalette="orange" size="sm">
+                                                    Tvoj račun
+                                                </Badge>
+                                            ) : (
+                                                <Badge colorPalette="gray" size="sm" variant="subtle">
+                                                    Otvoreno
+                                                </Badge>
+                                            )}
+                                        </VStack>
+                                    </HStack>
+                                </Box>
+                            ))}
+                        </VStack>
+                    )}
+                </VStack>
+            </Card.Body>
         </Card.Root>
     )
 }

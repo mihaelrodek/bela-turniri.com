@@ -1,5 +1,7 @@
 package hr.mrodek.apps.bela_turniri.dtos;
 
+import java.time.OffsetDateTime;
+
 public record MatchDto(
         Long id,
         Integer tableNo,
@@ -10,5 +12,7 @@ public record MatchDto(
         Integer score1,
         Integer score2,
         Long winnerPairId,
-        String status
+        String status,
+        /** Set when the bartender marked the match's drinks bill paid. */
+        OffsetDateTime paidAt
 ) {}

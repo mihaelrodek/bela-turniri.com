@@ -39,6 +39,8 @@ public class RoundService {
     RoundMatchMapper mapper;
     @Inject
     PushService pushService;
+    @Inject
+    hr.mrodek.apps.bela_turniri.repository.MatchDrinkRepository matchDrinkRepo;
 
     public List<RoundDto> listByTournamentUuid(String uuid) {
         Tournaments t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
@@ -297,6 +299,63 @@ public class RoundService {
         return false;
     }
 
+    /**
+     * Push the loser of a freshly-finished match a notification with the
+     * table's current bill total — they're the one who pays per Belot
+     * tradition. Silent no-op when:
+     *   - BYE match (no opponent, nothing to settle)
+     *   - the loser has no submittedByUid (organizer-added pair)
+     *   - we can't identify the loser yet (shouldn't happen post-FINISHED)
+     *
+     * Push failures are swallowed by PushService so a flaky provider
+     * can't roll back the score update.
+     */
+    private void notifyLoser(Tournaments t, Matches m) {
+        if (m.getPair2() == null) return; // BYE
+        if (m.getWinnerPair() == null) return;
+        if (m.getPair1() == null) return;
+
+        Pairs loser = Objects.equals(m.getWinnerPair().getId(), m.getPair1().getId())
+                ? m.getPair2() : m.getPair1();
+        if (loser == null) return;
+        String uid = loser.getSubmittedByUid();
+        if (uid == null || uid.isBlank()) return;
+
+        // Compute current bill total. We don't bail on empty bill — we
+        // still tell the loser they lost, with 0,00 € as the body. That
+        // way they know the match was scored even before any drinks
+        // were attached.
+        java.math.BigDecimal total = java.math.BigDecimal.ZERO;
+        for (var d : matchDrinkRepo.findByMatchId(m.getId())) {
+            java.math.BigDecimal line = d.getPriceSnapshot()
+                    .multiply(java.math.BigDecimal.valueOf(d.getQuantity()));
+            total = total.add(line);
+        }
+        String totalStr = new java.text.DecimalFormat("0.00")
+                .format(total).replace('.', ',');
+
+        String tournamentRef = (t.getSlug() != null && !t.getSlug().isBlank())
+                ? t.getSlug()
+                : (t.getUuid() != null ? t.getUuid().toString() : "");
+        Integer tbl = m.getTableNo();
+        String body = "Račun za stol" + (tbl != null ? " " + tbl : "")
+                + ": " + totalStr + " €";
+        // Tag scopes the notification to this match so a re-score doesn't
+        // stack multiple notifications on the lock screen.
+        String tag = "loss-match-" + m.getId();
+
+        pushService.sendToUser(
+                uid,
+                new PushService.PushPayload(
+                        "Izgubili ste meč",
+                        body,
+                        "/tournaments/" + tournamentRef,
+                        "/bela-turniri-symbol.png",
+                        tag
+                )
+        );
+    }
+
     @Transactional
     public MatchDto updateMatchScore(String uuid, Long roundId, Long matchId, UpdateMatchRequest req) {
         Tournaments t = tournamentsRepo.findByUuidOrSlug(uuid)
@@ -312,6 +371,13 @@ public class RoundService {
 
         Integer s1 = req.score1();
         Integer s2 = req.score2();
+
+        // Remember the old finished/winner state so we can push the loser
+        // exactly when this call introduces a NEW loss (fresh finish or
+        // a re-score that flipped the winner).
+        boolean wasFinished = m.getStatus() == MatchStatus.FINISHED;
+        Long prevWinnerId = (m.getWinnerPair() != null) ? m.getWinnerPair().getId() : null;
+
         m.setScore1(s1);
         m.setScore2(s2);
 
@@ -350,6 +416,20 @@ public class RoundService {
         }
 
         matchesRepo.save(m);
+
+        // Loss push: only if the match is now FINISHED AND either
+        //   (a) it wasn't finished before (fresh decision), or
+        //   (b) the winner flipped (re-score by the organizer).
+        // In case (b) the previous loser was just reinstated as winner;
+        // the *new* loser gets the push instead.
+        if (m.getStatus() == MatchStatus.FINISHED) {
+            Long newWinnerId = (m.getWinnerPair() != null) ? m.getWinnerPair().getId() : null;
+            boolean newFinish = !wasFinished;
+            boolean flipped = wasFinished && !Objects.equals(prevWinnerId, newWinnerId);
+            if (newFinish || flipped) {
+                notifyLoser(t, m);
+            }
+        }
 
         // If every match finished -> mark round completed
         boolean allFinished = matchesRepo.findByRound(r).stream()
@@ -477,6 +557,10 @@ public class RoundService {
             loser.setEliminated(true); // extra life can later revive
             pairsRepo.save(winner);
             pairsRepo.save(loser);
+
+            // Fresh finish via "Završi rundu" — notify the new loser with
+            // the table's bill total.
+            notifyLoser(t, m);
         }
 
         // Mark round completed
@@ -509,6 +593,12 @@ public class RoundService {
 
         Integer s1 = req.score1();
         Integer s2 = req.score2();
+
+        // Capture old state so we know whether this override actually
+        // introduces a new loss for someone (vs. a no-op or unscore).
+        boolean wasFinished = match.getStatus() == MatchStatus.FINISHED;
+        Long prevWinnerId = (match.getWinnerPair() != null) ? match.getWinnerPair().getId() : null;
+
         match.setScore1(s1);
         match.setScore2(s2);
 
@@ -524,6 +614,17 @@ public class RoundService {
             match.setWinnerPair(null);
         }
         matchesRepo.save(match);
+
+        // Loss push — same gating as updateMatchScore (fresh finish or
+        // winner flip). Skip for BYE (handled by notifyLoser).
+        if (match.getStatus() == MatchStatus.FINISHED) {
+            Long newWinnerId = (match.getWinnerPair() != null) ? match.getWinnerPair().getId() : null;
+            boolean newFinish = !wasFinished;
+            boolean flipped = wasFinished && !Objects.equals(prevWinnerId, newWinnerId);
+            if (newFinish || flipped) {
+                notifyLoser(tournament, match);
+            }
+        }
 
         // 2) Recompute ALL pairs' wins/losses for this tournament from FINISHED matches
         var pairs = pairsRepo.findByTournament_Id(tournament.getId());

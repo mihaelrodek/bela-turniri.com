@@ -82,6 +82,8 @@ import { listPresets, type UserPairPreset } from "../api/userPairPresets"
 import { listPairRequestsForTournament, type PairRequest } from "../api/pairRequests"
 import { useAuth } from "../auth/AuthContext"
 import { useDocumentHead } from "../hooks/useDocumentHead"
+import CjenikTab from "../components/CjenikTab"
+import MatchBillButton from "../components/MatchBillButton"
 
 /* ---------- Local UI types ---------- */
 type MatchLocal = MatchDto & {
@@ -451,7 +453,7 @@ export default function TournamentDetailsPage() {
     // pairs (editable)
     const [pairs, setPairs] = useState<PairShort[]>([])
 
-    const [tab, setTab] = useState<"details" | "pairs" | "bracket">("details");
+    const [tab, setTab] = useState<"details" | "pairs" | "bracket" | "cjenik">("details");
 
     // details edit mode
     const [editingDetails, setEditingDetails] = useState(false)
@@ -1206,6 +1208,13 @@ export default function TournamentDetailsPage() {
                     onClick={() => setTab("bracket")}
                 >
                     Ždrijeb
+                </Button>
+                <Button
+                    size="sm"
+                    variant={tab === "cjenik" ? "solid" : "ghost"}
+                    onClick={() => setTab("cjenik")}
+                >
+                    Cjenik
                 </Button>
             </HStack>
 
@@ -2338,6 +2347,11 @@ export default function TournamentDetailsPage() {
                         )
                     })()}
                 </>
+            ) : tab === "cjenik" ? (
+                <CjenikTab
+                    tournamentRef={t.uuid ?? t.slug ?? ""}
+                    canEdit={isAdmin || (!!user?.uid && user.uid === t.createdByUid)}
+                />
             ) : (
                 <>
                     {/* ===== BRACKET ===== */}
@@ -2435,6 +2449,45 @@ export default function TournamentDetailsPage() {
                                 ) : null
                             )
 
+                            // Per-match drink-bill button.
+                            //   Owner: always sees it (acts as bartender).
+                            //   Players in this match: see it too (their bill).
+                            //   Everyone else: rendered as null — bills are private.
+                            const p1Uid = m.pair1Id ? pairById.get(m.pair1Id)?.submittedByUid : null
+                            const p2Uid = m.pair2Id ? pairById.get(m.pair2Id)?.submittedByUid : null
+                            const isParticipant = !!user?.uid &&
+                                (user.uid === p1Uid || user.uid === p2Uid)
+                            const billEl = (
+                                <MatchBillButton
+                                    tournamentRef={t?.uuid ?? t?.slug ?? ""}
+                                    matchId={m.id}
+                                    isBye={!m.pair2Id}
+                                    isFinished={isFinished}
+                                    paidAt={m.paidAt}
+                                    canEdit={!!canEditTournament}
+                                    isParticipant={isParticipant}
+                                    onChange={(paidAt) => {
+                                        // Patch just the one match's paidAt
+                                        // so the badge updates without a
+                                        // full rounds refetch.
+                                        setRounds((rs) =>
+                                            rs.map((rr) =>
+                                                rr.id !== r.id
+                                                    ? rr
+                                                    : {
+                                                          ...rr,
+                                                          matches: rr.matches.map((mx) =>
+                                                              mx.id !== m.id
+                                                                  ? mx
+                                                                  : { ...mx, paidAt },
+                                                          ),
+                                                      },
+                                            ),
+                                        )
+                                    }}
+                                />
+                            )
+
                             return (
                                 <Box
                                     key={m.id}
@@ -2464,7 +2517,10 @@ export default function TournamentDetailsPage() {
                                             <Badge variant="subtle" colorPalette="gray" size="sm">
                                                 Stol {m.tableNo}
                                             </Badge>
-                                            {actionEl}
+                                            <HStack gap="1.5">
+                                                {billEl}
+                                                {actionEl}
+                                            </HStack>
                                         </HStack>
                                         {/* Pair A row */}
                                         <HStack
@@ -2647,7 +2703,10 @@ export default function TournamentDetailsPage() {
                                         </HStack>
 
                                         <Box flexShrink={0} justifySelf="end">
-                                            {actionEl}
+                                            <HStack gap="1.5">
+                                                {billEl}
+                                                {actionEl}
+                                            </HStack>
                                         </Box>
                                     </Box>
                                 </Box>

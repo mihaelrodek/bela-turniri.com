@@ -10,6 +10,8 @@ export type MatchDto = {
     score2?: number
     winnerPairId?: number
     status: "SCHEDULED" | "FINISHED"
+    /** ISO timestamp set when the bartender marks the drinks bill paid. */
+    paidAt?: string | null
 }
 
 export type RoundDto = {
