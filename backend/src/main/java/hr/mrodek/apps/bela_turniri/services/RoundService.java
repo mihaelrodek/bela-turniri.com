@@ -344,12 +344,16 @@ public class RoundService {
         // stack multiple notifications on the lock screen.
         String tag = "loss-match-" + m.getId();
 
+        // Deep-link straight to the bill modal. TournamentDetailsPage
+        // reads ?bill={matchId} on mount and (a) switches to the Ždrijeb
+        // tab, (b) expands the round, (c) scrolls to the match, (d)
+        // auto-opens the bill dialog.
         pushService.sendToUser(
                 uid,
                 new PushService.PushPayload(
                         "Izgubili ste meč",
                         body,
-                        "/tournaments/" + tournamentRef,
+                        "/tournaments/" + tournamentRef + "?bill=" + m.getId(),
                         "/bela-turniri-symbol.png",
                         tag
                 )

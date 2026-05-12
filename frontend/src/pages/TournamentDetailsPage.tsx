@@ -20,7 +20,7 @@ import {
     Switch,
     Dialog,
 } from "@chakra-ui/react"
-import {Link as RouterLink, useLocation, useNavigate, useParams} from "react-router-dom"
+import {Link as RouterLink, useLocation, useNavigate, useParams, useSearchParams} from "react-router-dom"
 import {
     FiAward,
     FiCalendar,
@@ -437,7 +437,32 @@ export default function TournamentDetailsPage() {
     const {uuid} = useParams<{ uuid: string }>() // /tournaments/:uuid
     const navigate = useNavigate()
     const location = useLocation()
+    const [searchParams, setSearchParams] = useSearchParams()
     const { user, isAdmin } = useAuth()
+
+    // Deep-link from push notifications: /tournaments/{uuid}?bill={matchId}
+    // tells us to land on the Ždrijeb tab, expand the relevant round,
+    // scroll to the match, and auto-open its bill modal.
+    //
+    // We capture the param into state ONCE on mount and immediately strip
+    // it from the URL so:
+    //  - a page refresh or back-navigation doesn't re-open the modal
+    //  - the prop value stays stable across re-renders even after URL changes
+    const [billMatchIdFromUrl] = useState<number | null>(() => {
+        const raw = new URLSearchParams(window.location.search).get("bill")
+        if (!raw) return null
+        const n = Number(raw)
+        return Number.isFinite(n) && n > 0 ? n : null
+    })
+    useEffect(() => {
+        if (billMatchIdFromUrl != null && searchParams.has("bill")) {
+            const next = new URLSearchParams(searchParams)
+            next.delete("bill")
+            setSearchParams(next, { replace: true })
+        }
+        // Only run once on mount.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -533,6 +558,30 @@ export default function TournamentDetailsPage() {
     // rounds
     const [rounds, setRounds] = useState<RoundLocal[]>([])
     const [collapsedRounds, setCollapsedRounds] = useState<Record<number, boolean>>({})
+
+    // Effect: handle deep-link from push notification. Runs whenever the URL
+    // bill param is set AND the rounds list is populated. We switch to the
+    // Ždrijeb tab, expand the matching round (so the match is visible
+    // behind the modal), scroll it into view, and clear the param so a
+    // refresh doesn't re-trigger. The actual modal open is handled by
+    // MatchBillButton via the autoOpenBillId prop below.
+    useEffect(() => {
+        if (billMatchIdFromUrl == null) return
+        if (rounds.length === 0) return
+        const r = rounds.find((rr) => rr.matches.some((mx) => mx.id === billMatchIdFromUrl))
+        if (!r) return
+        setTab("bracket")
+        setCollapsedRounds((cr) => ({ ...cr, [r.id]: false }))
+        // requestAnimationFrame so the layout is committed before scroll.
+        const id = window.requestAnimationFrame(() => {
+            const el = document.getElementById(`match-${billMatchIdFromUrl}`)
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
+        })
+        return () => window.cancelAnimationFrame(id)
+        // We intentionally don't depend on setTab/setCollapsedRounds/setSearchParams
+        // (stable references from React/router) to avoid re-running on tab changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [billMatchIdFromUrl, rounds])
     const [fullscreenRound, setFullscreenRound] = useState<number | null>(null)
     const [allowRepeats, setAllowRepeats] = useState<boolean>(false)
     const [savingPM, setSavingPM] = useState<boolean>(false)
@@ -2466,6 +2515,10 @@ export default function TournamentDetailsPage() {
                                     paidAt={m.paidAt}
                                     canEdit={!!canEditTournament}
                                     isParticipant={isParticipant}
+                                    // When the deep-link prop matches this
+                                    // match's id, MatchBillButton auto-opens
+                                    // its modal on mount.
+                                    autoOpenBillId={billMatchIdFromUrl}
                                     onChange={(paidAt) => {
                                         // Patch just the one match's paidAt
                                         // so the badge updates without a
@@ -2491,6 +2544,7 @@ export default function TournamentDetailsPage() {
                             return (
                                 <Box
                                     key={m.id}
+                                    id={`match-${m.id}`}
                                     borderWidth="1px"
                                     borderColor={
                                         editing ? "blue.muted"

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
     Badge,
     Box,
@@ -41,6 +41,13 @@ type Props = {
      */
     isParticipant: boolean
     /**
+     * When set and equal to this match's id, the bill modal auto-opens
+     * once on mount. Used by the push-notification deep-link:
+     * /tournaments/{ref}?bill={matchId} → user taps notification →
+     * lands on this page → modal opens straight into the bill.
+     */
+    autoOpenBillId?: number | null
+    /**
      * Called after any mutation. Receives the fresh paidAt so the
      * parent can patch its match-list state without a full rounds refetch.
      */
@@ -65,6 +72,7 @@ export default function MatchBillButton({
     paidAt,
     canEdit,
     isParticipant,
+    autoOpenBillId,
     onChange,
 }: Props) {
     const [open, setOpen] = useState(false)
@@ -72,6 +80,40 @@ export default function MatchBillButton({
     const [cjenik, setCjenik] = useState<DrinkPriceDto[]>([])
     const [loading, setLoading] = useState(false)
     const [busy, setBusy] = useState(false)
+    // Guard against React StrictMode double-invoking the effect in dev.
+    const autoOpenedRef = useRef(false)
+
+    // Auto-open from push deep-link: when our matchId is what the URL
+    // pointed at, fire the open + refresh exactly once. Skipped for BYE
+    // matches and non-participants (covered by the early returns below
+    // — by the time the component renders, those cases never reach
+    // this effect because the trigger isn't rendered).
+    useEffect(() => {
+        if (autoOpenedRef.current) return
+        if (autoOpenBillId == null || autoOpenBillId !== matchId) return
+        // Same gating the trigger uses — don't waste a fetch on a match
+        // the current user wouldn't be allowed to see anyway.
+        if (isBye) return
+        if (!canEdit && !isParticipant) return
+        autoOpenedRef.current = true
+        // Run the same handler the click would run.
+        setOpen(true)
+        void (async () => {
+            setLoading(true)
+            try {
+                const [b, c] = await Promise.all([
+                    fetchMatchBill(tournamentRef, matchId),
+                    canEdit
+                        ? fetchTournamentCjenik(tournamentRef)
+                        : Promise.resolve([] as DrinkPriceDto[]),
+                ])
+                setBill(b)
+                setCjenik(c)
+            } finally {
+                setLoading(false)
+            }
+        })()
+    }, [autoOpenBillId, matchId, tournamentRef, canEdit, isBye, isParticipant])
 
     // BYE matches have no opponent — there's no shared table to settle.
     if (isBye) return null
