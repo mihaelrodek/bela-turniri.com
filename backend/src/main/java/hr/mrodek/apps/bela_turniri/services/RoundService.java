@@ -187,7 +187,6 @@ public class RoundService {
         String tournamentRef = (t.getSlug() != null && !t.getSlug().isBlank())
                 ? t.getSlug()
                 : (t.getUuid() != null ? t.getUuid().toString() : "");
-        String tournamentUrl = "/tournaments/" + tournamentRef;
         for (Matches m : saved) {
             if (m.getPair2() == null) continue; // BYE — no opponent
             Pairs p1 = m.getPair1();
@@ -197,6 +196,11 @@ public class RoundService {
             String title = "Runda " + round.getNumber();
             String body = p1.getName() + " vs " + p2.getName()
                     + (tbl != null ? " na stolu " + tbl : "");
+            // Deep-link to the specific match: TournamentDetailsPage reads
+            // ?match={id} on mount, switches to the Ždrijeb tab, expands
+            // the round, and scrolls the row into view (no modal opened
+            // — there's no bill yet at this point in the tournament).
+            String matchUrl = "/tournaments/" + tournamentRef + "?match=" + m.getId();
             // Tag groups notifications per round so a re-draw or a follow-up
             // notification for the same player+round replaces the previous
             // instead of stacking on the lock screen.
@@ -205,7 +209,7 @@ public class RoundService {
                 pushService.sendToUser(
                         p1.getSubmittedByUid(),
                         new PushService.PushPayload(
-                                title, body, tournamentUrl,
+                                title, body, matchUrl,
                                 "/bela-turniri-symbol.png",
                                 tag + p1.getId()
                         )
@@ -215,7 +219,7 @@ public class RoundService {
                 pushService.sendToUser(
                         p2.getSubmittedByUid(),
                         new PushService.PushPayload(
-                                title, body, tournamentUrl,
+                                title, body, matchUrl,
                                 "/bela-turniri-symbol.png",
                                 tag + p2.getId()
                         )

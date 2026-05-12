@@ -116,20 +116,67 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
     event.notification.close();
     const targetUrl = (event.notification.data && event.notification.data.url) || "/";
-    event.waitUntil(
-        self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((all) => {
-            // If a window for this app is already open, focus it and route
-            // to the target URL via postMessage — React Router can then do
-            // a client-side navigate without a full reload.
-            for (const client of all) {
-                if (client.url.startsWith(self.location.origin)) {
-                    client.focus();
-                    client.postMessage({ type: "bela:navigate", url: targetUrl });
+    // Resolve to an absolute URL — clients.navigate and url comparison
+    // both want the full form.
+    let targetAbs;
+    try {
+        targetAbs = new URL(targetUrl, self.location.origin).href;
+    } catch (_) {
+        targetAbs = self.location.origin + "/";
+    }
+
+    event.waitUntil((async () => {
+        const all = await self.clients.matchAll({
+            type: "window",
+            includeUncontrolled: true,
+        });
+
+        for (const client of all) {
+            if (!client.url) continue;
+            let clientUrl;
+            try {
+                clientUrl = new URL(client.url);
+            } catch (_) {
+                continue;
+            }
+            if (clientUrl.origin !== self.location.origin) continue;
+
+            // Bring the existing PWA window to focus regardless of path.
+            try { await client.focus(); } catch (_) {}
+
+            // Already at the target URL — nothing more to do.
+            if (client.url === targetAbs) return;
+
+            // Same path, just different query (e.g. /tournaments/X →
+            // /tournaments/X?bill=42): let the SPA handle it via
+            // react-router so we keep app state. PushBootstrap listens
+            // for "bela:navigate" and calls navigate(url) on receipt.
+            if (clientUrl.pathname === new URL(targetAbs).pathname) {
+                client.postMessage({ type: "bela:navigate", url: targetUrl });
+                return;
+            }
+
+            // Different path. On iOS cold-start the window is freshly
+            // launched at start_url and React isn't mounted yet, so a
+            // postMessage would race with the listener wiring. Use
+            // client.navigate(targetAbs) instead — that forces the URL
+            // to update before React mounts, so our useState initializer
+            // sees the deep-link params on first render. Falls back to
+            // postMessage if navigate() isn't supported.
+            if ("navigate" in client) {
+                try {
+                    await client.navigate(targetAbs);
                     return;
+                } catch (_) {
+                    // Fall through to postMessage.
                 }
             }
-            // No window open — launch a new one straight at the target.
-            return self.clients.openWindow(targetUrl);
-        })
-    );
+            client.postMessage({ type: "bela:navigate", url: targetUrl });
+            return;
+        }
+
+        // No existing window — open one at the target URL. iOS PWAs
+        // honour this on a notificationclick gesture.
+        await self.clients.openWindow(targetUrl);
+    })());
 });

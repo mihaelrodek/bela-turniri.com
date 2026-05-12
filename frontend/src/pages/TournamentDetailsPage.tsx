@@ -440,13 +440,16 @@ export default function TournamentDetailsPage() {
     const [searchParams, setSearchParams] = useSearchParams()
     const { user, isAdmin } = useAuth()
 
-    // Deep-link from push notifications: /tournaments/{uuid}?bill={matchId}
-    // tells us to land on the Ždrijeb tab, expand the relevant round,
-    // scroll to the match, and auto-open its bill modal.
+    // Deep-link from push notifications. Two flavours:
+    //   ?bill={matchId}  — loser push: switch to Ždrijeb, expand round,
+    //                       scroll AND auto-open the bill modal.
+    //   ?match={matchId} — round-draw push: same but no modal — just
+    //                       surface the match so the player can see
+    //                       which table to head to.
     //
-    // We capture the param into state ONCE on mount and immediately strip
-    // it from the URL so:
-    //  - a page refresh or back-navigation doesn't re-open the modal
+    // We capture the params into state ONCE on mount and immediately
+    // strip them from the URL so:
+    //  - a page refresh or back-navigation doesn't re-trigger
     //  - the prop value stays stable across re-renders even after URL changes
     const [billMatchIdFromUrl] = useState<number | null>(() => {
         const raw = new URLSearchParams(window.location.search).get("bill")
@@ -454,12 +457,21 @@ export default function TournamentDetailsPage() {
         const n = Number(raw)
         return Number.isFinite(n) && n > 0 ? n : null
     })
+    const [scrollMatchIdFromUrl] = useState<number | null>(() => {
+        const raw = new URLSearchParams(window.location.search).get("match")
+        if (!raw) return null
+        const n = Number(raw)
+        return Number.isFinite(n) && n > 0 ? n : null
+    })
+    // The match id we want to surface, whichever param brought us here.
+    // Bill wins if both are present.
+    const targetMatchId = billMatchIdFromUrl ?? scrollMatchIdFromUrl
     useEffect(() => {
-        if (billMatchIdFromUrl != null && searchParams.has("bill")) {
-            const next = new URLSearchParams(searchParams)
-            next.delete("bill")
-            setSearchParams(next, { replace: true })
-        }
+        if (!searchParams.has("bill") && !searchParams.has("match")) return
+        const next = new URLSearchParams(searchParams)
+        next.delete("bill")
+        next.delete("match")
+        setSearchParams(next, { replace: true })
         // Only run once on mount.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -559,29 +571,29 @@ export default function TournamentDetailsPage() {
     const [rounds, setRounds] = useState<RoundLocal[]>([])
     const [collapsedRounds, setCollapsedRounds] = useState<Record<number, boolean>>({})
 
-    // Effect: handle deep-link from push notification. Runs whenever the URL
-    // bill param is set AND the rounds list is populated. We switch to the
-    // Ždrijeb tab, expand the matching round (so the match is visible
-    // behind the modal), scroll it into view, and clear the param so a
-    // refresh doesn't re-trigger. The actual modal open is handled by
-    // MatchBillButton via the autoOpenBillId prop below.
+    // Effect: handle deep-link from push notification. Runs whenever a
+    // target match id is present AND the rounds list is populated. We
+    // switch to the Ždrijeb tab, expand the matching round, and scroll
+    // the row into view. The bill-modal auto-open (only when the user
+    // arrived via ?bill=) is handled inside MatchBillButton via the
+    // autoOpenBillId prop further down.
     useEffect(() => {
-        if (billMatchIdFromUrl == null) return
+        if (targetMatchId == null) return
         if (rounds.length === 0) return
-        const r = rounds.find((rr) => rr.matches.some((mx) => mx.id === billMatchIdFromUrl))
+        const r = rounds.find((rr) => rr.matches.some((mx) => mx.id === targetMatchId))
         if (!r) return
         setTab("bracket")
         setCollapsedRounds((cr) => ({ ...cr, [r.id]: false }))
         // requestAnimationFrame so the layout is committed before scroll.
         const id = window.requestAnimationFrame(() => {
-            const el = document.getElementById(`match-${billMatchIdFromUrl}`)
+            const el = document.getElementById(`match-${targetMatchId}`)
             if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
         })
         return () => window.cancelAnimationFrame(id)
         // We intentionally don't depend on setTab/setCollapsedRounds/setSearchParams
         // (stable references from React/router) to avoid re-running on tab changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [billMatchIdFromUrl, rounds])
+    }, [targetMatchId, rounds])
     const [fullscreenRound, setFullscreenRound] = useState<number | null>(null)
     const [allowRepeats, setAllowRepeats] = useState<boolean>(false)
     const [savingPM, setSavingPM] = useState<boolean>(false)
