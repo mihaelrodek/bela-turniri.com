@@ -65,18 +65,30 @@ public class CjenikController {
     @Path("/save-as-template")
     @Authenticated
     @Transactional
-    public List<DrinkPriceDto> saveAsTemplate(@PathParam("uuid") String uuid) {
+    public List<DrinkPriceDto> saveAsTemplate(
+            @PathParam("uuid") String uuid,
+            @QueryParam("name") String templateName
+    ) {
         Tournaments t = mustOwn(uuid);
-        return cjenikService.saveTournamentAsTemplate(t, jwt.getSubject());
+        if (templateName == null || templateName.isBlank()) {
+            throw new BadRequestException("Template name required");
+        }
+        return cjenikService.saveTournamentAsTemplate(t, jwt.getSubject(), templateName.trim());
     }
 
     @POST
     @Path("/import-template")
     @Authenticated
     @Transactional
-    public List<DrinkPriceDto> importTemplate(@PathParam("uuid") String uuid) {
+    public List<DrinkPriceDto> importTemplate(
+            @PathParam("uuid") String uuid,
+            @QueryParam("name") String templateName
+    ) {
         Tournaments t = mustOwn(uuid);
-        return cjenikService.importTemplateIntoTournament(t, jwt.getSubject());
+        if (templateName == null || templateName.isBlank()) {
+            throw new BadRequestException("Template name required");
+        }
+        return cjenikService.importTemplateIntoTournament(t, jwt.getSubject(), templateName.trim());
     }
 
     /**

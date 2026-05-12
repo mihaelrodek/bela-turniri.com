@@ -52,20 +52,32 @@ export async function saveTournamentCjenik(
     return data
 }
 
-export async function saveCjenikAsTemplate(uuid: string): Promise<DrinkPriceDto[]> {
+export async function saveCjenikAsTemplate(
+    uuid: string,
+    templateName: string,
+): Promise<DrinkPriceDto[]> {
     const { data } = await http.post<DrinkPriceDto[]>(
         `/tournaments/${uuid}/cjenik/save-as-template`,
         null,
-        { successMessage: "Spremljeno kao predložak" } as any,
+        {
+            params: { name: templateName },
+            successMessage: `Spremljeno u predložak "${templateName}"`,
+        } as any,
     )
     return data
 }
 
-export async function importCjenikTemplate(uuid: string): Promise<DrinkPriceDto[]> {
+export async function importCjenikTemplate(
+    uuid: string,
+    templateName: string,
+): Promise<DrinkPriceDto[]> {
     const { data } = await http.post<DrinkPriceDto[]>(
         `/tournaments/${uuid}/cjenik/import-template`,
         null,
-        { successMessage: "Predložak učitan" } as any,
+        {
+            params: { name: templateName },
+            successMessage: `Predložak "${templateName}" učitan`,
+        } as any,
     )
     return data
 }
@@ -74,22 +86,52 @@ export async function importCjenikTemplate(uuid: string): Promise<DrinkPriceDto[
    Per-user template
    ========================================================= */
 
-export async function fetchMyDrinkTemplate(): Promise<DrinkPriceDto[]> {
-    const { data } = await http.get<DrinkPriceDto[]>(`/user/me/drink-template`, {
+/** Names of all named templates this user has saved. */
+export async function fetchMyTemplateNames(): Promise<string[]> {
+    const { data } = await http.get<string[]>(`/user/me/drink-templates`, {
         silent: true,
     } as any)
     return data
 }
 
-export async function saveMyDrinkTemplate(
+/** Items of one named template. */
+export async function fetchMyTemplate(name: string): Promise<DrinkPriceDto[]> {
+    const { data } = await http.get<DrinkPriceDto[]>(
+        `/user/me/drink-templates/${encodeURIComponent(name)}/items`,
+        { silent: true } as any,
+    )
+    return data
+}
+
+/** Replace items of one named template (creates the template if new). */
+export async function saveMyTemplate(
+    name: string,
     items: DrinkPriceDto[],
 ): Promise<DrinkPriceDto[]> {
     const { data } = await http.put<DrinkPriceDto[]>(
-        `/user/me/drink-template`,
+        `/user/me/drink-templates/${encodeURIComponent(name)}/items`,
         { items },
-        { successMessage: "Predložak spremljen" } as any,
+        { successMessage: `Predložak "${name}" spremljen` } as any,
     )
     return data
+}
+
+export async function renameMyTemplate(
+    oldName: string,
+    newName: string,
+): Promise<void> {
+    await http.post(
+        `/user/me/drink-templates/${encodeURIComponent(oldName)}/rename`,
+        { newName },
+        { successMessage: "Predložak preimenovan" } as any,
+    )
+}
+
+export async function deleteMyTemplate(name: string): Promise<void> {
+    await http.delete(
+        `/user/me/drink-templates/${encodeURIComponent(name)}`,
+        { successMessage: `Predložak "${name}" obrisan` } as any,
+    )
 }
 
 /* =========================================================

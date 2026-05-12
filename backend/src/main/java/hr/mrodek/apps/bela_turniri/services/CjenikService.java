@@ -85,20 +85,28 @@ public class CjenikService {
        Per-user reusable template
        ========================================================= */
 
-    public List<DrinkPriceDto> listTemplate(String userUid) {
-        return templateRepo.findByUserUid(userUid).stream()
+    /** Names of all named templates this user has saved. */
+    public List<String> listTemplateNames(String userUid) {
+        return templateRepo.listTemplateNames(userUid);
+    }
+
+    /** Items belonging to one specific named template. */
+    public List<DrinkPriceDto> listTemplate(String userUid, String templateName) {
+        return templateRepo.findByUserUidAndTemplateName(userUid, templateName).stream()
                 .map(CjenikService::toTemplateDto)
                 .toList();
     }
 
     /**
-     * Replace the user's template (full rewrite — keeps no history).
+     * Replace one named template (full rewrite — keeps no history).
      * Templates have no downstream foreign keys so a wipe-and-recreate
-     * is fine.
+     * is fine. Creates the named template if it didn't exist yet.
      */
     @Transactional
-    public List<DrinkPriceDto> replaceTemplate(String userUid, List<DrinkPriceDto> items) {
-        templateRepo.deleteByUserUid(userUid);
+    public List<DrinkPriceDto> replaceTemplate(String userUid, String templateName, List<DrinkPriceDto> items) {
+        String tname = trimToNull(templateName);
+        if (tname == null) throw new IllegalArgumentException("Template name is required");
+        templateRepo.deleteByUserUidAndTemplateName(userUid, tname);
         List<UserDrinkTemplate> kept = new ArrayList<>();
         int order = 0;
         for (var dto : items) {
@@ -108,6 +116,7 @@ public class CjenikService {
             int sort = dto.sortOrder() != null ? dto.sortOrder() : order++;
             var row = new UserDrinkTemplate();
             row.setUserUid(userUid);
+            row.setTemplateName(tname);
             row.setName(name);
             row.setPrice(price);
             row.setSortOrder(sort);
@@ -117,23 +126,43 @@ public class CjenikService {
         return kept.stream().map(CjenikService::toTemplateDto).toList();
     }
 
-    /** Save the current tournament's cjenik to the user's template. */
+    /** Rename a template. No-op if newName == oldName. */
     @Transactional
-    public List<DrinkPriceDto> saveTournamentAsTemplate(Tournaments t, String userUid) {
+    public void renameTemplate(String userUid, String oldName, String newName) {
+        String oldT = trimToNull(oldName);
+        String newT = trimToNull(newName);
+        if (oldT == null || newT == null) throw new IllegalArgumentException("Template name is required");
+        if (oldT.equals(newT)) return;
+        if (templateRepo.exists(userUid, newT)) {
+            throw new IllegalStateException("Template with this name already exists.");
+        }
+        templateRepo.renameTemplate(userUid, oldT, newT);
+    }
+
+    @Transactional
+    public void deleteTemplate(String userUid, String templateName) {
+        String t = trimToNull(templateName);
+        if (t == null) throw new IllegalArgumentException("Template name is required");
+        templateRepo.deleteByUserUidAndTemplateName(userUid, t);
+    }
+
+    /** Save the current tournament's cjenik into a named template. */
+    @Transactional
+    public List<DrinkPriceDto> saveTournamentAsTemplate(Tournaments t, String userUid, String templateName) {
         var items = priceRepo.findByTournamentId(t.getId()).stream()
                 .map(p -> new DrinkPriceDto(null, p.getName(), p.getPrice(), p.getSortOrder()))
                 .toList();
-        return replaceTemplate(userUid, items);
+        return replaceTemplate(userUid, templateName, items);
     }
 
     /**
-     * Import the user's template into a tournament's cjenik (overwrites
-     * any existing tournament cjenik). Useful when starting a new
-     * tournament at the same venue.
+     * Import a named template into a tournament's cjenik (overwrites any
+     * existing tournament cjenik). Useful when starting a new tournament
+     * at the same venue.
      */
     @Transactional
-    public List<DrinkPriceDto> importTemplateIntoTournament(Tournaments t, String userUid) {
-        var items = templateRepo.findByUserUid(userUid).stream()
+    public List<DrinkPriceDto> importTemplateIntoTournament(Tournaments t, String userUid, String templateName) {
+        var items = templateRepo.findByUserUidAndTemplateName(userUid, templateName).stream()
                 .map(p -> new DrinkPriceDto(null, p.getName(), p.getPrice(), p.getSortOrder()))
                 .toList();
         return replaceTournamentCjenik(t, items);

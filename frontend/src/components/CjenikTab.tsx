@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import {
     Box,
     Button,
+    Dialog,
     HStack,
     IconButton,
     Input,
@@ -15,6 +16,7 @@ import {
     saveTournamentCjenik,
     saveCjenikAsTemplate,
     importCjenikTemplate,
+    fetchMyTemplateNames,
 } from "../api/cjenik"
 import { groupedPresets } from "../utils/drinkPresets"
 
@@ -113,29 +115,74 @@ export default function CjenikTab({ tournamentRef, canEdit }: Props) {
         }
     }
 
-    const handleSaveAsTemplate = async () => {
-        setSaving(true)
-        try {
-            await saveCjenikAsTemplate(tournamentRef)
-        } finally {
-            setSaving(false)
-        }
-    }
+    // Template-picker dialog state.
+    //   importOpen=true   → "Učitaj predložak" dialog (pick existing → load)
+    //   saveAsOpen=true   → "Spremi kao predložak" dialog (pick existing to
+    //                       overwrite OR enter new name)
+    const [importOpen, setImportOpen] = useState(false)
+    const [saveAsOpen, setSaveAsOpen] = useState(false)
+    const [templateNames, setTemplateNames] = useState<string[]>([])
+    const [templatesLoading, setTemplatesLoading] = useState(false)
+    const [newTemplateName, setNewTemplateName] = useState("")
 
-    const handleImportTemplate = async () => {
+    // Lazy-load the template name list when either dialog opens. We
+    // re-fetch on each open so a freshly-created template (from the
+    // profile page in another tab) shows up.
+    useEffect(() => {
+        if (!importOpen && !saveAsOpen) return
+        let cancelled = false
+        ;(async () => {
+            setTemplatesLoading(true)
+            try {
+                const names = await fetchMyTemplateNames()
+                if (!cancelled) setTemplateNames(names)
+            } catch {
+                if (!cancelled) setTemplateNames([])
+            } finally {
+                if (!cancelled) setTemplatesLoading(false)
+            }
+        })()
+        return () => {
+            cancelled = true
+        }
+    }, [importOpen, saveAsOpen])
+
+    const doImport = async (name: string) => {
         if (
             items.length > 0 &&
             !window.confirm(
-                "Učitavanje predloška će zamijeniti trenutni cjenik. Nastaviti?",
+                `Učitavanje predloška "${name}" će zamijeniti trenutni cjenik. Nastaviti?`,
             )
         ) {
             return
         }
         setSaving(true)
         try {
-            const fresh = await importCjenikTemplate(tournamentRef)
+            const fresh = await importCjenikTemplate(tournamentRef, name)
             setItems(fresh.map(dtoToRow))
             setDirty(false)
+            setImportOpen(false)
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const doSaveAs = async (name: string, overwrite: boolean) => {
+        const trimmed = name.trim()
+        if (!trimmed) return
+        if (
+            overwrite &&
+            !window.confirm(
+                `Predložak "${trimmed}" će biti prepisan. Nastaviti?`,
+            )
+        ) {
+            return
+        }
+        setSaving(true)
+        try {
+            await saveCjenikAsTemplate(tournamentRef, trimmed)
+            setSaveAsOpen(false)
+            setNewTemplateName("")
         } finally {
             setSaving(false)
         }
@@ -181,7 +228,7 @@ export default function CjenikTab({ tournamentRef, canEdit }: Props) {
                     <Button
                         size="sm"
                         variant="outline"
-                        onClick={handleImportTemplate}
+                        onClick={() => setImportOpen(true)}
                         disabled={saving}
                     >
                         Učitaj predložak
@@ -189,7 +236,7 @@ export default function CjenikTab({ tournamentRef, canEdit }: Props) {
                     <Button
                         size="sm"
                         variant="outline"
-                        onClick={handleSaveAsTemplate}
+                        onClick={() => setSaveAsOpen(true)}
                         disabled={saving || items.length === 0}
                     >
                         Spremi kao predložak
@@ -294,6 +341,153 @@ export default function CjenikTab({ tournamentRef, canEdit }: Props) {
                     </Button>
                 </HStack>
             </Stack>
+
+            {/* === Učitaj predložak dialog ===
+                Lists every template name the user has saved. Click one
+                to load it into the current cjenik (with a confirm if
+                the cjenik already has items). */}
+            <Dialog.Root
+                open={importOpen}
+                onOpenChange={(e) => { if (!e.open) setImportOpen(false) }}
+            >
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content maxW="md">
+                        <Dialog.Header>
+                            <Text fontWeight="semibold">Učitaj predložak</Text>
+                        </Dialog.Header>
+                        <Dialog.Body>
+                            {templatesLoading ? (
+                                <Text color="gray.500">Učitavanje predložaka…</Text>
+                            ) : templateNames.length === 0 ? (
+                                <Text color="gray.500" fontSize="sm">
+                                    Nemaš spremljenih predložaka. Idi na svoj profil
+                                    pa stvori jedan, ili koristi "Spremi kao
+                                    predložak" za trenutni cjenik.
+                                </Text>
+                            ) : (
+                                <VStack align="stretch" gap="2">
+                                    {templateNames.map((n) => (
+                                        <Button
+                                            key={n}
+                                            variant="outline"
+                                            onClick={() => doImport(n)}
+                                            disabled={saving}
+                                            justifyContent="flex-start"
+                                        >
+                                            {n}
+                                        </Button>
+                                    ))}
+                                </VStack>
+                            )}
+                        </Dialog.Body>
+                        <Dialog.Footer>
+                            <Button variant="ghost" onClick={() => setImportOpen(false)}>
+                                Odustani
+                            </Button>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+
+            {/* === Spremi kao predložak dialog ===
+                Two options: overwrite an existing template (click one to
+                confirm-and-save) OR type a new name and create. */}
+            <Dialog.Root
+                open={saveAsOpen}
+                onOpenChange={(e) => {
+                    if (!e.open) {
+                        setSaveAsOpen(false)
+                        setNewTemplateName("")
+                    }
+                }}
+            >
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content maxW="md">
+                        <Dialog.Header>
+                            <Text fontWeight="semibold">Spremi kao predložak</Text>
+                        </Dialog.Header>
+                        <Dialog.Body>
+                            <VStack align="stretch" gap="4">
+                                <Box>
+                                    <Text fontSize="sm" color="gray.600" mb="2">
+                                        Novi predložak:
+                                    </Text>
+                                    <HStack gap="2">
+                                        <Input
+                                            size="sm"
+                                            placeholder="npr. Pivo bar"
+                                            value={newTemplateName}
+                                            onChange={(e) => setNewTemplateName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (
+                                                    e.key === "Enter" &&
+                                                    newTemplateName.trim() &&
+                                                    !templateNames.includes(newTemplateName.trim())
+                                                ) {
+                                                    e.preventDefault()
+                                                    void doSaveAs(newTemplateName, false)
+                                                }
+                                            }}
+                                        />
+                                        <Button
+                                            size="sm"
+                                            colorPalette="blue"
+                                            onClick={() => doSaveAs(newTemplateName, false)}
+                                            disabled={
+                                                saving ||
+                                                !newTemplateName.trim() ||
+                                                templateNames.includes(newTemplateName.trim())
+                                            }
+                                        >
+                                            Stvori
+                                        </Button>
+                                    </HStack>
+                                    {!!newTemplateName.trim() &&
+                                        templateNames.includes(newTemplateName.trim()) && (
+                                            <Text color="red.500" fontSize="xs" mt="1">
+                                                Predložak s tim nazivom već postoji.
+                                            </Text>
+                                        )}
+                                </Box>
+
+                                {templateNames.length > 0 && (
+                                    <Box>
+                                        <Text fontSize="sm" color="gray.600" mb="2">
+                                            …ili prepiši postojeći:
+                                        </Text>
+                                        {templatesLoading ? (
+                                            <Text color="gray.500" fontSize="sm">
+                                                Učitavanje…
+                                            </Text>
+                                        ) : (
+                                            <VStack align="stretch" gap="2">
+                                                {templateNames.map((n) => (
+                                                    <Button
+                                                        key={n}
+                                                        variant="outline"
+                                                        onClick={() => doSaveAs(n, true)}
+                                                        disabled={saving}
+                                                        justifyContent="flex-start"
+                                                    >
+                                                        {n}
+                                                    </Button>
+                                                ))}
+                                            </VStack>
+                                        )}
+                                    </Box>
+                                )}
+                            </VStack>
+                        </Dialog.Body>
+                        <Dialog.Footer>
+                            <Button variant="ghost" onClick={() => setSaveAsOpen(false)}>
+                                Odustani
+                            </Button>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
         </Box>
     )
 }

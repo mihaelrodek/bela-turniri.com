@@ -25,4 +25,10 @@ public class UserPairPresetRepository implements AppRepository<UserPairPreset, L
         return find("userUid = ?1 and lower(name) = ?2", uid, name.trim().toLowerCase())
                 .firstResultOptional();
     }
+
+    /** Single preset lookup by share token (for /claim-name/{token}). */
+    public Optional<UserPairPreset> findByClaimToken(String token) {
+        if (token == null || token.isBlank()) return Optional.empty();
+        return find("claimToken", token).firstResultOptional();
+    }
 }

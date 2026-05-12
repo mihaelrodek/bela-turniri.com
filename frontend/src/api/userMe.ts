@@ -25,6 +25,31 @@ export async function listMyTournaments(): Promise<MyTournamentParticipation[]> 
     return data
 }
 
+/** "Moji pari" row — pairs the user is linked to across tournaments. */
+export type MyPairDto = {
+    pairId: number
+    pairName: string
+    tournamentId: number
+    tournamentName: string
+    tournamentRef: string | null
+    tournamentStartAt: string | null
+    isPrimary: boolean
+    pendingApproval: boolean
+    primaryName: string | null
+    primarySlug: string | null
+    coOwnerName: string | null
+    coOwnerSlug: string | null
+    /** Only set when isPrimary — token used for the /claim-pair/{token} share URL. */
+    claimToken: string | null
+}
+
+export async function listMyPairs(): Promise<MyPairDto[]> {
+    const { data } = await http.get<MyPairDto[]>("/user/me/pairs", {
+        silent: true,
+    } as any)
+    return data
+}
+
 export type UserProfile = {
     phoneCountry: string | null
     phone: string | null

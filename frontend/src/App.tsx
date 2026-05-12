@@ -12,6 +12,8 @@ import LoginPage from "./pages/LoginPage"
 import RegisterPage from "./pages/RegisterPage"
 import ProfileRedirect from "./pages/ProfileRedirect"
 import PublicProfilePage from "./pages/PublicProfilePage"
+import ClaimPairPage from "./pages/ClaimPairPage"
+import ClaimNamePage from "./pages/ClaimNamePage"
 import NotFoundPage from "./pages/NotFoundPage"
 import { RequireAuth } from "./components/RequireAuth"
 
@@ -46,6 +48,15 @@ export default function App() {
                         per product decision. */}
                     <Route path="/profile" element={<ProfileRedirect />} />
                     <Route path="/profile/:slug" element={<PublicProfilePage />} />
+                    {/* Pair-sharing claim landing page. Public; the page
+                        itself handles the "not logged in" case by linking
+                        to /login?next=/claim-pair/{token} so the user lands
+                        back here after auth. */}
+                    <Route path="/claim-pair/:token" element={<ClaimPairPage />} />
+                    {/* Preset-level (name) sharing — superseded /claim-pair
+                        for new shares. Friend lands here after the primary
+                        copies a Podijeli sa partnerom link. */}
+                    <Route path="/claim-name/:token" element={<ClaimNamePage />} />
                     {/* Catch-all — keep last so explicit routes win. */}
                     <Route path="*" element={<NotFoundPage />} />
                 </Routes>

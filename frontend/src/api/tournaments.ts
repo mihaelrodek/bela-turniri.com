@@ -78,6 +78,43 @@ export async function updateTournament(
     return data;
 }
 
+/**
+ * Replace the tournament's poster image. Sent as multipart so the
+ * browser sets the boundary automatically. Owner-only on the backend.
+ *
+ * Note: we pass "multipart/form-data" explicitly (the same trick the
+ * working uploadAvatar uses). Axios detects the FormData body and
+ * replaces this value with the proper Content-Type including the
+ * boundary. Setting the header to `undefined` is unreliable here
+ * because the global axios default Content-Type: application/json
+ * can leak through depending on how the merge resolves.
+ */
+export async function uploadTournamentPoster(
+    uuid: string,
+    file: File,
+): Promise<TournamentDetails> {
+    const fd = new FormData()
+    fd.append("poster", file)
+    const { data } = await http.post<TournamentDetails>(
+        `/tournaments/${uuid}/poster`,
+        fd,
+        {
+            headers: { "Content-Type": "multipart/form-data" },
+            silent: true, // the JSON save already toasted "Turnir je ažuriran."
+        } as any,
+    )
+    return data
+}
+
+/** Remove the tournament's poster. */
+export async function deleteTournamentPoster(uuid: string): Promise<TournamentDetails> {
+    const { data } = await http.delete<TournamentDetails>(
+        `/tournaments/${uuid}/poster`,
+        { silent: true } as any,
+    )
+    return data
+}
+
 export async function fetchPairs(tournamentId: string): Promise<PairShort[]> {
     const { data } = await http.get<PairShort[]>(`/tournaments/${tournamentId}/pairs`);
     return data;

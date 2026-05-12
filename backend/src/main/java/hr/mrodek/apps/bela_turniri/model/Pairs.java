@@ -49,6 +49,25 @@ public class Pairs {
     @Column(name = "pending_approval", nullable = false)
     private boolean pendingApproval = false;
 
+    /**
+     * Opaque random token embedded in the pair-sharing URL
+     * (/claim-pair/{token}). Set when a pair is self-registered or
+     * backfilled for existing pairs. Stable — the same primary can
+     * keep sharing the same link.
+     */
+    @Column(name = "claim_token", length = 48, unique = true)
+    private String claimToken;
+
+    /**
+     * Firebase UID of the partner who claimed co-ownership of this
+     * pair via the share link. Equal-participant view: appears on
+     * their profile, receives push notifications, sees own invoices.
+     * Pair-internal edits (paid toggle, name, etc.) stay
+     * organizer-only.
+     */
+    @Column(name = "co_submitted_by_uid", length = 64)
+    private String coSubmittedByUid;
+
     @CreationTimestamp
     @Column(name = "created_at")
     private OffsetDateTime createdAt;

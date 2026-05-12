@@ -13,6 +13,12 @@ export type PairShort = {
     submittedBySlug?: string | null;
     /** Display name of the submitter, mirrored from Firebase. */
     submittedByName?: string | null;
+    /** Firebase UID of the partner who claimed co-ownership via the share link. */
+    coSubmittedByUid?: string | null;
+    coSubmittedBySlug?: string | null;
+    coSubmittedByName?: string | null;
+    /** Opaque token for the /claim-pair/{token} URL — only sent to the primary submitter. */
+    claimToken?: string | null;
 };
 
 // Local-only helper for brand-new rows before the server assigns an id.

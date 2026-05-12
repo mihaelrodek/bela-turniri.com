@@ -28,6 +28,14 @@ public class UserDrinkTemplate {
     @Column(name = "user_uid", nullable = false, length = 64)
     private String userUid;
 
+    /**
+     * Group key for multi-template support. Items with the same
+     * (userUid, templateName) belong to one named template
+     * (e.g. "Pivo bar", "Eventi"). One user can save many.
+     */
+    @Column(name = "template_name", nullable = false, length = 100)
+    private String templateName;
+
     @Column(nullable = false, length = 100)
     private String name;
 

@@ -207,6 +207,50 @@ public class TournamentController {
                 .build();
     }
 
+    /* ===================== Poster (edit) ===================== */
+
+    /**
+     * Replace the tournament's poster with the uploaded file. Owner-only.
+     * Mirrors the multipart path in createMultipart but scoped to an
+     * existing tournament. The previous Resources row is left in place;
+     * StorageService is responsible for any retention/cleanup policy.
+     */
+    @POST
+    @Path("/{uuid}/poster")
+    @Authenticated
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    @Transactional
+    public Response updatePoster(
+            @PathParam("uuid") String uuid,
+            @RestForm("poster") FileUpload poster
+    ) {
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
+        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
+        assertCanEdit(t);
+        if (poster == null || poster.size() == 0) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("Missing 'poster' file part").build();
+        }
+        Resources r = storageService.uploadPoster(poster);
+        t.setResource(r);
+        t.setUpdatedAt(OffsetDateTime.now());
+        return Response.ok(tournamentMapper.toDetails(t)).build();
+    }
+
+    /** Remove the tournament's poster. Owner-only. */
+    @DELETE
+    @Path("/{uuid}/poster")
+    @Authenticated
+    @Transactional
+    public Response deletePoster(@PathParam("uuid") String uuid) {
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
+        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
+        assertCanEdit(t);
+        t.setResource(null);
+        t.setUpdatedAt(OffsetDateTime.now());
+        return Response.ok(tournamentMapper.toDetails(t)).build();
+    }
+
     /* ===================== Update ===================== */
 
     @PUT
@@ -480,15 +524,48 @@ public class TournamentController {
         var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
         if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
         var pairs = pairRepo.findByTournament_Id(t.getId());
-        return Response.ok(pairMapper.toDtoListEnriched(pairs, fetchSubmitterProfiles(pairs))).build();
+        // Emit claim tokens only to the primary submitter of each pair
+        // (so they can copy the share link) or to organizer/admin.
+        // Other viewers don't see tokens — the share link is for the
+        // primary to hand out, not for the whole tournament to see.
+        String viewerUid = (jwt != null) ? jwt.getSubject() : null;
+        boolean viewerIsOrganizerOrAdmin =
+                (identity != null && identity.hasRole("admin"))
+                || (viewerUid != null && viewerUid.equals(t.getCreatedByUid()));
+        return Response.ok(
+                pairMapper.toDtoListEnrichedForViewer(
+                        pairs,
+                        fetchSubmitterProfiles(pairs),
+                        viewerUid,
+                        viewerIsOrganizerOrAdmin
+                )
+        ).build();
     }
 
-    /** Bulk-load UserProfile rows for all distinct submittedByUid values in {@code pairs}. */
+    /**
+     * Build a random opaque token for the pair-sharing URL. 24 bytes of
+     * SecureRandom encoded base64-url-no-padding = 32 chars — short
+     * enough to fit in a clipboard-friendly URL, long enough that
+     * brute-forcing is infeasible.
+     */
+    private static String generateClaimToken() {
+        byte[] buf = new byte[24];
+        new java.security.SecureRandom().nextBytes(buf);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
+    }
+
+    /**
+     * Bulk-load UserProfile rows for every distinct submitter UID across
+     * the given pairs — both primary submitters AND co-owners that
+     * claimed the pair via the share link. Same map serves both
+     * enrichment lookups in PairMapper.toDtoEnriched.
+     */
     private java.util.Map<String, hr.mrodek.apps.bela_turniri.model.UserProfile> fetchSubmitterProfiles(List<Pairs> pairs) {
-        java.util.Set<String> uids = pairs.stream()
-                .map(Pairs::getSubmittedByUid)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        java.util.Set<String> uids = new java.util.HashSet<>();
+        for (var p : pairs) {
+            if (p.getSubmittedByUid() != null) uids.add(p.getSubmittedByUid());
+            if (p.getCoSubmittedByUid() != null) uids.add(p.getCoSubmittedByUid());
+        }
         return userProfileRepo.findByUids(uids);
     }
 
@@ -555,7 +632,21 @@ public class TournamentController {
         }
 
         var all = pairRepo.findByTournament_Id(tournament.getId());
-        return Response.ok(pairMapper.toDtoListEnriched(all, fetchSubmitterProfiles(all))).build();
+        // Same viewer-aware emission as listPairs — primary submitter
+        // of each row sees their own claim token; everyone else gets
+        // null in that field.
+        String viewerUid = (jwt != null) ? jwt.getSubject() : null;
+        boolean viewerIsOrganizerOrAdmin =
+                (identity != null && identity.hasRole("admin"))
+                || (viewerUid != null && viewerUid.equals(tournament.getCreatedByUid()));
+        return Response.ok(
+                pairMapper.toDtoListEnrichedForViewer(
+                        all,
+                        fetchSubmitterProfiles(all),
+                        viewerUid,
+                        viewerIsOrganizerOrAdmin
+                )
+        ).build();
     }
 
     @POST
@@ -626,6 +717,24 @@ public class TournamentController {
         p.setPaid(false);
         p.setSubmittedByUid(jwt.getSubject());
         p.setPendingApproval(true);
+        // Generate a pair-level claim token (legacy — sharing now happens
+        // at the preset level, but the column is kept for back-compat
+        // with already-claimed pairs).
+        p.setClaimToken(generateClaimToken());
+
+        // Auto-inherit co-owner from the user's matching preset. If the
+        // user has already shared the name "Marko & Pero" and the
+        // partner has claimed, every new Pair self-registered under
+        // that name should also surface on the partner's profile +
+        // notifications. The preset is the source of truth.
+        if (myUid != null) {
+            userPairPresetRepo.findByUserUidAndNameIgnoreCase(myUid, trimmedName)
+                    .ifPresent(preset -> {
+                        if (preset.getCoOwnerUid() != null && !preset.getCoOwnerUid().isBlank()) {
+                            p.setCoSubmittedByUid(preset.getCoOwnerUid());
+                        }
+                    });
+        }
 
         pairRepo.save(p);
 
@@ -674,21 +783,31 @@ public class TournamentController {
         boolean wasPending = pair.isPendingApproval();
         pair.setPendingApproval(false);
 
-        // Notify the player whose pair just got approved. Only push when
+        // Notify the player(s) whose pair just got approved. Only push when
         // the row was actually pending — re-approving an already-approved
-        // pair would be a confusing duplicate notification.
-        if (wasPending && pair.getSubmittedByUid() != null) {
+        // pair would be a confusing duplicate notification. Both the
+        // primary submitter and the share-link co-owner get the push.
+        if (wasPending) {
             String tournamentRef = t.getSlug() != null && !t.getSlug().isBlank()
                     ? t.getSlug()
                     : (t.getUuid() != null ? t.getUuid().toString() : "");
-            pushService.sendToUser(
-                    pair.getSubmittedByUid(),
-                    new PushService.PushPayload(
-                            "Prijava odobrena",
-                            "Tvoj par \"" + pair.getName() + "\" je prihvaćen na turniru " + t.getName() + ".",
-                            "/tournaments/" + tournamentRef
-                    )
-            );
+            java.util.List<String> uids = new java.util.ArrayList<>(2);
+            if (pair.getSubmittedByUid() != null && !pair.getSubmittedByUid().isBlank()) {
+                uids.add(pair.getSubmittedByUid());
+            }
+            if (pair.getCoSubmittedByUid() != null && !pair.getCoSubmittedByUid().isBlank()) {
+                uids.add(pair.getCoSubmittedByUid());
+            }
+            for (String uid : uids) {
+                pushService.sendToUser(
+                        uid,
+                        new PushService.PushPayload(
+                                "Prijava odobrena",
+                                "Tvoj par \"" + pair.getName() + "\" je prihvaćen na turniru " + t.getName() + ".",
+                                "/tournaments/" + tournamentRef
+                        )
+                );
+            }
         }
 
         return Response.ok(pairMapper.toDtoEnriched(pair, fetchSubmitterProfiles(List.of(pair)))).build();

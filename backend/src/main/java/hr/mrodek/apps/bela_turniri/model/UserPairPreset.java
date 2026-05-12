@@ -34,6 +34,34 @@ public class UserPairPreset {
     @Column(name = "name", length = 200, nullable = false)
     private String name;
 
+    /**
+     * When true, public profile views (anyone other than the owner)
+     * skip tournaments where this user played as a pair with this name.
+     * The owner viewing their own profile still sees everything —
+     * it's a display-time visibility knob, not a delete.
+     */
+    @Column(name = "hidden", nullable = false)
+    private boolean hidden = false;
+
+    /**
+     * Opaque random token embedded in the share URL
+     * (/claim-name/{token}). Stable for the preset's lifetime — same
+     * link works forever. Set when the row is created and on backfill
+     * for pre-sharing presets.
+     */
+    @Column(name = "claim_token", length = 48, unique = true)
+    private String claimToken;
+
+    /**
+     * Firebase UID of the partner who claimed co-ownership via the
+     * share link. When set, every tournament where the primary
+     * played as a pair with this name shows up on the partner's
+     * profile too (via the widened findMyParticipations query).
+     * Locks the preset against deletion until cleared.
+     */
+    @Column(name = "co_owner_uid", length = 64)
+    private String coOwnerUid;
+
     @CreationTimestamp
     @Column(name = "created_at")
     private OffsetDateTime createdAt;

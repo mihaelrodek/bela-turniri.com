@@ -30,5 +30,9 @@
     <include file="db/changelog/tournaments_slug.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/push_subscriptions.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/cjenik.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/user_drink_templates_named.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/pairs_claim_sharing.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/user_pair_presets_hidden.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/user_pair_presets_sharing.xml" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

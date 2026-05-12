@@ -20,12 +20,15 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Anonymous-readable profile pages. Anyone can hit these — there is no
@@ -51,6 +54,7 @@ public class PublicProfileController {
     @Inject PairsRepository pairRepo;
     @Inject MatchesRepository matchRepo;
     @Inject SecurityIdentity identity;
+    @Inject JsonWebToken jwt;
 
     /**
      * True when no Firebase ID token was presented (or it didn't verify).
@@ -69,15 +73,42 @@ public class PublicProfileController {
 
         String uid = profile.getUserUid();
 
-        // Reuse the same broadened "my participations" query so an organizer
-        // who manually added their pair shows up too.
-        var presetNames = presetRepo.findByUserUid(uid).stream()
+        // Owner viewing own profile sees everything; visitors see only
+        // pairs whose name isn't on a hidden preset. We need the full
+        // preset list either way — for the broadened participation query
+        // AND to compute the hidden-name set.
+        var allPresets = presetRepo.findByUserUid(uid);
+        var presetNames = allPresets.stream()
                 .map(UserPairPreset::getName)
                 .toList();
+
+        // Determine viewer identity. Owner-of-this-profile sees everything;
+        // anonymous + everyone else gets hidden-pair-name filtering.
+        String viewerUid = (jwt != null) ? jwt.getSubject() : null;
+        boolean viewerIsOwner = viewerUid != null && viewerUid.equals(uid);
+
+        Set<String> hiddenLowered = new HashSet<>();
+        if (!viewerIsOwner) {
+            for (var pp : allPresets) {
+                if (pp.isHidden() && pp.getName() != null) {
+                    hiddenLowered.add(pp.getName().trim().toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+
+        // Reuse the same broadened "my participations" query so an organizer
+        // who manually added their pair shows up too.
         var participations = pairRepo.findMyParticipations(uid, presetNames);
 
         var participationDtos = participations.stream()
                 .map(PublicProfileController::toParticipationDto)
+                .filter(p -> {
+                    // Filter out hidden-name participations for non-owner viewers.
+                    if (viewerIsOwner) return true;
+                    if (p.pairName() == null) return true;
+                    String key = p.pairName().trim().toLowerCase(Locale.ROOT);
+                    return !hiddenLowered.contains(key);
+                })
                 .toList();
 
         // Build pair summary by collapsing on lower-cased trimmed name and

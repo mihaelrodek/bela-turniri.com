@@ -105,10 +105,14 @@ public class MatchBillService {
      */
     public boolean isParticipant(Matches m, String uid) {
         if (uid == null || uid.isBlank()) return false;
-        Pairs p1 = m.getPair1();
-        Pairs p2 = m.getPair2();
-        if (p1 != null && uid.equals(p1.getSubmittedByUid())) return true;
-        if (p2 != null && uid.equals(p2.getSubmittedByUid())) return true;
+        return participantOnPair(m.getPair1(), uid) || participantOnPair(m.getPair2(), uid);
+    }
+
+    /** True if {@code uid} is either the primary submitter or the claimed co-owner of {@code p}. */
+    private static boolean participantOnPair(Pairs p, String uid) {
+        if (p == null) return false;
+        if (uid.equals(p.getSubmittedByUid())) return true;
+        if (uid.equals(p.getCoSubmittedByUid())) return true;
         return false;
     }
 
@@ -124,9 +128,13 @@ public class MatchBillService {
      */
     public java.util.List<hr.mrodek.apps.bela_turniri.dtos.UserInvoiceDto> listInvoicesForUser(String uid) {
         if (uid == null || uid.isBlank()) return java.util.List.of();
-        // Find every match where this user was in pair1 or pair2 (non-BYE).
+        // Find every match where this user was a participant via either
+        // pair — as the primary submitter OR as the claimed co-owner.
+        // Excludes BYE matches (pair2 is null) — no shared bill to settle.
         var all = matchesRepo.list(
-                "(pair1.submittedByUid = ?1 or pair2.submittedByUid = ?1) and pair2 is not null",
+                "(pair1.submittedByUid = ?1 or pair1.coSubmittedByUid = ?1 " +
+                " or pair2.submittedByUid = ?1 or pair2.coSubmittedByUid = ?1) " +
+                "and pair2 is not null",
                 uid
         );
 
@@ -144,8 +152,14 @@ public class MatchBillService {
             if (lineCount == 0 && m.getPaidAt() == null) continue;
 
             // Identify which side is the user and which is the opponent.
-            Pairs mine = (m.getPair1() != null && uid.equals(m.getPair1().getSubmittedByUid()))
-                    ? m.getPair1() : m.getPair2();
+            // The user can be either the primary submitter or the claimed
+            // co-owner — both qualify.
+            Pairs mine =
+                    (m.getPair1() != null
+                            && (uid.equals(m.getPair1().getSubmittedByUid())
+                                || uid.equals(m.getPair1().getCoSubmittedByUid())))
+                            ? m.getPair1()
+                            : m.getPair2();
             Pairs opp = (mine == m.getPair1()) ? m.getPair2() : m.getPair1();
 
             boolean finished = m.getStatus() == MatchStatus.FINISHED && m.getWinnerPair() != null;

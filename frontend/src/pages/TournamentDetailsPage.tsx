@@ -12,6 +12,7 @@ import {
     IconButton,
     Image,
     Input,
+    NativeSelect,
     RadioGroup,
     Spinner,
     Text,
@@ -20,6 +21,10 @@ import {
     Switch,
     Dialog,
 } from "@chakra-ui/react"
+import DatePicker, { registerLocale } from "react-datepicker"
+import { hr } from "date-fns/locale"
+import "react-datepicker/dist/react-datepicker.css"
+import "../datepicker.css"
 import {Link as RouterLink, useLocation, useNavigate, useParams, useSearchParams} from "react-router-dom"
 import {
     FiAward,
@@ -36,6 +41,7 @@ import {
     FiFlag,
     FiGift,
     FiHeart,
+    FiImage,
     FiInfo,
     FiLayers,
     FiMapPin,
@@ -68,6 +74,8 @@ import {
     setAllowRepeats as apiSetAllowRepeats,
     resetTournament as apiResetTournament,
     updateTournament,
+    uploadTournamentPoster,
+    deleteTournamentPoster,
 } from "../api/tournaments"
 import {
     fetchRounds,
@@ -84,6 +92,53 @@ import { useAuth } from "../auth/AuthContext"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 import CjenikTab from "../components/CjenikTab"
 import MatchBillButton from "../components/MatchBillButton"
+import { LocationAutocomplete } from "../components/LocationAutocomplete"
+
+// Register the Croatian locale once for the calendar UI (month/day names,
+// week-starts-Monday, etc.). The format itself is forced via the
+// dateFormat prop on each DatePicker. Matches CreateTournamentPage so
+// both forms share the same calendar behavior.
+registerLocale("hr", hr)
+
+/** Calling-code options for the phone country selector. Mirrors CreateTournamentPage. */
+const PHONE_COUNTRIES: Array<{ value: string; label: string }> = [
+    { value: "+385", label: "🇭🇷 +385" },
+    { value: "+386", label: "🇸🇮 +386" },
+    { value: "+43",  label: "🇦🇹 +43" },
+    { value: "+49",  label: "🇩🇪 +49" },
+    { value: "+387", label: "🇧🇦 +387" },
+    { value: "+381", label: "🇷🇸 +381" },
+]
+
+/**
+ * Strip everything except digits + spaces from a phone string. We keep
+ * spaces so users can type "91 234 5678" for readability; the country
+ * code is held in a separate select so a leading "+" or country digits
+ * aren't expected here.
+ */
+function sanitizePhone(raw: string): string {
+    return raw.replace(/[^\d\s]/g, "")
+}
+
+/**
+ * Split a stored "{country} {rest}" phone (e.g. "+385 91 234 5678") into
+ * country + rest. If the stored value doesn't start with a known code
+ * we leave the rest verbatim and default the country to +385 so the
+ * select doesn't show an empty option.
+ */
+function parsePhone(stored: string | null | undefined): { country: string; rest: string } {
+    const s = (stored ?? "").trim()
+    if (!s) return { country: "+385", rest: "" }
+    for (const c of PHONE_COUNTRIES) {
+        if (s.startsWith(c.value)) {
+            return {
+                country: c.value,
+                rest: s.slice(c.value.length).trim(),
+            }
+        }
+    }
+    return { country: "+385", rest: s }
+}
 
 /* ---------- Local UI types ---------- */
 type MatchLocal = MatchDto & {
@@ -331,9 +386,12 @@ type EditForm = {
     maxPairs: string
     entryPrice: string
     repassagePrice: string
-    repassageSecondPrice: string | null   // null = section not added
+    // Empty string = not set (same convention as CreateTournamentPage).
+    // Conversion to backend null happens in editFormToPayload.
+    repassageSecondPrice: string
     repassageUntil: "FINALS" | "SEMIFINALS"
     contactName: string
+    contactPhoneCountry: string
     contactPhone: string
     rewardType: "FIXED" | "PERCENTAGE"
     rewardFirst: string
@@ -342,6 +400,7 @@ type EditForm = {
 }
 
 function buildEditForm(t: TournamentDetails): EditForm {
+    const phone = parsePhone(t.contactPhone)
     return {
         name: t.name ?? "",
         location: t.location ?? "",
@@ -354,10 +413,11 @@ function buildEditForm(t: TournamentDetails): EditForm {
         repassageSecondPrice:
             typeof t.repassageSecondPrice === "number"
                 ? numberToMoneyStr(t.repassageSecondPrice)
-                : null,
+                : "",
         repassageUntil: (t.repassageUntil as RepassageUntil) ?? "FINALS",
         contactName: t.contactName ?? "",
-        contactPhone: t.contactPhone ?? "",
+        contactPhoneCountry: phone.country,
+        contactPhone: phone.rest,
         rewardType: (t.rewardType as RewardType) ?? "FIXED",
         rewardFirst: numberToMoneyStr(t.rewardFirst),
         rewardSecond: numberToMoneyStr(t.rewardSecond),
@@ -370,7 +430,10 @@ function editFormToPayload(f: EditForm): CreateTournamentPayload {
     const maxPairsSafe = Number.isFinite(maxPairs) && maxPairs >= 2 ? maxPairs : 16
     const entry = moneyToNumber(f.entryPrice) ?? 0
     const rep = moneyToNumber(f.repassagePrice) ?? 0
-    const rep2 = f.repassageSecondPrice == null ? null : moneyToNumber(f.repassageSecondPrice)
+    // Empty string = not set → send null to wipe the second repassage server-side.
+    const rep2 = !f.repassageSecondPrice || !f.repassageSecondPrice.trim()
+        ? null
+        : moneyToNumber(f.repassageSecondPrice)
 
     return {
         name: f.name.trim(),
@@ -383,7 +446,9 @@ function editFormToPayload(f: EditForm): CreateTournamentPayload {
         repassageSecondPrice: rep2,
         repassageUntil: f.repassageUntil,
         contactName: f.contactName.trim() || null,
-        contactPhone: f.contactPhone.trim() || null,
+        contactPhone: f.contactPhone.trim()
+            ? `${f.contactPhoneCountry} ${f.contactPhone.trim()}`
+            : null,
         rewardType: f.rewardType,
         rewardFirst: moneyToNumber(f.rewardFirst),
         rewardSecond: moneyToNumber(f.rewardSecond),
@@ -429,6 +494,30 @@ function SuffixInput({
                 {suffix}
             </Box>
         </Box>
+    )
+}
+
+/**
+ * Two-line "€/par → €/igrač" helper shown under price inputs on the
+ * edit form. Mirrors PerPairHint in CreateTournamentPage. Renders
+ * nothing if the input doesn't parse to a finite number.
+ */
+function EditPerPairHint({ value }: { value: string }) {
+    const n = (() => {
+        const cleaned = (value ?? "").replace(/[ €]/g, "").replace(",", ".")
+        const x = parseFloat(cleaned)
+        return Number.isFinite(x) ? x : NaN
+    })()
+    if (!Number.isFinite(n)) return null
+    const fmt = (x: number) => {
+        const f = x.toFixed(2)
+        return f.endsWith(".00") ? f.slice(0, -3) : f
+    }
+    return (
+        <Field.HelperText>
+            {fmt(n)}€<chakra.span color="fg.muted">/par</chakra.span>{" "}
+            • {fmt(n / 2)}€<chakra.span color="fg.muted">/igrač</chakra.span>
+        </Field.HelperText>
     )
 }
 
@@ -497,6 +586,100 @@ export default function TournamentDetailsPage() {
     const [editForm, setEditForm] = useState<EditForm | null>(null)
     const [savingDetails, setSavingDetails] = useState(false)
 
+    // Poster edit state. Mirrors CreateTournamentPage's poster picker.
+    //   posterFile          — newly chosen File (replaces server-side image on save)
+    //   posterPreviewUrl    — object URL for the picked File (cleaned up on unmount/replace)
+    //   posterRemove        — flag set when user clears the current poster but
+    //                         hasn't picked a replacement — Spremi sends a DELETE.
+    //   posterUploadErr     — non-fatal validation message (size/type) shown inline.
+    const [posterFile, setPosterFile] = useState<File | null>(null)
+    const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null)
+    const [posterRemove, setPosterRemove] = useState(false)
+    const [posterUploadErr, setPosterUploadErr] = useState<string | null>(null)
+
+    // Same validation thresholds as CreateTournamentPage so the UX is identical.
+    const POSTER_MAX_MB = 5
+    const POSTER_ACCEPT = ["image/jpeg", "image/png", "image/webp"] as const
+
+    function handlePosterPick(file: File) {
+        setPosterUploadErr(null)
+        if (!POSTER_ACCEPT.includes(file.type as any)) {
+            setPosterUploadErr("Dozvoljeno: JPG, PNG ili WEBP.")
+            return
+        }
+        if (file.size > POSTER_MAX_MB * 1024 * 1024) {
+            setPosterUploadErr(`Maksimalna veličina je ${POSTER_MAX_MB} MB.`)
+            return
+        }
+        if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl)
+        setPosterFile(file)
+        setPosterPreviewUrl(URL.createObjectURL(file))
+        // Picking a replacement implicitly cancels a pending removal.
+        setPosterRemove(false)
+    }
+
+    function clearPosterPick() {
+        if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl)
+        setPosterFile(null)
+        setPosterPreviewUrl(null)
+        setPosterUploadErr(null)
+    }
+
+    function markPosterForRemoval() {
+        // Clears any locally-picked replacement AND signals to Spremi that
+        // the server-side poster should be deleted.
+        clearPosterPick()
+        setPosterRemove(true)
+    }
+
+    // Clean up object URLs on unmount so we don't leak blob memory.
+    useEffect(() => {
+        return () => {
+            if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    // Required-field summary used by the sticky save bar. Mirrors
+    // CreateTournamentPage exactly so the edit + create UX match:
+    // name, location, date, time, and all three reward slots required.
+    const editMissingRequired = useMemo(() => {
+        if (!editForm) return []
+        const missing: string[] = []
+        if (!editForm.name.trim()) missing.push("Ime")
+        if (!editForm.location.trim()) missing.push("Lokacija")
+        if (!editForm.startDate) missing.push("Datum")
+        if (!editForm.startTime) missing.push("Vrijeme")
+        if (
+            !editForm.rewardFirst.trim() ||
+            !editForm.rewardSecond.trim() ||
+            !editForm.rewardThird.trim()
+        ) {
+            missing.push("Nagrade")
+        }
+        return missing
+    }, [
+        editForm?.name,
+        editForm?.location,
+        editForm?.startDate,
+        editForm?.startTime,
+        editForm?.rewardFirst,
+        editForm?.rewardSecond,
+        editForm?.rewardThird,
+    ])
+
+    /**
+     * True iff the chosen start moment is in the past. Same idea as the
+     * minDate on the picker — re-evaluated on every render so a slow
+     * form-fill can't slip behind "now". Submit is blocked when true.
+     */
+    const editStartInPast = useMemo(() => {
+        if (!editForm?.startDate || !editForm?.startTime) return false
+        const iso = toLocalOffsetIso(editForm.startDate, editForm.startTime)
+        if (!iso) return false
+        return new Date(iso).getTime() < Date.now()
+    }, [editForm?.startDate, editForm?.startTime])
+
     // pair info dialog (match history)
     const [infoPairId, setInfoPairId] = useState<number | null>(null)
 
@@ -544,19 +727,40 @@ export default function TournamentDetailsPage() {
     function cancelDetailsEdit() {
         setEditForm(null)
         setEditingDetails(false)
+        // Drop any pending poster changes so the next edit opens clean.
+        clearPosterPick()
+        setPosterRemove(false)
+        setPosterUploadErr(null)
     }
     async function saveDetailsEdit() {
         if (!uuid || !editForm) return
-        if (!editForm.name.trim()) {
-            alert("Ime turnira je obavezno.")
+        // Same gating as the create form: block if any required field is
+        // empty, or if the picked start moment has slipped into the past.
+        if (editMissingRequired.length > 0) {
+            alert(`Nedostaje: ${editMissingRequired.join(", ")}.`)
+            return
+        }
+        if (editStartInPast) {
+            alert("Datum i vrijeme turnira ne mogu biti u prošlosti.")
             return
         }
         try {
             setSavingDetails(true)
-            const updated = await updateTournament(uuid, editFormToPayload(editForm))
+            // 1) Save the JSON payload first (text fields). The poster
+            //    is on a separate endpoint so we don't block details
+            //    saves if a poster upload fails mid-flight.
+            let updated = await updateTournament(uuid, editFormToPayload(editForm))
+            // 2) Apply the poster change, if any.
+            if (posterFile) {
+                updated = await uploadTournamentPoster(uuid, posterFile)
+            } else if (posterRemove) {
+                updated = await deleteTournamentPoster(uuid)
+            }
             setT(updated)
             setEditingDetails(false)
             setEditForm(null)
+            clearPosterPick()
+            setPosterRemove(false)
         } catch (e: any) {
             alert(e?.response?.data ?? e?.message ?? "Neuspješno spremanje izmjena.")
         } finally {
@@ -1619,11 +1823,12 @@ export default function TournamentDetailsPage() {
                                                 onChange={(e) => patchEdit("name", e.target.value)}
                                             />
                                         </Field.Root>
-                                        <Field.Root>
-                                            <Field.Label>Lokacija</Field.Label>
-                                            <Input
+                                        <Field.Root required>
+                                            <Field.Label>Lokacija <Field.RequiredIndicator /></Field.Label>
+                                            <LocationAutocomplete
                                                 value={editForm.location}
-                                                onChange={(e) => patchEdit("location", e.target.value)}
+                                                onChange={(v) => patchEdit("location", v)}
+                                                placeholder="npr. Caffe bar Belot, Zagreb"
                                             />
                                         </Field.Root>
                                     </Box>
@@ -1635,22 +1840,52 @@ export default function TournamentDetailsPage() {
                                             onChange={(e) => patchEdit("details", e.target.value)}
                                         />
                                     </Field.Root>
-                                    <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "1fr 1fr 1fr" }} gap="4">
-                                        <Field.Root>
-                                            <Field.Label>Datum</Field.Label>
-                                            <Input
-                                                type="date"
-                                                value={editForm.startDate}
-                                                onChange={(e) => patchEdit("startDate", e.target.value)}
-                                            />
-                                        </Field.Root>
-                                        <Field.Root>
-                                            <Field.Label>Vrijeme</Field.Label>
-                                            <Input
-                                                type="time"
-                                                value={editForm.startTime}
-                                                onChange={(e) => patchEdit("startTime", e.target.value)}
-                                            />
+                                    <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "2fr 1fr" }} gap="4">
+                                        <Field.Root required>
+                                            <Field.Label>
+                                                Datum i vrijeme <Field.RequiredIndicator />
+                                            </Field.Label>
+                                            {/* Same react-datepicker config as
+                                                CreateTournamentPage: HR locale,
+                                                forced dd/MM/yyyy + 24h, minDate
+                                                blocks past picks. State still
+                                                stores ISO date + HH:mm so the
+                                                backend payload shape is unchanged. */}
+                                            <Box className="bela-datepicker-wrap" w="full">
+                                                <DatePicker
+                                                    selected={
+                                                        editForm.startDate && editForm.startTime
+                                                            ? new Date(`${editForm.startDate}T${editForm.startTime}:00`)
+                                                            : null
+                                                    }
+                                                    onChange={(d) => {
+                                                        if (!d) {
+                                                            patchEdit("startDate", "")
+                                                            patchEdit("startTime", "")
+                                                            return
+                                                        }
+                                                        const pad = (n: number) => String(n).padStart(2, "0")
+                                                        const yyyy = d.getFullYear()
+                                                        const mm = pad(d.getMonth() + 1)
+                                                        const dd = pad(d.getDate())
+                                                        const hh = pad(d.getHours())
+                                                        const mi = pad(d.getMinutes())
+                                                        patchEdit("startDate", `${yyyy}-${mm}-${dd}`)
+                                                        patchEdit("startTime", `${hh}:${mi}`)
+                                                    }}
+                                                    showTimeSelect
+                                                    timeIntervals={15}
+                                                    timeFormat="HH:mm"
+                                                    timeCaption="Vrijeme"
+                                                    dateFormat="dd/MM/yyyy HH:mm"
+                                                    locale="hr"
+                                                    minDate={new Date()}
+                                                    placeholderText="DD/MM/GGGG HH:MM"
+                                                    wrapperClassName="bela-datepicker-input-wrap"
+                                                    className="bela-datepicker-input"
+                                                    popperPlacement="bottom-start"
+                                                />
+                                            </Box>
                                         </Field.Root>
                                         <Field.Root>
                                             <Field.Label>Max parova</Field.Label>
@@ -1663,29 +1898,171 @@ export default function TournamentDetailsPage() {
                                             />
                                         </Field.Root>
                                     </Box>
+
+                                    {/* Poster picker. Same layout/validation
+                                        as CreateTournamentPage. When a new
+                                        file is picked, the existing
+                                        bannerUrl is hidden behind the local
+                                        preview; clicking the × either
+                                        cancels the pick (if file was just
+                                        picked) or marks the server-side
+                                        poster for deletion on Spremi. */}
+                                    <Box>
+                                        <HStack gap="2" mb="2" fontSize="sm" fontWeight="medium">
+                                            <FiImage />
+                                            <Text>
+                                                Plakat <chakra.span color="fg.muted" fontWeight="normal">(opcionalno)</chakra.span>
+                                            </Text>
+                                        </HStack>
+
+                                        <HStack align="start" gap="3" wrap="wrap">
+                                            {(() => {
+                                                const showLocalPreview = !!posterPreviewUrl
+                                                const showServerPoster =
+                                                    !showLocalPreview && !posterRemove && !!t?.bannerUrl
+                                                if (showLocalPreview || showServerPoster) {
+                                                    const src = showLocalPreview
+                                                        ? posterPreviewUrl!
+                                                        : t!.bannerUrl!
+                                                    return (
+                                                        <Box
+                                                            position="relative"
+                                                            borderWidth="1px"
+                                                            rounded="md"
+                                                            overflow="hidden"
+                                                            w="120px"
+                                                            h="120px"
+                                                        >
+                                                            <img
+                                                                src={src}
+                                                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                                            />
+                                                            <IconButton
+                                                                type="button"
+                                                                aria-label="Ukloni plakat"
+                                                                size="2xs"
+                                                                variant="solid"
+                                                                colorPalette="red"
+                                                                position="absolute"
+                                                                top="1"
+                                                                right="1"
+                                                                onClick={() => {
+                                                                    if (showLocalPreview) {
+                                                                        // Local pick — just discard
+                                                                        clearPosterPick()
+                                                                    } else {
+                                                                        // Persisted poster — mark for removal on save
+                                                                        markPosterForRemoval()
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <FiX />
+                                                            </IconButton>
+                                                        </Box>
+                                                    )
+                                                }
+                                                return (
+                                                    <Box
+                                                        w="120px"
+                                                        h="120px"
+                                                        borderWidth="1px"
+                                                        borderStyle="dashed"
+                                                        borderColor="border.subtle"
+                                                        rounded="md"
+                                                        display="flex"
+                                                        alignItems="center"
+                                                        justifyContent="center"
+                                                        color="fg.muted"
+                                                    >
+                                                        <FiImage size={28} />
+                                                    </Box>
+                                                )
+                                            })()}
+
+                                            <VStack align="start" gap="1" flex="1" minW="200px">
+                                                <Button
+                                                    as="label"
+                                                    variant="outline"
+                                                    colorPalette="blue"
+                                                    size="sm"
+                                                    cursor="pointer"
+                                                >
+                                                    {posterFile
+                                                        ? "Promijeni sliku"
+                                                        : t?.bannerUrl && !posterRemove
+                                                            ? "Zamijeni plakat"
+                                                            : "Odaberi sliku"}
+                                                    <input
+                                                        type="file"
+                                                        accept={POSTER_ACCEPT.join(",")}
+                                                        style={{ display: "none" }}
+                                                        onChange={(e) => {
+                                                            const f = e.target.files?.[0]
+                                                            if (f) handlePosterPick(f)
+                                                            // Reset so picking the same file again still fires onChange.
+                                                            e.target.value = ""
+                                                        }}
+                                                    />
+                                                </Button>
+                                                {posterUploadErr ? (
+                                                    <Text color="red.600" fontSize="xs">{posterUploadErr}</Text>
+                                                ) : posterRemove ? (
+                                                    <Text color="orange.fg" fontSize="xs">
+                                                        Plakat će biti uklonjen pri spremanju.
+                                                    </Text>
+                                                ) : (
+                                                    <Text color="fg.muted" fontSize="xs">
+                                                        PNG, JPG ili WEBP, do {POSTER_MAX_MB} MB.
+                                                    </Text>
+                                                )}
+                                            </VStack>
+                                        </HStack>
+                                    </Box>
                                 </VStack>
                             </SectionCard>
 
                             <SectionCard icon={<FiDollarSign />} title="Kotizacija i repasaž">
-                                <VStack align="stretch" gap="4">
-                                    <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="4">
-                                        <Field.Root>
-                                            <Field.Label>Kotizacija</Field.Label>
-                                            <SuffixInput
-                                                value={editForm.entryPrice}
-                                                onChange={(v) => patchEdit("entryPrice", sanitizeMoney(v))}
-                                                suffix="€"
-                                            />
-                                        </Field.Root>
-                                        <Field.Root>
-                                            <Field.Label>Repasaž</Field.Label>
-                                            <SuffixInput
-                                                value={editForm.repassagePrice}
-                                                onChange={(v) => patchEdit("repassagePrice", sanitizeMoney(v))}
-                                                suffix="€"
-                                            />
-                                        </Field.Root>
-                                    </Box>
+                                {/* Single row matches CreateTournamentPage:
+                                    Kotizacija + Repasaž + Drugi repasaž (opc.)
+                                    + Repasaž moguć do, all inline. */}
+                                <Box
+                                    display="grid"
+                                    gridTemplateColumns={{ base: "1fr", md: "140px 140px 140px 1fr" }}
+                                    gap="4"
+                                    alignItems="start"
+                                >
+                                    <Field.Root>
+                                        <Field.Label>Kotizacija</Field.Label>
+                                        <SuffixInput
+                                            value={editForm.entryPrice}
+                                            onChange={(v) => patchEdit("entryPrice", sanitizeMoney(v))}
+                                            suffix="€"
+                                        />
+                                        <EditPerPairHint value={editForm.entryPrice} />
+                                    </Field.Root>
+                                    <Field.Root>
+                                        <Field.Label>Repasaž</Field.Label>
+                                        <SuffixInput
+                                            value={editForm.repassagePrice}
+                                            onChange={(v) => patchEdit("repassagePrice", sanitizeMoney(v))}
+                                            suffix="€"
+                                        />
+                                        <EditPerPairHint value={editForm.repassagePrice} />
+                                    </Field.Root>
+                                    {/* Drugi repasaž — always visible, empty = not set.
+                                        Matches Create exactly. */}
+                                    <Field.Root>
+                                        <Field.Label color="fg.muted">
+                                            Drugi repasaž <chakra.span fontSize="xs">(opc.)</chakra.span>
+                                        </Field.Label>
+                                        <SuffixInput
+                                            value={editForm.repassageSecondPrice}
+                                            onChange={(v) => patchEdit("repassageSecondPrice", sanitizeMoney(v))}
+                                            placeholder="—"
+                                            suffix="€"
+                                        />
+                                        <EditPerPairHint value={editForm.repassageSecondPrice} />
+                                    </Field.Root>
                                     <Field.Root>
                                         <Field.Label>Repasaž moguć do</Field.Label>
                                         <RadioGroup.Root
@@ -1697,7 +2074,7 @@ export default function TournamentDetailsPage() {
                                                 )
                                             }
                                         >
-                                            <HStack gap="6" wrap="wrap" rowGap="2">
+                                            <HStack gap="5" wrap="wrap" rowGap="2" pt="2">
                                                 <RadioGroup.Item value="FINALS">
                                                     <RadioGroup.ItemHiddenInput />
                                                     <RadioGroup.ItemIndicator />
@@ -1710,40 +2087,11 @@ export default function TournamentDetailsPage() {
                                                 </RadioGroup.Item>
                                             </HStack>
                                         </RadioGroup.Root>
+                                        <Field.HelperText>
+                                            Zadnja runda prije koje je moguće kupiti dodatni život.
+                                        </Field.HelperText>
                                     </Field.Root>
-                                    {editForm.repassageSecondPrice == null ? (
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            colorPalette="blue"
-                                            onClick={() => patchEdit("repassageSecondPrice", "30")}
-                                            alignSelf="flex-start"
-                                        >
-                                            <FiPlus /> Dodaj drugi repasaž
-                                        </Button>
-                                    ) : (
-                                        <Box borderWidth="1px" borderColor="border.subtle" rounded="md" p="3" bg="bg.muted">
-                                            <HStack justify="space-between" mb="2">
-                                                <Text fontSize="sm" fontWeight="medium">Drugi repasaž</Text>
-                                                <IconButton
-                                                    type="button"
-                                                    aria-label="Ukloni drugi repasaž"
-                                                    variant="ghost"
-                                                    size="xs"
-                                                    onClick={() => patchEdit("repassageSecondPrice", null)}
-                                                >
-                                                    <FiMinus />
-                                                </IconButton>
-                                            </HStack>
-                                            <SuffixInput
-                                                value={editForm.repassageSecondPrice}
-                                                onChange={(v) => patchEdit("repassageSecondPrice", sanitizeMoney(v))}
-                                                suffix="€"
-                                            />
-                                        </Box>
-                                    )}
-                                </VStack>
+                                </Box>
                             </SectionCard>
 
                             <SectionCard icon={<FiGift />} title="Nagrade">
@@ -1771,24 +2119,24 @@ export default function TournamentDetailsPage() {
                                         </HStack>
                                     </RadioGroup.Root>
                                     <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "1fr 1fr 1fr" }} gap="4">
-                                        <Field.Root>
-                                            <Field.Label>1. mjesto</Field.Label>
+                                        <Field.Root required>
+                                            <Field.Label>1. mjesto <Field.RequiredIndicator /></Field.Label>
                                             <SuffixInput
                                                 value={editForm.rewardFirst}
                                                 onChange={(v) => patchEdit("rewardFirst", sanitizeMoney(v))}
                                                 suffix={editForm.rewardType === "FIXED" ? "€" : "%"}
                                             />
                                         </Field.Root>
-                                        <Field.Root>
-                                            <Field.Label>2. mjesto</Field.Label>
+                                        <Field.Root required>
+                                            <Field.Label>2. mjesto <Field.RequiredIndicator /></Field.Label>
                                             <SuffixInput
                                                 value={editForm.rewardSecond}
                                                 onChange={(v) => patchEdit("rewardSecond", sanitizeMoney(v))}
                                                 suffix={editForm.rewardType === "FIXED" ? "€" : "%"}
                                             />
                                         </Field.Root>
-                                        <Field.Root>
-                                            <Field.Label>3. mjesto</Field.Label>
+                                        <Field.Root required>
+                                            <Field.Label>3. mjesto <Field.RequiredIndicator /></Field.Label>
                                             <SuffixInput
                                                 value={editForm.rewardThird}
                                                 onChange={(v) => patchEdit("rewardThird", sanitizeMoney(v))}
@@ -1804,17 +2152,39 @@ export default function TournamentDetailsPage() {
                                     <Field.Root>
                                         <Field.Label>Ime</Field.Label>
                                         <Input
+                                            placeholder="Ime organizatora"
                                             value={editForm.contactName}
                                             onChange={(e) => patchEdit("contactName", e.target.value)}
                                         />
                                     </Field.Root>
                                     <Field.Root>
-                                        <Field.Label>Telefon</Field.Label>
-                                        <Input
-                                            inputMode="tel"
-                                            value={editForm.contactPhone}
-                                            onChange={(e) => patchEdit("contactPhone", e.target.value)}
-                                        />
+                                        <Field.Label>Broj telefona</Field.Label>
+                                        <HStack gap="2">
+                                            <NativeSelect.Root size="md" w="120px" flexShrink={0}>
+                                                <NativeSelect.Field
+                                                    value={editForm.contactPhoneCountry}
+                                                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                                        patchEdit("contactPhoneCountry", e.target.value)
+                                                    }
+                                                >
+                                                    {PHONE_COUNTRIES.map((c) => (
+                                                        <option key={c.value} value={c.value}>
+                                                            {c.label}
+                                                        </option>
+                                                    ))}
+                                                </NativeSelect.Field>
+                                            </NativeSelect.Root>
+                                            <Input
+                                                flex="1"
+                                                inputMode="numeric"
+                                                pattern="[0-9 ]*"
+                                                placeholder="91 234 5678"
+                                                value={editForm.contactPhone}
+                                                onChange={(e) =>
+                                                    patchEdit("contactPhone", sanitizePhone(e.target.value))
+                                                }
+                                            />
+                                        </HStack>
                                     </Field.Root>
                                 </Box>
                             </SectionCard>
@@ -1831,10 +2201,16 @@ export default function TournamentDetailsPage() {
                             >
                                 <HStack justify="space-between" gap="3" wrap="wrap">
                                     <Text fontSize="sm" color="fg.muted">
-                                        {editForm.name.trim() ? (
+                                        {editMissingRequired.length === 0 && !editStartInPast ? (
                                             <chakra.span color="green.fg">Spremno za spremanje.</chakra.span>
+                                        ) : editStartInPast ? (
+                                            <chakra.span color="red.500">
+                                                Datum i vrijeme ne mogu biti u prošlosti.
+                                            </chakra.span>
                                         ) : (
-                                            <chakra.span color="red.500">Nedostaje: Ime turnira</chakra.span>
+                                            <chakra.span color="red.500">
+                                                Nedostaje: {editMissingRequired.join(", ")}
+                                            </chakra.span>
                                         )}
                                     </Text>
                                     <HStack gap="2">
@@ -1846,7 +2222,11 @@ export default function TournamentDetailsPage() {
                                             colorPalette="blue"
                                             onClick={saveDetailsEdit}
                                             loading={savingDetails}
-                                            disabled={!editForm.name.trim() || savingDetails}
+                                            disabled={
+                                                editMissingRequired.length > 0 ||
+                                                editStartInPast ||
+                                                savingDetails
+                                            }
                                         >
                                             Spremi izmjene
                                         </Button>
@@ -1974,7 +2354,10 @@ export default function TournamentDetailsPage() {
                                     </HStack>
 
                                     {/* Submitter line — always rendered (placeholder when missing)
-                                        so cards in the same grid row stay the same height. */}
+                                        so cards in the same grid row stay the same height.
+                                        The "Podijeli" share button lives on the profile's
+                                        Predlošci → Moji pari list, not here — sharing is a
+                                        my-stuff action, not a per-tournament one. */}
                                     <Text fontSize="xs" color="fg.muted" pl="10" minH="1.25em" lineHeight="1.25em">
                                         {p.submittedBySlug ? (
                                             <>

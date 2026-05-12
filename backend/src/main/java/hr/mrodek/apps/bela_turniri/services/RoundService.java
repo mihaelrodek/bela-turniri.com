@@ -205,23 +205,26 @@ public class RoundService {
             // notification for the same player+round replaces the previous
             // instead of stacking on the lock screen.
             String tag = "round-" + round.getId() + "-pair-";
-            if (p1.getSubmittedByUid() != null && !p1.getSubmittedByUid().isBlank()) {
+            // Notify every UID linked to either pair (primary submitter
+            // and co-owner from the share-link claim). Same payload for
+            // both — they both need to know which table to head to.
+            for (String uid : pairUids(p1)) {
                 pushService.sendToUser(
-                        p1.getSubmittedByUid(),
+                        uid,
                         new PushService.PushPayload(
                                 title, body, matchUrl,
                                 "/bela-turniri-symbol.png",
-                                tag + p1.getId()
+                                tag + p1.getId() + "-" + uid
                         )
                 );
             }
-            if (p2.getSubmittedByUid() != null && !p2.getSubmittedByUid().isBlank()) {
+            for (String uid : pairUids(p2)) {
                 pushService.sendToUser(
-                        p2.getSubmittedByUid(),
+                        uid,
                         new PushService.PushPayload(
                                 title, body, matchUrl,
                                 "/bela-turniri-symbol.png",
-                                tag + p2.getId()
+                                tag + p2.getId() + "-" + uid
                         )
                 );
             }
@@ -304,12 +307,30 @@ public class RoundService {
     }
 
     /**
+     * All UIDs linked to a pair — the primary submitter and (if claimed)
+     * the share-link co-owner. Order is primary first then co-owner.
+     */
+    private static java.util.List<String> pairUids(Pairs p) {
+        if (p == null) return java.util.List.of();
+        java.util.List<String> out = new java.util.ArrayList<>(2);
+        if (p.getSubmittedByUid() != null && !p.getSubmittedByUid().isBlank()) {
+            out.add(p.getSubmittedByUid());
+        }
+        if (p.getCoSubmittedByUid() != null && !p.getCoSubmittedByUid().isBlank()) {
+            out.add(p.getCoSubmittedByUid());
+        }
+        return out;
+    }
+
+    /**
      * Push the loser of a freshly-finished match a notification with the
      * table's current bill total — they're the one who pays per Belot
-     * tradition. Silent no-op when:
+     * tradition. Both the primary submitter AND the share-link co-owner
+     * get the notification (each on their own devices).
+     *
+     * Silent no-op when:
      *   - BYE match (no opponent, nothing to settle)
-     *   - the loser has no submittedByUid (organizer-added pair)
-     *   - we can't identify the loser yet (shouldn't happen post-FINISHED)
+     *   - neither side of the losing pair has a known user UID
      *
      * Push failures are swallowed by PushService so a flaky provider
      * can't roll back the score update.
@@ -322,8 +343,8 @@ public class RoundService {
         Pairs loser = Objects.equals(m.getWinnerPair().getId(), m.getPair1().getId())
                 ? m.getPair2() : m.getPair1();
         if (loser == null) return;
-        String uid = loser.getSubmittedByUid();
-        if (uid == null || uid.isBlank()) return;
+        var uids = pairUids(loser);
+        if (uids.isEmpty()) return;
 
         // Compute current bill total. We don't bail on empty bill — we
         // still tell the loser they lost, with 0,00 € as the body. That
@@ -352,16 +373,18 @@ public class RoundService {
         // reads ?bill={matchId} on mount and (a) switches to the Ždrijeb
         // tab, (b) expands the round, (c) scrolls to the match, (d)
         // auto-opens the bill dialog.
-        pushService.sendToUser(
-                uid,
-                new PushService.PushPayload(
-                        "Izgubili ste meč",
-                        body,
-                        "/tournaments/" + tournamentRef + "?bill=" + m.getId(),
-                        "/bela-turniri-symbol.png",
-                        tag
-                )
-        );
+        for (String uid : uids) {
+            pushService.sendToUser(
+                    uid,
+                    new PushService.PushPayload(
+                            "Izgubili ste meč",
+                            body,
+                            "/tournaments/" + tournamentRef + "?bill=" + m.getId(),
+                            "/bela-turniri-symbol.png",
+                            tag + "-" + uid
+                    )
+            );
+        }
     }
 
     @Transactional

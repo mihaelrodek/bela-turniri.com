@@ -24,6 +24,29 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
         return list("tournament.id", tournamentId);
     }
 
+    /** Single-pair lookup by claim token (the share URL). */
+    public java.util.Optional<Pairs> findByClaimToken(String token) {
+        if (token == null || token.isBlank()) return java.util.Optional.empty();
+        return find("claimToken", token).firstResultOptional();
+    }
+
+    /**
+     * True if the given user has at least one Pair with the given name
+     * (case-insensitive, trimmed) where a partner has claimed co-ownership
+     * via the share link. Used by the preset DELETE flow to prevent the
+     * owner from removing a name that's anchoring someone else's history.
+     */
+    public boolean existsClaimedPairForUserByName(String userUid, String name) {
+        if (userUid == null || name == null) return false;
+        String needle = name.trim().toLowerCase();
+        if (needle.isEmpty()) return false;
+        return count(
+                "submittedByUid = ?1 and coSubmittedByUid is not null " +
+                "and lower(trim(name)) = ?2",
+                userUid, needle
+        ) > 0;
+    }
+
     /**
      * Pairs the user has played as. We match in two ways:
      *   - direct: pair was self-registered with the user's UID, OR
@@ -51,14 +74,17 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
         // when the user has saved pair-name presets. Stays on Panache:
         // entity-shaped result, full "from" prefix tells Panache this is
         // a complete query, named params via Parameters builder.
+        // Co-owned pairs (claimed via the share link) also count — they
+        // show on the claimer's profile just like their own self-registrations.
         StringBuilder jpql = new StringBuilder("""
                 from Pairs p
                 join fetch p.tournament t
                 where p.submittedByUid = :uid
+                   or p.coSubmittedByUid = :uid
                 """);
         Parameters params = Parameters.with("uid", uid);
         if (!lowered.isEmpty()) {
-            jpql.append(" or (p.submittedByUid is null and lower(trim(p.name)) in :names)");
+            jpql.append(" or (p.submittedByUid is null and p.coSubmittedByUid is null and lower(trim(p.name)) in :names)");
             params = params.and("names", lowered);
         }
         jpql.append(" order by t.startAt desc nulls last");

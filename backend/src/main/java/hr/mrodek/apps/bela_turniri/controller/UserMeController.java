@@ -64,6 +64,65 @@ public class UserMeController {
                 .toList();
     }
 
+    /**
+     * "Moji pari" list on the profile's Predlošci tab. Returns every pair
+     * the viewer is linked to — as primary submitter (so they can copy
+     * the share link) or as the claimed co-owner. Each row carries enough
+     * context to render without N+1: tournament name/date, both submitters'
+     * display info, and the claim token IF the viewer is the primary.
+     */
+    @GET
+    @Path("/pairs")
+    @Transactional
+    public List<hr.mrodek.apps.bela_turniri.dtos.MyPairDto> myPairs() {
+        String uid = jwt.getSubject();
+        // Reuse findMyParticipations to capture both primary + co-owned
+        // pairs. Preset-name fallback is left empty here: the share-link
+        // flow only makes sense for actually-persisted Pairs rows where
+        // we know who submitted them; legacy-by-name matches don't carry
+        // a UID and so can't be shared.
+        var pairs = pairRepo.findMyParticipations(uid, java.util.List.of());
+
+        // Bulk-load both submitters' UserProfiles for the row enrichment.
+        var profileUids = new java.util.HashSet<String>();
+        for (var p : pairs) {
+            if (p.getSubmittedByUid() != null) profileUids.add(p.getSubmittedByUid());
+            if (p.getCoSubmittedByUid() != null) profileUids.add(p.getCoSubmittedByUid());
+        }
+        var profilesByUid = profileRepo.findByUids(profileUids);
+
+        var out = new java.util.ArrayList<hr.mrodek.apps.bela_turniri.dtos.MyPairDto>(pairs.size());
+        for (Pairs p : pairs) {
+            boolean isPrimary = uid != null && uid.equals(p.getSubmittedByUid());
+            var primaryProfile = p.getSubmittedByUid() != null
+                    ? profilesByUid.get(p.getSubmittedByUid())
+                    : null;
+            var coProfile = p.getCoSubmittedByUid() != null
+                    ? profilesByUid.get(p.getCoSubmittedByUid())
+                    : null;
+            var t = p.getTournament();
+            String ref = t.getSlug() != null && !t.getSlug().isBlank()
+                    ? t.getSlug()
+                    : (t.getUuid() != null ? t.getUuid().toString() : null);
+            out.add(new hr.mrodek.apps.bela_turniri.dtos.MyPairDto(
+                    p.getId(),
+                    p.getName(),
+                    t.getId(),
+                    t.getName(),
+                    ref,
+                    t.getStartAt(),
+                    isPrimary,
+                    p.isPendingApproval(),
+                    primaryProfile != null ? primaryProfile.getDisplayName() : null,
+                    primaryProfile != null ? primaryProfile.getSlug() : null,
+                    coProfile != null ? coProfile.getDisplayName() : null,
+                    coProfile != null ? coProfile.getSlug() : null,
+                    isPrimary ? p.getClaimToken() : null
+            ));
+        }
+        return out;
+    }
+
     @GET
     @Path("/profile")
     @Transactional   // touch the lazy avatar relation
