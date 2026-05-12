@@ -46,7 +46,6 @@ import {
     FiLayers,
     FiMapPin,
     FiMaximize2,
-    FiMinus,
     FiPhone,
     FiPlay,
     FiPlus,
