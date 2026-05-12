@@ -5,6 +5,7 @@ import hr.mrodek.apps.bela_turniri.model.UserPairPreset;
 import hr.mrodek.apps.bela_turniri.model.UserProfile;
 import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import hr.mrodek.apps.bela_turniri.services.PushService;
 import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -15,17 +16,25 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.security.SecureRandom;
+import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Per-user pair-name presets — the home for the share-with-partner flow.
- * Each preset is a saved name ("Marko & Pero") that the user can edit,
- * hide from public view, or share via a /claim-name/{token} URL. When
- * the partner claims, every tournament where the primary played as
- * that name shows up on the partner's profile too (via the widened
- * findMyParticipations query in PairsRepository).
+ * Per-user pair-name presets.
+ *
+ * Each preset can be viewed by two users — the primary (creator) and a
+ * claimed co-owner. Both see the same row in their Moji parovi list.
+ * Edit + visibility-toggle are open to either owner. Delete on a
+ * co-owned preset goes through the archive-request flow:
+ *
+ *   1. Either owner POSTs /{uuid}/archive-request → request created,
+ *      partner gets a push notification.
+ *   2. Partner POSTs /{uuid}/archive-confirm → archived = true, both
+ *      lose the row from their list.
+ *   3. Either side can DELETE /{uuid}/archive-request to cancel/reject.
  */
 @Path("/user/pair-presets")
 @Authenticated
@@ -35,32 +44,46 @@ public class UserPairPresetController {
 
     @Inject UserPairPresetRepository repo;
     @Inject UserProfileRepository profileRepo;
+    @Inject PushService pushService;
     @Inject JsonWebToken jwt;
 
     private String currentUid() {
         return jwt.getSubject();
     }
 
-    /** Owner sees their own claim token; everyone else gets null. */
-    private UserPairPresetDto toDto(UserPairPreset p, boolean includeToken) {
-        UserProfile co = null;
-        if (p.getCoOwnerUid() != null && !p.getCoOwnerUid().isBlank()) {
-            co = profileRepo.findByUid(p.getCoOwnerUid()).orElse(null);
-        }
+    /**
+     * Build the viewer-aware DTO. "Partner" = the OTHER user from this
+     * viewer's perspective (whichever side they are).
+     */
+    private UserPairPresetDto toDto(UserPairPreset p) {
+        String me = currentUid();
+        boolean iAmPrimary = me != null && me.equals(p.getUserUid());
+        String partnerUid = iAmPrimary ? p.getCoOwnerUid() : p.getUserUid();
+        UserProfile partner = partnerUid == null ? null : profileRepo.findByUid(partnerUid).orElse(null);
+
+        // Token only goes to the primary when no one's claimed yet — that's
+        // the only state where sharing is meaningful.
+        boolean unclaimed = p.getCoOwnerUid() == null || p.getCoOwnerUid().isBlank();
+        String token = (iAmPrimary && unclaimed) ? p.getClaimToken() : null;
+
+        boolean archReqByMe = p.getArchiveRequestByUid() != null
+                && p.getArchiveRequestByUid().equals(me);
+        boolean archReqByPartner = p.getArchiveRequestByUid() != null
+                && !p.getArchiveRequestByUid().equals(me);
+
         return new UserPairPresetDto(
                 p.getUuid(),
                 p.getName(),
                 p.isHidden(),
-                co == null ? null : co.getSlug(),
-                co == null ? null : co.getDisplayName(),
-                includeToken ? p.getClaimToken() : null
+                iAmPrimary ? "PRIMARY" : "CO_OWNER",
+                partner == null ? null : partner.getSlug(),
+                partner == null ? null : partner.getDisplayName(),
+                token,
+                archReqByMe,
+                archReqByPartner
         );
     }
 
-    /**
-     * 24 bytes of SecureRandom → base64-url-no-padding (32 chars). Same
-     * recipe as the pair-level claim token so the URL shape is consistent.
-     */
     private static String generateClaimToken() {
         byte[] buf = new byte[24];
         new SecureRandom().nextBytes(buf);
@@ -69,9 +92,8 @@ public class UserPairPresetController {
 
     @GET
     public List<UserPairPresetDto> list() {
-        // Always emit the token to the owner — that's the whole point.
-        return repo.findByUserUid(currentUid()).stream()
-                .map(p -> toDto(p, true))
+        return repo.findActiveForViewer(currentUid()).stream()
+                .map(this::toDto)
                 .toList();
     }
 
@@ -82,22 +104,21 @@ public class UserPairPresetController {
         p.setUserUid(currentUid());
         p.setName(body.name().trim());
         p.setHidden(Boolean.TRUE.equals(body.hidden()));
-        // Generate the share token up front so the Podijeli button works
-        // immediately without a separate "generate link" step.
         p.setClaimToken(generateClaimToken());
         repo.save(p);
-        return Response.status(Response.Status.CREATED).entity(toDto(p, true)).build();
+        return Response.status(Response.Status.CREATED).entity(toDto(p)).build();
     }
 
     @PUT
     @Path("/{uuid}")
     @Transactional
     public Response update(@PathParam("uuid") UUID uuid, @Valid UserPairPresetDto body) {
-        var p = repo.findByUuidAndUserUid(uuid, currentUid()).orElse(null);
+        // Either owner can rename.
+        var p = repo.findByUuidForOwnerOrCoOwner(uuid, currentUid()).orElse(null);
         if (p == null) return Response.status(Response.Status.NOT_FOUND).build();
         p.setName(body.name().trim());
         if (body.hidden() != null) p.setHidden(body.hidden());
-        return Response.ok(toDto(p, true)).build();
+        return Response.ok(toDto(p)).build();
     }
 
     @POST
@@ -108,30 +129,143 @@ public class UserPairPresetController {
             VisibilityRequest body
     ) {
         if (body == null) throw new BadRequestException("Body required");
-        var p = repo.findByUuidAndUserUid(uuid, currentUid()).orElse(null);
+        var p = repo.findByUuidForOwnerOrCoOwner(uuid, currentUid()).orElse(null);
         if (p == null) return Response.status(Response.Status.NOT_FOUND).build();
         p.setHidden(body.hidden());
-        return Response.ok(toDto(p, true)).build();
+        return Response.ok(toDto(p)).build();
     }
 
     @DELETE
     @Path("/{uuid}")
     @Transactional
     public Response delete(@PathParam("uuid") UUID uuid) {
+        // Only the primary can hit this — co-owner gets 404. Once
+        // co-owned, deletion must go through the archive-request flow.
         var p = repo.findByUuidAndUserUid(uuid, currentUid()).orElse(null);
         if (p == null) return Response.status(Response.Status.NOT_FOUND).build();
-
-        // Lock: once a partner has claimed the preset, we can't simply
-        // delete it — that would orphan the partner's read-side view.
-        // Owner has to revoke the co-owner first (future feature) or
-        // keep the preset and mark it hidden.
         if (p.getCoOwnerUid() != null && !p.getCoOwnerUid().isBlank()) {
             return Response.status(Response.Status.CONFLICT)
-                    .entity("CO_OWNED_PRESET")
+                    .entity("CO_OWNED_USE_ARCHIVE_FLOW")
                     .build();
         }
-
         repo.delete(p);
+        return Response.noContent().build();
+    }
+
+    /* ===================== Archive-request lifecycle ===================== */
+
+    /**
+     * File a request to archive. Either owner can call this. The partner
+     * gets a push notification and sees the request in their UI.
+     */
+    @POST
+    @Path("/{uuid}/archive-request")
+    @Transactional
+    public Response requestArchive(@PathParam("uuid") UUID uuid) {
+        String me = currentUid();
+        var p = repo.findByUuidForOwnerOrCoOwner(uuid, me).orElse(null);
+        if (p == null) return Response.status(Response.Status.NOT_FOUND).build();
+        if (p.getCoOwnerUid() == null || p.getCoOwnerUid().isBlank()) {
+            // Not co-owned — nothing to archive. UI should never hit this,
+            // but return 409 with a code instead of crashing.
+            return Response.status(Response.Status.CONFLICT)
+                    .entity("NOT_CO_OWNED").build();
+        }
+        if (p.getArchiveRequestByUid() != null) {
+            // Already pending — idempotent.
+            return Response.ok(toDto(p)).build();
+        }
+        p.setArchiveRequestByUid(me);
+        repo.persist(p);
+
+        // Push the partner.
+        String partnerUid = me.equals(p.getUserUid()) ? p.getCoOwnerUid() : p.getUserUid();
+        var myProfile = profileRepo.findByUid(me).orElse(null);
+        String requesterName = myProfile != null && myProfile.getDisplayName() != null
+                ? myProfile.getDisplayName()
+                : "Suvlasnik";
+        pushService.sendToUser(partnerUid, new PushService.PushPayload(
+                "Zahtjev za brisanje para",
+                requesterName + " želi obrisati par \"" + p.getName() + "\". Prihvati ili odbij u Postavkama.",
+                "/profile"
+        ));
+        return Response.ok(toDto(p)).build();
+    }
+
+    /**
+     * Confirm the request — sets archived=true and pushes the requester
+     * that their request was accepted. Caller must be the OTHER owner
+     * (the one who didn't file the request).
+     */
+    @POST
+    @Path("/{uuid}/archive-confirm")
+    @Transactional
+    public Response confirmArchive(@PathParam("uuid") UUID uuid) {
+        String me = currentUid();
+        var p = repo.findByUuidForOwnerOrCoOwner(uuid, me).orElse(null);
+        if (p == null) return Response.status(Response.Status.NOT_FOUND).build();
+        if (p.getArchiveRequestByUid() == null) {
+            return Response.status(Response.Status.CONFLICT)
+                    .entity("NO_REQUEST_PENDING").build();
+        }
+        if (Objects.equals(p.getArchiveRequestByUid(), me)) {
+            // The requester is trying to confirm their own request — wrong side.
+            return Response.status(Response.Status.CONFLICT)
+                    .entity("OWN_REQUEST_CANNOT_CONFIRM").build();
+        }
+
+        String requesterUid = p.getArchiveRequestByUid();
+        p.setArchived(true);
+        p.setArchivedAt(OffsetDateTime.now());
+        p.setArchiveRequestByUid(null);
+        repo.persist(p);
+
+        var myProfile = profileRepo.findByUid(me).orElse(null);
+        String confirmerName = myProfile != null && myProfile.getDisplayName() != null
+                ? myProfile.getDisplayName()
+                : "Suvlasnik";
+        pushService.sendToUser(requesterUid, new PushService.PushPayload(
+                "Par obrisan",
+                confirmerName + " je potvrdio brisanje para \"" + p.getName() + "\".",
+                "/profile"
+        ));
+        return Response.noContent().build();
+    }
+
+    /**
+     * Cancel a pending request. Either side can hit this:
+     *   - Requester cancels their own request (changed their mind)
+     *   - Partner rejects the request (doesn't want to archive)
+     */
+    @DELETE
+    @Path("/{uuid}/archive-request")
+    @Transactional
+    public Response cancelArchive(@PathParam("uuid") UUID uuid) {
+        String me = currentUid();
+        var p = repo.findByUuidForOwnerOrCoOwner(uuid, me).orElse(null);
+        if (p == null) return Response.status(Response.Status.NOT_FOUND).build();
+        if (p.getArchiveRequestByUid() == null) {
+            return Response.ok(toDto(p)).build(); // nothing to cancel
+        }
+
+        String requesterUid = p.getArchiveRequestByUid();
+        boolean rejection = !requesterUid.equals(me);
+        p.setArchiveRequestByUid(null);
+        repo.persist(p);
+
+        // If the partner is rejecting, push the original requester so they
+        // know their request was declined.
+        if (rejection) {
+            var myProfile = profileRepo.findByUid(me).orElse(null);
+            String rejecterName = myProfile != null && myProfile.getDisplayName() != null
+                    ? myProfile.getDisplayName()
+                    : "Suvlasnik";
+            pushService.sendToUser(requesterUid, new PushService.PushPayload(
+                    "Zahtjev odbijen",
+                    rejecterName + " je odbio brisanje para \"" + p.getName() + "\".",
+                    "/profile"
+            ));
+        }
         return Response.noContent().build();
     }
 

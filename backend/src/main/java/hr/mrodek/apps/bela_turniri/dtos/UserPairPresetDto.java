@@ -5,6 +5,12 @@ import jakarta.validation.constraints.Size;
 
 import java.util.UUID;
 
+/**
+ * Viewer-aware preset row. Same preset can be viewed by either the
+ * primary submitter or the claimed co-owner — fields are framed
+ * relative to "you" (the viewer) and "your partner" so the frontend
+ * doesn't need to translate role names.
+ */
 public record UserPairPresetDto(
         UUID uuid,
 
@@ -12,35 +18,38 @@ public record UserPairPresetDto(
         @Size(max = 200, message = "name must be at most 200 characters")
         String name,
 
-        /**
-         * Display-time visibility flag. True = the public profile
-         * (anyone but the owner) hides participations under this name.
-         */
         Boolean hidden,
 
-        /**
-         * Co-owner info — populated by the controller when reading
-         * presets so the UI can show "Suvlasnik: X". Owner sees their
-         * own info under {@code primary*}; null when the preset is
-         * unclaimed.
-         */
-        String coOwnerSlug,
-        String coOwnerName,
+        /** "PRIMARY" if the viewer is the original creator of the preset, "CO_OWNER" otherwise. */
+        String myRole,
 
-        /**
-         * Share token. Only emitted to the owner of the preset (and
-         * to admins); other callers get null. Used to build the
-         * /claim-name/{token} URL in the share button.
-         */
-        String claimToken
+        /** The other owner's display info — null until the preset is claimed. */
+        String partnerSlug,
+        String partnerName,
+
+        /** Share token — only emitted to the primary when the preset is unclaimed. */
+        String claimToken,
+
+        /** True if there's a pending archive request that THIS viewer filed. */
+        Boolean archiveRequestedByMe,
+        /** True if there's a pending archive request that the PARTNER filed (awaiting my response). */
+        Boolean archiveRequestedByPartner
 ) {
-    /** Backwards-compat — old 2-arg form used by some callers. */
+    /** 2-arg shim used by older callers that just need uuid + name. */
     public UserPairPresetDto(UUID uuid, String name) {
-        this(uuid, name, Boolean.FALSE, null, null, null);
+        this(uuid, name, Boolean.FALSE, "PRIMARY", null, null, null, Boolean.FALSE, Boolean.FALSE);
     }
 
-    /** Backwards-compat — old 3-arg form (uuid, name, hidden). */
+    /** 3-arg shim with hidden. */
     public UserPairPresetDto(UUID uuid, String name, Boolean hidden) {
-        this(uuid, name, hidden, null, null, null);
+        this(uuid, name, hidden, "PRIMARY", null, null, null, Boolean.FALSE, Boolean.FALSE);
+    }
+
+    /** 6-arg shim used by the pre-archive controller. */
+    public UserPairPresetDto(
+            UUID uuid, String name, Boolean hidden,
+            String coOwnerSlug, String coOwnerName, String claimToken
+    ) {
+        this(uuid, name, hidden, "PRIMARY", coOwnerSlug, coOwnerName, claimToken, Boolean.FALSE, Boolean.FALSE);
     }
 }

@@ -48,9 +48,12 @@ import {
 import type { MyTournamentParticipation } from "../api/userMe"
 import { deleteAvatar, getProfile, syncProfile, updateProfile, uploadAvatar } from "../api/userMe"
 import {
+    cancelPresetArchive,
+    confirmPresetArchive,
     createPreset,
     deletePreset,
     listPresets,
+    requestPresetArchive,
     setPresetVisibility,
     updatePreset,
     type UserPairPreset,
@@ -1056,22 +1059,66 @@ function MyPairsCard() {
         if (!pendingDelete) return
         setDeleting(true)
         try {
-            await deletePreset(pendingDelete.uuid)
-            setPresets((xs) => xs.filter((x) => x.uuid !== pendingDelete.uuid))
+            if (pendingDelete.partnerSlug) {
+                // Co-owned preset: file an archive request instead of deleting.
+                const fresh = await requestPresetArchive(pendingDelete.uuid)
+                setPresets((xs) => xs.map((x) => (x.uuid === fresh.uuid ? fresh : x)))
+            } else {
+                // Unclaimed: instant delete.
+                await deletePreset(pendingDelete.uuid)
+                setPresets((xs) => xs.filter((x) => x.uuid !== pendingDelete.uuid))
+                showSuccess("Par obrisan")
+            }
             setPendingDelete(null)
-            showSuccess("Par obrisan")
         } catch (e: any) {
-            // 409 means the preset has a co-owner — locked from delete.
             if (e?.response?.status === 409) {
                 showError(
                     "Ne može se obrisati",
-                    "Par je podijeljen s partnerom. Sakrij ga od drugih ako ga ne želiš prikazivati.",
+                    "Pokušaj poslati zahtjev partneru.",
                 )
             } else {
                 showError("Brisanje nije uspjelo")
             }
         } finally {
             setDeleting(false)
+        }
+    }
+
+    /** Cancel a request I previously sent. */
+    async function cancelMyArchiveRequest(p: UserPairPreset) {
+        try {
+            await cancelPresetArchive(p.uuid)
+            setPresets((xs) =>
+                xs.map((x) =>
+                    x.uuid === p.uuid ? { ...x, archiveRequestedByMe: false } : x,
+                ),
+            )
+        } catch {
+            showError("Otkazivanje nije uspjelo")
+        }
+    }
+
+    /** Accept partner's request → preset goes away. */
+    async function acceptPartnerArchiveRequest(p: UserPairPreset) {
+        try {
+            await confirmPresetArchive(p.uuid)
+            setPresets((xs) => xs.filter((x) => x.uuid !== p.uuid))
+        } catch {
+            showError("Greška pri potvrdi")
+        }
+    }
+
+    /** Reject partner's request → clear the pending flag. */
+    async function rejectPartnerArchiveRequest(p: UserPairPreset) {
+        try {
+            await cancelPresetArchive(p.uuid)
+            setPresets((xs) =>
+                xs.map((x) =>
+                    x.uuid === p.uuid ? { ...x, archiveRequestedByPartner: false } : x,
+                ),
+            )
+        } catch {
+            showError("Odbijanje nije uspjelo")
         }
     }
 
@@ -1095,11 +1142,11 @@ function MyPairsCard() {
             <Card.Body p={{ base: "4", md: "5" }}>
                 <VStack align="stretch" gap="3">
                     <Box>
-                        <Heading size="sm">Moji pari</Heading>
+                        <Heading size="sm">Moji parovi</Heading>
                         <Text fontSize="xs" color="fg.muted">
-                            Spremljena imena parova. Podijeli sa partnerom da se par
-                            pojavi i na njegovom profilu, ili sakrij od drugih ako ga
-                            ne želiš prikazivati javno.
+                            Spremljeni parovi. Podijeli sa partnerom da se par
+                            pojavi i na njegovom profilu, ili sakrij od drugih ako
+                            ga ne želiš prikazivati javno.
                         </Text>
                     </Box>
 
@@ -1135,14 +1182,16 @@ function MyPairsCard() {
                     ) : (
                         <VStack align="stretch" gap="2">
                             {presets.map((p) => {
-                                const isClaimed = !!p.coOwnerSlug
+                                const isClaimed = !!p.partnerSlug
+                                const reqPending = p.archiveRequestedByMe || p.archiveRequestedByPartner
                                 return (
                                     <Box
                                         key={p.uuid}
                                         borderWidth="1px"
-                                        borderColor="border.emphasized"
+                                        borderColor={p.archiveRequestedByPartner ? "orange.300" : "border.emphasized"}
                                         rounded="md"
                                         p="3"
+                                        bg={p.archiveRequestedByPartner ? "orange.50" : undefined}
                                     >
                                         {editingUuid === p.uuid ? (
                                             <HStack gap="2" align="center" minW="0">
@@ -1181,7 +1230,7 @@ function MyPairsCard() {
                                             </HStack>
                                         ) : (
                                             <>
-                                                {/* Header row — name + status badges + action icons */}
+                                                {/* Header row — name + action icons */}
                                                 <HStack gap="2" align="center" minW="0" mb="2">
                                                     <Text flex="1" minW="0" fontWeight="medium" truncate>
                                                         {p.name}
@@ -1210,30 +1259,37 @@ function MyPairsCard() {
                                                     >
                                                         <FiEdit2 />
                                                     </IconButton>
+                                                    {/* Trash button: for unclaimed presets, opens
+                                                        the delete confirm. For claimed presets,
+                                                        triggers the archive-request flow via the
+                                                        same dialog (the dialog adapts copy). The
+                                                        button is disabled when there's already a
+                                                        pending request — the dedicated reply
+                                                        controls take over below. */}
                                                     <IconButton
-                                                        aria-label={isClaimed ? "Ne može se obrisati — par je podijeljen" : "Obriši"}
-                                                        title={isClaimed ? "Par je podijeljen i ne može se obrisati" : "Obriši"}
+                                                        aria-label={isClaimed ? "Pošalji zahtjev za brisanje" : "Obriši"}
+                                                        title={isClaimed ? "Pošalji zahtjev za brisanje partneru" : "Obriši"}
                                                         size="xs"
                                                         variant="ghost"
                                                         colorPalette="red"
                                                         flexShrink={0}
-                                                        disabled={isClaimed}
+                                                        disabled={reqPending}
                                                         onClick={() => setPendingDelete(p)}
                                                     >
                                                         <FiTrash2 />
                                                     </IconButton>
                                                 </HStack>
 
-                                                {/* Footer row — share button + co-owner badge */}
-                                                <HStack gap="2" wrap="wrap" justify="space-between">
+                                                {/* Status row — partner badge + share/archive controls */}
+                                                <HStack gap="2" wrap="wrap" justify="space-between" align="center">
                                                     {isClaimed ? (
                                                         <Badge colorPalette="green" variant="subtle" size="sm">
-                                                            Suvlasnik:{" "}
+                                                            {p.myRole === "PRIMARY" ? "Suvlasnik" : "Vlasnik"}:{" "}
                                                             <RouterLink
-                                                                to={`/profile/${p.coOwnerSlug}`}
+                                                                to={`/profile/${p.partnerSlug}`}
                                                                 style={{ textDecoration: "underline" }}
                                                             >
-                                                                {p.coOwnerName || p.coOwnerSlug}
+                                                                {p.partnerName || p.partnerSlug}
                                                             </RouterLink>
                                                         </Badge>
                                                     ) : (
@@ -1241,15 +1297,53 @@ function MyPairsCard() {
                                                             Nije podijeljeno
                                                         </Badge>
                                                     )}
-                                                    {!isClaimed && p.claimToken && (
-                                                        <Button
-                                                            size="xs"
-                                                            variant="outline"
-                                                            colorPalette="blue"
-                                                            onClick={() => copyShareLink(p.claimToken!)}
-                                                        >
-                                                            <FiShare2 /> Podijeli sa partnerom
-                                                        </Button>
+
+                                                    {/* Right-side controls — three mutually-exclusive states. */}
+                                                    {p.archiveRequestedByPartner ? (
+                                                        <HStack gap="2" wrap="wrap">
+                                                            <Text fontSize="xs" color="orange.700">
+                                                                Partner traži brisanje
+                                                            </Text>
+                                                            <Button
+                                                                size="xs"
+                                                                colorPalette="red"
+                                                                variant="solid"
+                                                                onClick={() => acceptPartnerArchiveRequest(p)}
+                                                            >
+                                                                Prihvati
+                                                            </Button>
+                                                            <Button
+                                                                size="xs"
+                                                                variant="outline"
+                                                                onClick={() => rejectPartnerArchiveRequest(p)}
+                                                            >
+                                                                Odbij
+                                                            </Button>
+                                                        </HStack>
+                                                    ) : p.archiveRequestedByMe ? (
+                                                        <HStack gap="2" wrap="wrap">
+                                                            <Text fontSize="xs" color="fg.muted">
+                                                                Zahtjev poslan — čeka odgovor
+                                                            </Text>
+                                                            <Button
+                                                                size="xs"
+                                                                variant="outline"
+                                                                onClick={() => cancelMyArchiveRequest(p)}
+                                                            >
+                                                                Otkaži
+                                                            </Button>
+                                                        </HStack>
+                                                    ) : (
+                                                        !isClaimed && p.claimToken && (
+                                                            <Button
+                                                                size="xs"
+                                                                variant="outline"
+                                                                colorPalette="blue"
+                                                                onClick={() => copyShareLink(p.claimToken!)}
+                                                            >
+                                                                <FiShare2 /> Podijeli sa partnerom
+                                                            </Button>
+                                                        )
                                                     )}
                                                 </HStack>
                                             </>
@@ -1262,7 +1356,9 @@ function MyPairsCard() {
                 </VStack>
             </Card.Body>
 
-            {/* Confirm-delete dialog — same UX as before, just hoisted here. */}
+            {/* Confirm dialog — copy adapts based on whether the preset
+                is co-owned. Co-owned presets file an archive request
+                instead of an instant delete (handled in confirmDelete). */}
             <Dialog.Root
                 open={!!pendingDelete}
                 onOpenChange={(e) => { if (!e.open && !deleting) setPendingDelete(null) }}
@@ -1270,19 +1366,31 @@ function MyPairsCard() {
                 <Dialog.Backdrop />
                 <Dialog.Positioner>
                     <Dialog.Content maxW="sm">
-                        <Dialog.Header>Obrisati ime?</Dialog.Header>
+                        <Dialog.Header>
+                            {pendingDelete?.partnerSlug
+                                ? "Pošalji zahtjev za brisanje?"
+                                : "Obrisati par?"}
+                        </Dialog.Header>
                         <Dialog.Body>
-                            <Text>
-                                Sigurno želiš obrisati <b>{pendingDelete?.name}</b>?
-                                Ova radnja se ne može poništiti.
-                            </Text>
+                            {pendingDelete?.partnerSlug ? (
+                                <Text>
+                                    Par <b>{pendingDelete?.name}</b> je podijeljen s{" "}
+                                    <b>{pendingDelete?.partnerName || pendingDelete?.partnerSlug}</b>.
+                                    Zahtjev će biti poslan partneru — par se briše tek kad ga prihvati.
+                                </Text>
+                            ) : (
+                                <Text>
+                                    Sigurno želiš obrisati <b>{pendingDelete?.name}</b>?
+                                    Ova radnja se ne može poništiti.
+                                </Text>
+                            )}
                         </Dialog.Body>
                         <Dialog.Footer>
                             <Button variant="ghost" onClick={() => setPendingDelete(null)} disabled={deleting}>
                                 Odustani
                             </Button>
                             <Button colorPalette="red" onClick={confirmDelete} loading={deleting}>
-                                Obriši
+                                {pendingDelete?.partnerSlug ? "Pošalji zahtjev" : "Obriši"}
                             </Button>
                         </Dialog.Footer>
                     </Dialog.Content>

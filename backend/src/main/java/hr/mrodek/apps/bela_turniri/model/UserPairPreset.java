@@ -57,10 +57,30 @@ public class UserPairPreset {
      * share link. When set, every tournament where the primary
      * played as a pair with this name shows up on the partner's
      * profile too (via the widened findMyParticipations query).
-     * Locks the preset against deletion until cleared.
+     * Locks the preset against unilateral deletion — use the
+     * archive-request flow instead.
      */
     @Column(name = "co_owner_uid", length = 64)
     private String coOwnerUid;
+
+    /**
+     * Set when one owner has filed an archive request and the other
+     * hasn't responded yet. Null while no request is pending. Holds
+     * the requester's Firebase UID so the partner knows who's asking.
+     */
+    @Column(name = "archive_request_by_uid", length = 64)
+    private String archiveRequestByUid;
+
+    /**
+     * True once both owners agreed to remove the pair. The row stays
+     * in the DB for historical reference; UI filters it out of both
+     * Moji parovi lists.
+     */
+    @Column(name = "archived", nullable = false)
+    private boolean archived = false;
+
+    @Column(name = "archived_at")
+    private OffsetDateTime archivedAt;
 
     @CreationTimestamp
     @Column(name = "created_at")
