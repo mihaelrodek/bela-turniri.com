@@ -37,6 +37,19 @@ public record PublicProfileDto(
             /** Number of tournaments this pair has participated in. */
             int tournamentCount,
             /** How many of those tournaments this pair won. */
-            int wins
-    ) {}
+            int wins,
+            /**
+             * When the pair is co-owned via the preset share flow,
+             * these point at the OTHER owner (from the profile owner's
+             * perspective) so the UI can render a clickable link.
+             * Null when the pair isn't shared.
+             */
+            String partnerSlug,
+            String partnerName
+    ) {
+        /** Legacy 3-arg shim for callers that didn't carry partner info. */
+        public PairSummary(String name, int tournamentCount, int wins) {
+            this(name, tournamentCount, wins, null, null);
+        }
+    }
 }

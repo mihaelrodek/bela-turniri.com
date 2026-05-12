@@ -6,6 +6,13 @@ export type PairSummary = {
     name: string
     tournamentCount: number
     wins: number
+    /**
+     * When the pair is co-owned via the share-with-partner flow, these
+     * point at the OTHER owner from the profile owner's perspective so
+     * the chip can render a clickable link to their profile.
+     */
+    partnerSlug?: string | null
+    partnerName?: string | null
 }
 
 export type PublicProfile = {

@@ -321,6 +321,34 @@ export default function PublicProfilePage() {
                                 </HStack>
                             )}
 
+                            {/* Partner link for the currently selected pair.
+                                Rendered as a separate clickable element
+                                because nesting it inside the chip button is
+                                an HTML anti-pattern (button-in-button). */}
+                            {activePair && (() => {
+                                const cur = profile.pairs.find(
+                                    (p) => pairKey(p.name) === pairKey(activePair),
+                                )
+                                if (!cur || !cur.partnerSlug) return null
+                                return (
+                                    <HStack gap="2" fontSize="sm" color="fg.muted">
+                                        <FiShare2 size={14} />
+                                        <Text>
+                                            Suvlasnik:{" "}
+                                            <RouterLink
+                                                to={`/profile/${cur.partnerSlug}`}
+                                                style={{
+                                                    color: "var(--chakra-colors-blue-fg)",
+                                                    fontWeight: 500,
+                                                }}
+                                            >
+                                                {cur.partnerName || cur.partnerSlug}
+                                            </RouterLink>
+                                        </Text>
+                                    </HStack>
+                                )
+                            })()}
+
                             {/* Tournament list — only after a pair is picked */}
                             {activePair && (
                                 <>
@@ -802,6 +830,14 @@ function PairChip({
                         <FaTrophy size={10} />
                         <Text fontSize="xs">{pair.wins}</Text>
                     </HStack>
+                )}
+                {pair.partnerSlug && (
+                    // Tiny "shared" indicator — the actual partner link
+                    // renders below the chip strip so it stays accessible
+                    // (no nested clickable inside the button).
+                    <Box color={active ? "blue.100" : "blue.fg"} title="Podijeljeno s partnerom">
+                        <FiShare2 size={11} />
+                    </Box>
                 )}
             </HStack>
         </Button>

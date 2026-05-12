@@ -1,5 +1,5 @@
-import React, { useState } from "react"
-import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom"
+import React, { useEffect, useState } from "react"
+import { Link as RouterLink, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import {
     Box,
     Button,
@@ -34,7 +34,8 @@ function authErrorMessage(err: any): string {
 export default function RegisterPage() {
     const navigate = useNavigate()
     const location = useLocation()
-    const { signUp, signInWithGoogle } = useAuth()
+    const [searchParams] = useSearchParams()
+    const { signUp, signInWithGoogle, user, loading: authLoading } = useAuth()
 
     const [name, setName] = useState("")
     const [email, setEmail] = useState("")
@@ -43,7 +44,23 @@ export default function RegisterPage() {
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const redirectTo = (location.state as { from?: string } | null)?.from ?? "/tournaments"
+    // Honour ?next= from the URL (claim-name flow uses it), then
+    // navigation-state hint, then the default home for tournaments.
+    const redirectTo =
+        searchParams.get("next") ??
+        (location.state as { from?: string } | null)?.from ??
+        "/tournaments"
+
+    /**
+     * If the user is already signed in, /register has nothing to do —
+     * bounce them to the redirect target with {replace} so the back
+     * button doesn't loop here.
+     */
+    useEffect(() => {
+        if (!authLoading && user?.uid) {
+            navigate(redirectTo, { replace: true })
+        }
+    }, [authLoading, user?.uid, redirectTo, navigate])
 
     async function onSubmit(e: React.FormEvent) {
         e.preventDefault()

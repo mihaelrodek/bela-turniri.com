@@ -58,11 +58,17 @@ public class PublicProfileController {
 
     /**
      * True when no Firebase ID token was presented (or it didn't verify).
-     * Quarkus OIDC runs in lazy mode (proactive=false), so anonymous
-     * traffic still gets a SecurityIdentity — just one marked anonymous.
+     *
+     * We check {@code jwt.getSubject()} instead of
+     * {@code identity.isAnonymous()} because Quarkus OIDC runs in
+     * non-proactive mode (proactive=false) — under that setting,
+     * SecurityIdentity stays anonymous on endpoints without
+     * {@code @Authenticated} even when a valid bearer token is in the
+     * request. Injecting JsonWebToken and reading the subject DOES force
+     * verification, so this is the reliable signal.
      */
     private boolean isAnonymous() {
-        return identity == null || identity.isAnonymous();
+        return jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank();
     }
 
     @GET
@@ -73,47 +79,81 @@ public class PublicProfileController {
 
         String uid = profile.getUserUid();
 
-        // Owner viewing own profile sees everything; visitors see only
-        // pairs whose name isn't on a hidden preset. We need the full
-        // preset list either way — for the broadened participation query
-        // AND to compute the hidden-name set.
-        var allPresets = presetRepo.findByUserUid(uid);
-        var presetNames = allPresets.stream()
-                .map(UserPairPreset::getName)
-                .toList();
+        // Load every preset the profile owner is a party to — primary OR
+        // co-owner — across BOTH active and archived rows. We need the
+        // archived set to filter participations, the active+claimed set
+        // to attach partner info to each pair summary, and the legacy
+        // by-name list for the participations query fallback.
+        var ownedPresets = presetRepo.list(
+                "userUid = ?1 or coOwnerUid = ?1",
+                uid
+        );
 
-        // Determine viewer identity. Owner-of-this-profile sees everything;
-        // anonymous + everyone else gets hidden-pair-name filtering.
-        String viewerUid = (jwt != null) ? jwt.getSubject() : null;
-        boolean viewerIsOwner = viewerUid != null && viewerUid.equals(uid);
-
+        // Archived names — hidden from EVERYONE (owner + visitors).
+        // Once both owners agreed to archive, the pair is "gone" from
+        // public-facing UI even though the underlying Pairs rows stay
+        // for tournament-side history.
+        Set<String> archivedLowered = new HashSet<>();
+        // Hidden names — only filtered for non-owner viewers.
         Set<String> hiddenLowered = new HashSet<>();
-        if (!viewerIsOwner) {
-            for (var pp : allPresets) {
-                if (pp.isHidden() && pp.getName() != null) {
-                    hiddenLowered.add(pp.getName().trim().toLowerCase(Locale.ROOT));
-                }
+        // Map of name → partner profile, used to enrich PairSummary so
+        // the UI can show a clickable "Partner: X" on each chip.
+        Map<String, hr.mrodek.apps.bela_turniri.model.UserProfile> partnerByName = new HashMap<>();
+
+        for (var pp : ownedPresets) {
+            if (pp.getName() == null) continue;
+            String key = pp.getName().trim().toLowerCase(Locale.ROOT);
+            if (pp.isArchived()) {
+                archivedLowered.add(key);
+                continue;
+            }
+            if (pp.isHidden()) hiddenLowered.add(key);
+            // Active + claimed → resolve the OTHER owner from the
+            // profile-owner's perspective and stash for later lookup.
+            String partnerUid = null;
+            if (uid.equals(pp.getUserUid())) {
+                partnerUid = pp.getCoOwnerUid();
+            } else if (uid.equals(pp.getCoOwnerUid())) {
+                partnerUid = pp.getUserUid();
+            }
+            if (partnerUid != null && !partnerUid.isBlank()) {
+                profileRepo.findByUid(partnerUid).ifPresent(pr -> partnerByName.put(key, pr));
             }
         }
 
-        // Reuse the same broadened "my participations" query so an organizer
-        // who manually added their pair shows up too.
+        // Determine viewer identity. Owner-of-this-profile sees hidden
+        // pairs (just not the archived ones); anonymous + everyone else
+        // gets both hidden + archived filtering.
+        String viewerUid = (jwt != null) ? jwt.getSubject() : null;
+        boolean viewerIsOwner = viewerUid != null && viewerUid.equals(uid);
+
+        // Preset names list for the legacy by-name participation fallback,
+        // skipping archived ones (no point pulling pairs that we'll
+        // immediately filter back out).
+        List<String> presetNames = ownedPresets.stream()
+                .filter(pp -> !pp.isArchived())
+                .map(UserPairPreset::getName)
+                .toList();
+
         var participations = pairRepo.findMyParticipations(uid, presetNames);
 
         var participationDtos = participations.stream()
                 .map(PublicProfileController::toParticipationDto)
                 .filter(p -> {
-                    // Filter out hidden-name participations for non-owner viewers.
-                    if (viewerIsOwner) return true;
                     if (p.pairName() == null) return true;
                     String key = p.pairName().trim().toLowerCase(Locale.ROOT);
-                    return !hiddenLowered.contains(key);
+                    // Archived → drop for everyone.
+                    if (archivedLowered.contains(key)) return false;
+                    // Hidden → drop for non-owner viewers only.
+                    if (!viewerIsOwner && hiddenLowered.contains(key)) return false;
+                    return true;
                 })
                 .toList();
 
         // Build pair summary by collapsing on lower-cased trimmed name and
-        // counting tournaments + wins per group.
-        Map<String, int[]> agg = new LinkedHashMap<>(); // key = lowercased name → [count, wins], value preserves first-seen pretty name via name map
+        // counting tournaments + wins per group. Attach partner info
+        // (the OTHER owner) when the name matches an active claimed preset.
+        Map<String, int[]> agg = new LinkedHashMap<>();
         Map<String, String> prettyName = new LinkedHashMap<>();
         for (var p : participationDtos) {
             String key = p.pairName() == null ? "" : p.pairName().trim().toLowerCase(Locale.ROOT);
@@ -126,10 +166,13 @@ public class PublicProfileController {
 
         var pairs = new ArrayList<PublicProfileDto.PairSummary>(agg.size());
         for (var e : agg.entrySet()) {
+            var partner = partnerByName.get(e.getKey());
             pairs.add(new PublicProfileDto.PairSummary(
                     prettyName.get(e.getKey()),
                     e.getValue()[0],
-                    e.getValue()[1]
+                    e.getValue()[1],
+                    partner == null ? null : partner.getSlug(),
+                    partner == null ? null : partner.getDisplayName()
             ));
         }
         // Most-played pair first so the UI default selection is the strongest signal.

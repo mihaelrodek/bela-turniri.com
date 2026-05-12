@@ -1,6 +1,6 @@
-import { Box, Button, Heading, HStack, Text, VStack } from "@chakra-ui/react"
-import { Link as RouterLink } from "react-router-dom"
-import { FiArrowLeft, FiHome } from "react-icons/fi"
+import {Box, Button, Heading, HStack, Text, VStack} from "@chakra-ui/react"
+import {Link as RouterLink} from "react-router-dom"
+import {FiArrowLeft} from "react-icons/fi"
 
 /**
  * Catch-all for unmatched URLs. Avoids the React Router default of rendering
@@ -8,13 +8,13 @@ import { FiArrowLeft, FiHome } from "react-icons/fi"
  */
 export default function NotFoundPage() {
     return (
-        <VStack align="stretch" gap="4" maxW="640px" mx="auto" py={{ base: "8", md: "12" }}>
+        <VStack align="stretch" gap="4" maxW="640px" mx="auto" py={{base: "8", md: "12"}}>
             <Box
                 borderWidth="1px"
                 borderColor="border.emphasized"
                 rounded="xl"
                 shadow="sm"
-                p={{ base: "6", md: "8" }}
+                p={{base: "6", md: "8"}}
                 textAlign="center"
             >
                 <Heading size="3xl" color="blue.fg" mb="2">404</Heading>
@@ -29,17 +29,7 @@ export default function NotFoundPage() {
                         size="sm"
                     >
                         <RouterLink to="/tournaments">
-                            <FiArrowLeft /> Natrag na turnire
-                        </RouterLink>
-                    </Button>
-                    <Button
-                        asChild
-                        variant="solid"
-                        colorPalette="blue"
-                        size="sm"
-                    >
-                        <RouterLink to="/">
-                            <FiHome /> Početna
+                            <FiArrowLeft/> Natrag na turnire
                         </RouterLink>
                     </Button>
                 </HStack>

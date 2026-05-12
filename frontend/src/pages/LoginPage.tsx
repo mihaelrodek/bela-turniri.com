@@ -1,5 +1,5 @@
-import React, { useState } from "react"
-import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom"
+import React, { useEffect, useState } from "react"
+import { Link as RouterLink, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import {
     Box,
     Button,
@@ -41,7 +41,8 @@ function authErrorMessage(err: any): string {
 export default function LoginPage() {
     const navigate = useNavigate()
     const location = useLocation()
-    const { signIn, signInWithGoogle } = useAuth()
+    const [searchParams] = useSearchParams()
+    const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth()
 
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
@@ -49,8 +50,25 @@ export default function LoginPage() {
     const [error, setError] = useState<string | null>(null)
     const [resetMsg, setResetMsg] = useState<string | null>(null)
 
-    // Where to send the user after a successful sign-in.
-    const redirectTo = (location.state as { from?: string } | null)?.from ?? "/tournaments"
+    // Where to send the user after a successful sign-in. Accepts a
+    // ?next=/path query param (used by the claim-name share flow) and
+    // falls back to whatever the navigation state carried (route guard
+    // bumps a "from" hint in there).
+    const redirectTo =
+        searchParams.get("next") ??
+        (location.state as { from?: string } | null)?.from ??
+        "/tournaments"
+
+    /**
+     * If the user is already authenticated, /login has nothing to do —
+     * send them straight to the redirect target. Use {replace} so the
+     * browser back button doesn't bounce them back to /login.
+     */
+    useEffect(() => {
+        if (!authLoading && user?.uid) {
+            navigate(redirectTo, { replace: true })
+        }
+    }, [authLoading, user?.uid, redirectTo, navigate])
 
     async function onSubmit(e: React.FormEvent) {
         e.preventDefault()
