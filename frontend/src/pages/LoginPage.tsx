@@ -57,7 +57,7 @@ export default function LoginPage() {
     const redirectTo =
         searchParams.get("next") ??
         (location.state as { from?: string } | null)?.from ??
-        "/tournaments"
+        "/turniri"
 
     /**
      * If the user is already authenticated, /login has nothing to do —
@@ -195,7 +195,7 @@ export default function LoginPage() {
                             <Text fontSize="sm" color="fg.muted">
                                 Nemaš račun?{" "}
                                 <Box as="span" color="blue.fg" fontWeight="medium">
-                                    <RouterLink to="/register">Registriraj se</RouterLink>
+                                    <RouterLink to="/registracija">Registriraj se</RouterLink>
                                 </Box>
                             </Text>
                         </HStack>

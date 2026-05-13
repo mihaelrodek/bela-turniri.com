@@ -67,7 +67,7 @@ export default function ClaimNamePage() {
         try {
             await claimPreset(token)
             setMessage({ kind: "ok", text: "Par je dodan na tvoj profil." })
-            setTimeout(() => navigate("/profile", { replace: true }), 1200)
+            setTimeout(() => navigate("/profil", { replace: true }), 1200)
         } catch (err: any) {
             const status = err?.response?.status
             const body = err?.response?.data
@@ -110,7 +110,7 @@ export default function ClaimNamePage() {
                             Poveznica za preuzimanje para nije valjana. Pitaj suigrača da ti pošalje novu vezu.
                         </Text>
                         <Button asChild variant="outline" size="sm" mt="2">
-                            <RouterLink to="/tournaments">Natrag na turnire</RouterLink>
+                            <RouterLink to="/turniri">Natrag na turnire</RouterLink>
                         </Button>
                     </VStack>
                 </Card.Body>
@@ -133,7 +133,7 @@ export default function ClaimNamePage() {
                             <Text fontWeight="medium">
                                 {preview.primarySlug ? (
                                     <RouterLink
-                                        to={`/profile/${preview.primarySlug}`}
+                                        to={`/profil/${preview.primarySlug}`}
                                         style={{ color: "var(--chakra-colors-blue-fg)" }}
                                     >
                                         {preview.primaryName}
@@ -179,7 +179,7 @@ export default function ClaimNamePage() {
 
                     {!user?.uid ? (
                         <Button asChild colorPalette="blue" variant="solid" size="md">
-                            <RouterLink to={`/login?next=${encodeURIComponent(`/claim-name/${token}`)}`}>
+                            <RouterLink to={`/prijava?next=${encodeURIComponent(`/preuzmi-ime/${token}`)}`}>
                                 Prijavi se da preuzmeš
                             </RouterLink>
                         </Button>

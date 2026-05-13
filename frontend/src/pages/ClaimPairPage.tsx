@@ -74,7 +74,7 @@ export default function ClaimPairPage() {
             })
             // Short delay so the user sees confirmation, then jump to their profile.
             setTimeout(() => {
-                navigate("/profile", { replace: true })
+                navigate("/profil", { replace: true })
             }, 1200)
         } catch (err: any) {
             const status = err?.response?.status
@@ -125,7 +125,7 @@ export default function ClaimPairPage() {
                             obrisan. Pitaj svojeg suigrača da ti pošalje novu vezu.
                         </Text>
                         <Button asChild variant="outline" size="sm" mt="2">
-                            <RouterLink to="/tournaments">Natrag na turnire</RouterLink>
+                            <RouterLink to="/turniri">Natrag na turnire</RouterLink>
                         </Button>
                     </VStack>
                 </Card.Body>
@@ -147,7 +147,7 @@ export default function ClaimPairPage() {
                         <Text fontWeight="medium">
                             {preview.tournamentRef ? (
                                 <RouterLink
-                                    to={`/tournaments/${preview.tournamentRef}`}
+                                    to={`/turniri/${preview.tournamentRef}`}
                                     style={{ color: "var(--chakra-colors-blue-fg)" }}
                                 >
                                     {preview.tournamentName}
@@ -175,7 +175,7 @@ export default function ClaimPairPage() {
                             <Text fontWeight="medium">
                                 {preview.primarySlug ? (
                                     <RouterLink
-                                        to={`/profile/${preview.primarySlug}`}
+                                        to={`/profil/${preview.primarySlug}`}
                                         style={{ color: "var(--chakra-colors-blue-fg)" }}
                                     >
                                         {preview.primaryName}
@@ -229,7 +229,7 @@ export default function ClaimPairPage() {
                             size="md"
                         >
                             <RouterLink
-                                to={`/login?next=${encodeURIComponent(`/claim-pair/${token}`)}`}
+                                to={`/prijava?next=${encodeURIComponent(`/preuzmi-par/${token}`)}`}
                             >
                                 Prijavi se da preuzmeš
                             </RouterLink>

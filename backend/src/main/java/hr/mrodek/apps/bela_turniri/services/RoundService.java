@@ -200,7 +200,11 @@ public class RoundService {
             // ?match={id} on mount, switches to the Ždrijeb tab, expands
             // the round, and scrolls the row into view (no modal opened
             // — there's no bill yet at this point in the tournament).
-            String matchUrl = "/tournaments/" + tournamentRef + "?match=" + m.getId();
+            // SPA route is /turniri/{slug} since the Croatian-routes refactor.
+            // /tournaments/... still works as a 301 alias, but emitting the
+            // canonical URL means the SW notification-click handler navigates
+            // without a redirect hop.
+            String matchUrl = "/turniri/" + tournamentRef + "?match=" + m.getId();
             // Tag groups notifications per round so a re-draw or a follow-up
             // notification for the same player+round replaces the previous
             // instead of stacking on the lock screen.
@@ -379,7 +383,7 @@ public class RoundService {
                     new PushService.PushPayload(
                             "Izgubili ste meč",
                             body,
-                            "/tournaments/" + tournamentRef + "?bill=" + m.getId(),
+                            "/turniri/" + tournamentRef + "?bill=" + m.getId(),
                             "/bela-turniri-symbol.png",
                             tag + "-" + uid
                     )

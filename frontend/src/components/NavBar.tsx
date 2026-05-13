@@ -104,7 +104,7 @@ export default function NavBar() {
         try {
             await signOut()
         } finally {
-            navigate("/tournaments")
+            navigate("/turniri")
         }
     }
 
@@ -116,7 +116,7 @@ export default function NavBar() {
             // navbar was redundant noise.
             return (
                 <Button asChild size="sm" variant="solid" colorPalette="blue">
-                    <RouterLink to="/login">Prijava</RouterLink>
+                    <RouterLink to="/prijava">Prijava</RouterLink>
                 </Button>
             )
         }
@@ -138,7 +138,7 @@ export default function NavBar() {
                                 {user.email ?? user.displayName ?? "Anonimno"}
                             </Text>
                         </Box>
-                        <Menu.Item value="profile" onSelect={() => navigate("/profile")}>
+                        <Menu.Item value="profile" onSelect={() => navigate("/profil")}>
                             <FiUser /> Profil
                         </Menu.Item>
                         <Menu.Item value="logout" onSelect={onSignOut}>
@@ -153,7 +153,7 @@ export default function NavBar() {
     // zIndex must beat Leaflet's internal panes (controls go up to ~800)
     // because Menu.Positioner is rendered inside this sticky header's
     // stacking context — without it the profile dropdown ends up behind
-    // the Leaflet map on /map.
+    // the Leaflet map on /karta.
     return (
         <Box as="header" bg={bg} borderBottomWidth="1px" borderColor={border} position="sticky" top={0} zIndex={1000}>
             <Container maxW="6xl" py={3}>
@@ -184,7 +184,7 @@ export default function NavBar() {
                             _focusVisible={{ outline: "2px solid", outlineColor: "blue.solid", outlineOffset: "2px", borderRadius: "md" }}
                         >
                             <RouterLink
-                                to="/tournaments"
+                                to="/turniri"
                                 aria-label="Bela Turniri — naslovnica"
                             >
                                 <Image
@@ -206,13 +206,13 @@ export default function NavBar() {
                     </Box>
 
                     <HStack gap={2} justify="center">
-                        <NavButton to="/tournaments" exact>
+                        <NavButton to="/turniri" exact>
                             Turniri
                         </NavButton>
-                        <NavButton to="/calendar">Kalendar</NavButton>
-                        <NavButton to="/tournaments/new">Kreiraj turnir</NavButton>
-                        <NavButton to="/map">Karta</NavButton>
-                        <NavButton to="/find-pair">Pronađi para</NavButton>
+                        <NavButton to="/kalendar">Kalendar</NavButton>
+                        <NavButton to="/turniri/novi">Kreiraj turnir</NavButton>
+                        <NavButton to="/karta">Karta</NavButton>
+                        <NavButton to="/pronadi-para">Pronađi para</NavButton>
                     </HStack>
 
                     <HStack justify="end" gap="1.5">
@@ -239,7 +239,7 @@ export default function NavBar() {
                         _focusVisible={{ outline: "2px solid", outlineColor: "blue.solid", outlineOffset: "2px", borderRadius: "md" }}
                     >
                         <RouterLink
-                            to="/tournaments"
+                            to="/turniri"
                             aria-label="Bela Turniri — naslovnica"
                         >
                             <Image
@@ -274,7 +274,7 @@ export default function NavBar() {
                                             {user.email ?? user.displayName ?? "Anonimno"}
                                         </Text>
                                     </Box>
-                                    <Menu.Item value="profile" onSelect={() => navigate("/profile")}>
+                                    <Menu.Item value="profile" onSelect={() => navigate("/profil")}>
                                         <FiUser /> Profil
                                     </Menu.Item>
                                     <Menu.Item value="logout" onSelect={onSignOut}>
@@ -292,7 +292,7 @@ export default function NavBar() {
                         it above). */}
                     {!loading && !user && (
                         <Button asChild size="sm" variant="solid" colorPalette="blue" mr={1}>
-                            <RouterLink to="/login">Prijava</RouterLink>
+                            <RouterLink to="/prijava">Prijava</RouterLink>
                         </Button>
                     )}
                     {/* Install button moved inside the burger drawer below
@@ -311,13 +311,13 @@ export default function NavBar() {
                 {open && (
                     <Box pt={3} pb={2} display={{ md: "none" }}>
                         <Stack gap={2} onClick={onClose}>
-                            <NavButton to="/tournaments" exact>
+                            <NavButton to="/turniri" exact>
                                 Turniri
                             </NavButton>
-                            <NavButton to="/calendar">Kalendar</NavButton>
-                            <NavButton to="/tournaments/new">Kreiraj turnir</NavButton>
-                            <NavButton to="/map">Karta</NavButton>
-                            <NavButton to="/find-pair">Pronađi para</NavButton>
+                            <NavButton to="/kalendar">Kalendar</NavButton>
+                            <NavButton to="/turniri/novi">Kreiraj turnir</NavButton>
+                            <NavButton to="/karta">Karta</NavButton>
+                            <NavButton to="/pronadi-para">Pronađi para</NavButton>
 
                             {/* "Install app" lives here as a labeled
                                 button — only renders when installation is

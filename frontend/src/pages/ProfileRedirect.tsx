@@ -4,12 +4,12 @@ import { Box, Spinner, Text, VStack } from "@chakra-ui/react"
 import { useAuth } from "../auth/AuthContext"
 
 /**
- * Sits at /profile and forwards to /profile/{my-slug} once the slug from
+ * Sits at /profil and forwards to /profil/{my-slug} once the slug from
  * /user/me/sync has landed. We don't have the slug at first paint because
  * the auth-state callback fires the sync asynchronously, so we show a small
  * spinner while we wait.
  *
- * Anonymous visitors are bounced to /login (with a return-to so they come
+ * Anonymous visitors are bounced to /prijava (with a return-to so they come
  * back here after signing in).
  */
 export default function ProfileRedirect() {
@@ -20,14 +20,14 @@ export default function ProfileRedirect() {
     useEffect(() => {
         if (loading) return
         if (!user) {
-            navigate("/login", {
+            navigate("/prijava", {
                 state: { from: `${location.pathname}${location.search}` },
                 replace: true,
             })
             return
         }
         if (mySlug) {
-            navigate(`/profile/${mySlug}`, { replace: true })
+            navigate(`/profil/${mySlug}`, { replace: true })
         }
     }, [loading, user, mySlug, navigate, location.pathname, location.search])
 

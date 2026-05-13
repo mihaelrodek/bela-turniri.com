@@ -25,8 +25,10 @@ import java.util.Optional;
  * TournamentPreviewController}; same proxy-routing pattern.
  *
  * <p>Endpoint: {@code GET /api/preview/profiles/{slug}} → text/html with
- * profile-specific {@code og:*} meta tags and a meta-refresh redirect to
- * {@code /profile/<slug>} for any human who hits this URL directly.
+ * profile-specific {@code og:*} meta tags. Caddy rewrites the canonical
+ * Croatian SPA path {@code /profil/<slug>} (and its English alias
+ * {@code /profile/<slug>}, which 301s to the Croatian one) here for
+ * crawlers; real users keep getting the SPA.
  *
  * <p>Phone numbers are deliberately NOT included in the preview meta —
  * crawlers cache the meta indefinitely and we don't want phone numbers
@@ -85,7 +87,9 @@ public class ProfilePreviewController {
         String description = buildDescription(displayName, total, wins);
 
         String base = publicBaseUrl.replaceAll("/+$", "");
-        String spaUrl = base + "/profile/" + slug;
+        // Canonical profile URL is Croatian (/profil/...). See sibling
+        // comment in TournamentPreviewController for the same rationale.
+        String spaUrl = base + "/profil/" + slug;
 
         // Prefer the user's own avatar as og:image / schema.org image —
         // falls back to the app-default og image when missing. This makes

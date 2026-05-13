@@ -20,7 +20,7 @@ import { useEffect } from "react"
  *     description: "...",
  *     ogTitle: "Velika Bela Liga, Zagreb",
  *     ogImage: "https://...",
- *     canonical: "https://bela-turniri.com/tournaments/abc",
+ *     canonical: "https://bela-turniri.com/turniri/abc",
  *   })
  */
 export type DocumentHead = {

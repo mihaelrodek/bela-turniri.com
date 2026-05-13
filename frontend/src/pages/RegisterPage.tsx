@@ -49,7 +49,7 @@ export default function RegisterPage() {
     const redirectTo =
         searchParams.get("next") ??
         (location.state as { from?: string } | null)?.from ??
-        "/tournaments"
+        "/turniri"
 
     /**
      * If the user is already signed in, /register has nothing to do —
@@ -183,7 +183,7 @@ export default function RegisterPage() {
                         <Text fontSize="sm" color="fg.muted" textAlign="center">
                             Već imaš račun?{" "}
                             <Box as="span" color="blue.fg" fontWeight="medium">
-                                <RouterLink to="/login">Prijavi se</RouterLink>
+                                <RouterLink to="/prijava">Prijavi se</RouterLink>
                             </Box>
                         </Text>
                     </VStack>

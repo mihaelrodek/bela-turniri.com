@@ -334,7 +334,7 @@ export default function FindPairPage() {
                     colorPalette="blue"
                     onClick={() => {
                         if (!user) {
-                            navigate("/login", {
+                            navigate("/prijava", {
                                 state: { from: `${location.pathname}${location.search}` },
                             })
                             return
@@ -725,7 +725,7 @@ function RequestCard({
 
             {/* Tournament link */}
             <RouterLink
-                to={`/tournaments/${r.tournamentSlug ?? r.tournamentUuid}`}
+                to={`/turniri/${r.tournamentSlug ?? r.tournamentUuid}`}
                 style={{ textDecoration: "none" }}
             >
                 <Box

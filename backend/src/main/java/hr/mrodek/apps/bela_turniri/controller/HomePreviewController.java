@@ -15,7 +15,7 @@ import java.util.Locale;
 
 /**
  * Server-rendered preview pages for the two highest-traffic SEO routes:
- * the homepage ({@code /}) and the tournament list ({@code /tournaments}).
+ * the homepage ({@code /}) and the tournament list ({@code /turniri}).
  * Companion to {@link TournamentPreviewController} and
  * {@link ProfilePreviewController}; same Caddy UA-rewrite pattern.
  *
@@ -24,7 +24,7 @@ import java.util.Locale;
  *     Googlebot does run JS, but for new domains its rendering budget is
  *     small and the queue can be days-to-weeks long. Until the SPA is
  *     pre-rendered at build time (or moved to SSR), this is the only
- *     way Googlebot sees real content at {@code /} and {@code /tournaments}.
+ *     way Googlebot sees real content at {@code /} and {@code /turniri}.
  *   - These two URLs are also where the ranking-relevant queries land
  *     ("bela turniri", "bela turniri hrvatska", "bela turniri zagreb"),
  *     so they have to outrank the SPA's blank HTML for the site to
@@ -33,7 +33,8 @@ import java.util.Locale;
  * <p>Routing:
  *   - {@code GET /api/preview/home}  ← Caddy rewrites {@code /} for bots
  *   - {@code GET /api/preview/tournaments-list}  ← Caddy rewrites
- *     {@code /tournaments} for bots
+ *     {@code /turniri} (and its English 301 alias {@code /tournaments})
+ *     for bots
  *
  * <p>The {@code -list} suffix on the second route is deliberate — the
  * existing {@link TournamentPreviewController} already owns
@@ -96,7 +97,7 @@ public class HomePreviewController {
      *   - A short list of upcoming tournaments — gives Googlebot internal
      *     links to discover detail pages (which themselves have rich
      *     bodies via {@link TournamentPreviewController}).
-     *   - Nav links to /tournaments, /map, /calendar so PageRank flows
+     *   - Nav links to /turniri, /karta, /kalendar so PageRank flows
      *     to the secondary indexable pages.
      */
     private String renderHome(List<Tournaments> upcoming) {
@@ -134,10 +135,11 @@ public class HomePreviewController {
         }
 
         // Site-wide nav so Googlebot can crawl secondary pages from here.
+        // All URLs use Croatian slugs — they're the canonical paths now.
         sb.append("<section>\n<h2>Istraži</h2>\n<ul>\n");
-        sb.append("<li><a href=\"https://bela-turniri.com/tournaments\">Svi turniri</a></li>\n");
-        sb.append("<li><a href=\"https://bela-turniri.com/calendar\">Kalendar turnira</a></li>\n");
-        sb.append("<li><a href=\"https://bela-turniri.com/map\">Karta turnira</a></li>\n");
+        sb.append("<li><a href=\"https://bela-turniri.com/turniri\">Svi turniri</a></li>\n");
+        sb.append("<li><a href=\"https://bela-turniri.com/kalendar\">Kalendar turnira</a></li>\n");
+        sb.append("<li><a href=\"https://bela-turniri.com/karta\">Karta turnira</a></li>\n");
         sb.append("</ul>\n</section>\n");
 
         sb.append("<hr>\n<p><a href=\"https://bela-turniri.com/\">"
@@ -158,7 +160,7 @@ public class HomePreviewController {
                 "Bela turniri u Hrvatskoj — popis turnira | bela-turniri.com",
                 "Popis svih nadolazećih i odigranih Bela turnira u Hrvatskoj. "
                         + "Pretraži po lokaciji, datumu i cijeni.",
-                "https://bela-turniri.com/tournaments");
+                "https://bela-turniri.com/turniri");
         sb.append("</head>\n<body>\n<article>\n");
         sb.append("<h1>Bela turniri</h1>\n");
         sb.append("<p>Popis svih turnira u bazi bela-turniri.com. "
@@ -177,7 +179,7 @@ public class HomePreviewController {
             sb.append("</ul>\n</section>\n");
         }
 
-        sb.append("<hr>\n<p><a href=\"https://bela-turniri.com/tournaments\">"
+        sb.append("<hr>\n<p><a href=\"https://bela-turniri.com/turniri\">"
                 + "Otvori popis turnira u aplikaciji</a></p>\n");
         sb.append("</article>\n</body>\n</html>\n");
         return sb.toString();
@@ -189,7 +191,7 @@ public class HomePreviewController {
      * the sitemap.
      */
     private void appendTournamentListItem(StringBuilder sb, Tournaments t) {
-        String href = "https://bela-turniri.com/tournaments/"
+        String href = "https://bela-turniri.com/turniri/"
                 + (t.getSlug() != null && !t.getSlug().isBlank()
                         ? t.getSlug() : t.getUuid().toString());
         sb.append("<li><a href=\"").append(escapeAttr(href)).append("\">");

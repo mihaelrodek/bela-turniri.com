@@ -32,10 +32,11 @@ import java.util.Optional;
  * tournament-specific {@code og:*} / Twitter-card meta tags.
  *
  * <p>Wiring it up: in your reverse proxy (nginx, Cloudflare Worker, etc.),
- * detect known crawler User-Agents on {@code /tournaments/<uuid>} and rewrite
- * to {@code /api/preview/tournaments/<uuid>}. Real users keep getting the
- * SPA. See the nginx snippet in {@code DEPLOYMENT.md} (or the repo's
- * deploy notes) for the exact regex.
+ * detect known crawler User-Agents on {@code /turniri/<slug>} and rewrite
+ * to {@code /api/preview/tournaments/<slug>}. Real users keep getting the
+ * SPA. The English alias {@code /tournaments/<slug>} 301-redirects to the
+ * Croatian path at the Caddy layer, so the same rewrite covers it. See
+ * the snippet in {@code Caddyfile} for the exact regex.
  *
  * <p>The body also has a {@code <meta http-equiv="refresh">} that bounces a
  * human who lands on this URL directly back to the SPA route, so it's safe
@@ -80,7 +81,11 @@ public class TournamentPreviewController {
         String description = buildDescription(t);
 
         String base = publicBaseUrl.replaceAll("/+$", "");
-        String spaUrl = base + "/tournaments/" + idOrSlug;
+        // Canonical SPA URL is Croatian (/turniri/...). English /tournaments/...
+        // still works as a 301 alias via Caddy, but we never emit it from
+        // server-side rendering or canonical links — Google would otherwise
+        // index the alias instead of the canonical URL.
+        String spaUrl = base + "/turniri/" + idOrSlug;
 
 
         // og:image must be an absolute URL — bots fetch it directly from
@@ -189,7 +194,7 @@ public class TournamentPreviewController {
                 .append("</script>\n");
 
         // NB: we INTENTIONALLY do not emit a <meta http-equiv="refresh">
-        // here. Caddy's UA-routing rewrites the original /tournaments/<slug>
+        // here. Caddy's UA-routing rewrites the original /turniri/<slug>
         // URL to /api/preview/tournaments/<slug> for crawlers, so when
         // Googlebot follows a refresh it loops right back here. The body
         // below is the only thing Googlebot will index for this URL.

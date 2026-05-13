@@ -393,7 +393,7 @@ export default function CreateTournamentPage() {
         try {
             setSubmitting(true)
             const created = await createTournament(payload, posterFile)
-            navigate(`/tournaments/${created.slug ?? created.uuid}`)
+            navigate(`/turniri/${created.slug ?? created.uuid}`)
         } catch (err: any) {
             console.error(err)
             alert(err?.message ?? "Failed to save tournament")

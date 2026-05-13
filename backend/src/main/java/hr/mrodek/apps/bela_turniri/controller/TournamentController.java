@@ -804,7 +804,7 @@ public class TournamentController {
                         new PushService.PushPayload(
                                 "Prijava odobrena",
                                 "Tvoj par \"" + pair.getName() + "\" je prihvaćen na turniru " + t.getName() + ".",
-                                "/tournaments/" + tournamentRef
+                                "/turniri/" + tournamentRef
                         )
                 );
             }

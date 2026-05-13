@@ -28,7 +28,7 @@ export default function NotFoundPage() {
                         variant="outline"
                         size="sm"
                     >
-                        <RouterLink to="/tournaments">
+                        <RouterLink to="/turniri">
                             <FiArrowLeft/> Natrag na turnire
                         </RouterLink>
                     </Button>

@@ -701,9 +701,9 @@ export default function TournamentDetailsPage() {
         return undefined
     })()
     const canonicalUrl = t?.slug
-        ? `https://bela-turniri.com/tournaments/${t.slug}`
+        ? `https://bela-turniri.com/turniri/${t.slug}`
         : uuid
-            ? `https://bela-turniri.com/tournaments/${uuid}`
+            ? `https://bela-turniri.com/turniri/${uuid}`
             : undefined
 
     // Build the Event + BreadcrumbList JSON-LD for Googlebot. Matches the
@@ -776,7 +776,7 @@ export default function TournamentDetailsPage() {
                     "@type": "ListItem",
                     position: 1,
                     name: "Turniri",
-                    item: "https://bela-turniri.com/tournaments",
+                    item: "https://bela-turniri.com/turniri",
                 },
                 {
                     "@type": "ListItem",
@@ -1532,7 +1532,7 @@ export default function TournamentDetailsPage() {
                     {t?.name ?? "Tournament"}{" "}
                 </Heading>
                 <Button asChild variant="ghost" size="sm">
-                    <RouterLink to="/tournaments">Natrag na popis</RouterLink>
+                    <RouterLink to="/turniri">Natrag na popis</RouterLink>
                 </Button>
             </HStack>
 
@@ -1578,7 +1578,7 @@ export default function TournamentDetailsPage() {
                 <VStack py="10">
                     <Text color="red.600">{error ?? "Tournament not found."}</Text>
                     <Button asChild size="sm">
-                        <RouterLink to="/tournaments">Back</RouterLink>
+                        <RouterLink to="/turniri">Back</RouterLink>
                     </Button>
                 </VStack>
             ) : tab === "details" ? (
@@ -2449,7 +2449,7 @@ export default function TournamentDetailsPage() {
                                             <>
                                                 Prijavio:{" "}
                                                 <RouterLink
-                                                    to={`/profile/${p.submittedBySlug}`}
+                                                    to={`/profil/${p.submittedBySlug}`}
                                                     style={{ color: "var(--chakra-colors-blue-fg)", fontWeight: 500 }}
                                                 >
                                                     {p.submittedByName || p.submittedBySlug}
@@ -2677,7 +2677,7 @@ export default function TournamentDetailsPage() {
                                                         colorPalette="blue"
                                                         onClick={() => {
                                                             if (!user) {
-                                                                navigate("/login", {
+                                                                navigate("/prijava", {
                                                                     state: {
                                                                         from: `${location.pathname}${location.search}`,
                                                                     },
@@ -4165,7 +4165,7 @@ export default function TournamentDetailsPage() {
                                     try {
                                         setDeletingTournament(true)
                                         await deleteTournament(uuid)
-                                        navigate("/tournaments", { replace: true })
+                                        navigate("/turniri", { replace: true })
                                     } catch (err: any) {
                                         alert(String(err?.response?.data ?? err?.message ?? "Failed to delete tournament."))
                                     } finally {

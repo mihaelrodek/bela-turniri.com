@@ -173,7 +173,7 @@ function TournamentCardView({
 
     return (
         <RouterLink
-            to={`/tournaments/${t.slug ?? t.uuid}`}
+            to={`/turniri/${t.slug ?? t.uuid}`}
             style={{ display: "block", textDecoration: "none", color: "inherit" }}
         >
             <Box
@@ -309,7 +309,7 @@ export default function TournamentsPage() {
         ogDescription:
             "Pregled svih nadolazećih i odigranih Bela turnira u Hrvatskoj i regiji.",
         ogType: "website",
-        canonical: "https://bela-turniri.com/tournaments",
+        canonical: "https://bela-turniri.com/turniri",
     })
 
     const [loading, setLoading] = useState(true)
@@ -573,7 +573,7 @@ export default function TournamentsPage() {
                                         colorPalette="blue"
                                         flex={{ base: "1", md: "none" }}
                                     >
-                                        <RouterLink to="/tournaments/new">
+                                        <RouterLink to="/turniri/novi">
                                             <FiPlus /> Kreiraj turnir
                                         </RouterLink>
                                     </Button>
@@ -702,7 +702,7 @@ export default function TournamentsPage() {
                         cta={
                             !error && (
                                 <Button asChild size="sm" colorPalette="blue">
-                                    <RouterLink to="/tournaments/new">
+                                    <RouterLink to="/turniri/novi">
                                         <FiPlus /> Kreiraj turnir
                                     </RouterLink>
                                 </Button>

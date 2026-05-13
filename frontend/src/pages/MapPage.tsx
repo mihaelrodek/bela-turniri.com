@@ -405,7 +405,7 @@ export default function MapPage() {
                                             )
                                         })()}
                                         <RouterLink
-                                            to={`/tournaments/${t.slug ?? t.uuid}`}
+                                            to={`/turniri/${t.slug ?? t.uuid}`}
                                             style={{
                                                 display: "inline-block",
                                                 marginTop: 4,

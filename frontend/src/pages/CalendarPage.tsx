@@ -278,7 +278,7 @@ export default function CalendarPage() {
                                     {items.slice(0, 4).map((t) => (
                                         <RouterLink
                                             key={t.uuid}
-                                            to={`/tournaments/${t.slug ?? t.uuid}`}
+                                            to={`/turniri/${t.slug ?? t.uuid}`}
                                             style={{ textDecoration: "none" }}
                                         >
                                             <Box

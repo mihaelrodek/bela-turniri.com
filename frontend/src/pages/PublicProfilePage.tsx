@@ -133,7 +133,7 @@ export default function PublicProfilePage() {
     // there's no need to make it any more discoverable than it already is.
     const totalTournaments = profile?.tournaments?.length ?? 0
     const totalWins = (profile?.pairs ?? []).reduce((sum, p) => sum + (p.wins ?? 0), 0)
-    const profileCanonical = slug ? `https://bela-turniri.com/profile/${slug}` : undefined
+    const profileCanonical = slug ? `https://bela-turniri.com/profil/${slug}` : undefined
     const profileDescription = profile?.displayName
         ? `${profile.displayName} — povijest nastupa na Bela turnirima. ${totalTournaments} turnira, ${totalWins} pobjeda.`
         : undefined
@@ -278,7 +278,7 @@ export default function PublicProfilePage() {
                         <HStack mt="4">
                             <Button size="sm" variant="ghost" onClick={() => navigate(-1)}>Natrag</Button>
                             <Button size="sm" variant="solid" colorPalette="blue" asChild>
-                                <RouterLink to="/tournaments">Na turnire</RouterLink>
+                                <RouterLink to="/turniri">Na turnire</RouterLink>
                             </Button>
                         </HStack>
                     </Card.Body>
@@ -409,7 +409,7 @@ export default function PublicProfilePage() {
                                         <Text>
                                             Suvlasnik:{" "}
                                             <RouterLink
-                                                to={`/profile/${cur.partnerSlug}`}
+                                                to={`/profil/${cur.partnerSlug}`}
                                                 style={{
                                                     color: "var(--chakra-colors-blue-fg)",
                                                     fontWeight: 500,
@@ -657,12 +657,12 @@ function ProfileHeader({
                     ) : profile.hasPhone ? (
                         // Anonymous viewer: backend redacted phone (null) but
                         // told us hasPhone=true. Show a blurred CSS placeholder
-                        // that links to /login with a redirect back to this
+                        // that links to /prijava with a redirect back to this
                         // profile so the user lands here logged-in afterward.
                         <chakra.button
                             type="button"
                             onClick={() =>
-                                navigate("/login", {
+                                navigate("/prijava", {
                                     state: { from: { pathname: window.location.pathname } },
                                 })
                             }
@@ -1022,7 +1022,7 @@ function TournamentRow({
                             ))}
                             <HStack pt="2" justify="flex-end">
                                 <Button size="xs" variant="ghost" asChild>
-                                    <RouterLink to={`/tournaments/${row.tournamentSlug ?? row.tournamentUuid}`}>
+                                    <RouterLink to={`/turniri/${row.tournamentSlug ?? row.tournamentUuid}`}>
                                         Otvori turnir
                                     </RouterLink>
                                 </Button>
@@ -1394,7 +1394,7 @@ function MyPairsCard() {
                                                         <Badge colorPalette="green" variant="subtle" size="sm">
                                                             {p.myRole === "PRIMARY" ? "Suvlasnik" : "Vlasnik"}:{" "}
                                                             <RouterLink
-                                                                to={`/profile/${p.partnerSlug}`}
+                                                                to={`/profil/${p.partnerSlug}`}
                                                                 style={{ textDecoration: "underline" }}
                                                             >
                                                                 {p.partnerName || p.partnerSlug}

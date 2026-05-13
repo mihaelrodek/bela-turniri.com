@@ -187,7 +187,7 @@ public class UserPairPresetController {
         pushService.sendToUser(partnerUid, new PushService.PushPayload(
                 "Zahtjev za brisanje para",
                 requesterName + " želi obrisati par \"" + p.getName() + "\". Prihvati ili odbij u Postavkama.",
-                "/profile"
+                "/profil"
         ));
         return Response.ok(toDto(p)).build();
     }
@@ -227,7 +227,7 @@ public class UserPairPresetController {
         pushService.sendToUser(requesterUid, new PushService.PushPayload(
                 "Par obrisan",
                 confirmerName + " je potvrdio brisanje para \"" + p.getName() + "\".",
-                "/profile"
+                "/profil"
         ));
         return Response.noContent().build();
     }
@@ -263,7 +263,7 @@ public class UserPairPresetController {
             pushService.sendToUser(requesterUid, new PushService.PushPayload(
                     "Zahtjev odbijen",
                     rejecterName + " je odbio brisanje para \"" + p.getName() + "\".",
-                    "/profile"
+                    "/profil"
             ));
         }
         return Response.noContent().build();

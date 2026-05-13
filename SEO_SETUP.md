@@ -34,16 +34,19 @@ path):
 curl -A "Googlebot/2.1 (+http://www.google.com/bot.html)" \
      https://bela-turniri.com/ | head -100
 
-# Tournament list
-curl -A "Googlebot/2.1" https://bela-turniri.com/tournaments | head -100
+# Tournament list (Croatian canonical)
+curl -A "Googlebot/2.1" https://bela-turniri.com/turniri | head -100
 
 # Tournament detail (replace <slug> with a real one)
 curl -A "Googlebot/2.1" \
-     https://bela-turniri.com/tournaments/<slug> | head -100
+     https://bela-turniri.com/turniri/<slug> | head -100
 
 # Profile detail
 curl -A "Googlebot/2.1" \
-     https://bela-turniri.com/profile/<slug> | head -100
+     https://bela-turniri.com/profil/<slug> | head -100
+
+# English aliases — should 301-redirect to Croatian. Add -i to see headers.
+curl -i -A "Googlebot/2.1" https://bela-turniri.com/tournaments | head -10
 
 # And compare — a regular browser UA should still get the SPA's index.html
 curl -A "Mozilla/5.0" https://bela-turniri.com/ | head -20
@@ -126,9 +129,9 @@ instead of waiting for the natural crawl:
 
 Do this for:
 - `https://bela-turniri.com/`
-- `https://bela-turniri.com/tournaments`
-- `https://bela-turniri.com/calendar`
-- `https://bela-turniri.com/map`
+- `https://bela-turniri.com/turniri`
+- `https://bela-turniri.com/kalendar`
+- `https://bela-turniri.com/karta`
 - Each upcoming tournament page (high-traffic ones)
 - A few of your own profile + popular profiles
 

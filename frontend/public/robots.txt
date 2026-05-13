@@ -9,10 +9,15 @@
 #   /api/resources/  — proxied tournament posters and avatars (og:image targets)
 #   /api/sitemap.xml — the sitemap itself
 User-agent: *
-Disallow: /login
-Disallow: /register
-Disallow: /tournaments/new
-Disallow: /find-pair
+# Disallow lists use the Croatian canonical paths. English aliases
+# (/login, /register, /tournaments/new, /find-pair, /profile, /map,
+# /calendar) 301-redirect to the Croatian equivalents via Caddy, so a
+# bot following one is redirected to a Croatian URL anyway — blocking
+# only the Croatian paths is sufficient.
+Disallow: /prijava
+Disallow: /registracija
+Disallow: /turniri/novi
+Disallow: /pronadi-para
 Disallow: /api/
 Allow: /api/preview/
 Allow: /api/resources/

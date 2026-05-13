@@ -52,11 +52,14 @@ public class SitemapController {
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
 
-        // Static high-value pages first.
-        appendUrl(sb, base + "/",            null, "weekly",  "1.0");
-        appendUrl(sb, base + "/tournaments", null, "daily",   "0.9");
-        appendUrl(sb, base + "/calendar",    null, "daily",   "0.7");
-        appendUrl(sb, base + "/map",         null, "weekly",  "0.7");
+        // Static high-value pages first. URLs are Croatian since we moved
+        // user-facing routes off the English aliases (English aliases still
+        // work via Caddy 301 → Croatian, but we don't list them here — the
+        // sitemap should contain only canonical URLs).
+        appendUrl(sb, base + "/",         null, "weekly",  "1.0");
+        appendUrl(sb, base + "/turniri",  null, "daily",   "0.9");
+        appendUrl(sb, base + "/kalendar", null, "daily",   "0.7");
+        appendUrl(sb, base + "/karta",    null, "weekly",  "0.7");
 
         // Tournament detail pages — one entry per non-deleted tournament.
         // Prefer the pretty slug when present so the sitemap surfaces the
@@ -72,7 +75,7 @@ public class SitemapController {
             } else {
                 continue;
             }
-            String loc = base + "/tournaments/" + key;
+            String loc = base + "/turniri/" + key;
             OffsetDateTime lastMod = t.getUpdatedAt() != null ? t.getUpdatedAt() : t.getStartAt();
             appendUrl(sb, loc, lastMod == null ? null : iso.format(lastMod), "weekly", "0.8");
         }
@@ -82,7 +85,7 @@ public class SitemapController {
         List<UserProfile> profiles = profileRepo.listAll();
         for (UserProfile p : profiles) {
             if (p.getSlug() == null || p.getSlug().isBlank()) continue;
-            String loc = base + "/profile/" + p.getSlug();
+            String loc = base + "/profil/" + p.getSlug();
             appendUrl(sb, loc, null, "weekly", "0.6");
         }
 
@@ -100,12 +103,16 @@ public class SitemapController {
     @Produces("text/plain; charset=UTF-8")
     public Response robots() {
         String base = publicBaseUrl.replaceAll("/+$", "");
+        // Disallow lists use the Croatian paths since those are the only
+        // canonical user-facing URLs now (English equivalents 301 to these
+        // via Caddy). A bot following an English link will be redirected
+        // to the Croatian path, so blocking by Croatian is sufficient.
         String body = """
                 User-agent: *
-                Disallow: /login
-                Disallow: /register
-                Disallow: /tournaments/new
-                Disallow: /find-pair
+                Disallow: /prijava
+                Disallow: /registracija
+                Disallow: /turniri/novi
+                Disallow: /pronadi-para
                 Disallow: /api/
 
                 Sitemap: %s/sitemap.xml
