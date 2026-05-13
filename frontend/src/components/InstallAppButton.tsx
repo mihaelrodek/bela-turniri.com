@@ -32,8 +32,15 @@ import IosInstallSteps from "./IosInstallSteps"
  */
 export function InstallAppButton({
     size = "sm",
+    variant = "icon",
 }: {
     size?: "xs" | "sm" | "md"
+    /**
+     * "icon" — circular icon-only IconButton (desktop top bar).
+     * "labeled" — full-width Button with text label + download glyph
+     *             (mobile drawer / menu where it sits among other items).
+     */
+    variant?: "icon" | "labeled"
 }) {
     const { canInstall, isIos, install } = useInstallPrompt()
     const [iosOpen, setIosOpen] = useState(false)
@@ -57,17 +64,30 @@ export function InstallAppButton({
 
     return (
         <>
-            <IconButton
-                aria-label={label}
-                title={label}
-                size={size}
-                variant="outline"
-                rounded="full"
-                colorPalette="blue"
-                onClick={handleClick}
-            >
-                <FiDownload />
-            </IconButton>
+            {variant === "labeled" ? (
+                <Button
+                    onClick={handleClick}
+                    size={size}
+                    variant="outline"
+                    colorPalette="blue"
+                    justifyContent="flex-start"
+                    w="full"
+                >
+                    <FiDownload /> {label}
+                </Button>
+            ) : (
+                <IconButton
+                    aria-label={label}
+                    title={label}
+                    size={size}
+                    variant="outline"
+                    rounded="full"
+                    colorPalette="blue"
+                    onClick={handleClick}
+                >
+                    <FiDownload />
+                </IconButton>
+            )}
             <Dialog.Root
                 open={iosOpen}
                 onOpenChange={(e) => {

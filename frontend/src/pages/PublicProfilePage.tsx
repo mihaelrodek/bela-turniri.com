@@ -133,19 +133,82 @@ export default function PublicProfilePage() {
     // there's no need to make it any more discoverable than it already is.
     const totalTournaments = profile?.tournaments?.length ?? 0
     const totalWins = (profile?.pairs ?? []).reduce((sum, p) => sum + (p.wins ?? 0), 0)
+    const profileCanonical = slug ? `https://bela-turniri.com/profile/${slug}` : undefined
+    const profileDescription = profile?.displayName
+        ? `${profile.displayName} — povijest nastupa na Bela turnirima. ${totalTournaments} turnira, ${totalWins} pobjeda.`
+        : undefined
+
+    // Person JSON-LD for Googlebot. Mirrors what ProfilePreviewController
+    // emits for non-JS crawlers so structured-data validators see one
+    // consistent record per URL regardless of which path rendered it.
+    const profileJsonLd = useMemo(() => {
+        if (!profile?.displayName || !profileCanonical) return undefined
+        const items: object[] = []
+        const person: Record<string, unknown> = {
+            "@context": "https://schema.org",
+            "@type": "Person",
+            name: profile.displayName,
+            url: profileCanonical,
+            description: profileDescription,
+            knowsAbout: ["Bela", "Belot", "Kartaške igre"],
+            interactionStatistic: [
+                {
+                    "@type": "InteractionCounter",
+                    interactionType: "https://schema.org/RegisterAction",
+                    userInteractionCount: totalTournaments,
+                },
+                {
+                    "@type": "InteractionCounter",
+                    interactionType: "https://schema.org/WinAction",
+                    userInteractionCount: totalWins,
+                },
+            ],
+        }
+        if (slug) {
+            person.identifier = slug
+            person.alternateName = slug
+        }
+        if (profile.avatarUrl) person.image = profile.avatarUrl
+        items.push(person)
+
+        // BreadcrumbList — gives Google an "Igrači › {name}" trail.
+        // There's no top-level "Igrači" index page yet, but the schema
+        // still helps Google understand the URL hierarchy and is cheap
+        // to ship pre-emptively.
+        items.push({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+                {
+                    "@type": "ListItem",
+                    position: 1,
+                    name: "Igrači",
+                    item: "https://bela-turniri.com/",
+                },
+                {
+                    "@type": "ListItem",
+                    position: 2,
+                    name: profile.displayName,
+                    item: profileCanonical,
+                },
+            ],
+        })
+        return items
+    }, [profile?.displayName, profile?.avatarUrl, profileCanonical, profileDescription, slug, totalTournaments, totalWins])
+
     useDocumentHead({
         title: profile?.displayName
             ? `${profile.displayName} — Bela igrač | bela-turniri.com`
             : "Bela igrač — bela-turniri.com",
-        description: profile?.displayName
-            ? `${profile.displayName} — povijest nastupa na Bela turnirima. ${totalTournaments} turnira, ${totalWins} pobjeda.`
-            : undefined,
+        description: profileDescription,
         ogTitle: profile?.displayName ?? undefined,
         ogDescription: profile?.displayName
             ? `Povijest nastupa na Bela turnirima — ${totalTournaments} turnira, ${totalWins} pobjeda.`
             : undefined,
+        ogImage: profile?.avatarUrl ?? undefined,
         ogType: "profile",
-        canonical: slug ? `https://bela-turniri.com/profile/${slug}` : undefined,
+        canonical: profileCanonical,
+        jsonLd: profileJsonLd,
     })
 
     useEffect(() => {

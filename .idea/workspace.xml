@@ -6,16 +6,15 @@
   <component name="ChangeListManager">
     <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserMeController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserMeController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/UserProfileDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/UserProfileDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/UserProfile.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/UserProfile.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/App.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/userMe.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/userMe.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Caddyfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/ProfilePreviewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/ProfilePreviewController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentPreviewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentPreviewController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/MapPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/MapPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/hooks/useDocumentHead.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/hooks/useDocumentHead.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentDetailsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentDetailsPage.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -220,7 +219,7 @@
       <workItem from="1777145110930" duration="882000" />
       <workItem from="1777185645412" duration="23139000" />
       <workItem from="1778220843096" duration="3548000" />
-      <workItem from="1778233909398" duration="54353000" />
+      <workItem from="1778233909398" duration="56824000" />
     </task>
     <servers />
   </component>

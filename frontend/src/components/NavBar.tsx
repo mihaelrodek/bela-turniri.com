@@ -295,11 +295,9 @@ export default function NavBar() {
                             <RouterLink to="/login">Prijava</RouterLink>
                         </Button>
                     )}
-                    {/* Install icon. Theme toggle moved to profile →
-                        Postavke so the choice is persisted per-user. */}
-                    <Box mr={1}>
-                        <InstallAppButton size="sm" />
-                    </Box>
+                    {/* Install button moved inside the burger drawer below
+                        so the top bar stays clean on mobile. Theme toggle
+                        lives in profile → Postavke (per-user). */}
                     <IconButton
                         onClick={open ? onClose : onOpen}
                         aria-label={open ? "Close menu" : "Open menu"}
@@ -321,8 +319,17 @@ export default function NavBar() {
                             <NavButton to="/map">Karta</NavButton>
                             <NavButton to="/find-pair">Pronađi para</NavButton>
 
+                            {/* "Install app" lives here as a labeled
+                                button — only renders when installation is
+                                actually possible, otherwise null. Click
+                                propagates up to the Stack's onClick={onClose}
+                                so the drawer closes (the labeled variant
+                                fires the install or opens the iOS-steps
+                                dialog first, which is what we want). */}
+                            <InstallAppButton size="sm" variant="labeled" />
+
                             {/* Prijava is now permanently visible in the mobile
-                                top bar next to the install icon — no need to
+                                top bar next to the burger — no need to
                                 duplicate it inside the drawer. */}
                         </Stack>
                     </Box>

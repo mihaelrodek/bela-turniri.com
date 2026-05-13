@@ -86,9 +86,20 @@ public class ProfilePreviewController {
 
         String base = publicBaseUrl.replaceAll("/+$", "");
         String spaUrl = base + "/profile/" + slug;
-        String image = defaultOgImage.filter(s -> !s.isBlank()).orElse(null);
 
-        return Response.ok(renderHtml(displayName, description, image, spaUrl)).build();
+        // Prefer the user's own avatar as og:image / schema.org image —
+        // falls back to the app-default og image when missing. This makes
+        // shared profile links look personalised in WhatsApp/Telegram
+        // previews and gives Google a unique image for the Person rich
+        // result.
+        String image;
+        if (profile.getAvatar() != null && profile.getAvatar().getId() != null) {
+            image = base + "/api/resources/" + profile.getAvatar().getId() + "/image";
+        } else {
+            image = defaultOgImage.filter(s -> !s.isBlank()).orElse(null);
+        }
+
+        return Response.ok(renderHtml(displayName, slug, description, image, spaUrl, total, wins)).build();
     }
 
     /* ───────────────────── helpers ───────────────────── */
@@ -125,7 +136,7 @@ public class ProfilePreviewController {
         return "pobjeda";
     }
 
-    private String renderHtml(String name, String description, String image, String spaUrl) {
+    private String renderHtml(String name, String slug, String description, String image, String spaUrl, int totalTournaments, int wins) {
         StringBuilder sb = new StringBuilder(2048);
         sb.append("<!doctype html>\n");
         sb.append("<html lang=\"hr\">\n<head>\n");
@@ -157,13 +168,60 @@ public class ProfilePreviewController {
             sb.append("<meta name=\"twitter:image\" content=\"").append(escapeAttr(image)).append("\">\n");
         }
 
-        sb.append("<meta http-equiv=\"refresh\" content=\"0; url=").append(escapeAttr(spaUrl)).append("\">\n");
+        // schema.org Person JSON-LD. Gives Google enough structure to
+        // surface the profile as a rich knowledge-panel-style result for
+        // "{name} bela" branded queries. We omit any field whose source is
+        // empty (no contact info, no DOB) — Google warns on null values
+        // but ignores missing ones.
+        sb.append("<script type=\"application/ld+json\">")
+                .append(buildPersonJsonLd(name, slug, description, image, spaUrl, totalTournaments, wins))
+                .append("</script>\n");
+
+        // NB: intentionally NO <meta http-equiv="refresh"> here. Caddy's
+        // UA rewrite means a refresh loops Googlebot right back to this
+        // controller. Body content below is what gets indexed.
         sb.append("</head>\n<body>\n");
-        sb.append("<p><a href=\"").append(escapeAttr(spaUrl)).append("\">")
-                .append(escapeHtml(name)).append("</a></p>\n");
-        sb.append("<p>").append(escapeHtml(description)).append("</p>\n");
+        appendProfileBody(sb, name, description, image, spaUrl, totalTournaments, wins);
         sb.append("</body>\n</html>\n");
         return sb.toString();
+    }
+
+    /**
+     * Render the actual indexable content for a profile page. Three goals:
+     *
+     * <ol>
+     *   <li><b>Rank for "{name} bela".</b> The H1 + JSON-LD knowsAbout
+     *       combo gives Google a strong signal that this page is about
+     *       a person who plays Bela — exactly what someone Googling
+     *       "{name} bela" is looking for.</li>
+     *   <li><b>Match the SPA's public-profile data.</b> Stats and
+     *       tournament list are sourced from the same record the SPA
+     *       fetches; no inflated content that would count as cloaking.</li>
+     *   <li><b>No phone numbers anywhere.</b> Same redaction rule as the
+     *       JSON API: phones never leave the backend for anonymous
+     *       readers, and a crawler is anonymous by definition.</li>
+     * </ol>
+     */
+    private void appendProfileBody(StringBuilder sb, String name, String description,
+                                   String image, String spaUrl,
+                                   int totalTournaments, int wins) {
+        sb.append("<article>\n");
+        sb.append("<h1>").append(escapeHtml(name)).append("</h1>\n");
+        if (image != null && !image.isBlank()) {
+            sb.append("<p><img src=\"").append(escapeAttr(image))
+                    .append("\" alt=\"").append(escapeAttr(name))
+                    .append(" — profilna slika\"></p>\n");
+        }
+        sb.append("<p>").append(escapeHtml(description)).append("</p>\n");
+
+        sb.append("<section>\n<h2>Statistika</h2>\n<ul>\n");
+        sb.append("<li>Ukupno turnira: ").append(totalTournaments).append("</li>\n");
+        sb.append("<li>Pobjede: ").append(wins).append("</li>\n");
+        sb.append("</ul>\n</section>\n");
+
+        sb.append("<hr>\n<p><a href=\"").append(escapeAttr(spaUrl))
+                .append("\">Otvori profil u aplikaciji bela-turniri.com</a></p>\n");
+        sb.append("</article>\n");
     }
 
     private String notFoundHtml() {
@@ -175,6 +233,84 @@ public class ProfilePreviewController {
                 <meta name="description" content="Traženi profil ne postoji.">
                 </head><body><p>Profil nije pronađen.</p></body></html>
                 """;
+    }
+
+    /**
+     * Compact schema.org Person JSON-LD. {@code knowsAbout} pins the player
+     * to the "Bela" card-game concept which helps Google understand the
+     * topical context of these profile pages; without it the algorithm
+     * tends to match generic name-only queries unrelated to the game.
+     *
+     * <p>The win/total counts are surfaced as a single {@code description}
+     * string rather than as separate properties — there is no
+     * schema.org-blessed "wins" field on Person, and we get richer SERP
+     * snippets by keeping the counts inside the human-readable description.
+     */
+    private String buildPersonJsonLd(String name, String slug, String description,
+                                     String image, String spaUrl, int totalTournaments, int wins) {
+        StringBuilder j = new StringBuilder(384);
+        j.append('{');
+        j.append("\"@context\":\"https://schema.org\",");
+        j.append("\"@type\":\"Person\",");
+        j.append("\"name\":\"").append(jsonEscape(name)).append("\",");
+        j.append("\"url\":\"").append(jsonEscape(spaUrl)).append("\",");
+        if (slug != null && !slug.isBlank()) {
+            j.append("\"identifier\":\"").append(jsonEscape(slug)).append("\",");
+            j.append("\"alternateName\":\"").append(jsonEscape(slug)).append("\",");
+        }
+        j.append("\"description\":\"").append(jsonEscape(description)).append("\",");
+        if (image != null && !image.isBlank()) {
+            j.append("\"image\":\"").append(jsonEscape(image)).append("\",");
+        }
+        // knowsAbout pins the topical context to the card game — improves
+        // search relevance for queries like "{name} bela" or "{name} karte".
+        j.append("\"knowsAbout\":[\"Bela\",\"Belot\",\"Kartaške igre\"],");
+        // interactionStatistic gives Google a hook into structured win/total
+        // counts. We use UserInteractionCount which is the closest fit; both
+        // metrics are emitted independently so each renders as a separate
+        // stat in Google's knowledge surface.
+        j.append("\"interactionStatistic\":[")
+                .append("{\"@type\":\"InteractionCounter\",\"interactionType\":\"https://schema.org/RegisterAction\",\"userInteractionCount\":")
+                .append(totalTournaments).append("},")
+                .append("{\"@type\":\"InteractionCounter\",\"interactionType\":\"https://schema.org/WinAction\",\"userInteractionCount\":")
+                .append(wins).append("}")
+                .append("]");
+        j.append('}');
+        return j.toString();
+    }
+
+    /**
+     * JSON string escaping per RFC 8259. Also escapes {@code /} after {@code <}
+     * so that {@code </script>} cannot appear inside the JSON payload while
+     * embedded in an HTML {@code <script>} tag.
+     */
+    private static String jsonEscape(String s) {
+        if (s == null) return "";
+        StringBuilder out = new StringBuilder(s.length() + 8);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"'  -> out.append("\\\"");
+                case '\\' -> out.append("\\\\");
+                case '\n' -> out.append("\\n");
+                case '\r' -> out.append("\\r");
+                case '\t' -> out.append("\\t");
+                case '\b' -> out.append("\\b");
+                case '\f' -> out.append("\\f");
+                case '/'  -> {
+                    if (i > 0 && s.charAt(i - 1) == '<') out.append("\\/");
+                    else out.append('/');
+                }
+                default -> {
+                    if (c < 0x20) {
+                        out.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        out.append(c);
+                    }
+                }
+            }
+        }
+        return out.toString();
     }
 
     private static String escapeHtml(String s) {

@@ -700,6 +700,96 @@ export default function TournamentDetailsPage() {
         }
         return undefined
     })()
+    const canonicalUrl = t?.slug
+        ? `https://bela-turniri.com/tournaments/${t.slug}`
+        : uuid
+            ? `https://bela-turniri.com/tournaments/${uuid}`
+            : undefined
+
+    // Build the Event + BreadcrumbList JSON-LD for Googlebot. Matches the
+    // schema the backend SSR preview controller emits for non-JS crawlers,
+    // so Search Console doesn't see conflicting structured data between
+    // the rendered and unrendered variants of the same URL.
+    const jsonLd = useMemo(() => {
+        if (!t || !canonicalUrl) return undefined
+        const items: object[] = []
+
+        const event: Record<string, unknown> = {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            name: t.name,
+            url: canonicalUrl,
+            inLanguage: "hr",
+            eventStatus: "https://schema.org/EventScheduled",
+            eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+        }
+        if (headDesc) event.description = headDesc
+        if (t.startAt) {
+            event.startDate = t.startAt
+            // +6h end-date default — see backend controller comment for
+            // rationale (Google's event eligibility wants both start+end).
+            const end = new Date(new Date(t.startAt).getTime() + 6 * 60 * 60 * 1000)
+            event.endDate = end.toISOString()
+        }
+        if (t.location) {
+            event.location = {
+                "@type": "Place",
+                name: t.location,
+                address: {
+                    "@type": "PostalAddress",
+                    addressLocality: t.location,
+                    addressCountry: "HR",
+                },
+            }
+        } else {
+            event.location = {
+                "@type": "Place",
+                name: "Hrvatska",
+                address: { "@type": "PostalAddress", addressCountry: "HR" },
+            }
+        }
+        if (t.bannerUrl) event.image = [t.bannerUrl]
+        if (t.createdByName) {
+            event.organizer = { "@type": "Person", name: t.createdByName }
+        }
+        const entryPrice = t.entryPrice ?? 0
+        const startInFuture = !t.startAt || new Date(t.startAt).getTime() > Date.now()
+        if (startInFuture && entryPrice > 0) {
+            event.offers = {
+                "@type": "Offer",
+                url: canonicalUrl,
+                price: String(entryPrice),
+                priceCurrency: "EUR",
+                availability: "https://schema.org/InStock",
+                validFrom: new Date().toISOString(),
+            }
+        }
+        items.push(event)
+
+        // BreadcrumbList — "Turniri › {tournament}". Helps Google render
+        // the breadcrumb chip above the result instead of the bare URL.
+        items.push({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+                {
+                    "@type": "ListItem",
+                    position: 1,
+                    name: "Turniri",
+                    item: "https://bela-turniri.com/tournaments",
+                },
+                {
+                    "@type": "ListItem",
+                    position: 2,
+                    name: t.name,
+                    item: canonicalUrl,
+                },
+            ],
+        })
+
+        return items
+    }, [t, canonicalUrl, headDesc])
+
     useDocumentHead({
         title: headTitle,
         description: headDesc,
@@ -711,11 +801,8 @@ export default function TournamentDetailsPage() {
         // engines and social previews don't see a UUID variant — fall back to
         // whatever route segment we have (uuid, or the slug if the visitor
         // already came in via a slug URL).
-        canonical: t?.slug
-            ? `https://bela-turniri.com/tournaments/${t.slug}`
-            : uuid
-                ? `https://bela-turniri.com/tournaments/${uuid}`
-                : undefined,
+        canonical: canonicalUrl,
+        jsonLd,
     })
 
     function enterDetailsEdit() {

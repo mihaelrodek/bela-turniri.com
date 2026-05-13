@@ -31,6 +31,27 @@ export type DocumentHead = {
     ogImage?: string
     ogType?: string
     canonical?: string
+    /**
+     * Open Graph canonical URL for the page. Defaults to the same value
+     * as {@link canonical} when omitted — they're nearly always the same.
+     * Set explicitly only when you need them to differ.
+     */
+    ogUrl?: string
+    /**
+     * Per-route schema.org JSON-LD. Pass a single object or an array of
+     * objects (e.g. Event + BreadcrumbList for a tournament page). They
+     * are injected as {@code <script type="application/ld+json"
+     * data-bela-jsonld="route">} into the document head and removed
+     * automatically when the component unmounts.
+     *
+     * <p>Pair this with the matching backend SSR preview controller for
+     * a belt-and-braces SEO setup: the controller serves non-JS crawlers
+     * (WhatsApp, Slack, Facebook), this hook serves Googlebot rendering
+     * the SPA. The two emit the same schema so Search Console doesn't
+     * see conflicting structured data between rendered and unrendered
+     * variants.
+     */
+    jsonLd?: object | object[]
 }
 
 // Tab title is intentionally identical for every route. Per-page titles
@@ -56,6 +77,20 @@ export function useDocumentHead(head: DocumentHead) {
         if (head.ogImage) setMeta("property", "og:image", head.ogImage)
         if (head.ogType) setMeta("property", "og:type", head.ogType)
         if (head.canonical) setCanonical(head.canonical)
+        // og:url defaults to the canonical when not explicitly set —
+        // they're the same thing on every page we care about. Facebook's
+        // scraper flags missing og:url as a required-property warning.
+        const ogUrl = head.ogUrl ?? head.canonical
+        if (ogUrl) setMeta("property", "og:url", ogUrl)
+
+        // JSON-LD: inject one or more <script type="application/ld+json">
+        // blocks tagged with data-bela-jsonld="route" so we can remove
+        // exactly our injected nodes on unmount without disturbing the
+        // site-level WebSite/Organization records baked into index.html.
+        const jsonLdItems = head.jsonLd
+            ? Array.isArray(head.jsonLd) ? head.jsonLd : [head.jsonLd]
+            : []
+        for (const item of jsonLdItems) appendJsonLd(item)
 
         // On unmount: restore the meta + canonical the next route may want
         // to reset, but keep the title pinned to STATIC_TITLE — there's
@@ -64,6 +99,7 @@ export function useDocumentHead(head: DocumentHead) {
             document.title = STATIC_TITLE
             restoreMeta(previousMeta)
             restoreCanonical(previousCanonical)
+            removeRouteJsonLd()
         }
     }, [
         head.description,
@@ -72,6 +108,12 @@ export function useDocumentHead(head: DocumentHead) {
         head.ogImage,
         head.ogType,
         head.canonical,
+        // Stringify the JSON-LD for the dep array — comparing object
+        // references would re-run the effect on every render whenever
+        // the caller builds a fresh literal each time, which is the
+        // common pattern in our pages. Serialising once per render is
+        // cheap; the alternative is making every caller memoise it.
+        JSON.stringify(head.jsonLd ?? null),
     ])
 }
 
@@ -96,6 +138,7 @@ function snapshotMeta(): MetaSnapshot {
         ["property", "og:description"],
         ["property", "og:image"],
         ["property", "og:type"],
+        ["property", "og:url"],
     ]
     const snap: MetaSnapshot = {}
     for (const [attr, key] of keys) {
@@ -135,6 +178,30 @@ function setCanonical(href: string) {
         document.head.appendChild(el)
     }
     el.setAttribute("href", href)
+}
+
+/**
+ * Append a JSON-LD script element to the document head. Tagged with
+ * {@code data-bela-jsonld="route"} so {@link removeRouteJsonLd} can find
+ * and remove it on unmount without touching the site-wide JSON-LD blocks
+ * baked into {@code index.html}.
+ */
+function appendJsonLd(item: object) {
+    const el = document.createElement("script")
+    el.setAttribute("type", "application/ld+json")
+    el.setAttribute("data-bela-jsonld", "route")
+    // Use innerHTML rather than .textContent to keep parity with how the
+    // backend renders these blocks; the JSON.stringify output is already
+    // safe (no </script> sequences can appear inside a JSON string from
+    // typical data, but be defensive anyway and escape the offending
+    // forward slash).
+    el.textContent = JSON.stringify(item).replace(/<\/(script)/gi, "<\\/$1")
+    document.head.appendChild(el)
+}
+
+function removeRouteJsonLd() {
+    const nodes = document.head.querySelectorAll('script[data-bela-jsonld="route"]')
+    nodes.forEach((n) => n.parentElement?.removeChild(n))
 }
 
 function restoreCanonical(previous: string | null) {

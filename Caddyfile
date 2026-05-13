@@ -6,9 +6,18 @@
 #
 # Routing logic, top to bottom:
 #   1. /api/*                     → backend (JSON API)
-#   2. /tournaments/<uuid>  +bot  → /api/preview/tournaments/<uuid>  (OG preview)
-#   3. /profile/<slug>      +bot  → /api/preview/profiles/<slug>     (OG preview)
-#   4. anything else              → SPA (file_server with index.html fallback)
+#   2. /                    +bot  → /api/preview/home              (SEO HTML)
+#   3. /tournaments         +bot  → /api/preview/tournaments-list  (SEO HTML)
+#   4. /tournaments/<slug>  +bot  → /api/preview/tournaments/<slug> (OG/SEO)
+#   5. /profile/<slug>      +bot  → /api/preview/profiles/<slug>   (OG/SEO)
+#   6. anything else              → SPA (file_server with index.html fallback)
+#
+# Routes 2-5 implement what Google's docs call "dynamic rendering":
+# we serve crawlers an HTML page that already contains the content
+# they need to index, while real users keep getting the SPA. The
+# rewrite is internal (not a redirect), so the crawler indexes the
+# content under its original URL (e.g. /tournaments/abc), not under
+# the preview URL.
 
 {
     # Email Let's Encrypt uses for expiry warnings. Update if you switch.
@@ -23,7 +32,47 @@ bela-turniri.com, www.bela-turniri.com {
         reverse_proxy backend:8085
     }
 
-    # ─── 2. Tournament SSR preview for crawlers ────────────────────────
+    # Crawler UA matchers — shared regex for the bots we want to serve
+    # pre-rendered HTML to. Two buckets:
+    #   - INDEXING bots (googlebot, bingbot, duckduckbot, applebot,
+    #     yandexbot) — we want these to read our preview HTML so the
+    #     SPA's empty index.html doesn't get indexed instead. These
+    #     are case-insensitive and matched against User-Agent.
+    #   - LINK-PREVIEW bots (facebookexternalhit, whatsapp, telegrambot,
+    #     slackbot, twitterbot, linkedinbot, discordbot, pinterest,
+    #     skypeuripreview) — these read <head> only for OG previews.
+    # We hit both with the same rewrite because the preview controllers
+    # serve content that's correct for either purpose: rich <head> for
+    # link-preview, full <body> for indexing.
+
+    # ─── 2. Homepage SSR preview for crawlers ─────────────────────────
+    # `/` is where most ranking searches like "bela turniri" land. The
+    # SPA's index.html has no content for Googlebot to index until JS
+    # finishes rendering, which on a small/new domain can take days. This
+    # rewrite serves the homepage with real Croatian text and a list of
+    # upcoming tournaments to bots immediately.
+    @home_for_bot {
+        path /
+        header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot|duckduckbot|yandexbot)
+    }
+    handle @home_for_bot {
+        rewrite * /api/preview/home
+        reverse_proxy backend:8085
+    }
+
+    # ─── 3. Tournament list SSR preview for crawlers ──────────────────
+    # `/tournaments` is the second-highest-traffic SEO page. Same
+    # pre-rendering rationale as the homepage.
+    @tournaments_list_for_bot {
+        path /tournaments
+        header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot|duckduckbot|yandexbot)
+    }
+    handle @tournaments_list_for_bot {
+        rewrite * /api/preview/tournaments-list
+        reverse_proxy backend:8085
+    }
+
+    # ─── 4. Tournament SSR preview for crawlers ────────────────────────
     # Match must include BOTH a tournament-detail path AND a known
     # crawler User-Agent. Real users fall through to the SPA below.
     # The path segment can be either a UUID (legacy URLs) or the new
@@ -36,27 +85,27 @@ bela-turniri.com, www.bela-turniri.com {
     @tournament_for_bot {
         path_regexp ^/tournaments/[a-z0-9][a-z0-9-]*$
         not path /tournaments/new
-        header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot)
+        header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot|duckduckbot|yandexbot)
     }
     handle @tournament_for_bot {
         rewrite * /api/preview{path}
         reverse_proxy backend:8085
     }
 
-    # ─── 3. Profile SSR preview for crawlers ──────────────────────────
+    # ─── 5. Profile SSR preview for crawlers ──────────────────────────
     # SPA route is /profile/<slug> (singular); backend endpoint is
     # /api/preview/profiles/<slug> (plural) — so we capture the slug
     # and rewrite the path explicitly.
     @profile_for_bot {
         path_regexp profile ^/profile/([a-z0-9][a-z0-9-]*)$
-        header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot)
+        header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot|duckduckbot|yandexbot)
     }
     handle @profile_for_bot {
         rewrite * /api/preview/profiles/{re.profile.1}
         reverse_proxy backend:8085
     }
 
-    # ─── 4. SPA fallback ───────────────────────────────────────────────
+    # ─── 6. SPA fallback ───────────────────────────────────────────────
     # Static files from /srv (baked in by frontend/Dockerfile). Any
     # unknown path falls back to /index.html so React Router can take over.
     handle {
