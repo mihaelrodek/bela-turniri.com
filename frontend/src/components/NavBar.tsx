@@ -3,8 +3,8 @@ import {
     Box, Flex, HStack, IconButton, Image, Button, Stack, Container, Menu, Text, chakra, useDisclosure,
 } from "@chakra-ui/react"
 import { Link as RouterLink, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
-import { useColorMode, useColorModeValue } from "../color-mode"
-import { FiLogOut, FiMenu, FiMoon, FiSun, FiUser, FiX } from "react-icons/fi"
+import { useColorModeValue } from "../color-mode"
+import { FiLogOut, FiMenu, FiUser, FiX } from "react-icons/fi"
 import { useAuth } from "../auth/AuthContext"
 import { getProfile } from "../api/userMe"
 import { InstallAppButton } from "./InstallAppButton"
@@ -71,7 +71,6 @@ function UserAvatar({
 
 export default function NavBar() {
     const { open, onOpen, onClose } = useDisclosure()
-    const { colorMode, toggleColorMode } = useColorMode()
     const bg = useColorModeValue("white", "gray.800")
     const border = useColorModeValue("gray.200", "gray.700")
     const { user, signOut, loading } = useAuth()
@@ -218,18 +217,11 @@ export default function NavBar() {
 
                     <HStack justify="end" gap="1.5">
                         <AuthArea />
-                        {/* Conditional install icon — sits between the auth
-                            cluster and the color-mode toggle. Renders nothing
-                            on browsers that can't install or already have. */}
+                        {/* Conditional install icon — renders nothing on
+                            browsers that can't install or already have.
+                            Theme toggle moved to profile → Postavke tab
+                            so the choice is persisted per-user. */}
                         <InstallAppButton size="sm" />
-                        <IconButton
-                            aria-label="Toggle color mode"
-                            onClick={toggleColorMode}
-                            size="sm"
-                            variant="ghost"
-                        >
-                            {colorMode === "light" ? <FiMoon /> : <FiSun />}
-                        </IconButton>
                     </HStack>
                 </Box>
 
@@ -303,20 +295,11 @@ export default function NavBar() {
                             <RouterLink to="/login">Prijava</RouterLink>
                         </Button>
                     )}
-                    {/* Install icon — between the auth/avatar slot and the
-                        color-mode toggle. mr matches the toggle's. */}
+                    {/* Install icon. Theme toggle moved to profile →
+                        Postavke so the choice is persisted per-user. */}
                     <Box mr={1}>
                         <InstallAppButton size="sm" />
                     </Box>
-                    <IconButton
-                        aria-label="Toggle color mode"
-                        onClick={toggleColorMode}
-                        size="sm"
-                        variant="ghost"
-                        mr={1}
-                    >
-                        {colorMode === "light" ? <FiMoon /> : <FiSun />}
-                    </IconButton>
                     <IconButton
                         onClick={open ? onClose : onOpen}
                         aria-label={open ? "Close menu" : "Open menu"}

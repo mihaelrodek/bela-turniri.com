@@ -32,12 +32,15 @@ import {
     FiEye,
     FiEyeOff,
     FiMapPin,
+    FiMoon,
     FiPhone,
     FiPlus,
     FiShare2,
+    FiSun,
     FiTrash2,
     FiX,
 } from "react-icons/fi"
+import { useColorMode } from "../color-mode"
 import {
     getPairMatchHistory,
     getPublicProfile,
@@ -46,7 +49,7 @@ import {
     type PublicProfile,
 } from "../api/publicProfile"
 import type { MyTournamentParticipation } from "../api/userMe"
-import { deleteAvatar, getProfile, syncProfile, updateProfile, uploadAvatar } from "../api/userMe"
+import { deleteAvatar, getProfile, syncProfile, updateColorMode, updateProfile, uploadAvatar } from "../api/userMe"
 import {
     cancelPresetArchive,
     confirmPresetArchive,
@@ -121,9 +124,9 @@ export default function PublicProfilePage() {
     const [activePair, setActivePair] = useState<string | null>(null) // pair name (case preserved)
     const [search, setSearch] = useState("")
 
-    // Profile page tabs. Postavke + Računi only show for the profile owner;
-    // visitors viewing someone else's page see Turniri only.
-    const [profileTab, setProfileTab] = useState<"turniri" | "postavke" | "racuni">("turniri")
+    // Profile page tabs. Predlošci + Postavke + Računi only show for the
+    // profile owner; visitors viewing someone else's page see Turniri only.
+    const [profileTab, setProfileTab] = useState<"turniri" | "predlosci" | "postavke" | "racuni">("turniri")
 
     // Per-route SEO. We deliberately do NOT include the user's phone in any
     // meta tag — phone display is a product call on the page itself, but
@@ -261,10 +264,17 @@ export default function PublicProfilePage() {
                     </Button>
                     <Button
                         size="sm"
+                        variant={profileTab === "predlosci" ? "solid" : "ghost"}
+                        onClick={() => setProfileTab("predlosci")}
+                    >
+                        Predlošci
+                    </Button>
+                    <Button
+                        size="sm"
                         variant={profileTab === "postavke" ? "solid" : "ghost"}
                         onClick={() => setProfileTab("postavke")}
                     >
-                        Predlošci
+                        Postavke
                     </Button>
                     <Button
                         size="sm"
@@ -391,17 +401,16 @@ export default function PublicProfilePage() {
                 </Card.Root>
             )}
 
-            {/* === POSTAVKE tab — owner-only settings === */}
-            {isOwner && profileTab === "postavke" && (
+            {/* === PREDLOŠCI tab — owner-only: saved pairs + drink templates === */}
+            {isOwner && profileTab === "predlosci" && (
                 <VStack align="stretch" gap="4">
-                    {/* MyPairsCard now combines saved-name management
-                        (rename, delete, hide) with the actual pair list
-                        from tournaments (share button, claim status).
-                        PresetsCard is no longer rendered separately. */}
                     <MyPairsCard />
                     <DrinkTemplateCard />
                 </VStack>
             )}
+
+            {/* === POSTAVKE tab — owner-only: app preferences (theme, etc.) === */}
+            {isOwner && profileTab === "postavke" && <SettingsCard />}
 
             {/* === RAČUNI tab — owner-only invoice history === */}
             {isOwner && profileTab === "racuni" && (
@@ -2112,6 +2121,67 @@ function formatEurAmount(value: number | string | null | undefined): string {
         style: "currency",
         currency: "EUR",
     }).format(n as number)
+}
+
+/**
+ * Postavke tab — app-level preferences. Right now just the theme
+ * toggle (which used to live on the navbar). Theme is persisted per
+ * user via PUT /user/me/profile colorMode, so the choice follows
+ * the user across devices. ThemeSync handles the read direction on
+ * login.
+ */
+function SettingsCard() {
+    const { colorMode, setColorMode } = useColorMode()
+
+    const setTheme = async (mode: "light" | "dark") => {
+        // Flip the local theme immediately for an instant visual response,
+        // then persist to the backend. We're not waiting on the network
+        // before flipping — the response only confirms the save.
+        setColorMode(mode)
+        try {
+            await updateColorMode(mode)
+        } catch {
+            // Network failed — local theme is still right; the next login
+            // will resync via ThemeSync.
+        }
+    }
+
+    return (
+        <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
+            <Card.Body p={{ base: "4", md: "5" }}>
+                <VStack align="stretch" gap="4">
+                    <Box>
+                        <Heading size="sm">Postavke</Heading>
+                        <Text fontSize="xs" color="fg.muted">
+                            Tvoje postavke aplikacije — slijede te kroz uređaje.
+                        </Text>
+                    </Box>
+
+                    <Box>
+                        <Text fontSize="sm" fontWeight="medium" mb="2">Tema</Text>
+                        <HStack gap="2" wrap="wrap">
+                            <Button
+                                size="sm"
+                                variant={colorMode === "light" ? "solid" : "outline"}
+                                colorPalette={colorMode === "light" ? "blue" : "gray"}
+                                onClick={() => setTheme("light")}
+                            >
+                                <FiSun /> Svijetla
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant={colorMode === "dark" ? "solid" : "outline"}
+                                colorPalette={colorMode === "dark" ? "blue" : "gray"}
+                                onClick={() => setTheme("dark")}
+                            >
+                                <FiMoon /> Tamna
+                            </Button>
+                        </HStack>
+                    </Box>
+                </VStack>
+            </Card.Body>
+        </Card.Root>
+    )
 }
 
 function InvoicesCard() {

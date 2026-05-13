@@ -44,6 +44,14 @@ public class UserProfile {
     @JoinColumn(name = "avatar_resource_id")
     private Resources avatar;
 
+    /**
+     * Per-user theme preference — "light" or "dark". Null means the
+     * user hasn't picked one yet; the frontend defaults to light. We
+     * sync this on login so the choice survives across devices.
+     */
+    @Column(name = "color_mode", length = 10)
+    private String colorMode;
+
     @UpdateTimestamp
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;

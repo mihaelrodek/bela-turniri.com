@@ -19,18 +19,26 @@ public record UserProfileDto(
          * or {@code null} when the user hasn't uploaded one. Set on read paths;
          * incoming PUT bodies leave it null and it's ignored by the server.
          */
-        String avatarUrl
+        String avatarUrl,
+
+        /**
+         * Per-user theme preference. Accepts "light" or "dark" on PUT;
+         * other values get ignored server-side. Null means the user
+         * hasn't picked one yet — frontend falls back to its own default.
+         */
+        @Size(max = 10, message = "colorMode must be at most 10 characters")
+        String colorMode
 ) {
     /** Two-arg convenience for callers that only manage phone fields. */
     public UserProfileDto(String phoneCountry, String phone) {
-        this(phoneCountry, phone, null, null, null);
+        this(phoneCountry, phone, null, null, null, null);
     }
 
-    /**
-     * Four-arg convenience preserves existing call sites that don't yet
-     * touch the avatar field. Adds {@code avatarUrl=null}.
-     */
     public UserProfileDto(String phoneCountry, String phone, String displayName, String slug) {
-        this(phoneCountry, phone, displayName, slug, null);
+        this(phoneCountry, phone, displayName, slug, null, null);
+    }
+
+    public UserProfileDto(String phoneCountry, String phone, String displayName, String slug, String avatarUrl) {
+        this(phoneCountry, phone, displayName, slug, avatarUrl, null);
     }
 }

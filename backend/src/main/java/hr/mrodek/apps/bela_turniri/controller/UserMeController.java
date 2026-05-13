@@ -146,6 +146,14 @@ public class UserMeController {
         existing.setPhone(blank(body.phone()));
         // body.avatarUrl is intentionally ignored — avatars are managed via
         // the dedicated /avatar endpoints, not via PUT /profile.
+        // Theme: accept "light" or "dark", silently ignore anything else
+        // (defensive against stale clients).
+        if (body.colorMode() != null) {
+            String cm = body.colorMode().trim().toLowerCase();
+            if ("light".equals(cm) || "dark".equals(cm)) {
+                existing.setColorMode(cm);
+            }
+        }
         profileRepo.persist(existing);
         return toDto(existing);
     }
@@ -232,7 +240,8 @@ public class UserMeController {
                 p.getPhone(),
                 p.getDisplayName(),
                 p.getSlug(),
-                avatarUrl);
+                avatarUrl,
+                p.getColorMode());
     }
 
     private MyTournamentParticipationDto toDto(Pairs p) {

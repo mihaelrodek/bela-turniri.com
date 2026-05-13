@@ -56,6 +56,8 @@ export type UserProfile = {
     displayName?: string | null
     slug?: string | null
     avatarUrl?: string | null
+    /** "light" or "dark"; null until the user picks one. */
+    colorMode?: "light" | "dark" | null
 }
 
 export async function getProfile(): Promise<UserProfile> {
@@ -68,6 +70,20 @@ export async function updateProfile(payload: { phoneCountry: string | null; phon
         "/user/me/profile",
         payload,
         { successMessage: "Profil je spremljen." } as any,
+    )
+    return data
+}
+
+/**
+ * Persist the user's theme choice. Sent on its own (no contact fields)
+ * because the toggle lives outside the contact-form UX. Silent — the
+ * UI flips colors instantly, a "saved" toast would be redundant noise.
+ */
+export async function updateColorMode(mode: "light" | "dark"): Promise<UserProfile> {
+    const { data } = await http.put<UserProfile>(
+        "/user/me/profile",
+        { colorMode: mode },
+        { silent: true } as any,
     )
     return data
 }

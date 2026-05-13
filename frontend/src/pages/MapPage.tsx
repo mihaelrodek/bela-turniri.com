@@ -3,6 +3,7 @@ import {
     Box,
     Button,
     HStack,
+    Slider,
     Text,
     VStack,
 } from "@chakra-ui/react"
@@ -140,15 +141,6 @@ function LegendChip({ color, label }: { color: string; label: string }) {
     )
 }
 
-/** Radius options exposed in the UI. `null` = no distance filter (show all). */
-const RADIUS_OPTIONS: Array<{ label: string; km: number | null }> = [
-    { label: "10 km", km: 10 },
-    { label: "20 km", km: 20 },
-    { label: "50 km", km: 50 },
-    { label: "100 km", km: 100 },
-    { label: "Sve", km: null },
-]
-
 export default function MapPage() {
     const [tournaments, setTournaments] = useState<TournamentCard[]>([])
     const [, setLoading] = useState(true)
@@ -157,8 +149,10 @@ export default function MapPage() {
     // Geolocation — auto-shows on return visits if permission was granted
     const { pos: userPos, status: geoStatus, request: requestLocation, hide: hideLocation } = useUserLocation()
 
-    // Distance filter (only meaningful when we have a user position)
-    const [radiusKm, setRadiusKm] = useState<number | null>(null)
+    // Distance filter — slider 1–500 km, auto-applies. 500 = "everywhere"
+    // (covers all of Croatia + neighbours). Only meaningful when location
+    // is on; the slider is disabled otherwise.
+    const [radiusKm, setRadiusKm] = useState<number>(100)
 
     useEffect(() => {
         let cancelled = false
@@ -189,9 +183,9 @@ export default function MapPage() {
             .map((t) => t as TournamentWithCoords)
     }, [tournaments])
 
-    // Apply radius filter only if both location and a radius are set
+    // Apply radius filter when location is on; 500 effectively means "all".
     const placed: TournamentWithCoords[] = useMemo(() => {
-        if (!userPos || radiusKm == null) return placedAll
+        if (!userPos || radiusKm >= 500) return placedAll
         const me = { lat: userPos[0], lng: userPos[1] }
         return placedAll.filter(
             (t) => haversineKm(me, { lat: t.latitude, lng: t.longitude }) <= radiusKm,
@@ -216,33 +210,40 @@ export default function MapPage() {
             {/* Single compact controls row: legend + radius chips + location toggle */}
             <HStack justify="space-between" gap="3" wrap="wrap" align="center">
                 <HStack gap="3" wrap="wrap" align="center">
-                    {/* Radius chips */}
-                    <HStack gap="1" wrap="wrap" align="center">
-                        <Text fontSize="xs" color="fg.muted" fontWeight="medium">
-                            U krugu od:
-                        </Text>
-                        {RADIUS_OPTIONS.map((opt) => {
-                            const active = radiusKm === opt.km
-                            return (
-                                <Button
-                                    key={opt.label}
-                                    size="xs"
-                                    variant={active ? "solid" : "outline"}
-                                    colorPalette={active ? "blue" : "gray"}
-                                    onClick={() => setRadiusKm(opt.km)}
-                                    disabled={radiusDisabled}
-                                    title={radiusDisabled ? "Najprije prikaži svoju lokaciju" : undefined}
-                                >
-                                    {opt.label}
-                                </Button>
-                            )
-                        })}
-                        {!radiusDisabled && radiusKm != null && hiddenByRadius > 0 && (
-                            <Text fontSize="xs" color="fg.muted">
-                                ({hiddenByRadius} izvan kruga)
+                    {/* Radius slider — 1–500 km, auto-applies. 500 = "everywhere". */}
+                    <Box minW={{ base: "100%", md: "240px" }}>
+                        <HStack gap="2" mb="1" align="center" wrap="wrap">
+                            <Text fontSize="xs" color="fg.muted" fontWeight="medium">
+                                U krugu od:
                             </Text>
-                        )}
-                    </HStack>
+                            <Text fontSize="xs" fontWeight="semibold" color="blue.fg">
+                                {radiusDisabled
+                                    ? "—"
+                                    : (radiusKm >= 500 ? "Sve" : `${radiusKm} km`)}
+                            </Text>
+                            {!radiusDisabled && radiusKm < 500 && hiddenByRadius > 0 && (
+                                <Text fontSize="xs" color="fg.muted">
+                                    ({hiddenByRadius} izvan kruga)
+                                </Text>
+                            )}
+                        </HStack>
+                        <Slider.Root
+                            min={1}
+                            max={500}
+                            step={1}
+                            value={[radiusKm]}
+                            onValueChange={(e) => setRadiusKm(e.value[0])}
+                            disabled={radiusDisabled}
+                            colorPalette="blue"
+                        >
+                            <Slider.Control>
+                                <Slider.Track>
+                                    <Slider.Range />
+                                </Slider.Track>
+                                <Slider.Thumbs />
+                            </Slider.Control>
+                        </Slider.Root>
+                    </Box>
 
                     {/* Vertical separator */}
                     <Box
@@ -435,8 +436,11 @@ export default function MapPage() {
                         </Marker>
                     )}
 
-                    {/* Radius circle when filtering by distance */}
-                    {userPos && radiusKm != null && (
+                    {/* Radius circle — drawn whenever we have a location
+                        AND the slider is below max. At 500 km the circle
+                        would dwarf the map (and the filter is a no-op),
+                        so we hide it instead of cluttering the view. */}
+                    {userPos && radiusKm < 500 && (
                         <Circle
                             center={userPos}
                             radius={radiusKm * 1000}

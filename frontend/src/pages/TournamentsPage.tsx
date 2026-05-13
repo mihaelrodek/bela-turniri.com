@@ -10,6 +10,7 @@ import {
     Image,
     Input,
     Skeleton,
+    Slider,
     Stack,
     Text,
     VStack,
@@ -332,7 +333,12 @@ export default function TournamentsPage() {
     const [locationFilter, setLocationFilter] = useState("")
     const [priceMin, setPriceMin] = useState("")
     const [priceMax, setPriceMax] = useState("")
-    const [radiusKm, setRadiusKm] = useState<number | null>(null) // null = no distance filter
+    // Distance filter — always a number, applied when location is on.
+    // The slider goes 1–500 km so the upper bound effectively means
+    // "everywhere in Croatia + neighbours". Default 100 is a sane
+    // middle-ground that surfaces a comfortable handful of tournaments
+    // without hiding nearby ones.
+    const [radiusKm, setRadiusKm] = useState<number>(100)
 
     // User location (for nearby filter) — silently restored if previously granted
     const {
@@ -347,17 +353,19 @@ export default function TournamentsPage() {
         const n = parseFloat(s)
         return Number.isFinite(n) ? n : null
     }
+    // 500 km effectively means "show all" — don't count it as an active
+    // filter chip when the user is at the slider's max.
     const activeFilterCount =
         (locationFilter.trim() ? 1 : 0) +
         (priceMin.trim() ? 1 : 0) +
         (priceMax.trim() ? 1 : 0) +
-        (radiusKm != null && userPos ? 1 : 0)
+        (userPos && radiusKm < 500 ? 1 : 0)
     const resetFilters = () => {
         setSearch("")
         setLocationFilter("")
         setPriceMin("")
         setPriceMax("")
-        setRadiusKm(null)
+        setRadiusKm(500)
     }
 
     useEffect(() => {
@@ -441,13 +449,19 @@ export default function TournamentsPage() {
                 // tournaments without a known entryPrice are filtered out only when a price filter is active
                 if (min != null || max != null) return false
             }
-            // Nearby filter — only when both user location AND a radius are set
-            if (me && radiusKm != null) {
+            // Nearby filter. Always active when the user has their
+            // location enabled — the slider just controls how wide the
+            // circle is. 500 km is effectively "everywhere" in Croatia
+            // + neighbours, so dragging to max disables the filter
+            // visually. Tournaments without geocoded coords are excluded
+            // when the filter is active because we can't know if they're
+            // in range.
+            if (me) {
                 if (typeof t.latitude !== "number" || typeof t.longitude !== "number") {
-                    // tournament has no geocoded coords → exclude when filtering by distance
+                    if (radiusKm < 500) return false
+                } else if (haversineKm(me, { lat: t.latitude, lng: t.longitude }) > radiusKm) {
                     return false
                 }
-                if (haversineKm(me, { lat: t.latitude, lng: t.longitude }) > radiusKm) return false
             }
             return true
         })
@@ -612,56 +626,55 @@ export default function TournamentsPage() {
                                         </Box>
                                     </Box>
 
-                                    {/* Nearby radius row */}
-                                    <HStack
-                                        mt="3"
-                                        gap="2"
-                                        wrap="wrap"
-                                        align="center"
-                                    >
-                                        <Text fontSize="xs" fontWeight="medium" color="fg.muted">
-                                            U krugu od:
-                                        </Text>
-                                        {[
-                                            { label: "10 km", km: 10 as number | null },
-                                            { label: "20 km", km: 20 },
-                                            { label: "50 km", km: 50 },
-                                            { label: "100 km", km: 100 },
-                                            { label: "Sve", km: null },
-                                        ].map((opt) => {
-                                            const active = radiusKm === opt.km
-                                            return (
-                                                <Button
-                                                    key={opt.label}
-                                                    size="xs"
-                                                    variant={active ? "solid" : "outline"}
-                                                    colorPalette={active ? "blue" : "gray"}
-                                                    onClick={() => setRadiusKm(opt.km)}
-                                                    disabled={!userPos}
-                                                    title={!userPos ? "Najprije uključi lokaciju" : undefined}
-                                                >
-                                                    {opt.label}
-                                                </Button>
-                                            )
-                                        })}
-                                        {!userPos && (
-                                            <Button
-                                                size="xs"
-                                                variant="ghost"
-                                                colorPalette="blue"
-                                                onClick={requestLocation}
-                                                disabled={geoStatus === "asking" || geoStatus === "unsupported"}
-                                                loading={geoStatus === "asking"}
-                                            >
-                                                <FiNavigation /> Uključi lokaciju
-                                            </Button>
-                                        )}
-                                        {geoStatus === "denied" && (
-                                            <Text fontSize="xs" color="fg.muted">
-                                                Lokacija je odbijena u pregledniku.
+                                    {/* Nearby radius — draggable 1–500 km. Auto-applies
+                                        on change. 500 means "show all" (covers all of
+                                        Croatia + neighbours). Disabled until the user
+                                        enables location. */}
+                                    <Box mt="3">
+                                        <HStack gap="2" mb="1.5" align="center" wrap="wrap">
+                                            <Text fontSize="xs" fontWeight="medium" color="fg.muted">
+                                                U krugu od:
                                             </Text>
-                                        )}
-                                    </HStack>
+                                            <Text fontSize="xs" fontWeight="semibold" color="blue.fg">
+                                                {userPos
+                                                    ? (radiusKm >= 500 ? "Sve" : `${radiusKm} km`)
+                                                    : "—"}
+                                            </Text>
+                                            {!userPos && (
+                                                <Button
+                                                    size="xs"
+                                                    variant="ghost"
+                                                    colorPalette="blue"
+                                                    onClick={requestLocation}
+                                                    disabled={geoStatus === "asking" || geoStatus === "unsupported"}
+                                                    loading={geoStatus === "asking"}
+                                                >
+                                                    <FiNavigation /> Uključi lokaciju
+                                                </Button>
+                                            )}
+                                            {geoStatus === "denied" && (
+                                                <Text fontSize="xs" color="fg.muted">
+                                                    Lokacija je odbijena u pregledniku.
+                                                </Text>
+                                            )}
+                                        </HStack>
+                                        <Slider.Root
+                                            min={1}
+                                            max={500}
+                                            step={1}
+                                            value={[radiusKm]}
+                                            onValueChange={(e) => setRadiusKm(e.value[0])}
+                                            disabled={!userPos}
+                                            colorPalette="blue"
+                                        >
+                                            <Slider.Control>
+                                                <Slider.Track>
+                                                    <Slider.Range />
+                                                </Slider.Track>
+                                                <Slider.Thumbs />
+                                            </Slider.Control>
+                                        </Slider.Root>
+                                    </Box>
                                 </>
                             )}
                         </Card.Body>
