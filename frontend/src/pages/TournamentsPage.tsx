@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
     Badge,
     Box,
@@ -27,6 +27,10 @@ import {
     TURNIRI_LIST_TOUR_KEY,
     TURNIRI_LIST_TOUR_STEPS,
     TOUR_RESUME_DETAIL_KEY,
+    TOUR_DEMO_TOURNAMENT_SLUG,
+    LIST_TOUR_OPEN_FILTERS_INDEX,
+    LIST_TOUR_AFTER_FILTERS_INDEX,
+    notifyTourOfLayoutChange,
 } from "../components/tourSteps"
 
 /** The list DTO now includes a public UUID you want to route with */
@@ -463,6 +467,58 @@ export default function TournamentsPage() {
 
     const finishedHasMore = finished.length < finishedTotal
 
+    // Eagerly load the entire finished list when the tour will need it.
+    // The demo tournament (TOUR_DEMO_TOURNAMENT_SLUG) is the oldest
+    // finished tournament, so it sits at the bottom of the paginated
+    // list — without this it would never be in the rendered DOM and the
+    // bridge step's anchor would silently miss.
+    //
+    // Triggered on tour auto-launch (seen-flag missing) AND on the
+    // manual "Pokaži kako" replay (tourReplayKey changed). A ref-backed
+    // attempted-key marker stops the effect from firing again after
+    // `finished` updates from our own fetch, since `finished` would
+    // otherwise re-run the effect and risk fetching twice.
+    const eagerLoadKeyRef = useRef<number | "auto" | null>(null)
+    useEffect(() => {
+        if (loading) return // wait for initial fetch to settle
+        // Pick the "session" identifier: replay key when replaying,
+        // "auto" when auto-launching for the first time, null when no
+        // tour will run (seen-flag set + no replay).
+        const seen = typeof window !== "undefined"
+            && window.localStorage.getItem(TURNIRI_LIST_TOUR_KEY)
+        const sessionKey: number | "auto" | null =
+            tourReplayKey > 0 ? tourReplayKey : seen ? null : "auto"
+        if (sessionKey == null) return
+        // Already attempted for this session — no-op.
+        if (eagerLoadKeyRef.current === sessionKey) return
+        eagerLoadKeyRef.current = sessionKey
+
+        // Pull the rest of the finished list in one wide page. Generous
+        // limit so we don't have to loop — finished tournaments count
+        // in the dozens to low hundreds, not thousands. Skip when the
+        // demo is already in the loaded slice.
+        if (finished.some((t) => t.slug === TOUR_DEMO_TOURNAMENT_SLUG)) return
+        if (finishedTotal === 0) return
+
+        let cancelled = false
+        ;(async () => {
+            try {
+                const all = await fetchTournaments("finished", {
+                    offset: 0,
+                    limit: Math.max(finishedTotal, 200),
+                })
+                if (cancelled) return
+                setFinished(all as TournamentCardWithUuid[])
+            } catch {
+                /* toast surfaces error; tour will silently miss anchor */
+            }
+        })()
+        return () => { cancelled = true }
+    // `finished` is intentionally NOT in deps — the effect updates it,
+    // and re-running on every update would cause repeat fetches.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tourReplayKey, loading, finishedTotal])
+
     // Apply search + filters to upcoming
     const filteredUpcoming = useMemo(() => {
         const q = search.trim().toLowerCase()
@@ -513,7 +569,17 @@ export default function TournamentsPage() {
                     can sit on the same row when there's room, and the page
                     saves the visual height of the previously-separate button
                     block. */}
-                {!loading && upcoming.length > 0 && (
+                {/* Filter toolbar — used to be gated on `upcoming.length > 0`
+                    but that hid the entire card on production deploys with
+                    no upcoming tournaments yet, which also dropped the
+                    `turniri-filters` tour anchor from the DOM and stalled
+                    the guided tour at the previous step. Now we render
+                    whenever the initial fetch has settled, regardless of
+                    list size — the Pretraži / Filteri / Kreiraj turnir
+                    controls are still meaningful with an empty list
+                    (creating the first tournament is in fact the most
+                    likely action a user takes on an empty board). */}
+                {!loading && (
                     <Card.Root
                         data-tour="turniri-filters"
                         variant="outline"
@@ -815,10 +881,32 @@ export default function TournamentsPage() {
                     />
                 ) : (
                     <>
+                        {/* Pick which finished card hosts the
+                            `turniri-demo-card` tour anchor. Preferred:
+                            the hand-picked demo tournament identified
+                            by TOUR_DEMO_TOURNAMENT_SLUG. Fallback: the
+                            first finished card. Without the fallback,
+                            production deploys that haven't imported the
+                            demo tournament would have no anchor at all
+                            and the tour's bridge step would stall — the
+                            user would land on "Završeni turniri" with a
+                            Next button that goes nowhere. */}
+                        {(() => null)()}
                         <Box display="grid" gridTemplateColumns={gridCols} gap="4">
-                            {finished.map((t) => (
-                                <TournamentCardView key={t.uuid} t={t} variant="finished" />
-                            ))}
+                            {finished.map((t, idx) => {
+                                const demoIdx = finished.findIndex(
+                                    (x) => x.slug === TOUR_DEMO_TOURNAMENT_SLUG,
+                                )
+                                const anchorIdx = demoIdx >= 0 ? demoIdx : 0
+                                return (
+                                    <Box
+                                        key={t.uuid}
+                                        data-tour={idx === anchorIdx ? "turniri-demo-card" : undefined}
+                                    >
+                                        <TournamentCardView t={t} variant="finished" />
+                                    </Box>
+                                )
+                            })}
                         </Box>
                         {/* Učitaj više — fetches the next page from the backend
                             and appends it. Hidden when we've already loaded all
@@ -848,23 +936,70 @@ export default function TournamentsPage() {
                 finished tournament with a sessionStorage resume flag,
                 and the detail page picks up the tour as a continuation. */}
             <PageTour
+                key={tourReplayKey}
                 steps={TURNIRI_LIST_TOUR_STEPS}
                 seenStorageKey={TURNIRI_LIST_TOUR_KEY}
                 forceRun={tourReplayKey > 0 ? true : undefined}
+                onStepChange={(nextIndex) => {
+                    // Side effects keyed off step index:
+                    //   - entering the "filters expanded" step → open
+                    //     the filter card so the user actually sees
+                    //     the inputs being described,
+                    //   - leaving the filter run (anything after) →
+                    //     close the card again so the tour doesn't
+                    //     end with a giant open panel.
+                    // Each toggle changes the height of the anchor, so
+                    // we nudge Joyride to re-measure after the layout
+                    // settles. Otherwise the tooltip floats off-screen
+                    // because it was positioned against the collapsed
+                    // (or just-collapsed) card geometry.
+                    if (nextIndex === LIST_TOUR_OPEN_FILTERS_INDEX) {
+                        setFiltersOpen(true)
+                        notifyTourOfLayoutChange()
+                    } else if (nextIndex >= LIST_TOUR_AFTER_FILTERS_INDEX) {
+                        setFiltersOpen(false)
+                        notifyTourOfLayoutChange()
+                    }
+
+                    // Mobile-only: open the hamburger drawer at the nav
+                    // steps so the `data-tour="nav-items"` anchor (which
+                    // lives inside the drawer's Stack on mobile) is in
+                    // the DOM when Joyride looks for it. Close it again
+                    // as soon as we move past the auth step so the user
+                    // sees the tournament list for the next anchor.
+                    // The NavBar listens for these events and toggles
+                    // its drawer state — desktop is unaffected because
+                    // the drawer block doesn't render at md+.
+                    const isNavStep = nextIndex === 1 || nextIndex === 2
+                    window.dispatchEvent(new CustomEvent(
+                        isNavStep ? "bela:open-nav-menu" : "bela:close-nav-menu",
+                    ))
+                    if (isNavStep) notifyTourOfLayoutChange()
+                }}
                 onFinished={() => {
-                    // Bridge to the detail-page tour: stash the flag,
-                    // then navigate to the first finished tournament so
-                    // the user sees a fully-populated detail page (all
-                    // tabs filled). If there's no finished tournament
-                    // available, fall back to the first upcoming card
-                    // — still meaningful. If neither exists, just end
-                    // the tour here.
-                    const target = finished[0] ?? upcoming[0] ?? null
-                    if (!target) return
+                    // Bridge to the detail-page tour. Preferred target is
+                    // the hardcoded demo tournament (29 pairs, 8 rounds,
+                    // full cjenik — a known-good record for the detail
+                    // tour). On production deploys where the demo SQL
+                    // hasn't been imported it won't be present, so fall
+                    // back to whatever finished tournament is loaded;
+                    // failing that, an upcoming card. The detail tour
+                    // anchors are tab + content-shaped so they work on
+                    // any tournament page even if the data is sparser.
+                    const hasDemoLoaded = finished.some(
+                        (t) => t.slug === TOUR_DEMO_TOURNAMENT_SLUG,
+                    )
+                    let slug: string | undefined
+                    if (hasDemoLoaded && TOUR_DEMO_TOURNAMENT_SLUG) {
+                        slug = TOUR_DEMO_TOURNAMENT_SLUG
+                    } else {
+                        const target = finished[0] ?? upcoming[0]
+                        slug = (target as any)?.slug || target?.uuid
+                    }
+                    if (!slug) return
                     try {
                         window.sessionStorage.setItem(TOUR_RESUME_DETAIL_KEY, "1")
                     } catch { /* private mode */ }
-                    const slug = (target as any).slug || target.uuid
                     navigate(`/turniri/${slug}`)
                 }}
             />

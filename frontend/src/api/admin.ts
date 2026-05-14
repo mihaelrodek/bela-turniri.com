@@ -15,6 +15,10 @@ export type AdminTournamentDto = {
     location: string | null
     startAt: string | null
     status: string | null
+    /** Firebase UID of the current owner; null for legacy/imported rows. */
+    createdByUid: string | null
+    /** Display name snapshot copied at create/transfer time. */
+    createdByName: string | null
 }
 
 /** Unclaimed pair row in a tournament's pair list. */
@@ -91,6 +95,43 @@ export async function adminAttachPair(
         {
             successMessage: "Par pridružen korisniku.",
             silentErrorStatuses: [409],
+        } as any,
+    )
+    return data
+}
+
+export type TransferTournamentResponse = {
+    tournamentId: number
+    userUid: string
+    displayName: string | null
+}
+
+/**
+ * Transfer ownership of a tournament to another registered user.
+ *
+ * <p>After this call the target user is treated exactly as if they had
+ * created the tournament themselves: they can edit details, manage
+ * pairs, generate rounds, set the podium, etc. The admin loses the
+ * implicit-via-creation edit rights but retains admin powers.
+ *
+ * <p>Both `createdByUid` and `createdByName` are updated on the backend
+ * — the latter is a snapshot of the target user's UserProfile
+ * displayName so subsequent renders show the new owner without any
+ * extra lookup.
+ *
+ * Common error responses:
+ *   - 404 TOURNAMENT_NOT_FOUND — tournament id is invalid or soft-deleted.
+ *   - 404 USER_NOT_FOUND       — target userUid has no UserProfile row.
+ */
+export async function adminTransferTournament(
+    tournamentId: number,
+    userUid: string,
+): Promise<TransferTournamentResponse> {
+    const { data } = await http.post<TransferTournamentResponse>(
+        `/admin/tournaments/${tournamentId}/transfer`,
+        { userUid },
+        {
+            successMessage: "Turnir prenesen novom vlasniku.",
         } as any,
     )
     return data

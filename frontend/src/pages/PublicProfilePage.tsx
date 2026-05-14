@@ -50,6 +50,7 @@ import {
 } from "../api/publicProfile"
 import type { MyTournamentParticipation } from "../api/userMe"
 import { deleteAvatar, getProfile, syncProfile, updateColorMode, updateProfile, uploadAvatar } from "../api/userMe"
+import AvatarPreview from "../components/AvatarPreview"
 import {
     cancelPresetArchive,
     confirmPresetArchive,
@@ -583,33 +584,42 @@ function ProfileHeader({
             <Card.Body p={{ base: "5", md: "5" }}>
                 <VStack align="stretch" gap="3">
                     <HStack gap="3" align="start">
-                        {/* Avatar — image when uploaded, initials otherwise. */}
+                        {/* Avatar — image when uploaded, initials otherwise.
+                            Wrapped in AvatarPreview so hovering / tapping
+                            the circle opens a full-screen lightbox of the
+                            picture. The wrapper is a no-op when there's no
+                            avatarUrl, so initials stay un-clickable. */}
                         <Box position="relative" flexShrink={0}>
-                            <Box
-                                w="48px"
-                                h="48px"
-                                rounded="full"
-                                overflow="hidden"
-                                bg="blue.subtle"
-                                color="blue.fg"
-                                display="flex"
-                                alignItems="center"
-                                justifyContent="center"
-                                fontWeight="bold"
-                                fontSize="md"
+                            <AvatarPreview
+                                src={profile.avatarUrl}
+                                alt={profile.displayName ?? "Profilna slika"}
                             >
-                                {profile.avatarUrl ? (
-                                    <Image
-                                        src={profile.avatarUrl}
-                                        alt={profile.displayName ?? "Profilna slika"}
-                                        w="100%"
-                                        h="100%"
-                                        objectFit="cover"
-                                    />
-                                ) : (
-                                    initialsOf(profile.displayName)
-                                )}
-                            </Box>
+                                <Box
+                                    w="48px"
+                                    h="48px"
+                                    rounded="full"
+                                    overflow="hidden"
+                                    bg="blue.subtle"
+                                    color="blue.fg"
+                                    display="flex"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                    fontWeight="bold"
+                                    fontSize="md"
+                                >
+                                    {profile.avatarUrl ? (
+                                        <Image
+                                            src={profile.avatarUrl}
+                                            alt={profile.displayName ?? "Profilna slika"}
+                                            w="100%"
+                                            h="100%"
+                                            objectFit="cover"
+                                        />
+                                    ) : (
+                                        initialsOf(profile.displayName)
+                                    )}
+                                </Box>
+                            </AvatarPreview>
                             {isOwner && (
                                 <>
                                     <IconButton

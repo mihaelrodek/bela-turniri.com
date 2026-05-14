@@ -68,6 +68,20 @@ export default function PageTour({
 }) {
     const [run, setRun] = useState(false)
 
+    // NB: we used to body-lock scroll (overflow: hidden on html + body)
+    // while the tour ran, but that broke Joyride's ability to scroll the
+    // next anchor into view when the layout changed mid-tour. Specifically:
+    //   - the "Što sve možeš filtrirati" step expects the filter card to
+    //     grow as filtersOpen flips true,
+    //   - the tab-switch steps swap entire chunks of content under the
+    //     fold.
+    // With overflow:hidden, the anchor would sit somewhere off-screen
+    // and the tooltip would be rendered at the off-screen coordinates,
+    // looking "kicked out of view". Dropping the lock lets Joyride's
+    // own setView/scrollTo land each step properly. The visible overlay
+    // is still strong enough to discourage the user from manually
+    // panning away mid-step.
+
     // Auto-launch logic. Runs on mount; honours the seen-flag if a key
     // was supplied. forceRun overrides everything — when it flips true
     // we run immediately, when it flips back to false the tour stops.

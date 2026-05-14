@@ -100,6 +100,8 @@ import {
     TURNIR_DETAIL_TOUR_KEY,
     TURNIR_DETAIL_TOUR_STEPS,
     TOUR_RESUME_DETAIL_KEY,
+    DETAIL_TOUR_TAB_BY_INDEX,
+    notifyTourOfLayoutChange,
 } from "../components/tourSteps"
 
 // Register the Croatian locale once for the calendar UI (month/day names,
@@ -1724,6 +1726,7 @@ export default function TournamentDetailsPage() {
                     {/* ===== DETAILS — read mode + inline edit mode ===== */}
                     {!editingDetails || !editForm ? (
                         <Box
+                            data-tour="detail-content-details"
                             display="grid"
                             gridTemplateColumns={{ base: "1fr", lg: "1fr 320px" }}
                             gap={{ base: "4", lg: "5" }}
@@ -3135,9 +3138,20 @@ export default function TournamentDetailsPage() {
                                                 gridTemplateColumns={{ base: "1fr", md: "1fr 1fr", lg: "1fr 1fr 1fr" }}
                                                 gap="2"
                                             >
-                                                {displayActivePairs.map((p, idx) =>
-                                                    renderPair(p, idx, p.isEliminated)
-                                                )}
+                                                {displayActivePairs.map((p, idx) => (
+                                                    <Box
+                                                        key={p.id}
+                                                        // First card in the active grid gets a
+                                                        // tour anchor so the detail tour can
+                                                        // explain "what's a pair card". The
+                                                        // wrapper avoids threading the data
+                                                        // attribute through renderPair, which
+                                                        // is already a busy function.
+                                                        data-tour={idx === 0 ? "detail-first-pair" : undefined}
+                                                    >
+                                                        {renderPair(p, idx, p.isEliminated)}
+                                                    </Box>
+                                                ))}
                                             </Box>
                                         </Box>
 
@@ -3168,10 +3182,12 @@ export default function TournamentDetailsPage() {
                     })()}
                 </>
             ) : tab === "cjenik" ? (
-                <CjenikTab
-                    tournamentRef={t.uuid ?? t.slug ?? ""}
-                    canEdit={isAdmin || (!!user?.uid && user.uid === t.createdByUid)}
-                />
+                <Box data-tour="detail-content-cjenik">
+                    <CjenikTab
+                        tournamentRef={t.uuid ?? t.slug ?? ""}
+                        canEdit={isAdmin || (!!user?.uid && user.uid === t.createdByUid)}
+                    />
+                </Box>
             ) : (
                 <>
                     {/* ===== BRACKET ===== */}
@@ -3793,8 +3809,8 @@ export default function TournamentDetailsPage() {
                                         </VStack>
                                     </Box>
                                 ) : (
-                                    <VStack align="stretch" gap="3">
-                                        {rounds.map((r) => {
+                                    <VStack data-tour="detail-rounds" align="stretch" gap="3">
+                                        {rounds.map((r, rIdx) => {
                                             const collapsed = !!collapsedRounds[r.id]
                                             const isActive = r.id === activeRoundId
                                             const completed = r.status === "COMPLETED"
@@ -3803,6 +3819,10 @@ export default function TournamentDetailsPage() {
                                             return (
                                                 <Card.Root
                                                     key={r.id}
+                                                    // Tour anchor on the first round so the
+                                                    // "proširi / fullscreen" step has a
+                                                    // concrete element to point at.
+                                                    data-tour={rIdx === 0 ? "detail-first-round" : undefined}
                                                     variant="outline"
                                                     rounded="xl"
                                                     borderColor={isActive ? "blue.muted" : "border.emphasized"}
@@ -4603,16 +4623,35 @@ export default function TournamentDetailsPage() {
                 seenStorageKey={TURNIR_DETAIL_TOUR_KEY}
                 forceRun={tourForceRun}
                 onStepChange={(nextIndex) => {
-                    // Step indices map 1:1 to the tab order in the steps
-                    // array: 0=details, 1=pairs, 2=bracket, 3=cjenik.
-                    const tabsByIndex: Array<"details" | "pairs" | "bracket" | "cjenik"> = [
-                        "details", "pairs", "bracket", "cjenik",
-                    ]
-                    const targetTab = tabsByIndex[nextIndex]
-                    if (targetTab) setTab(targetTab)
+                    // Switch tabs at specific indices — see
+                    // DETAIL_TOUR_TAB_BY_INDEX comment in tourSteps.ts
+                    // for the index → tab mapping. Indices not in the
+                    // map don't change the tab (so e.g. the "pair card"
+                    // step keeps the Parovi tab visible from the
+                    // previous step).
+                    //
+                    // After switching tabs we nudge Joyride to re-measure
+                    // the next anchor's geometry. The newly-mounted tab
+                    // content can shift the tab button's bounding rect
+                    // (or, more importantly, anchors INSIDE the tab
+                    // content like detail-first-pair sit in different
+                    // positions for each tab). Without the resize event
+                    // Joyride keeps the tooltip pinned to the old
+                    // coordinates and it ends up off-screen.
+                    const targetTab = DETAIL_TOUR_TAB_BY_INDEX[nextIndex]
+                    if (targetTab) {
+                        setTab(targetTab)
+                        notifyTourOfLayoutChange()
+                    }
                 }}
                 onFinished={() => {
                     setTourForceRun(undefined)
+                    // After the farewell step, drop the user back on the
+                    // /turniri landing so they're not stranded on the
+                    // detail page they were just guided through. Matches
+                    // the natural "back to the main list" expectation
+                    // after a guided tour completes.
+                    navigate("/turniri")
                 }}
             />
         </>

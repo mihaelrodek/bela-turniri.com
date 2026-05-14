@@ -73,7 +73,9 @@ public class AdminController {
                         t.getName(),
                         t.getLocation(),
                         t.getStartAt(),
-                        t.getStatus() != null ? t.getStatus().name() : null))
+                        t.getStatus() != null ? t.getStatus().name() : null,
+                        t.getCreatedByUid(),
+                        t.getCreatedByName()))
                 .toList();
         return Response.ok(dtos).build();
     }
@@ -194,6 +196,61 @@ public class AdminController {
                 target.getDisplayName(), createdPreset)).build();
     }
 
+    /** ──────────────────────────────────────────────────────────────────
+     * Transfer tournament ownership to another registered user. Used
+     * when an admin pre-creates a tournament on behalf of an organiser
+     * (e.g. before the organiser has signed up, or for legacy imports)
+     * and later wants to hand it over so the real organiser can manage
+     * pairs, edit details, finish rounds, etc.
+     *
+     * <p>Two fields are updated on the tournament:
+     *   - {@code createdByUid} — drives all owner-only authorisation
+     *     checks ({@code canEditTournament}, pair-management endpoints,
+     *     the "Uredi" / "Završi turnir" / "Manualno generiraj kolo" UI
+     *     gates). After this call the target user is treated exactly as
+     *     if they had created the tournament themselves.
+     *   - {@code createdByName} — copied from the target's UserProfile
+     *     displayName so all "created by" labels in the UI match the
+     *     new owner without us having to look up the profile every time
+     *     the tournament is rendered.
+     *
+     * <p>Idempotent — transferring to the same user again is a no-op
+     * (returns 200 with the same payload). We don't reject transfers
+     * across status (DRAFT / PUBLISHED / FINISHED) because legacy
+     * imports often arrive as FINISHED and the whole point of transfer
+     * is to backfill ownership for them too.
+     * ──────────────────────────────────────────────────────────────── */
+    @POST
+    @Path("/tournaments/{tournamentId}/transfer")
+    @Transactional
+    public Response transferTournament(@PathParam("tournamentId") Long tournamentId,
+                                       TransferTournamentRequest body) {
+        if (body == null || body.userUid() == null || body.userUid().isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("USER_UID_REQUIRED").build();
+        }
+        Tournaments tournament = tournamentsRepo.findById(tournamentId);
+        if (tournament == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity("TOURNAMENT_NOT_FOUND").build();
+        }
+
+        UserProfile target = profileRepo.findByUid(body.userUid()).orElse(null);
+        if (target == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity("USER_NOT_FOUND").build();
+        }
+
+        tournament.setCreatedByUid(target.getUserUid());
+        tournament.setCreatedByName(target.getDisplayName());
+        tournamentsRepo.persist(tournament);
+
+        return Response.ok(new TransferTournamentResponse(
+                tournament.getId(),
+                target.getUserUid(),
+                target.getDisplayName())).build();
+    }
+
     /* ─────────────────── helpers + DTOs ─────────────────── */
 
     /**
@@ -211,7 +268,8 @@ public class AdminController {
 
     public record AdminTournamentDto(Long id, String uuid, String slug,
                                      String name, String location,
-                                     OffsetDateTime startAt, String status) {}
+                                     OffsetDateTime startAt, String status,
+                                     String createdByUid, String createdByName) {}
 
     public record AdminPairDto(Long id, String name, boolean eliminated,
                                int wins, int losses) {}
@@ -222,4 +280,9 @@ public class AdminController {
 
     public record AttachPairResponse(Long pairId, String userUid,
                                      String displayName, boolean createdPreset) {}
+
+    public record TransferTournamentRequest(@NotBlank String userUid) {}
+
+    public record TransferTournamentResponse(Long tournamentId, String userUid,
+                                             String displayName) {}
 }

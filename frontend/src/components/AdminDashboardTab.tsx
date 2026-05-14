@@ -13,33 +13,43 @@ import {
     Text,
     VStack,
 } from "@chakra-ui/react"
-import { FiSearch, FiUserPlus } from "react-icons/fi"
+import { FiRepeat, FiSearch, FiUserPlus } from "react-icons/fi"
 import {
     adminAttachPair,
     adminListTournaments,
     adminListUnclaimedPairs,
     adminSearchUsers,
+    adminTransferTournament,
     type AdminPairDto,
     type AdminTournamentDto,
     type AdminUserDto,
 } from "../api/admin"
 
 /**
- * Admin-only "Dashboard" tab on the profile page. Lets an admin attach a
- * tournament pair to a registered user retroactively — typically for
- * legacy/organiser-added pairs from tournaments imported from old
- * spreadsheets. After attaching, the pair shows up on the target user's
- * public profile as if they had self-registered.
+ * Admin-only "Dashboard" tab on the profile page. Two parallel flows
+ * gated on a single tournament picker at the top:
+ *
+ * <p><b>1. Attach pairs to users</b> — for legacy/organiser-added pairs
+ * imported from old spreadsheets. After attaching, the pair shows up on
+ * the target user's public profile as if they had self-registered.
+ *
+ * <p><b>2. Transfer tournament ownership</b> — for tournaments the admin
+ * pre-created on behalf of an organiser (e.g. before the organiser had
+ * signed up). After transfer the target user becomes the owner and can
+ * manage pairs, edit details, generate rounds, set the podium, etc.
  *
  * <p>UI flow:
- *   1. Admin picks a tournament from the list (top section).
- *   2. Component fetches unclaimed pairs for that tournament and shows
- *      them as a list.
- *   3. Admin clicks "Pridruži korisniku" on a pair → a dialog opens with
- *      a search input over the registered users (by displayName).
- *   4. Admin clicks a user → POST /admin/pairs/{id}/attach. On success
- *      the pair drops out of the list (it's no longer "unclaimed"); a
- *      toast confirms.
+ *   1. Admin picks a tournament from the list (top section). The list
+ *      shows the current owner alongside each row so the admin knows
+ *      what they're about to act on.
+ *   2. Component fetches unclaimed pairs and renders two sibling cards
+ *      below: the pair list (with per-pair "Pridruži korisniku" buttons)
+ *      and an ownership card with the current owner + "Prenesi
+ *      vlasništvo" button.
+ *   3. Either button opens a user-search dialog. Selecting a user fires
+ *      the corresponding endpoint and refreshes only the part of state
+ *      that changed (pair drops out of the list, or the tournament row
+ *      updates with the new owner).
  *
  * <p>Component-level state intentionally lives here rather than a
  * context — the dashboard is a single self-contained screen that
@@ -138,6 +148,63 @@ export default function AdminDashboardTab() {
         setUserSearch("")
     }
 
+    /* ─────────────── Transfer-tournament dialog ─────────────── */
+
+    // Kept in parallel to the pair-attach user picker rather than shared
+    // because the two flows might both be open in quick succession and
+    // we don't want a stale search list carrying over between them.
+    const [transferDialogOpen, setTransferDialogOpen] = useState(false)
+    const [transferUserSearch, setTransferUserSearch] = useState("")
+    const [transferUsers, setTransferUsers] = useState<AdminUserDto[]>([])
+    const [loadingTransferUsers, setLoadingTransferUsers] = useState(false)
+    const [transferring, setTransferring] = useState<string | null>(null) // userUid in flight
+
+    useEffect(() => {
+        if (!transferDialogOpen) return
+        let cancelled = false
+        setLoadingTransferUsers(true)
+        const handle = setTimeout(() => {
+            adminSearchUsers(transferUserSearch)
+                .then((rows) => { if (!cancelled) setTransferUsers(rows) })
+                .catch(() => { /* handled by toaster */ })
+                .finally(() => { if (!cancelled) setLoadingTransferUsers(false) })
+        }, 200)
+        return () => {
+            cancelled = true
+            clearTimeout(handle)
+        }
+    }, [transferUserSearch, transferDialogOpen])
+
+    function openTransferDialog() {
+        setTransferDialogOpen(true)
+        setTransferUserSearch("")
+        setTransferUsers([])
+    }
+    function closeTransferDialog() {
+        setTransferDialogOpen(false)
+        setTransferUsers([])
+        setTransferUserSearch("")
+    }
+
+    async function handleTransfer(user: AdminUserDto) {
+        if (selectedTournament == null) return
+        try {
+            setTransferring(user.userUid)
+            const result = await adminTransferTournament(selectedTournament.id, user.userUid)
+            // Patch the tournament list in place — the picker rows show the
+            // owner and we want the new value to appear without a full
+            // refetch (cheaper + avoids losing the user's scroll position).
+            setTournaments((prev) => prev?.map((t) =>
+                t.id === selectedTournament.id
+                    ? { ...t, createdByUid: result.userUid, createdByName: result.displayName }
+                    : t,
+            ) ?? null)
+            closeTransferDialog()
+        } finally {
+            setTransferring(null)
+        }
+    }
+
     async function handleAttach(user: AdminUserDto) {
         if (attachTargetPair == null) return
         try {
@@ -232,6 +299,9 @@ export default function AdminDashboardTab() {
                                                             <Text fontSize="xs" color="fg.muted" truncate>
                                                                 {[t.location, formatDate(t.startAt)].filter(Boolean).join(" • ")}
                                                             </Text>
+                                                            <Text fontSize="xs" color="fg.muted" truncate>
+                                                                Vlasnik: {t.createdByName || (t.createdByUid ? "(bez imena)" : "— (legacy)")}
+                                                            </Text>
                                                         </Box>
                                                         {t.status && (
                                                             <Badge size="sm" variant="subtle"
@@ -303,6 +373,57 @@ export default function AdminDashboardTab() {
                                     ))}
                                 </Stack>
                             )}
+                        </Stack>
+                    </Card.Body>
+                </Card.Root>
+            )}
+
+            {selectedTournament != null && (
+                <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
+                    <Card.Body p={{ base: "4", md: "6" }}>
+                        <Stack gap="3">
+                            <Box>
+                                <Text fontSize="md" fontWeight="semibold">
+                                    Vlasništvo turnira
+                                </Text>
+                                <Text fontSize="sm" color="fg.muted">
+                                    Prenesi turnir drugom registriranom korisniku — postaje vlasnik
+                                    i može uređivati detalje, upravljati parovima, generirati kola,
+                                    postavljati pobjednike itd.
+                                </Text>
+                            </Box>
+
+                            <Box
+                                p="3"
+                                bg="bg.muted"
+                                rounded="md"
+                                borderWidth="1px"
+                                borderColor="border.subtle"
+                            >
+                                <Text fontSize="xs" color="fg.muted">TRENUTNI VLASNIK</Text>
+                                <Text fontSize="sm" fontWeight="medium">
+                                    {selectedTournament.createdByName
+                                        || (selectedTournament.createdByUid
+                                            ? "(bez imena)"
+                                            : "— (legacy / nema vlasnika)")}
+                                </Text>
+                                {selectedTournament.createdByUid && (
+                                    <Text fontSize="xs" color="fg.muted" mt="1">
+                                        UID: {selectedTournament.createdByUid}
+                                    </Text>
+                                )}
+                            </Box>
+
+                            <HStack justify="flex-end">
+                                <Button
+                                    size="sm"
+                                    variant="solid"
+                                    colorPalette="blue"
+                                    onClick={openTransferDialog}
+                                >
+                                    <FiRepeat /> Prenesi vlasništvo
+                                </Button>
+                            </HStack>
                         </Stack>
                     </Card.Body>
                 </Card.Root>
@@ -407,6 +528,133 @@ export default function AdminDashboardTab() {
                             </Dialog.Body>
                             <Dialog.Footer>
                                 <Button variant="ghost" onClick={closeAttachDialog}>Zatvori</Button>
+                            </Dialog.Footer>
+                        </Dialog.Content>
+                    </Dialog.Positioner>
+                </Portal>
+            </Dialog.Root>
+
+            {/* Tournament-transfer dialog. Only rendered when the admin has
+                explicitly opened it — keeps the search effect inert
+                otherwise (the effect short-circuits on !transferDialogOpen). */}
+            <Dialog.Root
+                open={transferDialogOpen}
+                onOpenChange={(e) => { if (!e.open) closeTransferDialog() }}
+                placement="center"
+                motionPreset="slide-in-bottom"
+            >
+                <Portal>
+                    <Dialog.Backdrop />
+                    <Dialog.Positioner>
+                        <Dialog.Content maxW={{ base: "92%", md: "md" }}>
+                            <Dialog.Header>
+                                <Dialog.Title>
+                                    Prenesi vlasništvo turnira
+                                </Dialog.Title>
+                            </Dialog.Header>
+                            <Dialog.Body>
+                                <Stack gap="3">
+                                    {selectedTournament && (
+                                        <Box
+                                            p="3"
+                                            bg="bg.muted"
+                                            rounded="md"
+                                            borderWidth="1px"
+                                            borderColor="border.subtle"
+                                        >
+                                            <Text fontSize="xs" color="fg.muted">TURNIR</Text>
+                                            <Text fontSize="sm" fontWeight="medium">
+                                                {selectedTournament.name}
+                                            </Text>
+                                            <Text fontSize="xs" color="fg.muted" mt="1">
+                                                Trenutni vlasnik:{" "}
+                                                {selectedTournament.createdByName
+                                                    || (selectedTournament.createdByUid
+                                                        ? "(bez imena)"
+                                                        : "— (legacy)")}
+                                            </Text>
+                                        </Box>
+                                    )}
+
+                                    <Box position="relative">
+                                        <Box position="absolute" left="3" top="50%" transform="translateY(-50%)"
+                                             color="fg.muted" pointerEvents="none">
+                                            <FiSearch />
+                                        </Box>
+                                        <Input
+                                            pl="9"
+                                            placeholder="Pretraži po imenu i prezimenu…"
+                                            value={transferUserSearch}
+                                            onChange={(e) => setTransferUserSearch(e.target.value)}
+                                            autoFocus
+                                        />
+                                    </Box>
+
+                                    <Box
+                                        maxH="320px"
+                                        overflowY="auto"
+                                        borderWidth="1px"
+                                        borderColor="border.subtle"
+                                        rounded="md"
+                                    >
+                                        {loadingTransferUsers ? (
+                                            <HStack py="4" justify="center"><Spinner size="sm" /></HStack>
+                                        ) : transferUsers.length === 0 ? (
+                                            <Text p="3" fontSize="sm" color="fg.muted">
+                                                Nema rezultata.
+                                            </Text>
+                                        ) : (
+                                            transferUsers.map((u) => {
+                                                const isCurrentOwner =
+                                                    !!selectedTournament
+                                                    && selectedTournament.createdByUid === u.userUid
+                                                return (
+                                                    <HStack
+                                                        key={u.userUid}
+                                                        px="3"
+                                                        py="2"
+                                                        justify="space-between"
+                                                        gap="2"
+                                                        borderBottomWidth="1px"
+                                                        borderColor="border.subtle"
+                                                        _hover={{ bg: "bg.muted" }}
+                                                    >
+                                                        <Box minW="0" flex="1">
+                                                            <HStack gap="2">
+                                                                <Text fontSize="sm" fontWeight="medium" truncate>
+                                                                    {u.displayName || "(bez imena)"}
+                                                                </Text>
+                                                                {isCurrentOwner && (
+                                                                    <Badge size="xs" variant="subtle" colorPalette="gray">
+                                                                        vlasnik
+                                                                    </Badge>
+                                                                )}
+                                                            </HStack>
+                                                            {u.slug && (
+                                                                <Text fontSize="xs" color="fg.muted" truncate>
+                                                                    /profil/{u.slug}
+                                                                </Text>
+                                                            )}
+                                                        </Box>
+                                                        <Button
+                                                            size="xs"
+                                                            variant="solid"
+                                                            colorPalette="blue"
+                                                            loading={transferring === u.userUid}
+                                                            disabled={isCurrentOwner}
+                                                            onClick={() => handleTransfer(u)}
+                                                        >
+                                                            {isCurrentOwner ? "Već vlasnik" : "Prenesi"}
+                                                        </Button>
+                                                    </HStack>
+                                                )
+                                            })
+                                        )}
+                                    </Box>
+                                </Stack>
+                            </Dialog.Body>
+                            <Dialog.Footer>
+                                <Button variant="ghost" onClick={closeTransferDialog}>Zatvori</Button>
                             </Dialog.Footer>
                         </Dialog.Content>
                     </Dialog.Positioner>

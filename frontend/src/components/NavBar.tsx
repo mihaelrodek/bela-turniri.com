@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react"
 import {
-    Box, Flex, HStack, IconButton, Image, Button, Stack, Container, Menu, Text, chakra, useDisclosure,
+    Box, Flex, HStack, IconButton, Image, Button, Stack, Container, Menu, Text, chakra, useBreakpointValue, useDisclosure,
 } from "@chakra-ui/react"
 import { Link as RouterLink, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
 import { useColorModeValue } from "../color-mode"
@@ -121,6 +121,43 @@ export default function NavBar() {
     const border = useColorModeValue("gray.200", "gray.700")
     const { user, signOut, loading } = useAuth()
     const navigate = useNavigate()
+
+    /**
+     * True when the viewport is below the md breakpoint (Chakra's mobile
+     * range). Computed via Chakra's breakpoint hook rather than CSS so we
+     * can conditionally apply `data-tour` attributes — only the currently
+     * visible variant of the nav (desktop HStack vs. mobile drawer Stack)
+     * gets the anchor. Otherwise Joyride's querySelector would find the
+     * hidden desktop nav first on mobile, anchor on a 0×0 element, and
+     * the tooltip would render off-screen. {ssr: false} keeps SSR happy
+     * by deferring evaluation to the client (the actual desktop SPA build
+     * runs in the browser anyway).
+     */
+    const isMobile = useBreakpointValue({ base: true, md: false }, { ssr: false }) ?? false
+
+    /**
+     * Tour-driven control of the mobile hamburger drawer. The guided
+     * tour dispatches `bela:open-nav-menu` when it lands on a step
+     * whose target lives inside the drawer (nav-items, nav-auth), and
+     * `bela:close-nav-menu` when it moves on. Listened for here so the
+     * drawer flips open without the user having to tap the burger
+     * themselves — otherwise the tour would highlight an empty area
+     * because the drawer's content isn't in the DOM when closed.
+     *
+     * <p>No-op on desktop — the events still fire from the tour but
+     * onOpen/onClose just toggle state that's never read (the drawer
+     * block is `display: none` on md+ regardless).
+     */
+    useEffect(() => {
+        function handleOpen() { onOpen() }
+        function handleClose() { onClose() }
+        window.addEventListener("bela:open-nav-menu", handleOpen)
+        window.addEventListener("bela:close-nav-menu", handleClose)
+        return () => {
+            window.removeEventListener("bela:open-nav-menu", handleOpen)
+            window.removeEventListener("bela:close-nav-menu", handleClose)
+        }
+    }, [onOpen, onClose])
 
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
     useEffect(() => {
@@ -251,7 +288,11 @@ export default function NavBar() {
                         </chakra.a>
                     </Box>
 
-                    <HStack gap={2} justify="center">
+                    <HStack
+                        data-tour={isMobile ? undefined : "nav-items"}
+                        gap={2}
+                        justify="center"
+                    >
                         <NavButton to="/turniri" exact>
                             Turniri
                         </NavButton>
@@ -261,7 +302,11 @@ export default function NavBar() {
                         <NavButton to="/pronadi-para">Pronađi para</NavButton>
                     </HStack>
 
-                    <HStack justify="end" gap="1.5">
+                    <HStack
+                        data-tour={isMobile ? undefined : "nav-auth"}
+                        justify="end"
+                        gap="1.5"
+                    >
                         <AuthArea />
                         <HelpTourButton />
                         {/* Conditional install icon — renders nothing on
@@ -300,48 +345,56 @@ export default function NavBar() {
                         </RouterLink>
                     </chakra.a>
                     <Box flex="1" />
-                    {!loading && user && (
-                        <Menu.Root>
-                            <Menu.Trigger asChild>
-                                <Button
-                                    aria-label="Profil meni"
-                                    size="sm"
-                                    variant="ghost"
-                                    mr={1}
-                                    px={1}
-                                >
-                                    <UserAvatar name={user.displayName} email={user.email} avatarUrl={avatarUrl} />
-                                </Button>
-                            </Menu.Trigger>
-                            <Menu.Positioner>
-                                <Menu.Content minW="220px">
-                                    <Box px="3" py="2" borderBottomWidth="1px" borderColor="border.subtle">
-                                        <Text fontSize="xs" color="fg.muted">Prijavljen kao</Text>
-                                        <Text fontSize="sm" fontWeight="medium" truncate>
-                                            {user.email ?? user.displayName ?? "Anonimno"}
-                                        </Text>
-                                    </Box>
-                                    <Menu.Item value="profile" onSelect={() => navigate("/profil")}>
-                                        <FiUser /> Profil
-                                    </Menu.Item>
-                                    <Menu.Item value="logout" onSelect={onSignOut}>
-                                        <FiLogOut /> Odjavi se
-                                    </Menu.Item>
-                                </Menu.Content>
-                            </Menu.Positioner>
-                        </Menu.Root>
-                    )}
-                    {/* Inline Prijava for anonymous mobile users — previously
-                        only reachable via the hamburger drawer. Showing it in
-                        the top bar means a one-tap sign-in path without
-                        having to discover the menu first. Hidden when the
-                        user is already logged in (the avatar menu replaces
-                        it above). */}
-                    {!loading && !user && (
-                        <Button asChild size="sm" variant="solid" colorPalette="blue" mr={1}>
-                            <RouterLink to="/prijava">Prijava</RouterLink>
-                        </Button>
-                    )}
+                    {/* Wrap the mobile auth control (avatar menu or Prijava
+                        button) in a Box with `data-tour="nav-auth"` so the
+                        guided tour has a target on mobile. Only set the
+                        attribute when the viewport is actually mobile so
+                        Joyride doesn't pick this Box up on desktop where
+                        the equivalent desktop HStack also has it. */}
+                    <Box data-tour={isMobile ? "nav-auth" : undefined}>
+                        {!loading && user && (
+                            <Menu.Root>
+                                <Menu.Trigger asChild>
+                                    <Button
+                                        aria-label="Profil meni"
+                                        size="sm"
+                                        variant="ghost"
+                                        mr={1}
+                                        px={1}
+                                    >
+                                        <UserAvatar name={user.displayName} email={user.email} avatarUrl={avatarUrl} />
+                                    </Button>
+                                </Menu.Trigger>
+                                <Menu.Positioner>
+                                    <Menu.Content minW="220px">
+                                        <Box px="3" py="2" borderBottomWidth="1px" borderColor="border.subtle">
+                                            <Text fontSize="xs" color="fg.muted">Prijavljen kao</Text>
+                                            <Text fontSize="sm" fontWeight="medium" truncate>
+                                                {user.email ?? user.displayName ?? "Anonimno"}
+                                            </Text>
+                                        </Box>
+                                        <Menu.Item value="profile" onSelect={() => navigate("/profil")}>
+                                            <FiUser /> Profil
+                                        </Menu.Item>
+                                        <Menu.Item value="logout" onSelect={onSignOut}>
+                                            <FiLogOut /> Odjavi se
+                                        </Menu.Item>
+                                    </Menu.Content>
+                                </Menu.Positioner>
+                            </Menu.Root>
+                        )}
+                        {/* Inline Prijava for anonymous mobile users — previously
+                            only reachable via the hamburger drawer. Showing it in
+                            the top bar means a one-tap sign-in path without
+                            having to discover the menu first. Hidden when the
+                            user is already logged in (the avatar menu replaces
+                            it above). */}
+                        {!loading && !user && (
+                            <Button asChild size="sm" variant="solid" colorPalette="blue" mr={1}>
+                                <RouterLink to="/prijava">Prijava</RouterLink>
+                            </Button>
+                        )}
+                    </Box>
                     {/* Install button moved inside the burger drawer below
                         so the top bar stays clean on mobile. Theme toggle
                         lives in profile → Postavke (per-user). */}
@@ -357,7 +410,18 @@ export default function NavBar() {
 
                 {open && (
                     <Box pt={3} pb={2} display={{ md: "none" }}>
-                        <Stack gap={2} onClick={onClose}>
+                        {/* `data-tour="nav-items"` lives on the open
+                            drawer's Stack so the guided tour anchors here
+                            on mobile. Setting the attribute conditionally
+                            on `isMobile` prevents collision with the
+                            desktop HStack — but in practice this block
+                            only renders on mobile anyway (`display: md:none`
+                            on its parent), so the guard is cheap insurance. */}
+                        <Stack
+                            data-tour={isMobile ? "nav-items" : undefined}
+                            gap={2}
+                            onClick={onClose}
+                        >
                             <NavButton to="/turniri" exact>
                                 Turniri
                             </NavButton>
