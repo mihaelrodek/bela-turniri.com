@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
     Box,
     Button,
@@ -106,14 +106,77 @@ function formatTime(iso?: string | null): string {
     }).format(new Date(iso))
 }
 
-/** Re-fits the map bounds to all visible markers when their list changes. */
-function FitBounds({ points }: { points: [number, number][] }) {
+/**
+ * Initial camera focus + radius-circle follow.
+ *
+ * <p>Two-phase behaviour:
+ *
+ *   1. <b>Initial open (runs once):</b> if the user's location is
+ *      available, centre on it at zoom 10 — roughly a 25 km radius
+ *      visible at typical screen widths. This matches the default
+ *      slider state ("Sve") so the visual scope of the map agrees
+ *      with the visual scope of the filter. If location isn't
+ *      available, fall back to fitting all tournament points.
+ *
+ *   2. <b>After initial focus:</b> when the user drags the radius
+ *      slider below the max, fit the camera to the resulting circle
+ *      so the search area stays fully visible. Doesn't react to
+ *      tournament-point changes — once the user has set their view
+ *      they decide when to zoom out, except when they explicitly
+ *      narrow the radius.
+ */
+function MapFocus({
+    userPos,
+    allPoints,
+    radiusKm,
+    radiusMax,
+}: {
+    userPos: [number, number] | null
+    allPoints: [number, number][]
+    radiusKm: number
+    radiusMax: number
+}) {
     const map = useMap()
+    // "pending" until we've performed the first focus; afterwards "done"
+    // suppresses the initial-focus branch and unlocks the radius-follow
+    // branch. Using a ref (not state) so flipping it doesn't trigger
+    // re-renders that would re-run effects unnecessarily.
+    const initialRef = useRef<"pending" | "done">("pending")
+
+    // Phase 1 — one-time initial focus. Re-runs while pending until
+    // either userPos or allPoints becomes meaningful enough to act on.
     useEffect(() => {
-        if (points.length === 0) return
-        const bounds = L.latLngBounds(points)
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
-    }, [points, map])
+        if (initialRef.current === "done") return
+        if (userPos) {
+            map.setView(userPos, 10, { animate: false })
+            initialRef.current = "done"
+            return
+        }
+        if (allPoints.length > 0) {
+            map.fitBounds(L.latLngBounds(allPoints), {
+                padding: [40, 40],
+                maxZoom: 12,
+            })
+            initialRef.current = "done"
+        }
+    }, [userPos, allPoints, map])
+
+    // Phase 2 — radius-follow. Only fires after the initial focus has
+    // landed and only when the slider is below the max (= "Sve"). Doesn't
+    // re-fit when allPoints changes; that lets the slider drive the view
+    // without random repositioning when, say, a tournament list refresh
+    // arrives in the background.
+    useEffect(() => {
+        if (initialRef.current !== "done") return
+        if (!userPos) return
+        if (radiusKm >= radiusMax) return
+        const bounds = L.latLngBounds([
+            userPos,
+            ...circleBoxCorners(userPos, radiusKm),
+        ])
+        map.fitBounds(bounds, { padding: [40, 40] })
+    }, [radiusKm, userPos, radiusMax, map])
+
     return null
 }
 
@@ -132,6 +195,14 @@ function circleBoxCorners(center: [number, number], radiusKm: number): [number, 
     ]
 }
 
+/**
+ * Upper bound for the "U krugu od:" slider on the map. Reaching this
+ * value is semantically "no radius filter" — the predicate
+ * short-circuits to "show all". Mirrors RADIUS_MAX_KM on TournamentsPage
+ * so the two filters feel the same.
+ */
+const MAP_RADIUS_MAX_KM = 100
+
 function LegendChip({ color, label }: { color: string; label: string }) {
     return (
         <HStack gap="1.5">
@@ -149,10 +220,14 @@ export default function MapPage() {
     // Geolocation — auto-shows on return visits if permission was granted
     const { pos: userPos, status: geoStatus, request: requestLocation, hide: hideLocation } = useUserLocation()
 
-    // Distance filter — slider 1–500 km, auto-applies. 500 = "everywhere"
-    // (covers all of Croatia + neighbours). Only meaningful when location
-    // is on; the slider is disabled otherwise.
-    const [radiusKm, setRadiusKm] = useState<number>(100)
+    // Distance filter — slider 1–100 km, auto-applies. 100 is treated
+    // as "show all" so dragging to the right edge disables the filter
+    // entirely. Only meaningful when location is on; the slider is
+    // disabled otherwise.
+    // Reaching MAP_RADIUS_MAX_KM (100) is the "show all" affordance —
+    // the filter short-circuits at that point. Default is the max so
+    // the map shows every tournament until the user narrows down.
+    const [radiusKm, setRadiusKm] = useState<number>(MAP_RADIUS_MAX_KM)
 
     useEffect(() => {
         let cancelled = false
@@ -185,7 +260,7 @@ export default function MapPage() {
 
     // Apply radius filter when location is on; 500 effectively means "all".
     const placed: TournamentWithCoords[] = useMemo(() => {
-        if (!userPos || radiusKm >= 500) return placedAll
+        if (!userPos || radiusKm >= MAP_RADIUS_MAX_KM) return placedAll
         const me = { lat: userPos[0], lng: userPos[1] }
         return placedAll.filter(
             (t) => haversineKm(me, { lat: t.latitude, lng: t.longitude }) <= radiusKm,
@@ -210,7 +285,10 @@ export default function MapPage() {
             {/* Single compact controls row: legend + radius chips + location toggle */}
             <HStack justify="space-between" gap="3" wrap="wrap" align="center">
                 <HStack gap="3" wrap="wrap" align="center">
-                    {/* Radius slider — 1–500 km, auto-applies. 500 = "everywhere". */}
+                    {/* Radius slider — 1–100 km, auto-applies. The max
+                        (MAP_RADIUS_MAX_KM) is treated as "Sve" — the
+                        filter short-circuits at that point so dragging
+                        to the right edge shows every tournament. */}
                     <Box minW={{ base: "100%", md: "240px" }}>
                         <HStack gap="2" mb="1" align="center" wrap="wrap">
                             <Text fontSize="xs" color="fg.muted" fontWeight="medium">
@@ -219,9 +297,9 @@ export default function MapPage() {
                             <Text fontSize="xs" fontWeight="semibold" color="blue.fg">
                                 {radiusDisabled
                                     ? "—"
-                                    : (radiusKm >= 500 ? "Sve" : `${radiusKm} km`)}
+                                    : (radiusKm >= MAP_RADIUS_MAX_KM ? "Sve" : `${radiusKm} km`)}
                             </Text>
-                            {!radiusDisabled && radiusKm < 500 && hiddenByRadius > 0 && (
+                            {!radiusDisabled && radiusKm < MAP_RADIUS_MAX_KM && hiddenByRadius > 0 && (
                                 <Text fontSize="xs" color="fg.muted">
                                     ({hiddenByRadius} izvan kruga)
                                 </Text>
@@ -229,7 +307,7 @@ export default function MapPage() {
                         </HStack>
                         <Slider.Root
                             min={1}
-                            max={500}
+                            max={MAP_RADIUS_MAX_KM}
                             step={1}
                             value={[radiusKm]}
                             onValueChange={(e) => setRadiusKm(e.value[0])}
@@ -437,10 +515,10 @@ export default function MapPage() {
                     )}
 
                     {/* Radius circle — drawn whenever we have a location
-                        AND the slider is below max. At 500 km the circle
+                        AND the slider is below max. At max km the circle
                         would dwarf the map (and the filter is a no-op),
                         so we hide it instead of cluttering the view. */}
-                    {userPos && radiusKm < 500 && (
+                    {userPos && radiusKm < MAP_RADIUS_MAX_KM && (
                         <Circle
                             center={userPos}
                             radius={radiusKm * 1000}
@@ -454,14 +532,11 @@ export default function MapPage() {
                         />
                     )}
 
-                    <FitBounds
-                        points={
-                            userPos && radiusKm != null
-                                ? [...allPoints, userPos, ...circleBoxCorners(userPos, radiusKm)]
-                                : userPos
-                                    ? [...allPoints, userPos]
-                                    : allPoints
-                        }
+                    <MapFocus
+                        userPos={userPos}
+                        allPoints={allPoints}
+                        radiusKm={radiusKm}
+                        radiusMax={MAP_RADIUS_MAX_KM}
                     />
                 </MapContainer>
             </Box>

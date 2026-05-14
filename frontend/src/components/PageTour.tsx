@@ -1,0 +1,158 @@
+import { useEffect, useState } from "react"
+import Joyride, {
+    type CallBackProps,
+    type Step,
+    EVENTS,
+    STATUS,
+} from "react-joyride"
+
+/**
+ * Wrapper around {@link Joyride} with Chakra-matched theming, Croatian
+ * button labels, and a localStorage seen-flag so first-time visitors
+ * see the tour automatically without nagging returning users.
+ *
+ * <p>Two control modes wired together:
+ *   - <b>Auto-launch on first visit</b>: when {@code seenStorageKey} is
+ *     supplied and {@code localStorage} has no entry for it, the tour
+ *     fires automatically a short moment after mount (the delay gives
+ *     the page's React tree a chance to render the target elements
+ *     before Joyride tries to resolve their CSS selectors).
+ *   - <b>Manual replay</b>: parents can pass {@code forceRun} to bypass
+ *     the seen-flag entirely. Used by the "Pokaži kako" help button
+ *     in the navbar so a user can re-run the tour whenever they want.
+ *
+ * <p>Completing or skipping the tour marks the seen-flag so the auto
+ * path doesn't fire again. Replays via {@code forceRun} don't touch
+ * the flag — the manual button is the user's choice and doesn't
+ * count as "I've seen this".
+ *
+ * <p>Why we forward STEP_AFTER events to the caller via
+ * {@link onStepChange}: some tours need to switch tabs or scroll a
+ * specific element into view between steps. Joyride doesn't do that
+ * itself; the caller can react to step transitions however they want.
+ */
+export default function PageTour({
+    steps,
+    seenStorageKey,
+    forceRun,
+    onFinished,
+    onStepChange,
+    autoStartDelayMs = 400,
+}: {
+    /** Joyride step descriptors — see react-joyride docs for shape. */
+    steps: Step[]
+    /**
+     * localStorage key for the seen-flag. When set and the entry is
+     * present, the auto-launch is suppressed. Omit (or pass undefined)
+     * to disable the seen-flag entirely — useful for tours that should
+     * always run on the trigger event.
+     */
+    seenStorageKey?: string
+    /**
+     * Force the tour to run regardless of the seen-flag. The "Pokaži
+     * kako" help button toggles this. When it transitions from false
+     * to true the tour starts; setting back to false stops it.
+     */
+    forceRun?: boolean
+    /** Fires once when the tour completes or is skipped. */
+    onFinished?: () => void
+    /** Fires after each step transition. Receives the new step index. */
+    onStepChange?: (nextIndex: number) => void
+    /**
+     * Delay between mount and the auto-launch. The target elements may
+     * not be in the DOM at mount time (e.g. they render after a data
+     * fetch). 400 ms is generous enough for typical loads without
+     * making the user wait visibly long.
+     */
+    autoStartDelayMs?: number
+}) {
+    const [run, setRun] = useState(false)
+
+    // Auto-launch logic. Runs on mount; honours the seen-flag if a key
+    // was supplied. forceRun overrides everything — when it flips true
+    // we run immediately, when it flips back to false the tour stops.
+    useEffect(() => {
+        if (forceRun) {
+            setRun(true)
+            return
+        }
+        if (forceRun === false) {
+            // Explicit reset from the parent (e.g. dialog closed).
+            // Leaves seen-flag alone.
+            setRun(false)
+            return
+        }
+        // Auto-launch path — only when forceRun is undefined and seen
+        // flag isn't yet set.
+        if (seenStorageKey == null) return
+        const seen = typeof window !== "undefined"
+            && window.localStorage.getItem(seenStorageKey)
+        if (seen) return
+        const handle = setTimeout(() => setRun(true), autoStartDelayMs)
+        return () => clearTimeout(handle)
+    }, [seenStorageKey, forceRun, autoStartDelayMs])
+
+    function handleCallback(data: CallBackProps) {
+        const { status, type, index } = data
+
+        // Forward step transitions to the parent so it can switch tabs
+        // / scroll into view / etc. STEP_AFTER fires when the user
+        // moves on; TARGET_NOT_FOUND lets us skip gracefully if a step
+        // anchors on something that didn't render.
+        if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
+            onStepChange?.(index + 1)
+        }
+
+        const finished = status === STATUS.FINISHED || status === STATUS.SKIPPED
+        if (finished) {
+            setRun(false)
+            if (seenStorageKey && typeof window !== "undefined") {
+                window.localStorage.setItem(seenStorageKey, "1")
+            }
+            onFinished?.()
+        }
+    }
+
+    return (
+        <Joyride
+            run={run}
+            steps={steps}
+            continuous
+            showSkipButton
+            showProgress
+            scrollToFirstStep
+            disableOverlayClose
+            // Important on mobile: lets Joyride scroll the highlighted
+            // element into view if it's below the fold. Default behaviour
+            // is to keep the page static, which means on a phone the
+            // user might not see what's being highlighted.
+            scrollOffset={80}
+            callback={handleCallback}
+            locale={{
+                back: "Natrag",
+                close: "Zatvori",
+                last: "Završi",
+                next: "Dalje",
+                skip: "Preskoči",
+                open: "Otvori",
+                nextLabelWithProgress: "Dalje ({step}/{steps})",
+            }}
+            styles={{
+                options: {
+                    // Chakra "blue.solid" — keeps the tour buttons +
+                    // beacon visually consistent with the rest of the
+                    // app's primary action colour.
+                    primaryColor: "#3182CE",
+                    zIndex: 2000,
+                    arrowColor: "var(--chakra-colors-bg)",
+                    backgroundColor: "var(--chakra-colors-bg)",
+                    textColor: "var(--chakra-colors-fg)",
+                    overlayColor: "rgba(0, 0, 0, 0.55)",
+                },
+                tooltipContainer: {
+                    textAlign: "left",
+                },
+            }}
+        />
+    )
+}

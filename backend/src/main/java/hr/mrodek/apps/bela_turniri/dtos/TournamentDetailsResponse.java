@@ -39,7 +39,12 @@ public record TournamentDetailsResponse(
 
         List<String> additionalOptions, // if/when you join them; null/empty for now
         List<PairShortDto> pairs,       // empty until pairs are implemented
-        String winnerName,              // optional
+        String winnerName,              // gold-place pair name (set on FINISH)
+        // Silver + bronze podium positions. Set by the organiser through
+        // the dedicated /podium endpoint after FINISH. Both nullable —
+        // the organiser may leave them blank.
+        String secondPlaceName,
+        String thirdPlaceName,
 
         // Creator (Firebase UID + display name copied at create-time).
         String createdByUid,

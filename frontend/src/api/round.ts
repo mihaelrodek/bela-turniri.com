@@ -11,6 +11,33 @@ export async function drawRound(uuid: string): Promise<RoundDto> {
     return data
 }
 
+/** One entry in the manual round body — pair2Id null means BYE. */
+export type ManualMatchInput = {
+    pair1Id: number
+    pair2Id: number | null
+    tableNo: number
+}
+
+/**
+ * Manual round generation — bypasses the random pairing logic by sending
+ * the exact list of matches the organiser wants. Used in the late stage
+ * of a small bracket where auto-draw doesn't pair the way the organiser
+ * wants. Backend validates the request and returns 400 with a
+ * descriptive message if any pair is already eliminated, appears twice,
+ * or doesn't belong to this tournament.
+ */
+export async function drawManualRound(
+    uuid: string,
+    matches: ManualMatchInput[],
+): Promise<RoundDto> {
+    const { data } = await http.post<RoundDto>(
+        `/tournaments/${uuid}/rounds/manual`,
+        { matches },
+        { successMessage: "Kolo generirano." } as any,
+    )
+    return data
+}
+
 export async function updateMatchScore(
     uuid: string,
     roundId: number,

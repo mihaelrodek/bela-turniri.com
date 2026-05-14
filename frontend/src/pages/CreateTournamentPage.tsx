@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
     Box,
@@ -30,6 +30,9 @@ import "../datepicker.css"
 
 import { createTournament } from "../api/createTournament"
 import { LocationAutocomplete } from "../components/LocationAutocomplete"
+import LocationMapPicker from "../components/LocationMapPicker"
+import { getProfile } from "../api/userMe"
+import { useAuth } from "../auth/AuthContext"
 import type { CreateTournamentPayload, RewardType, RepassageUntil } from "../types/tournaments"
 
 // Register the Croatian locale once for the calendar UI (month/day names,
@@ -248,6 +251,55 @@ export default function CreateTournamentPage() {
         selectedOptions: [],
     })
 
+    // Latitude/longitude tracked separately from `form` because they
+    // exist purely to drive the map picker's marker — they're not sent
+    // to the backend (the server forward-geocodes form.location on
+    // create, and the picker fills that string with a Nominatim
+    // display_name so the result lines up). Set from either picking a
+    // suggestion in LocationAutocomplete or clicking the map in
+    // LocationMapPicker.
+    const [pickedCoords, setPickedCoords] = useState<{ lat: number; lng: number } | null>(null)
+
+    // Prefill contact fields ("Kontakt organizatora") from the logged-in
+    // user's Firebase displayName + saved phone. Most organisers run
+    // multiple tournaments and were typing the same name + phone every
+    // time. We only write to a field if it's still empty, so anything
+    // the user has already started editing is preserved if the profile
+    // fetch resolves after they touched the field. The fetch is
+    // tagged `silent` because a failure here is a soft degrade — the
+    // form is still fully usable, the user just types manually.
+    const { user } = useAuth()
+    useEffect(() => {
+        if (!user?.uid) return
+        let cancelled = false
+        ;(async () => {
+            try {
+                const profile = await getProfile()
+                if (cancelled) return
+                setForm((prev) => {
+                    // Build the patch only for fields the user hasn't
+                    // touched yet — never overwrite their input.
+                    const patch: Partial<FormState> = {}
+                    const fallbackName =
+                        (profile.displayName?.trim() || user.displayName?.trim()) ?? ""
+                    if (!prev.contactName && fallbackName) patch.contactName = fallbackName
+                    if (!prev.contactPhone && profile.phone) patch.contactPhone = profile.phone
+                    // phoneCountry has a non-empty default ("+385"); only
+                    // overwrite if the profile carries one, since the
+                    // saved country code is the authoritative choice.
+                    if (profile.phoneCountry) patch.contactPhoneCountry = profile.phoneCountry
+                    if (Object.keys(patch).length === 0) return prev
+                    return { ...prev, ...patch }
+                })
+            } catch {
+                /* Anonymous, network glitch, or no profile yet — fine
+                   to leave the contact block blank and let the user
+                   fill it in by hand. */
+            }
+        })()
+        return () => { cancelled = true }
+    }, [user?.uid])
+
     const entryPair = toNumber(form.entryPrice)
     const repPair = toNumber(form.repassagePrice)
     const rep2Pair = toNumber(form.repassageSecondPrice)
@@ -411,9 +463,14 @@ export default function CreateTournamentPage() {
                     title="Osnovne informacije"
                 >
                     <VStack align="stretch" gap="4">
+                        {/* Row 1 — three short fields side-by-side on desktop,
+                            stacked on mobile. Order is product-driven: organisers
+                            think "what's the tournament called", "when is it",
+                            "how many pairs" — putting all three in one row keeps
+                            that mental flow in a single visual scan. */}
                         <Box
                             display="grid"
-                            gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }}
+                            gridTemplateColumns={{ base: "1fr", md: "2fr 2fr 1fr" }}
                             gap="4"
                         >
                             <Field.Root required>
@@ -427,24 +484,6 @@ export default function CreateTournamentPage() {
                                 />
                             </Field.Root>
 
-                            <Field.Root required>
-                                <Field.Label>
-                                    Lokacija <Field.RequiredIndicator />
-                                </Field.Label>
-                                <LocationAutocomplete
-                                    value={form.location}
-                                    onChange={(v) => onChange("location", v)}
-                                    placeholder="npr. Caffe bar Belot, Zagreb"
-                                />
-                            </Field.Root>
-                        </Box>
-
-                        {/* Datetime + max pairs — combined date/time picker */}
-                        <Box
-                            display="grid"
-                            gridTemplateColumns={{ base: "1fr", md: "2fr 1fr" }}
-                            gap="4"
-                        >
                             <Field.Root required>
                                 <Field.Label>
                                     Datum i vrijeme <Field.RequiredIndicator />
@@ -510,15 +549,60 @@ export default function CreateTournamentPage() {
                             </Field.Root>
                         </Box>
 
-                        <Field.Root>
-                            <Field.Label>Detalji</Field.Label>
-                            <Textarea
-                                rows={3}
-                                placeholder="Dodatne informacije - pravila, parking, hrana, piće..."
-                                value={form.details}
-                                onChange={(e) => onChange("details", e.target.value)}
-                            />
-                        </Field.Root>
+                        {/* Row 2 — Lokacija + Detalji on the left, map on
+                            the right (desktop). On mobile everything stacks:
+                            Lokacija → Map → Detalji, matching source order.
+                            The grid is a single 2×2 on desktop with the map
+                            cell spanning both rows; on mobile it collapses
+                            to one column and natural flow takes over. */}
+                        <Box
+                            display="grid"
+                            gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }}
+                            gap="4"
+                        >
+                            <Field.Root required>
+                                <Field.Label>
+                                    Lokacija <Field.RequiredIndicator />
+                                </Field.Label>
+                                <LocationAutocomplete
+                                    value={form.location}
+                                    onChange={(v) => onChange("location", v)}
+                                    onPickSuggestion={(s) => {
+                                        setPickedCoords({ lat: s.latitude, lng: s.longitude })
+                                    }}
+                                    placeholder="Unesi lokaciju ili izbaeri na karti"
+                                />
+                            </Field.Root>
+
+                            {/* Map sits to the right of both fields on
+                                desktop (gridRow: span 2). On mobile gridRow
+                                resets to auto so it falls between the two
+                                fields, matching the previous mobile layout. */}
+                            <Box
+                                gridRow={{ base: "auto", md: "span 2" }}
+                                gridColumn={{ base: "auto", md: "2" }}
+                            >
+                                <LocationMapPicker
+                                    value={pickedCoords}
+                                    onPick={(p) => {
+                                        onChange("location", p.displayName)
+                                        setPickedCoords({ lat: p.lat, lng: p.lng })
+                                    }}
+                                    height={{ base: "220px", md: "100%" }}
+                                    minH="220px"
+                                />
+                            </Box>
+
+                            <Field.Root>
+                                <Field.Label>Detalji</Field.Label>
+                                <Textarea
+                                    rows={3}
+                                    placeholder="Dodatne informacije - pravila, parking, hrana, piće..."
+                                    value={form.details}
+                                    onChange={(e) => onChange("details", e.target.value)}
+                                />
+                            </Field.Root>
+                        </Box>
 
                         {/* Poster picker — inline within the card */}
                         <Box>
@@ -529,7 +613,21 @@ export default function CreateTournamentPage() {
                                 </Text>
                             </HStack>
 
-                            <HStack align="start" gap="3" wrap="wrap">
+                            {/* align="center" vertically centres the button +
+                                hint next to the 120×120 poster preview. The
+                                responsive `justify` pulls everything into the
+                                horizontal centre on mobile (where the preview
+                                + VStack wrap to two rows and would otherwise
+                                hug the left edge), and falls back to
+                                flex-start on desktop so the wide column
+                                doesn't end up with a centred block floating
+                                in the middle of the page. */}
+                            <HStack
+                                align="center"
+                                gap="3"
+                                wrap="wrap"
+                                justify={{ base: "center", md: "flex-start" }}
+                            >
                                 {(posterPreviewUrl || form.posterUrl) ? (
                                     <Box
                                         position="relative"
@@ -574,7 +672,12 @@ export default function CreateTournamentPage() {
                                     </Box>
                                 )}
 
-                                <VStack align="start" gap="1" flex="1" minW="200px">
+                                <VStack
+                                    align={{ base: "center", md: "start" }}
+                                    gap="1"
+                                    flex="1"
+                                    minW="200px"
+                                >
                                     <Button
                                         as="label"
                                         variant="outline"

@@ -51,6 +51,10 @@ export type TournamentDetails = {
 
     additionalOptions?: string[];
     winnerName?: string | null;
+    /** Silver-place pair name, set via PATCH /tournaments/{uuid}/podium. */
+    secondPlaceName?: string | null;
+    /** Bronze-place pair name, set via PATCH /tournaments/{uuid}/podium. */
+    thirdPlaceName?: string | null;
 
     // Creator info — populated server-side from the verified Firebase ID token.
     createdByUid?: string | null;

@@ -226,7 +226,13 @@ export function LocationAutocomplete({
                     top="calc(100% + 4px)"
                     left="0"
                     right="0"
-                    zIndex={50}
+                    // Must beat Leaflet's internal pane stack (controls go
+                    // up to 1000) so the suggestions dropdown floats over
+                    // the map picker that sits next to this input on the
+                    // create-tournament form. 1100 also keeps us under any
+                    // application-level modal (Chakra Dialog uses ~1400),
+                    // so a dialog opened from within the form still wins.
+                    zIndex={1100}
                     bg="bg"
                     borderWidth="1px"
                     borderColor="border.emphasized"

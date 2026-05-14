@@ -47,7 +47,12 @@ export function InstallAppButton({
 
     if (!canInstall && !isIos) return null
 
-    const label = isIos ? "Instaliraj na iPhone" : "Instaliraj aplikaciju"
+    // One label for both platforms keeps the button width consistent and
+    // doesn't wrap on narrow phones. The iOS-vs-Android distinction is
+    // already visible in the dialog that opens after the tap (iOS shows
+    // the Share-menu walkthrough; Android fires the native prompt), so
+    // we don't need to spell it out on the button itself.
+    const label = "Instaliraj aplikaciju"
 
     function handleClick() {
         if (canInstall) {
@@ -70,8 +75,20 @@ export function InstallAppButton({
                     size={size}
                     variant="outline"
                     colorPalette="blue"
-                    justifyContent="flex-start"
                     w="full"
+                    // Centre the icon + label so the button lines up
+                    // visually with the rest of the mobile-drawer
+                    // NavButton stack (Turniri / Kalendar / …). The
+                    // previous flex-start alignment made the contents
+                    // hug the left edge while every neighbour centred
+                    // theirs, which read as broken alignment on a phone.
+                    justifyContent="center"
+                    // gap controls the spacing between the icon and the
+                    // text — Chakra's default is fine, but pinning it
+                    // makes the gap consistent across font-rendering
+                    // platforms (iOS Safari tends to render the icon
+                    // closer to the text than Chrome does).
+                    gap="2"
                 >
                     <FiDownload /> {label}
                 </Button>

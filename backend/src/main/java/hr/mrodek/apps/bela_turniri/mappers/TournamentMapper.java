@@ -58,6 +58,11 @@ public interface TournamentMapper {
             @Mapping(target = "additionalOptions", expression = "java(java.util.Collections.emptyList())"),
             @Mapping(target = "pairs", expression = "java(java.util.Collections.emptyList())"),
             @Mapping(target = "winnerName", source = "winnerName"),
+            // Silver + bronze podium positions. Persisted by the dedicated
+            // /podium endpoint after FINISH; auto-mapped here so the SPA
+            // can render the full medal stack without a second fetch.
+            @Mapping(target = "secondPlaceName", source = "secondPlaceName"),
+            @Mapping(target = "thirdPlaceName",  source = "thirdPlaceName"),
             @Mapping(target = "bannerUrl", expression = "java(publicUrl(t))"),
             @Mapping(target = "createdByUid", source = "createdByUid"),
             @Mapping(target = "createdByName", source = "createdByName"),
@@ -111,6 +116,10 @@ public interface TournamentMapper {
             @Mapping(target = "updatedAt", ignore = true),
             @Mapping(target = "status", ignore = true),
             @Mapping(target = "winnerName", ignore = true),
+            // Podium fields are set via the /podium endpoint, never via
+            // the generic create/update path.
+            @Mapping(target = "secondPlaceName", ignore = true),
+            @Mapping(target = "thirdPlaceName", ignore = true),
             @Mapping(target = "preserveMatchmaking", ignore = true),
             @Mapping(target = "resource", ignore = true),
 

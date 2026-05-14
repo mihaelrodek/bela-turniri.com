@@ -36,5 +36,6 @@
     <include file="db/changelog/user_pair_presets_sharing.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/user_pair_presets_archive.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/user_profiles_color_mode.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/tournaments_podium.xml" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

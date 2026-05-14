@@ -10,6 +10,7 @@ import {
     Text,
     VStack,
 } from "@chakra-ui/react"
+import { FiCoffee } from "react-icons/fi"
 import {
     type DrinkPriceDto,
     fetchTournamentCjenik,
@@ -193,9 +194,30 @@ export default function CjenikTab({ tournamentRef, canEdit }: Props) {
     }
 
     if (!canEdit) {
-        // Read-only menu view.
+        // Read-only menu view. When the owner hasn't filled in the cjenik
+        // yet, regular visitors see a friendly "still being prepared"
+        // card instead of a bare one-liner. Matches the empty-state
+        // pattern the Parovi / Ždrijeb tabs use elsewhere, so the page
+        // doesn't suddenly switch visual styles between empty tabs.
         if (items.length === 0) {
-            return <Text color="gray.500">Cjenik nije postavljen.</Text>
+            return (
+                <Box
+                    borderWidth="1px"
+                    borderColor="border.emphasized"
+                    borderStyle="dashed"
+                    rounded="xl"
+                    py="10"
+                    px="6"
+                >
+                    <VStack gap="2">
+                        <Box color="fg.muted"><FiCoffee size={28} /></Box>
+                        <Text fontWeight="medium">Cjenik još nije napravljen</Text>
+                        <Text color="fg.muted" fontSize="sm" textAlign="center">
+                            Organizator još radi na cjeniku — provjerite kasnije.
+                        </Text>
+                    </VStack>
+                </Box>
+            )
         }
         return (
             <Box>

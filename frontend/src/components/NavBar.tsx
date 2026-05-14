@@ -4,10 +4,56 @@ import {
 } from "@chakra-ui/react"
 import { Link as RouterLink, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
 import { useColorModeValue } from "../color-mode"
-import { FiLogOut, FiMenu, FiUser, FiX } from "react-icons/fi"
+import { FiHelpCircle, FiLogOut, FiMenu, FiUser, FiX } from "react-icons/fi"
 import { useAuth } from "../auth/AuthContext"
 import { getProfile } from "../api/userMe"
 import { InstallAppButton } from "./InstallAppButton"
+
+/**
+ * "Pokaži kako" / replay-tour trigger. Dispatches the
+ * {@code bela:tour-replay} window event; whichever page is currently
+ * mounted listens and re-runs its tour. Pages without a tour ignore
+ * the event so the button is safely no-op there.
+ *
+ * <p>Two visual variants:
+ *   - "icon" (default): circular question mark for the desktop top bar
+ *   - "labeled": full-width labelled button for the mobile burger drawer,
+ *     matching the pattern InstallAppButton uses
+ */
+function HelpTourButton({ variant = "icon" }: { variant?: "icon" | "labeled" }) {
+    function trigger() {
+        window.dispatchEvent(new CustomEvent("bela:tour-replay"))
+    }
+    const label = "Pokaži kako"
+    if (variant === "labeled") {
+        return (
+            <Button
+                onClick={trigger}
+                size="sm"
+                variant="outline"
+                colorPalette="blue"
+                w="full"
+                justifyContent="center"
+                gap="2"
+            >
+                <FiHelpCircle /> {label}
+            </Button>
+        )
+    }
+    return (
+        <IconButton
+            aria-label={label}
+            title={label}
+            size="sm"
+            variant="outline"
+            rounded="full"
+            colorPalette="blue"
+            onClick={trigger}
+        >
+            <FiHelpCircle />
+        </IconButton>
+    )
+}
 
 function NavButton({
                        to, exact, children, onClick,
@@ -217,6 +263,7 @@ export default function NavBar() {
 
                     <HStack justify="end" gap="1.5">
                         <AuthArea />
+                        <HelpTourButton />
                         {/* Conditional install icon — renders nothing on
                             browsers that can't install or already have.
                             Theme toggle moved to profile → Postavke tab
@@ -327,6 +374,7 @@ export default function NavBar() {
                                 fires the install or opens the iOS-steps
                                 dialog first, which is what we want). */}
                             <InstallAppButton size="sm" variant="labeled" />
+                            <HelpTourButton variant="labeled" />
 
                             {/* Prijava is now permanently visible in the mobile
                                 top bar next to the burger — no need to

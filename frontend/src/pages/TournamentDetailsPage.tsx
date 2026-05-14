@@ -58,7 +58,7 @@ import {
     FiUser,
     FiUserPlus,
 } from "react-icons/fi"
-import { FaTrophy } from "react-icons/fa"
+import { FaMedal, FaTrophy } from "react-icons/fa"
 
 import type {TournamentDetails, RewardType, RepassageUntil, CreateTournamentPayload} from "../types/tournaments"
 import type {PairShort} from "../types/pairs"
@@ -92,6 +92,15 @@ import { useDocumentHead } from "../hooks/useDocumentHead"
 import CjenikTab from "../components/CjenikTab"
 import MatchBillButton from "../components/MatchBillButton"
 import { LocationAutocomplete } from "../components/LocationAutocomplete"
+import ManualRoundDialog from "../components/ManualRoundDialog"
+import PodiumEditor from "../components/PodiumEditor"
+import LocationMapPicker from "../components/LocationMapPicker"
+import PageTour from "../components/PageTour"
+import {
+    TURNIR_DETAIL_TOUR_KEY,
+    TURNIR_DETAIL_TOUR_STEPS,
+    TOUR_RESUME_DETAIL_KEY,
+} from "../components/tourSteps"
 
 // Register the Croatian locale once for the calendar UI (month/day names,
 // week-starts-Monday, etc.). The format itself is forced via the
@@ -526,7 +535,7 @@ export default function TournamentDetailsPage() {
     const navigate = useNavigate()
     const location = useLocation()
     const [searchParams, setSearchParams] = useSearchParams()
-    const { user, isAdmin } = useAuth()
+    const { user, isAdmin, loading: authLoading } = useAuth()
 
     // Deep-link from push notifications. Two flavours:
     //   ?bill={matchId}  — loser push: switch to Ždrijeb, expand round,
@@ -580,9 +589,42 @@ export default function TournamentDetailsPage() {
 
     const [tab, setTab] = useState<"details" | "pairs" | "bracket" | "cjenik">("details");
 
+    // Tour state. Two triggers run the tour:
+    //   - sessionStorage flag set by the list-page tour when the user
+    //     completes that tour → here we read it once on mount and
+    //     auto-launch the detail tour as a continuation,
+    //   - NavBar "Pokaži kako" replay button → dispatches a window event
+    //     that bumps tourReplayKey, which we feed into forceRun.
+    const [tourReplayKey, setTourReplayKey] = useState(0)
+    const [tourForceRun, setTourForceRun] = useState<boolean | undefined>(() => {
+        if (typeof window === "undefined") return undefined
+        try {
+            if (window.sessionStorage.getItem(TOUR_RESUME_DETAIL_KEY)) {
+                window.sessionStorage.removeItem(TOUR_RESUME_DETAIL_KEY)
+                return true
+            }
+        } catch { /* private mode */ }
+        return undefined
+    })
+    useEffect(() => {
+        function onReplay() {
+            setTourReplayKey((k) => k + 1)
+            setTourForceRun(true)
+        }
+        window.addEventListener("bela:tour-replay", onReplay)
+        return () => window.removeEventListener("bela:tour-replay", onReplay)
+    }, [])
+
     // details edit mode
     const [editingDetails, setEditingDetails] = useState(false)
     const [editForm, setEditForm] = useState<EditForm | null>(null)
+
+    // Same purpose as `pickedCoords` on CreateTournamentPage — drives the
+    // map picker's marker in edit mode. Not sent to the backend; server
+    // re-geocodes editForm.location on save. Reset to null whenever edit
+    // mode opens (we don't seed from t.latitude/t.longitude because the
+    // current TournamentDetails DTO doesn't surface coordinates).
+    const [editPickedCoords, setEditPickedCoords] = useState<{ lat: number; lng: number } | null>(null)
     const [savingDetails, setSavingDetails] = useState(false)
 
     // Poster edit state. Mirrors CreateTournamentPage's poster picker.
@@ -808,10 +850,12 @@ export default function TournamentDetailsPage() {
     function enterDetailsEdit() {
         if (!t) return
         setEditForm(buildEditForm(t))
+        setEditPickedCoords(null)
         setEditingDetails(true)
     }
     function cancelDetailsEdit() {
         setEditForm(null)
+        setEditPickedCoords(null)
         setEditingDetails(false)
         // Drop any pending poster changes so the next edit opens clean.
         clearPosterPick()
@@ -975,7 +1019,22 @@ export default function TournamentDetailsPage() {
         })
     }
 
+    // Why this depends on `authLoading` + `user?.uid` as well as `uuid`:
+    //
+    // The backend redacts the organiser's contact phone for anonymous
+    // viewers (the "Prijavi se da vidiš broj" affordance is driven by
+    // that redaction). If this effect runs before Firebase has restored
+    // the persisted session, the request goes anonymous and the response
+    // comes back without a phone — even for a user who IS logged in on
+    // this device. That stale response then sticks in state for the
+    // rest of the session because there's nothing to invalidate it.
+    //
+    // Fix: skip the fetch while `authLoading` is true, and re-fetch
+    // whenever `user?.uid` flips (login/logout while the page is open).
+    // Once auth settles, the next fetch carries the Bearer token and
+    // the backend sends the real phone.
     useEffect(() => {
+        if (authLoading) return
         let cancelled = false
         ;(async () => {
             try {
@@ -992,7 +1051,7 @@ export default function TournamentDetailsPage() {
         return () => {
             cancelled = true
         }
-    }, [uuid])
+    }, [uuid, authLoading, user?.uid])
 
     function enterEdit(roundId: number, matchId: number) {
         setRounds(rs =>
@@ -1264,11 +1323,20 @@ export default function TournamentDetailsPage() {
     async function onCreateRound() {
         if (!uuid) return
         const created = await drawRound(uuid) // persisted on server
+        appendRoundLocally(created)
+    }
+
+    /**
+     * Append a server-returned RoundDto to our local rounds state with
+     * the extra editor fields the UI tracks per-match. Extracted so the
+     * manual-round flow doesn't duplicate the mapping.
+     */
+    function appendRoundLocally(created: { id: number; number: number; status: string; matches: any[] }) {
         setRounds((rs) => [
             ...rs,
             {
-                ...created,
-                matches: created.matches.map((m) => ({
+                ...(created as any),
+                matches: (created.matches ?? []).map((m: any) => ({
                     ...m,
                     _score1: m.score1 != null ? String(m.score1) : "",
                     _score2: m.score2 != null ? String(m.score2) : "",
@@ -1277,6 +1345,72 @@ export default function TournamentDetailsPage() {
                 })),
             },
         ])
+    }
+
+    /* Manual round generation — for the late-bracket stage. */
+    const [manualRoundOpen, setManualRoundOpen] = useState(false)
+    const [manualConfirmOpen, setManualConfirmOpen] = useState(false)
+
+    /** Active (non-eliminated) pairs as the dialog's pool. Re-derived on
+     *  each render so the dialog always sees the latest state. */
+    const activePairsForManual = useMemo(
+        () => pairs.filter((p) => !p.isEliminated).map((p) => ({ id: p.id, name: p.name })),
+        [pairs],
+    )
+
+    /** Show the manual-round button when we have a small number of active
+     *  pairs (≤ 4 — typical when the bracket is reaching its end and the
+     *  random auto-draw would produce awkward pairings).
+     *
+     *  NB: `canEditTournament` is only declared inside the Parovi tab's
+     *  IIFE; here at the top of the component we re-derive the same
+     *  predicate from auth state + the tournament's creator UID. Keeping
+     *  one source of truth here is overkill for two call-sites that don't
+     *  cross trust boundaries. */
+    const ownerOrAdminEditable =
+        !!t && (isAdmin || (!!user?.uid && user.uid === t.createdByUid))
+    const showManualRoundButton =
+        tournamentStarted &&
+        t?.status !== "FINISHED" &&
+        ownerOrAdminEditable &&
+        canCreateRound &&
+        activeCount > 1 &&
+        activeCount <= 4
+
+    function onClickManualRound() {
+        // Confirmation step — the user said they want to be sure before
+        // opening the bigger form, since this skips the random draw and
+        // they're committing to a specific bracket layout.
+        setManualConfirmOpen(true)
+    }
+    function onConfirmManualRound() {
+        setManualConfirmOpen(false)
+        setManualRoundOpen(true)
+    }
+    function onManualRoundCreated() {
+        // Re-fetch the canonical rounds list rather than trying to derive
+        // it from a single dialog response. Keeps display state honest
+        // when the dialog ran multiple persistence steps.
+        if (!uuid) return
+        fetchTournamentDetails(uuid).then(setT).catch(() => {})
+        // Same shape as auto-draw — just reload rounds list.
+        ;(async () => {
+            try {
+                const fresh = await import("../api/round").then((m) => m.fetchRounds(uuid))
+                setRounds(
+                    fresh.map((r) => ({
+                        ...r,
+                        matches: r.matches.map((m) => ({
+                            ...m,
+                            _score1: m.score1 != null ? String(m.score1) : "",
+                            _score2: m.score2 != null ? String(m.score2) : "",
+                            _dirty: false,
+                            _editing: false,
+                        })),
+                    })),
+                )
+            } catch { /* toaster handles it */ }
+        })()
     }
 
     /**
@@ -1543,6 +1677,7 @@ export default function TournamentDetailsPage() {
                     variant={tab === "details" ? "solid" : "ghost"}
                     colorPalette="blue"
                     onClick={() => setTab("details")}
+                    data-tour="detail-tab-details"
                 >
                     Detalji
                 </Button>
@@ -1550,6 +1685,7 @@ export default function TournamentDetailsPage() {
                     size="sm"
                     variant={tab === "pairs" ? "solid" : "ghost"}
                     onClick={() => setTab("pairs")}
+                    data-tour="detail-tab-pairs"
                 >
                     Parovi
                 </Button>
@@ -1557,6 +1693,7 @@ export default function TournamentDetailsPage() {
                     size="sm"
                     variant={tab === "bracket" ? "solid" : "ghost"}
                     onClick={() => setTab("bracket")}
+                    data-tour="detail-tab-bracket"
                 >
                     Ždrijeb
                 </Button>
@@ -1564,6 +1701,7 @@ export default function TournamentDetailsPage() {
                     size="sm"
                     variant={tab === "cjenik" ? "solid" : "ghost"}
                     onClick={() => setTab("cjenik")}
+                    data-tour="detail-tab-cjenik"
                 >
                     Cjenik
                 </Button>
@@ -1901,7 +2039,10 @@ export default function TournamentDetailsPage() {
                         <VStack align="stretch" gap="4">
                             <SectionCard icon={<FiInfo />} title="Osnovno">
                                 <VStack align="stretch" gap="4">
-                                    <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="4">
+                                    {/* Row 1 — name + datetime + maxPairs (same
+                                        3-column layout as CreateTournamentPage's
+                                        Osnovne informacije, for consistency). */}
+                                    <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "2fr 2fr 1fr" }} gap="4">
                                         <Field.Root required>
                                             <Field.Label>Ime turnira <Field.RequiredIndicator /></Field.Label>
                                             <Input
@@ -1909,24 +2050,6 @@ export default function TournamentDetailsPage() {
                                                 onChange={(e) => patchEdit("name", e.target.value)}
                                             />
                                         </Field.Root>
-                                        <Field.Root required>
-                                            <Field.Label>Lokacija <Field.RequiredIndicator /></Field.Label>
-                                            <LocationAutocomplete
-                                                value={editForm.location}
-                                                onChange={(v) => patchEdit("location", v)}
-                                                placeholder="npr. Caffe bar Belot, Zagreb"
-                                            />
-                                        </Field.Root>
-                                    </Box>
-                                    <Field.Root>
-                                        <Field.Label>Detalji</Field.Label>
-                                        <Textarea
-                                            rows={3}
-                                            value={editForm.details}
-                                            onChange={(e) => patchEdit("details", e.target.value)}
-                                        />
-                                    </Field.Root>
-                                    <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "2fr 1fr" }} gap="4">
                                         <Field.Root required>
                                             <Field.Label>
                                                 Datum i vrijeme <Field.RequiredIndicator />
@@ -1985,6 +2108,54 @@ export default function TournamentDetailsPage() {
                                         </Field.Root>
                                     </Box>
 
+                                    {/* Row 2 — same layout as the create form:
+                                        location autocomplete + details textarea
+                                        stack on the left, map fills the right
+                                        column on desktop. On mobile everything
+                                        collapses to one column (Lokacija →
+                                        Map → Detalji). */}
+                                    <Box
+                                        display="grid"
+                                        gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }}
+                                        gap="4"
+                                    >
+                                        <Field.Root required>
+                                            <Field.Label>Lokacija <Field.RequiredIndicator /></Field.Label>
+                                            <LocationAutocomplete
+                                                value={editForm.location}
+                                                onChange={(v) => patchEdit("location", v)}
+                                                onPickSuggestion={(s) => {
+                                                    setEditPickedCoords({ lat: s.latitude, lng: s.longitude })
+                                                }}
+                                                placeholder="npr. Caffe bar Belot, Zagreb"
+                                            />
+                                        </Field.Root>
+
+                                        <Box
+                                            gridRow={{ base: "auto", md: "span 2" }}
+                                            gridColumn={{ base: "auto", md: "2" }}
+                                        >
+                                            <LocationMapPicker
+                                                value={editPickedCoords}
+                                                onPick={(p) => {
+                                                    patchEdit("location", p.displayName)
+                                                    setEditPickedCoords({ lat: p.lat, lng: p.lng })
+                                                }}
+                                                height={{ base: "220px", md: "100%" }}
+                                                minH="220px"
+                                            />
+                                        </Box>
+
+                                        <Field.Root>
+                                            <Field.Label>Detalji</Field.Label>
+                                            <Textarea
+                                                rows={3}
+                                                value={editForm.details}
+                                                onChange={(e) => patchEdit("details", e.target.value)}
+                                            />
+                                        </Field.Root>
+                                    </Box>
+
                                     {/* Poster picker. Same layout/validation
                                         as CreateTournamentPage. When a new
                                         file is picked, the existing
@@ -2001,7 +2172,17 @@ export default function TournamentDetailsPage() {
                                             </Text>
                                         </HStack>
 
-                                        <HStack align="start" gap="3" wrap="wrap">
+                                        {/* Same alignment treatment as
+                                            CreateTournamentPage: vertically
+                                            centred on desktop, horizontally
+                                            centred on mobile when the
+                                            preview + VStack wrap. */}
+                                        <HStack
+                                            align="center"
+                                            gap="3"
+                                            wrap="wrap"
+                                            justify={{ base: "center", md: "flex-start" }}
+                                        >
                                             {(() => {
                                                 const showLocalPreview = !!posterPreviewUrl
                                                 const showServerPoster =
@@ -2065,7 +2246,12 @@ export default function TournamentDetailsPage() {
                                                 )
                                             })()}
 
-                                            <VStack align="start" gap="1" flex="1" minW="200px">
+                                            <VStack
+                                                align={{ base: "center", md: "start" }}
+                                                gap="1"
+                                                flex="1"
+                                                minW="200px"
+                                            >
                                                 <Button
                                                     as="label"
                                                     variant="outline"
@@ -2333,6 +2519,38 @@ export default function TournamentDetailsPage() {
                         const tournamentLocked = t?.status === "FINISHED"
                         const activePairs = pairs.filter((p) => !p.isEliminated)
                         const eliminatedPairs = pairs.filter((p) => p.isEliminated)
+
+                        // ─── Podium derivation (FINISHED tournaments only) ───
+                        // Winner is already in activePairs (only non-eliminated
+                        // pair after finish). Silver + bronze pairs technically
+                        // live in eliminatedPairs but we re-pin them to the top
+                        // of the "Aktivni" section with medal styling so the
+                        // result is read-at-a-glance.
+                        const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase()
+                        const winnerName = t?.winnerName ?? null
+                        const secondName = t?.secondPlaceName ?? null
+                        const thirdName  = t?.thirdPlaceName  ?? null
+                        const findByName = (n: string | null) =>
+                            n ? pairs.find((p) => norm(p.name) === norm(n)) ?? null : null
+                        const winnerPair = t?.status === "FINISHED" ? findByName(winnerName) : null
+                        const secondPair = t?.status === "FINISHED" ? findByName(secondName) : null
+                        const thirdPair  = t?.status === "FINISHED" ? findByName(thirdName)  : null
+                        const podiumIds = new Set<number>(
+                            [winnerPair, secondPair, thirdPair]
+                                .filter((p): p is PairShort => !!p && typeof p.id === "number")
+                                .map((p) => p.id as number),
+                        )
+                        // Render order: gold → silver → bronze → remaining active.
+                        // For an in-progress tournament this collapses to just
+                        // `activePairs` since none of the podium pairs are set.
+                        const displayActivePairs: PairShort[] = [
+                            ...(winnerPair ? [winnerPair] : []),
+                            ...(secondPair && secondPair.id !== winnerPair?.id ? [secondPair] : []),
+                            ...(thirdPair  && thirdPair.id  !== winnerPair?.id && thirdPair.id !== secondPair?.id ? [thirdPair] : []),
+                            ...activePairs.filter((p) => !podiumIds.has(p.id as number)),
+                        ]
+                        const displayEliminatedPairs: PairShort[] = eliminatedPairs
+                            .filter((p) => !podiumIds.has(p.id as number))
                         const paidCount = pairs.filter((p) => !!(p as any).paid).length
                         const capacity = typeof t.maxPairs === "number" ? t.maxPairs : null
                         const atCapacity = capacity != null && pairs.length >= capacity
@@ -2371,12 +2589,31 @@ export default function TournamentDetailsPage() {
                                 && !!t?.winnerName
                                 && !!p.name
                                 && t.winnerName.trim().toLowerCase() === p.name.trim().toLowerCase()
+                            // Silver + bronze podium positions. Same name-match
+                            // rule as gold, scoped to FINISHED tournaments. A
+                            // pair that's both 1st AND 2nd (shouldn't happen —
+                            // backend rejects the overlap) keeps gold styling.
+                            const isSecondPlacePair =
+                                !isWinnerPair
+                                && t?.status === "FINISHED"
+                                && !!secondName
+                                && !!p.name
+                                && norm(p.name) === norm(secondName)
+                            const isThirdPlacePair =
+                                !isWinnerPair && !isSecondPlacePair
+                                && t?.status === "FINISHED"
+                                && !!thirdName
+                                && !!p.name
+                                && norm(p.name) === norm(thirdName)
+                            const isPodiumPair = isWinnerPair || isSecondPlacePair || isThirdPlacePair
                             return (
                                 <Box
                                     key={p.id}
-                                    borderWidth={isWinnerPair ? "2px" : isPending ? "2px" : "1px"}
+                                    borderWidth={isPodiumPair || isPending ? "2px" : "1px"}
                                     borderColor={
-                                        isWinnerPair ? "yellow.solid"
+                                        isWinnerPair       ? "yellow.solid"
+                                        : isSecondPlacePair ? "gray.solid"
+                                        : isThirdPlacePair  ? "orange.solid"
                                         : isPending ? "yellow.solid"
                                         : eliminated ? "border.emphasized"
                                         : paid && !tournamentAlready ? "green.muted"
@@ -2385,32 +2622,53 @@ export default function TournamentDetailsPage() {
                                     rounded="lg"
                                     p="3"
                                     bg={
-                                        isWinnerPair ? "yellow.subtle"
+                                        isWinnerPair       ? "yellow.subtle"
+                                        : isSecondPlacePair ? "gray.subtle"
+                                        : isThirdPlacePair  ? "orange.subtle"
                                         : isPending ? "yellow.subtle"
                                         : eliminated ? "bg.subtle"
                                         : "bg"
                                     }
-                                    // Champion pair gets a soft golden glow so the
-                                    // winner card pops even when the grid is busy.
-                                    boxShadow={isWinnerPair ? "0 0 0 3px var(--chakra-colors-yellow-muted)" : undefined}
-                                    // Winner is always full opacity even if technically
-                                    // "eliminated" by the data model — they won, after
-                                    // all. Otherwise eliminated pairs fade out.
-                                    opacity={!isWinnerPair && eliminated ? 0.85 : 1}
+                                    // Podium pairs each get a soft coloured glow so
+                                    // they pop against the regular grid (gold,
+                                    // silver, bronze in order).
+                                    boxShadow={
+                                        isWinnerPair       ? "0 0 0 3px var(--chakra-colors-yellow-muted)"
+                                        : isSecondPlacePair ? "0 0 0 3px var(--chakra-colors-gray-muted)"
+                                        : isThirdPlacePair  ? "0 0 0 3px var(--chakra-colors-orange-muted)"
+                                        : undefined
+                                    }
+                                    // Podium pairs are always full opacity even if
+                                    // technically "eliminated" by the data model
+                                    // (2nd + 3rd both lost their last match) —
+                                    // they earned their spot. Other eliminated
+                                    // pairs fade out as before.
+                                    opacity={!isPodiumPair && eliminated ? 0.85 : 1}
                                     display="flex"
                                     flexDirection="column"
                                     gap="2"
                                 >
                                     {/* Top row: avatar + name input + info button */}
                                     <HStack gap="2" align="center">
-                                        <PairAvatar name={p.name} eliminated={eliminated && !isWinnerPair} />
-                                        {/* Gold trophy in front of the name for the
-                                            winning pair — only ever set once tournament
-                                            status is FINISHED, so it never mis-fires
+                                        <PairAvatar name={p.name} eliminated={eliminated && !isPodiumPair} />
+                                        {/* Podium icon in front of the name. Gold
+                                            trophy for the winner, silver/bronze
+                                            medals for 2nd + 3rd. All gated on
+                                            FINISHED status so they never mis-fire
                                             on still-in-progress events. */}
                                         {isWinnerPair && (
-                                            <Box color="yellow.fg" flexShrink={0}>
+                                            <Box color="yellow.fg" flexShrink={0} title="1. mjesto">
                                                 <FaTrophy size={20} />
+                                            </Box>
+                                        )}
+                                        {isSecondPlacePair && (
+                                            <Box color="gray.fg" flexShrink={0} title="2. mjesto">
+                                                <FaMedal size={20} />
+                                            </Box>
+                                        )}
+                                        {isThirdPlacePair && (
+                                            <Box color="orange.fg" flexShrink={0} title="3. mjesto">
+                                                <FaMedal size={20} />
                                             </Box>
                                         )}
                                         <Box flex="1" minW="0">
@@ -2422,8 +2680,13 @@ export default function TournamentDetailsPage() {
                                                 onBlur={() => onPairNameBlur(p)}
                                                 placeholder="Ime para"
                                                 disabled={tournamentAlready || tournamentLocked}
-                                                fontWeight={isWinnerPair ? "bold" : "medium"}
-                                                color={isWinnerPair ? "yellow.fg" : undefined}
+                                                fontWeight={isPodiumPair ? "bold" : "medium"}
+                                                color={
+                                                    isWinnerPair       ? "yellow.fg"
+                                                    : isSecondPlacePair ? "gray.fg"
+                                                    : isThirdPlacePair  ? "orange.fg"
+                                                    : undefined
+                                                }
                                             />
                                         </Box>
                                         <IconButton
@@ -2836,38 +3099,65 @@ export default function TournamentDetailsPage() {
                                     </Box>
                                 ) : (
                                     <>
-                                        {/* Active pairs */}
+                                        {/* Podium selectors — visible only to the
+                                            organiser, only after the tournament finishes.
+                                            Lets the organiser record who came 2nd and 3rd
+                                            so silver + bronze styling kicks in below.
+                                            Calls PATCH /tournaments/{uuid}/podium directly
+                                            on change; backend validates the names and
+                                            refreshes the canonical TournamentDetails. */}
+                                        {t?.status === "FINISHED" && canEditTournament && (
+                                            <PodiumEditor
+                                                tournamentUuid={uuid ?? ""}
+                                                winnerName={t.winnerName ?? null}
+                                                secondPlaceName={t.secondPlaceName ?? null}
+                                                thirdPlaceName={t.thirdPlaceName ?? null}
+                                                pairs={pairs}
+                                                onUpdated={(updated) => setT(updated)}
+                                            />
+                                        )}
+
+                                        {/* Active pairs (gold/silver/bronze pinned to top
+                                            on FINISHED tournaments). For each podium pair
+                                            that's been promoted from the eliminated bucket
+                                            we still pass eliminated=true to renderPair so
+                                            the underlying state stays accurate; the medal
+                                            styling overrides the muted look. */}
                                         <Box>
                                             <HStack mb="2" gap="2" align="center">
                                                 <Text fontSize="xs" color="fg.muted" fontWeight="semibold" letterSpacing="wide" textTransform="uppercase">
                                                     Aktivni
                                                 </Text>
-                                                <Text fontSize="xs" color="fg.muted">({activePairs.length})</Text>
+                                                <Text fontSize="xs" color="fg.muted">({displayActivePairs.length})</Text>
                                             </HStack>
                                             <Box
                                                 display="grid"
                                                 gridTemplateColumns={{ base: "1fr", md: "1fr 1fr", lg: "1fr 1fr 1fr" }}
                                                 gap="2"
                                             >
-                                                {activePairs.map((p, idx) => renderPair(p, idx, false))}
+                                                {displayActivePairs.map((p, idx) =>
+                                                    renderPair(p, idx, p.isEliminated)
+                                                )}
                                             </Box>
                                         </Box>
 
-                                        {/* Eliminated pairs */}
-                                        {eliminatedPairs.length > 0 && (
+                                        {/* Eliminated pairs (excluding the silver + bronze
+                                            podium pairs we already showed in the active
+                                            section). */}
+                                        {displayEliminatedPairs.length > 0 && (
                                             <Box>
                                                 <HStack mb="2" gap="2" align="center">
                                                     <Text fontSize="xs" color="fg.muted" fontWeight="semibold" letterSpacing="wide" textTransform="uppercase">
                                                         Eliminirani
                                                     </Text>
-                                                    <Text fontSize="xs" color="fg.muted">({eliminatedPairs.length})</Text>
+                                                    <Text fontSize="xs" color="fg.muted">({displayEliminatedPairs.length})</Text>
                                                 </HStack>
                                                 <Box
                                                     display="grid"
                                                     gridTemplateColumns={{ base: "1fr", md: "1fr 1fr", lg: "1fr 1fr 1fr" }}
                                                     gap="2"
                                                 >
-                                                    {eliminatedPairs.map((p, idx) => renderPair(p, idx, true))}
+                                                    {displayEliminatedPairs.map((p, idx) => renderPair(p, idx, true))}
                                                 </Box>
                                             </Box>
                                         )}
@@ -3429,6 +3719,22 @@ export default function TournamentDetailsPage() {
                                                         <Icon as={FiShuffle} />
                                                         {rounds.length === 0 ? " Generiraj prvu rundu" : " Generiraj rundu"}
                                                     </Button>
+                                                    {/* Manual generation — only surfaces in the late
+                                                        bracket stage (≤ 4 active pairs) where the
+                                                        random auto-draw above isn't what the organiser
+                                                        wants. Two-step UX: click → confirmation alert
+                                                        → big dialog with the pair-pick form. */}
+                                                    {showManualRoundButton && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            colorPalette="purple"
+                                                            onClick={onClickManualRound}
+                                                            title="Ručno odaberi tko igra protiv koga u sljedećoj rundi"
+                                                        >
+                                                            Ručno generiraj
+                                                        </Button>
+                                                    )}
                                                     {showResetTournament && (
                                                         <Button
                                                             size="sm"
@@ -4232,6 +4538,83 @@ export default function TournamentDetailsPage() {
                     </Dialog.Content>
                 </Dialog.Positioner>
             </Dialog.Root>
+
+            {/* Manual round generation — confirmation prompt + main form.
+                Two steps so the organiser explicitly opts in to the
+                heavier flow (the auto button is still right there one
+                tap away). */}
+            <Dialog.Root
+                open={manualConfirmOpen}
+                onOpenChange={(e) => { if (!e.open) setManualConfirmOpen(false) }}
+            >
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content maxW="sm">
+                        <Dialog.Header>Ručna generacija kola?</Dialog.Header>
+                        <Dialog.Body>
+                            <Text>
+                                Sigurno želiš ručno odabrati parove za sljedeće kolo?
+                                Ovaj korak zaobilazi automatski ždrijeb i postavlja
+                                točno onaj raspored koji odabereš.
+                            </Text>
+                        </Dialog.Body>
+                        <Dialog.Footer>
+                            <HStack gap="2">
+                                <Button variant="ghost" onClick={() => setManualConfirmOpen(false)}>
+                                    Ne
+                                </Button>
+                                <Button
+                                    variant="solid"
+                                    colorPalette="purple"
+                                    onClick={onConfirmManualRound}
+                                >
+                                    Da, ručno
+                                </Button>
+                            </HStack>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+
+            <ManualRoundDialog
+                open={manualRoundOpen}
+                onClose={() => setManualRoundOpen(false)}
+                tournamentUuid={uuid ?? ""}
+                pairs={activePairsForManual}
+                nextRoundNumber={
+                    rounds.length === 0 ? 1 : rounds[rounds.length - 1].number + 1
+                }
+                onCreated={onManualRoundCreated}
+            />
+
+            {/* Detail-page tour. Auto-runs once when arriving from the
+                list tour (we read TOUR_RESUME_DETAIL_KEY in initial state
+                above). On subsequent visits the localStorage seen-flag
+                suppresses the auto path; the NavBar "?" button still
+                triggers it via the window event. The onStepChange
+                callback drives tab switching so each step lands on a
+                tab that's actually mounted (the tab anchors are buttons,
+                visible regardless of which tab content is rendered, so
+                Joyride can find them either way — but switching the
+                visible content is what makes the tour feel guided). */}
+            <PageTour
+                key={tourReplayKey}
+                steps={TURNIR_DETAIL_TOUR_STEPS}
+                seenStorageKey={TURNIR_DETAIL_TOUR_KEY}
+                forceRun={tourForceRun}
+                onStepChange={(nextIndex) => {
+                    // Step indices map 1:1 to the tab order in the steps
+                    // array: 0=details, 1=pairs, 2=bracket, 3=cjenik.
+                    const tabsByIndex: Array<"details" | "pairs" | "bracket" | "cjenik"> = [
+                        "details", "pairs", "bracket", "cjenik",
+                    ]
+                    const targetTab = tabsByIndex[nextIndex]
+                    if (targetTab) setTab(targetTab)
+                }}
+                onFinished={() => {
+                    setTourForceRun(undefined)
+                }}
+            />
         </>
     )
 }

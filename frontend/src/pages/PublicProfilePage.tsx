@@ -76,6 +76,7 @@ import {
 } from "../api/cjenik"
 import { groupedPresets } from "../utils/drinkPresets"
 import { useAuth } from "../auth/AuthContext"
+import AdminDashboardTab from "../components/AdminDashboardTab"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 
 /** Country dial codes shared with FindPair / CreateTournament. */
@@ -114,7 +115,7 @@ function pairKey(name: string): string {
 
 export default function PublicProfilePage() {
     const { slug } = useParams<{ slug: string }>()
-    const { user, mySlug } = useAuth()
+    const { user, mySlug, isAdmin, loading: authLoading } = useAuth()
     const navigate = useNavigate()
 
     const [profile, setProfile] = useState<PublicProfile | null>(null)
@@ -126,7 +127,7 @@ export default function PublicProfilePage() {
 
     // Profile page tabs. Predlošci + Postavke + Računi only show for the
     // profile owner; visitors viewing someone else's page see Turniri only.
-    const [profileTab, setProfileTab] = useState<"turniri" | "predlosci" | "postavke" | "racuni">("turniri")
+    const [profileTab, setProfileTab] = useState<"turniri" | "predlosci" | "postavke" | "racuni" | "dashboard">("turniri")
 
     // Per-route SEO. We deliberately do NOT include the user's phone in any
     // meta tag — phone display is a product call on the page itself, but
@@ -211,8 +212,24 @@ export default function PublicProfilePage() {
         jsonLd: profileJsonLd,
     })
 
+    // Why this depends on `authLoading` + `user?.uid` as well as `slug`:
+    //
+    // The backend redacts the phone number for anonymous viewers (the
+    // "Prijavi se da vidiš broj" affordance is driven by the `hasPhone`
+    // flag the API returns). If we fire this fetch before Firebase has
+    // restored the persisted session, the request goes anonymous and we
+    // get back a redacted record — even if the user IS logged in on
+    // this device. Then `setProfile` stores that stale anonymous record
+    // and the page shows the blurred phone permanently for this session.
+    //
+    // Fix: don't fetch until `authLoading` is false (the initial auth
+    // probe finished), and re-fetch whenever `user?.uid` flips
+    // (login/logout while the page is open). With this, a logged-in
+    // user lands on the profile, the request goes out with their
+    // Bearer token, and the backend returns the real phone.
     useEffect(() => {
         if (!slug) return
+        if (authLoading) return
         let cancelled = false
         ;(async () => {
             try {
@@ -237,7 +254,7 @@ export default function PublicProfilePage() {
             }
         })()
         return () => { cancelled = true }
-    }, [slug])
+    }, [slug, authLoading, user?.uid])
 
     /** Tournaments filtered to the active pair, then optionally to the search query. */
     const filteredTournaments = useMemo<MyTournamentParticipation[]>(() => {
@@ -344,8 +361,22 @@ export default function PublicProfilePage() {
                         variant={profileTab === "racuni" ? "solid" : "ghost"}
                         onClick={() => setProfileTab("racuni")}
                     >
-                        Moji računi
+                        Računi
                     </Button>
+                    {/* Admin-only Dashboard tab — for retroactively attaching
+                        legacy tournament pairs to registered users. Gated on
+                        the Firebase role=admin custom claim; non-admins never
+                        see the button. */}
+                    {isAdmin && (
+                        <Button
+                            size="sm"
+                            variant={profileTab === "dashboard" ? "solid" : "ghost"}
+                            colorPalette="purple"
+                            onClick={() => setProfileTab("dashboard")}
+                        >
+                            Dashboard
+                        </Button>
+                    )}
                 </HStack>
             )}
 
@@ -478,6 +509,11 @@ export default function PublicProfilePage() {
             {/* === RAČUNI tab — owner-only invoice history === */}
             {isOwner && profileTab === "racuni" && (
                 <InvoicesCard />
+            )}
+
+            {/* === DASHBOARD tab — admin-only, on own profile === */}
+            {isOwner && isAdmin && profileTab === "dashboard" && (
+                <AdminDashboardTab />
             )}
         </VStack>
     )
@@ -1252,9 +1288,9 @@ function MyPairsCard() {
                     <Box>
                         <Heading size="sm">Moji parovi</Heading>
                         <Text fontSize="xs" color="fg.muted">
-                            Spremljeni parovi. Podijeli sa partnerom da se par
-                            pojavi i na njegovom profilu, ili sakrij od drugih ako
-                            ga ne želiš prikazivati javno.
+                            Ovdje možeš spremiti svoje parove. Podijeli par sa partnerom da se par
+                            pojavi i na njegovom profilu ili ga sakrij od drugih ako
+                            ag ne želiš prikazivati javno.
                         </Text>
                     </Box>
 
@@ -1798,10 +1834,10 @@ function DrinkTemplateCard() {
             <Card.Body p={{ base: "4", md: "5" }}>
                 <VStack align="stretch" gap="3">
                     <Box>
-                        <Heading size="sm">Cjenici – predlošci</Heading>
+                        <Heading size="sm">Moji cjenici</Heading>
                         <Text fontSize="xs" color="fg.muted">
-                            Spremljeni cjenici pića koje možeš učitati na novim
-                            turnirima jednim klikom.
+                            Organiziraš turnir? Spremi svoje cjenike pića koje možeš učitati na svom
+                            turniru jednim klikom.
                         </Text>
                     </Box>
 
@@ -2216,7 +2252,7 @@ function SettingsCard() {
                     <Box>
                         <Heading size="sm">Postavke</Heading>
                         <Text fontSize="xs" color="fg.muted">
-                            Tvoje postavke aplikacije — slijede te kroz uređaje.
+                            Personalizirane postavke aplikacije i tvog profila.
                         </Text>
                     </Box>
 
@@ -2295,9 +2331,9 @@ function InvoicesCard() {
             <Card.Body p={{ base: "4", md: "5" }}>
                 <VStack align="stretch" gap="3">
                     <Box>
-                        <Heading size="sm">Moji računi</Heading>
+                        <Heading size="sm">Računi</Heading>
                         <Text fontSize="xs" color="fg.muted">
-                            Pregled računa za stolove na turnirima na kojima si igrao.
+                            Pregled računa po stolovima na turnirima na kojima si igrao.
                         </Text>
                     </Box>
 

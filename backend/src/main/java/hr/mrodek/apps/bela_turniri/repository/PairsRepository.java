@@ -24,6 +24,27 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
         return list("tournament.id", tournamentId);
     }
 
+    /**
+     * Pairs from a given tournament that aren't yet linked to any registered
+     * user. Used by the admin dashboard to surface candidates for legacy /
+     * organizer-added pairs that a real user can claim retroactively.
+     *
+     * <p>"Unclaimed" = both {@code submittedByUid} and {@code coSubmittedByUid}
+     * are null. A pair that's only attached via name-matching a user's preset
+     * is still considered unclaimed here, since the preset is a soft link the
+     * admin might want to override.
+     *
+     * <p>Pending self-registrations are excluded — the admin shouldn't be
+     * reassigning a pair the organiser hasn't approved yet.
+     */
+    public List<Pairs> findUnclaimedByTournamentId(Long tournamentId) {
+        return list("tournament.id = ?1 " +
+                        "and submittedByUid is null " +
+                        "and coSubmittedByUid is null " +
+                        "and pendingApproval = false",
+                tournamentId);
+    }
+
     /** Single-pair lookup by claim token (the share URL). */
     public java.util.Optional<Pairs> findByClaimToken(String token) {
         if (token == null || token.isBlank()) return java.util.Optional.empty();

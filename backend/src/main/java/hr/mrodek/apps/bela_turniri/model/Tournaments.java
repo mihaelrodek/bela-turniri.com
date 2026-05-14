@@ -112,6 +112,21 @@ public class Tournaments {
     @Column(name = "winner_name")
     private String winnerName;   // <- NEW
 
+    /**
+     * Silver-place pair name, set by the organiser from the Parovi tab
+     * after the tournament finishes. Nullable — the organiser can
+     * leave the podium incomplete (small tournaments may not have a
+     * meaningful 2nd or 3rd place). Free-text string rather than a FK
+     * to {@link Pairs} so we can also paste in a historical name for
+     * legacy/imported tournaments where the pair entity isn't present.
+     */
+    @Column(name = "second_place_name", length = 200)
+    private String secondPlaceName;
+
+    /** Bronze-place pair name. Same semantics as {@link #secondPlaceName}. */
+    @Column(name = "third_place_name", length = 200)
+    private String thirdPlaceName;
+
     @Column(name = "preserve_matchmaking", nullable = false)
     private boolean preserveMatchmaking = false;
 

@@ -15,13 +15,19 @@ import {
     Text,
     VStack,
 } from "@chakra-ui/react"
-import { Link as RouterLink } from "react-router-dom"
+import { Link as RouterLink, useNavigate } from "react-router-dom"
 import { FiCalendar, FiChevronDown, FiChevronUp, FiClock, FiFilter, FiNavigation, FiPlus, FiSearch, FiUsers, FiX } from "react-icons/fi"
 import type { TournamentCard } from "../types/tournaments"
 import { fetchTournaments, fetchTournamentsCount } from "../api/tournaments"
 import { useUserLocation } from "../hooks/useUserLocation"
 import { haversineKm } from "../utils/distance"
 import { useDocumentHead } from "../hooks/useDocumentHead"
+import PageTour from "../components/PageTour"
+import {
+    TURNIRI_LIST_TOUR_KEY,
+    TURNIRI_LIST_TOUR_STEPS,
+    TOUR_RESUME_DETAIL_KEY,
+} from "../components/tourSteps"
 
 /** The list DTO now includes a public UUID you want to route with */
 type TournamentCardWithUuid = TournamentCard & { uuid: string }
@@ -300,6 +306,16 @@ function EmptyState({
 // ---------- page ----------
 const FINISHED_PREVIEW_LIMIT = 6
 
+/**
+ * Upper bound for the "U krugu od:" slider. Reaching this value is
+ * semantically "no radius filter" — the filter logic short-circuits to
+ * "all". The maximum is intentionally low (100 km, not 500) because
+ * Croatia + immediate neighbours are well-covered by a 100 km radius
+ * already, and a tighter range gives the slider better pixel-per-km
+ * resolution.
+ */
+const RADIUS_MAX_KM = 100
+
 export default function TournamentsPage() {
     useDocumentHead({
         title: "Bela turniri u Hrvatskoj — bela-turniri.com",
@@ -312,6 +328,8 @@ export default function TournamentsPage() {
         canonical: "https://bela-turniri.com/turniri",
     })
 
+    const navigate = useNavigate()
+
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
@@ -320,6 +338,19 @@ export default function TournamentsPage() {
 
     const [upcoming, setUpcoming] = useState<TournamentCardWithUuid[]>([])
     const [finished, setFinished] = useState<TournamentCardWithUuid[]>([])
+
+    // Tour replay state — the NavBar "Pokaži kako" button dispatches a
+    // window event we listen for here. Incrementing the counter on each
+    // event makes PageTour's forceRun prop change, which triggers a
+    // run() inside Joyride.
+    const [tourReplayKey, setTourReplayKey] = useState(0)
+    useEffect(() => {
+        function onReplay() {
+            setTourReplayKey((k) => k + 1)
+        }
+        window.addEventListener("bela:tour-replay", onReplay)
+        return () => window.removeEventListener("bela:tour-replay", onReplay)
+    }, [])
     // Finished list is paginated server-side — the initial fetch returns
     // FINISHED_PAGE_SIZE rows; "Učitaj više" appends the next page until
     // every finished tournament is loaded. finishedTotal lets us know when
@@ -334,11 +365,11 @@ export default function TournamentsPage() {
     const [priceMin, setPriceMin] = useState("")
     const [priceMax, setPriceMax] = useState("")
     // Distance filter — always a number, applied when location is on.
-    // The slider goes 1–500 km so the upper bound effectively means
-    // "everywhere in Croatia + neighbours". Default 100 is a sane
-    // middle-ground that surfaces a comfortable handful of tournaments
-    // without hiding nearby ones.
-    const [radiusKm, setRadiusKm] = useState<number>(100)
+    // The slider goes 1–100 km; reaching the max (100) is treated as
+    // "show all", so dragging to the end disables the filter rather
+    // than just stretching the circle. Default 100 = no radius filter
+    // active until the user moves the slider inwards.
+    const [radiusKm, setRadiusKm] = useState<number>(RADIUS_MAX_KM)
 
     // User location (for nearby filter) — silently restored if previously granted
     const {
@@ -353,19 +384,19 @@ export default function TournamentsPage() {
         const n = parseFloat(s)
         return Number.isFinite(n) ? n : null
     }
-    // 500 km effectively means "show all" — don't count it as an active
-    // filter chip when the user is at the slider's max.
+    // RADIUS_MAX_KM is the slider's right edge and semantically "show all" —
+    // don't count it as an active filter chip when the user is at the max.
     const activeFilterCount =
         (locationFilter.trim() ? 1 : 0) +
         (priceMin.trim() ? 1 : 0) +
         (priceMax.trim() ? 1 : 0) +
-        (userPos && radiusKm < 500 ? 1 : 0)
+        (userPos && radiusKm < RADIUS_MAX_KM ? 1 : 0)
     const resetFilters = () => {
         setSearch("")
         setLocationFilter("")
         setPriceMin("")
         setPriceMax("")
-        setRadiusKm(500)
+        setRadiusKm(RADIUS_MAX_KM)
     }
 
     useEffect(() => {
@@ -449,17 +480,17 @@ export default function TournamentsPage() {
                 // tournaments without a known entryPrice are filtered out only when a price filter is active
                 if (min != null || max != null) return false
             }
-            // Nearby filter. Always active when the user has their
-            // location enabled — the slider just controls how wide the
-            // circle is. 500 km is effectively "everywhere" in Croatia
-            // + neighbours, so dragging to max disables the filter
-            // visually. Tournaments without geocoded coords are excluded
-            // when the filter is active because we can't know if they're
-            // in range.
-            if (me) {
+            // Nearby filter. Active only when the user has location
+            // enabled AND the slider is below the max. Reaching the max
+            // (RADIUS_MAX_KM) is the explicit "show all" affordance, so
+            // the predicate short-circuits to true. Tournaments without
+            // geocoded coords are still excluded while the filter is
+            // active because we can't tell whether they're in range.
+            if (me && radiusKm < RADIUS_MAX_KM) {
                 if (typeof t.latitude !== "number" || typeof t.longitude !== "number") {
-                    if (radiusKm < 500) return false
-                } else if (haversineKm(me, { lat: t.latitude, lng: t.longitude }) > radiusKm) {
+                    return false
+                }
+                if (haversineKm(me, { lat: t.latitude, lng: t.longitude }) > radiusKm) {
                     return false
                 }
             }
@@ -484,6 +515,7 @@ export default function TournamentsPage() {
                     block. */}
                 {!loading && upcoming.length > 0 && (
                     <Card.Root
+                        data-tour="turniri-filters"
                         variant="outline"
                         rounded="xl"
                         borderColor="border.emphasized"
@@ -552,16 +584,13 @@ export default function TournamentsPage() {
                                         )}
                                         {filtersOpen ? <FiChevronUp /> : <FiChevronDown />}
                                     </Button>
-                                    {isFiltering && (
-                                        <Button
-                                            size={{ base: "md", md: "sm" }}
-                                            variant="ghost"
-                                            onClick={resetFilters}
-                                            flex={{ base: "1", md: "none" }}
-                                        >
-                                            Očisti sve
-                                        </Button>
-                                    )}
+                                    {/* "Očisti sve" used to live here, conditional on
+                                        isFiltering. The appear/disappear caused the
+                                        toolbar to shift sideways every time a filter
+                                        was added or removed. It now lives inside the
+                                        Filteri panel next to the radius slider, where
+                                        it can render conditionally without nudging
+                                        the rest of the toolbar layout. */}
                                     {/* Create-tournament CTA — sits inline with
                                         the filter controls. Solid blue so the
                                         primary action stays visually distinct
@@ -626,10 +655,22 @@ export default function TournamentsPage() {
                                         </Box>
                                     </Box>
 
-                                    {/* Nearby radius — draggable 1–500 km. Auto-applies
-                                        on change. 500 means "show all" (covers all of
-                                        Croatia + neighbours). Disabled until the user
-                                        enables location. */}
+                                    {/* Nearby radius — draggable 1–100 km. Auto-applies
+                                        on change. Reaching the max (100) is the
+                                        "show all" affordance — the filter
+                                        short-circuits at that point. Disabled until
+                                        the user enables location.
+
+                                        The "Očisti sve" button lives at the right
+                                        edge of this row instead of in the toolbar
+                                        above. Putting it inside the filters panel
+                                        avoids the layout shift the toolbar version
+                                        caused every time a filter was added/removed.
+                                        The button is positioned via `ml="auto"`
+                                        rather than rendered conditionally so the
+                                        row height stays constant when there are no
+                                        filters active — we just disable the button
+                                        instead. */}
                                     <Box mt="3">
                                         <HStack gap="2" mb="1.5" align="center" wrap="wrap">
                                             <Text fontSize="xs" fontWeight="medium" color="fg.muted">
@@ -637,7 +678,7 @@ export default function TournamentsPage() {
                                             </Text>
                                             <Text fontSize="xs" fontWeight="semibold" color="blue.fg">
                                                 {userPos
-                                                    ? (radiusKm >= 500 ? "Sve" : `${radiusKm} km`)
+                                                    ? (radiusKm >= RADIUS_MAX_KM ? "Sve" : `${radiusKm} km`)
                                                     : "—"}
                                             </Text>
                                             {!userPos && (
@@ -657,10 +698,20 @@ export default function TournamentsPage() {
                                                     Lokacija je odbijena u pregledniku.
                                                 </Text>
                                             )}
+                                            <Button
+                                                size="xs"
+                                                variant="ghost"
+                                                onClick={resetFilters}
+                                                disabled={!isFiltering}
+                                                ml="auto"
+                                                title={isFiltering ? "Očisti sve filtere" : "Nema aktivnih filtera"}
+                                            >
+                                                Očisti sve
+                                            </Button>
                                         </HStack>
                                         <Slider.Root
                                             min={1}
-                                            max={500}
+                                            max={RADIUS_MAX_KM}
                                             step={1}
                                             value={[radiusKm]}
                                             onValueChange={(e) => setRadiusKm(e.value[0])}
@@ -720,16 +771,27 @@ export default function TournamentsPage() {
                         }
                     />
                 ) : (
-                    <Box display="grid" gridTemplateColumns={gridCols} gap="4">
-                        {filteredUpcoming.map((t) => (
-                            <TournamentCardView key={t.uuid} t={t} variant="upcoming" />
+                    <Box data-tour="turniri-upcoming" display="grid" gridTemplateColumns={gridCols} gap="4">
+                        {filteredUpcoming.map((t, idx) => (
+                            <Box
+                                key={t.uuid}
+                                // First card gets a tour anchor so the
+                                // "Pogledajmo jedan turnir" step has a
+                                // concrete element to point at. Anchored
+                                // here instead of on the inner card so
+                                // the data attribute doesn't need to be
+                                // threaded through TournamentCardView.
+                                data-tour={idx === 0 ? "turniri-first-card" : undefined}
+                            >
+                                <TournamentCardView t={t} variant="upcoming" />
+                            </Box>
                         ))}
                     </Box>
                 )}
             </Box>
 
             {/* ===================== Finished ===================== */}
-            <Box>
+            <Box data-tour="turniri-finished">
                 <Heading size="lg" mb="4">Završeni turniri</Heading>
 
                 {loadingFinished ? (
@@ -778,6 +840,34 @@ export default function TournamentsPage() {
                     </>
                 )}
             </Box>
+
+            {/* Guided tour. Two triggers: first visit auto-launches once
+                (gated by the seen-flag in localStorage), and the NavBar
+                "?" help button dispatches a window event we listen for
+                via tourReplayKey. After the final step we navigate to a
+                finished tournament with a sessionStorage resume flag,
+                and the detail page picks up the tour as a continuation. */}
+            <PageTour
+                steps={TURNIRI_LIST_TOUR_STEPS}
+                seenStorageKey={TURNIRI_LIST_TOUR_KEY}
+                forceRun={tourReplayKey > 0 ? true : undefined}
+                onFinished={() => {
+                    // Bridge to the detail-page tour: stash the flag,
+                    // then navigate to the first finished tournament so
+                    // the user sees a fully-populated detail page (all
+                    // tabs filled). If there's no finished tournament
+                    // available, fall back to the first upcoming card
+                    // — still meaningful. If neither exists, just end
+                    // the tour here.
+                    const target = finished[0] ?? upcoming[0] ?? null
+                    if (!target) return
+                    try {
+                        window.sessionStorage.setItem(TOUR_RESUME_DETAIL_KEY, "1")
+                    } catch { /* private mode */ }
+                    const slug = (target as any).slug || target.uuid
+                    navigate(`/turniri/${slug}`)
+                }}
+            />
         </VStack>
     )
 }

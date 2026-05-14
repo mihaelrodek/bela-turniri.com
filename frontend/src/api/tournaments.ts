@@ -199,6 +199,25 @@ export async function resetTournament(uuid: string): Promise<TournamentDetails> 
     return res.data
 }
 
+/**
+ * Set 2nd + 3rd place after the tournament finishes. Either field may
+ * be null/empty to clear that podium position. Backend rejects names
+ * that don't match a pair in the tournament, names that match the
+ * gold winner, or both fields being identical.
+ */
+export async function setPodium(
+    uuid: string,
+    secondPlaceName: string | null,
+    thirdPlaceName: string | null,
+): Promise<TournamentDetails> {
+    const { data } = await http.patch<TournamentDetails>(
+        `/tournaments/${uuid}/podium`,
+        { secondPlaceName, thirdPlaceName },
+        { successMessage: "Postolje spremljeno." } as any,
+    )
+    return data
+}
+
 export async function setPairPaid(uuid: string, pairId: number, paid: boolean) {
     const { data } = await http.patch(`/tournaments/${uuid}/pairs/${pairId}/paid`, { paid });
     return data;

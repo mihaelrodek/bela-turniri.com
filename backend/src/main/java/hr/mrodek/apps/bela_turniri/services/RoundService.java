@@ -1,6 +1,7 @@
 // src/main/java/hr/mrodek/apps/bela_turniri/service/RoundService.java
 package hr.mrodek.apps.bela_turniri.services;
 
+import hr.mrodek.apps.bela_turniri.dtos.ManualRoundRequest;
 import hr.mrodek.apps.bela_turniri.dtos.MatchDto;
 import hr.mrodek.apps.bela_turniri.dtos.RoundDto;
 import hr.mrodek.apps.bela_turniri.dtos.UpdateMatchRequest;
@@ -236,6 +237,150 @@ public class RoundService {
 
         var dto = mapper.toRoundDto(round);
         return new RoundDto(dto.id(), dto.number(), dto.status(), mapper.toMatchDtoList(saved));
+    }
+
+    /**
+     * Manually generate a round from organiser-supplied pairings.
+     *
+     * <p>Typical use-case: late in a small bracket (≤ 4 active pairs)
+     * where the automatic draw's random pairing isn't what the organiser
+     * wants. The caller provides the exact list of (pair1, pair2, tableNo)
+     * tuples — we validate and persist them as a new round.
+     *
+     * <p>Mirrors {@link #drawNextRound(String)}'s persistence path so the
+     * resulting round/matches look identical to an auto-drawn one
+     * downstream (push notifications, score updates, finish-round flow).
+     *
+     * <p>Validation (each failure throws {@link IllegalStateException},
+     * mapped to HTTP 400 by the global exception mapper):
+     *   - tournament must be STARTED (not FINISHED — a finished tournament
+     *     is read-only)
+     *   - {@code matches} non-empty
+     *   - every {@code pair1Id} must reference a pair in this tournament
+     *     that is not eliminated; {@code pair2Id} (when non-null) the same
+     *   - no pair may appear in more than one match
+     *   - {@code pair1Id != pair2Id} (a pair can't play itself)
+     */
+    @Transactional
+    public RoundDto drawManualRound(String uuid, ManualRoundRequest req) {
+        Tournaments t = tournamentsRepo.findByUuidOrSlug(uuid)
+                .orElseThrow(() -> new NoSuchElementException("Tournament not found"));
+
+        if (t.getStatus() == TournamentStatus.FINISHED) {
+            throw new IllegalStateException("Tournament is already finished");
+        }
+
+        if (req == null || req.matches() == null || req.matches().isEmpty()) {
+            throw new IllegalStateException("At least one match is required");
+        }
+
+        // Load every pair in the tournament once so we can validate the
+        // request payload against actual DB rows in O(1) lookups.
+        Map<Long, Pairs> pairsById = new HashMap<>();
+        for (Pairs p : pairsRepo.findByTournament_Id(t.getId())) {
+            pairsById.put(p.getId(), p);
+        }
+
+        // Track which pair IDs the request already uses — catches both
+        // duplicate-in-same-match and reused-across-matches in one pass.
+        Set<Long> usedIds = new HashSet<>();
+        for (ManualRoundRequest.Match m : req.matches()) {
+            if (m == null || m.pair1Id() == null || m.tableNo() == null) {
+                throw new IllegalStateException("Each match needs pair1Id and tableNo");
+            }
+            Pairs p1 = pairsById.get(m.pair1Id());
+            if (p1 == null) {
+                throw new IllegalStateException("pair1Id " + m.pair1Id() + " is not in this tournament");
+            }
+            if (p1.isEliminated()) {
+                throw new IllegalStateException("Pair " + p1.getName() + " is already eliminated");
+            }
+            if (!usedIds.add(m.pair1Id())) {
+                throw new IllegalStateException("Pair " + p1.getName() + " appears in more than one match");
+            }
+            if (m.pair2Id() != null) {
+                if (m.pair2Id().equals(m.pair1Id())) {
+                    throw new IllegalStateException("A pair cannot play itself");
+                }
+                Pairs p2 = pairsById.get(m.pair2Id());
+                if (p2 == null) {
+                    throw new IllegalStateException("pair2Id " + m.pair2Id() + " is not in this tournament");
+                }
+                if (p2.isEliminated()) {
+                    throw new IllegalStateException("Pair " + p2.getName() + " is already eliminated");
+                }
+                if (!usedIds.add(m.pair2Id())) {
+                    throw new IllegalStateException("Pair " + p2.getName() + " appears in more than one match");
+                }
+            }
+        }
+
+        int nextNumber = roundsRepo.findTopByTournamentOrderByNumberDesc(t)
+                .map(Rounds::getNumber).map(n -> n + 1).orElse(1);
+
+        Rounds round = new Rounds();
+        round.setTournament(t);
+        round.setNumber(nextNumber);
+        round.setStatus(RoundStatus.IN_PROGRESS);
+        roundsRepo.save(round);
+
+        List<Matches> toSave = new ArrayList<>();
+        for (ManualRoundRequest.Match m : req.matches()) {
+            Matches row = new Matches();
+            row.setTournament(t);
+            row.setRound(round);
+            row.setTableNo(m.tableNo());
+            row.setPair1(pairsById.get(m.pair1Id()));
+            row.setPair2(m.pair2Id() == null ? null : pairsById.get(m.pair2Id()));
+            row.setStatus(MatchStatus.SCHEDULED);
+            toSave.add(row);
+        }
+
+        var saved = matchesRepo.saveAll(toSave);
+
+        // Same push-notification logic as the automatic draw — players
+        // get a deep link into their match. Lifted out into a helper so
+        // both code paths agree on the payload shape; if you tweak one,
+        // tweak the other.
+        notifyMatches(t, round, saved);
+
+        var dto = mapper.toRoundDto(round);
+        return new RoundDto(dto.id(), dto.number(), dto.status(), mapper.toMatchDtoList(saved));
+    }
+
+    /**
+     * Send a "Runda X" push notification to every UID linked to each
+     * pair playing in the round. Extracted from {@link #drawNextRound}
+     * so {@link #drawManualRound} can reuse the same payload shape.
+     * BYE rows (pair2 == null) are skipped — there's no opponent to
+     * announce.
+     */
+    private void notifyMatches(Tournaments t, Rounds round, List<Matches> matches) {
+        String tournamentRef = (t.getSlug() != null && !t.getSlug().isBlank())
+                ? t.getSlug()
+                : (t.getUuid() != null ? t.getUuid().toString() : "");
+        for (Matches m : matches) {
+            if (m.getPair2() == null) continue;
+            Pairs p1 = m.getPair1();
+            Pairs p2 = m.getPair2();
+            if (p1 == null) continue;
+            Integer tbl = m.getTableNo();
+            String title = "Runda " + round.getNumber();
+            String body = p1.getName() + " vs " + p2.getName()
+                    + (tbl != null ? " na stolu " + tbl : "");
+            String matchUrl = "/turniri/" + tournamentRef + "?match=" + m.getId();
+            String tag = "round-" + round.getId() + "-pair-";
+            for (String uid : pairUids(p1)) {
+                pushService.sendToUser(uid, new PushService.PushPayload(
+                        title, body, matchUrl, "/bela-turniri-symbol.png",
+                        tag + p1.getId() + "-" + uid));
+            }
+            for (String uid : pairUids(p2)) {
+                pushService.sendToUser(uid, new PushService.PushPayload(
+                        title, body, matchUrl, "/bela-turniri-symbol.png",
+                        tag + p2.getId() + "-" + uid));
+            }
+        }
     }
 
     /* ===================== helpers ===================== */

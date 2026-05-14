@@ -1,5 +1,6 @@
 package hr.mrodek.apps.bela_turniri.controller;
 
+import hr.mrodek.apps.bela_turniri.dtos.ManualRoundRequest;
 import hr.mrodek.apps.bela_turniri.dtos.MatchDto;
 import hr.mrodek.apps.bela_turniri.dtos.RoundDto;
 import hr.mrodek.apps.bela_turniri.dtos.UpdateMatchRequest;
@@ -56,6 +57,23 @@ public class RoundController {
     public RoundDto draw(@PathParam("uuid") String uuid) {
         assertCanEdit(uuid);
         return roundService.drawNextRound(uuid);
+    }
+
+    /**
+     * Manual round generation — the organiser supplies the exact list of
+     * pairings. Used in the late stage of a small bracket (≤ 4 active
+     * pairs) where the automatic random draw would produce awkward
+     * pairings. Validation on the body (pair belongs to tournament, not
+     * eliminated, no duplicates, no self-pair) lives in the service.
+     */
+    @POST
+    @Path("/manual")
+    @Authenticated
+    @Transactional
+    public RoundDto drawManual(@PathParam("uuid") String uuid,
+                               @Valid ManualRoundRequest req) {
+        assertCanEdit(uuid);
+        return roundService.drawManualRound(uuid, req);
     }
 
     @PUT

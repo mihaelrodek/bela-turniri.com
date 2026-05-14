@@ -406,6 +406,86 @@ public class TournamentController {
         return Response.ok(tournamentMapper.toDetails(t)).build();
     }
 
+    /**
+     * Set the 2nd + 3rd place pair names after the tournament finishes.
+     * Owner or admin only. Both body fields are nullable — a null/blank
+     * value clears that column, letting the organiser remove a wrongly-set
+     * podium position.
+     *
+     * <p>Each non-blank name is matched (case-insensitive, trimmed)
+     * against the tournament's own pair names. Unknown names return
+     * 400 — better than silently persisting garbage that the SPA can't
+     * highlight on the Parovi tab.
+     *
+     * <p>Doesn't gate on tournament status. Most organisers will fill
+     * the podium right after FINISH, but allowing edits while STARTED
+     * (or even on a DRAFT) doesn't hurt and lets the organiser pre-fill
+     * if they want.
+     */
+    @PATCH
+    @Path("/{uuid}/podium")
+    @Authenticated
+    @Transactional
+    public Response setPodium(@PathParam("uuid") String uuid,
+                              PodiumRequest req) {
+        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
+        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
+        assertCanEdit(t);
+
+        if (req == null) req = new PodiumRequest(null, null);
+
+        // Build the set of valid pair names once (case-insensitive,
+        // trimmed) so we can validate both inputs against the same
+        // dataset without doing two queries.
+        var pairNames = pairRepo.findByTournament_Id(t.getId()).stream()
+                .map(p -> p.getName() == null ? null : p.getName().trim().toLowerCase(java.util.Locale.ROOT))
+                .filter(s -> s != null && !s.isEmpty())
+                .collect(java.util.stream.Collectors.toSet());
+
+        String second = normalisePodiumName(req.secondPlaceName());
+        String third  = normalisePodiumName(req.thirdPlaceName());
+
+        if (second != null && !pairNames.contains(second.toLowerCase(java.util.Locale.ROOT))) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("SECOND_PLACE_PAIR_NOT_FOUND").build();
+        }
+        if (third != null && !pairNames.contains(third.toLowerCase(java.util.Locale.ROOT))) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("THIRD_PLACE_PAIR_NOT_FOUND").build();
+        }
+        if (second != null && third != null
+                && second.equalsIgnoreCase(third)) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("SAME_PAIR_FOR_SECOND_AND_THIRD").build();
+        }
+        // Don't allow podium to overlap with the gold winner — a single
+        // pair can't simultaneously be 1st AND (2nd|3rd).
+        if (t.getWinnerName() != null) {
+            String winner = t.getWinnerName().trim();
+            if (second != null && winner.equalsIgnoreCase(second)) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity("SECOND_PLACE_EQUALS_WINNER").build();
+            }
+            if (third != null && winner.equalsIgnoreCase(third)) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity("THIRD_PLACE_EQUALS_WINNER").build();
+            }
+        }
+
+        t.setSecondPlaceName(second);
+        t.setThirdPlaceName(third);
+        t.setUpdatedAt(OffsetDateTime.now());
+
+        return Response.ok(tournamentMapper.toDetails(t)).build();
+    }
+
+    /** Trim + null-out empty strings so the DB stores a clean null. */
+    private static String normalisePodiumName(String s) {
+        if (s == null) return null;
+        String trimmed = s.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     @POST
     @Path("/{uuid}/reset")
     @Authenticated

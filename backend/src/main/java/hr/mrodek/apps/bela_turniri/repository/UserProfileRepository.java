@@ -2,9 +2,12 @@ package hr.mrodek.apps.bela_turniri.repository;
 
 import hr.mrodek.apps.bela_turniri.model.UserProfile;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
+import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -36,5 +39,30 @@ public class UserProfileRepository implements PanacheRepositoryBase<UserProfile,
     public boolean slugTaken(String slug) {
         if (slug == null || slug.isBlank()) return false;
         return count("slug", slug) > 0;
+    }
+
+    /**
+     * Free-text search by displayName for the admin dashboard's user
+     * picker. Case-insensitive substring match — short and forgiving so
+     * the admin doesn't have to type the exact casing or full name.
+     *
+     * <p>The {@code limit} cap is enforced because the admin dashboard
+     * renders results as a dropdown; an unbounded list scrolls badly and
+     * also leaks the full user base to an admin who maybe doesn't need
+     * to see everyone at once. {@code null} or blank query returns the
+     * first {@code limit} profiles sorted by display name so the
+     * dropdown has something to show before the admin types.
+     */
+    public List<UserProfile> searchByDisplayName(String query, int limit) {
+        int capped = Math.max(1, Math.min(limit, 100));
+        if (query == null || query.isBlank()) {
+            return find("displayName is not null", Sort.by("displayName"))
+                    .page(0, capped)
+                    .list();
+        }
+        String needle = "%" + query.trim().toLowerCase(Locale.ROOT) + "%";
+        return find("lower(displayName) like ?1", Sort.by("displayName"), needle)
+                .page(0, capped)
+                .list();
     }
 }
