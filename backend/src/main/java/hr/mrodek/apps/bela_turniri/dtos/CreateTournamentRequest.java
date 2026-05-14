@@ -39,7 +39,7 @@ public record CreateTournamentRequest(
         @DecimalMin(value = "0.0", inclusive = true, message = "repassageSecondPrice cannot be negative")
         BigDecimal repassageSecondPrice,       // nullable
 
-        RepassageUntil repassageUntil,         // FINALS | SEMIFINALS
+        RepassageUntil repassageUntil,         // FINALS | SEMIFINALS | FIRST_ROUND
 
         @Size(max = 200, message = "contactName must be at most 200 characters")
         String contactName,

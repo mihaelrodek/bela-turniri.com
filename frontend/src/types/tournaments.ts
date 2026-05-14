@@ -1,5 +1,5 @@
 export type RewardType = "FIXED" | "PERCENTAGE";
-export type RepassageUntil = "FINALS" | "SEMIFINALS";
+export type RepassageUntil = "FINALS" | "SEMIFINALS" | "FIRST_ROUND";
 export type TournamentStatus = "DRAFT" | "STARTED" | "FINISHED";
 
 export type TournamentCard = {

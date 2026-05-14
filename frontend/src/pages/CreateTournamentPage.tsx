@@ -42,7 +42,7 @@ registerLocale("hr", hr)
 
 // ---------- UI-only types ----------
 type RewardsMode = "fixed" | "percentage"
-type RepassageEndsAt = "finals" | "semifinals"
+type RepassageEndsAt = "finals" | "semifinals" | "first_round"
 
 type FormState = {
     name: string
@@ -127,8 +127,13 @@ function toLocalOffsetIso(dateStr: string, timeStr: string): string | null {
 }
 
 // map UI enums → backend enums
-const mapRepassageUntil = (v: RepassageEndsAt): RepassageUntil =>
-    v === "finals" ? "FINALS" : "SEMIFINALS"
+const mapRepassageUntil = (v: RepassageEndsAt): RepassageUntil => {
+    switch (v) {
+        case "finals": return "FINALS"
+        case "semifinals": return "SEMIFINALS"
+        case "first_round": return "FIRST_ROUND"
+    }
+}
 const mapRewardType = (v: RewardsMode): RewardType =>
     v === "fixed" ? "FIXED" : "PERCENTAGE"
 
@@ -779,6 +784,11 @@ export default function CreateTournamentPage() {
                                         <RadioGroup.ItemHiddenInput />
                                         <RadioGroup.ItemIndicator />
                                         <RadioGroup.ItemText>Polufinala</RadioGroup.ItemText>
+                                    </RadioGroup.Item>
+                                    <RadioGroup.Item value="first_round">
+                                        <RadioGroup.ItemHiddenInput />
+                                        <RadioGroup.ItemIndicator />
+                                        <RadioGroup.ItemText>Prvog kruga</RadioGroup.ItemText>
                                     </RadioGroup.Item>
                                 </HStack>
                             </RadioGroup.Root>

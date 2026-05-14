@@ -27,7 +27,7 @@ public record TournamentDetailsResponse(
 
         BigDecimal repassagePrice,     // maps from entity.repasage
         BigDecimal repassageSecondPrice,    // maps from entity.repasage2
-        String repassageUntil,        // "FINALS" | "SEMIFINALS"
+        String repassageUntil,        // "FINALS" | "SEMIFINALS" | "FIRST_ROUND"
 
         String contactName,
         String contactPhone,

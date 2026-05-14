@@ -398,7 +398,7 @@ type EditForm = {
     // Empty string = not set (same convention as CreateTournamentPage).
     // Conversion to backend null happens in editFormToPayload.
     repassageSecondPrice: string
-    repassageUntil: "FINALS" | "SEMIFINALS"
+    repassageUntil: "FINALS" | "SEMIFINALS" | "FIRST_ROUND"
     contactName: string
     contactPhoneCountry: string
     contactPhone: string
@@ -1880,7 +1880,9 @@ export default function TournamentDetailsPage() {
                                                     ? "Finala"
                                                     : t.repassageUntil === "SEMIFINALS"
                                                         ? "Polufinala"
-                                                        : "—"}
+                                                        : t.repassageUntil === "FIRST_ROUND"
+                                                            ? "Prvog kruga"
+                                                            : "—"}
                                             </Badge>
                                         }
                                     />
@@ -2350,7 +2352,7 @@ export default function TournamentDetailsPage() {
                                             onValueChange={(v) =>
                                                 patchEdit(
                                                     "repassageUntil",
-                                                    (typeof v === "string" ? v : (v as any)?.value) as "FINALS" | "SEMIFINALS"
+                                                    (typeof v === "string" ? v : (v as any)?.value) as "FINALS" | "SEMIFINALS" | "FIRST_ROUND"
                                                 )
                                             }
                                         >
@@ -2364,6 +2366,11 @@ export default function TournamentDetailsPage() {
                                                     <RadioGroup.ItemHiddenInput />
                                                     <RadioGroup.ItemIndicator />
                                                     <RadioGroup.ItemText>Polufinala</RadioGroup.ItemText>
+                                                </RadioGroup.Item>
+                                                <RadioGroup.Item value="FIRST_ROUND">
+                                                    <RadioGroup.ItemHiddenInput />
+                                                    <RadioGroup.ItemIndicator />
+                                                    <RadioGroup.ItemText>Prvog kruga</RadioGroup.ItemText>
                                                 </RadioGroup.Item>
                                             </HStack>
                                         </RadioGroup.Root>
