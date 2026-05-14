@@ -136,11 +136,32 @@ export default function PageTour({
             showProgress
             scrollToFirstStep
             disableOverlayClose
+            // Disable Joyride's "if the anchor sits inside an overflow:scroll
+            // parent, fix the parent's scroll position before measuring"
+            // behaviour. Our Card components have rounded-corner overflow
+            // clipping that confused the fix into computing tooltip offsets
+            // against the wrong scroll parent, especially after tab-content
+            // swaps changed the document height. Without it, popper just
+            // uses the window as the reference and lands the tooltip at the
+            // anchor's actual viewport coordinates.
+            disableScrollParentFix
             // Important on mobile: lets Joyride scroll the highlighted
             // element into view if it's below the fold. Default behaviour
             // is to keep the page static, which means on a phone the
             // user might not see what's being highlighted.
             scrollOffset={80}
+            // NB: we briefly set `floaterProps={{ disableAnimation: true }}`
+            // here to suppress intermediate position tweens during the
+            // filter-expand and tab-swap transitions. Turned out
+            // react-floater uses its animation loop as the trigger for
+            // popper to recompute final coordinates after the anchor
+            // settles — with it disabled, the tooltip stayed pinned to
+            // the position popper had calculated before the React
+            // commit, so on the detail page every tab-swap step landed
+            // the tooltip in the bottom-left corner. We rely on small,
+            // stable anchors (single tab buttons / first-card elements)
+            // instead, which don't produce visible intermediate
+            // positions even with animation on.
             callback={handleCallback}
             locale={{
                 back: "Natrag",

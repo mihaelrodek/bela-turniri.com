@@ -53,6 +53,7 @@ function persistDismissed() {
     }
 }
 
+
 export default function FirstRunInstallPrompt() {
     const { canInstall, isIos, installed, install } = useInstallPrompt()
     const [open, setOpen] = useState(false)
@@ -69,6 +70,34 @@ export default function FirstRunInstallPrompt() {
         const id = window.setTimeout(() => setOpen(true), SHOW_AFTER_MS)
         return () => window.clearTimeout(id)
     }, [dismissed, installed, canInstall, isIos])
+
+    /**
+     * Force-open the dialog when the guided tour finishes. The tour's
+     * farewell step explicitly points the user at the install button as
+     * something they can do next, so we re-open this dialog even if it
+     * was already dismissed earlier in the session — the explicit tour
+     * pointer is a more meaningful signal of intent than the silent
+     * dismissal of an unsolicited auto-popup.
+     *
+     * <p>Only fires when install is actually possible (canInstall || isIos)
+     * and the app isn't already installed; otherwise there's nothing
+     * useful to show and we no-op.
+     */
+    useEffect(() => {
+        function onTourFinished() {
+            if (installed) return
+            if (!canInstall && !isIos) return
+            // Clear dismissed flag locally so the dialog can render again
+            // (the rendered output short-circuits on `dismissed`). We do
+            // NOT persist this clear to localStorage — if the user
+            // dismisses again post-tour, that persisted flag is the one
+            // we want to keep.
+            setDismissed(false)
+            setOpen(true)
+        }
+        window.addEventListener("bela:tour-finished", onTourFinished)
+        return () => window.removeEventListener("bela:tour-finished", onTourFinished)
+    }, [canInstall, isIos, installed])
 
     function dismiss() {
         setOpen(false)

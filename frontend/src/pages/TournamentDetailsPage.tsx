@@ -101,7 +101,6 @@ import {
     TURNIR_DETAIL_TOUR_STEPS,
     TOUR_RESUME_DETAIL_KEY,
     DETAIL_TOUR_TAB_BY_INDEX,
-    notifyTourOfLayoutChange,
 } from "../components/tourSteps"
 
 // Register the Croatian locale once for the calendar UI (month/day names,
@@ -1726,7 +1725,13 @@ export default function TournamentDetailsPage() {
                     {/* ===== DETAILS — read mode + inline edit mode ===== */}
                     {!editingDetails || !editForm ? (
                         <Box
-                            data-tour="detail-content-details"
+                            // Used to host data-tour="detail-content-details"
+                            // for the guided tour, but that anchor was huge
+                            // (the entire 2-column grid) and made the tooltip
+                            // pop far from the spotlight. The "Detalji" tab
+                            // step now points at the tab BUTTON and folds
+                            // the content description into its body, so this
+                            // wrapper no longer needs a tour anchor.
                             display="grid"
                             gridTemplateColumns={{ base: "1fr", lg: "1fr 320px" }}
                             gap={{ base: "4", lg: "5" }}
@@ -3809,7 +3814,16 @@ export default function TournamentDetailsPage() {
                                         </VStack>
                                     </Box>
                                 ) : (
-                                    <VStack data-tour="detail-rounds" align="stretch" gap="3">
+                                    /* Used to host data-tour="detail-rounds"
+                                       for the guided tour, but that anchor
+                                       was the entire rounds list — tall
+                                       enough to push the tooltip far below
+                                       the spotlight. The "Ždrijeb" tab step
+                                       now points at the tab BUTTON and
+                                       folds the rounds description into
+                                       its body, so this wrapper no longer
+                                       needs a tour anchor. */
+                                    <VStack align="stretch" gap="3">
                                         {rounds.map((r, rIdx) => {
                                             const collapsed = !!collapsedRounds[r.id]
                                             const isActive = r.id === activeRoundId
@@ -4629,23 +4643,60 @@ export default function TournamentDetailsPage() {
                     // map don't change the tab (so e.g. the "pair card"
                     // step keeps the Parovi tab visible from the
                     // previous step).
-                    //
-                    // After switching tabs we nudge Joyride to re-measure
-                    // the next anchor's geometry. The newly-mounted tab
-                    // content can shift the tab button's bounding rect
-                    // (or, more importantly, anchors INSIDE the tab
-                    // content like detail-first-pair sit in different
-                    // positions for each tab). Without the resize event
-                    // Joyride keeps the tooltip pinned to the old
-                    // coordinates and it ends up off-screen.
                     const targetTab = DETAIL_TOUR_TAB_BY_INDEX[nextIndex]
                     if (targetTab) {
+                        // Snap the page back to the top BEFORE swapping
+                        // tabs. Why: each tab's content has a different
+                        // height (Parovi can be hundreds of pairs tall,
+                        // Cjenik is a one-line empty state on a fresh
+                        // tournament). If the user was scrolled down to
+                        // see Parovi, swapping to the shorter Cjenik
+                        // content shrinks the document — the browser
+                        // can clamp scrollTop to the new maxScroll, and
+                        // the tab buttons end up at unexpected viewport
+                        // coordinates. Joyride/popper then position the
+                        // tooltip against those wrong coords and we get
+                        // the "tooltip drifts to the bottom-left of the
+                        // page" symptom. Forcing scrollTop=0 means the
+                        // tab buttons are reliably at the top of the
+                        // viewport and the tooltip lands right below
+                        // them, where the step's `placement: "bottom"`
+                        // expects it to. `instant` skips the browser's
+                        // smooth-scroll animation that would otherwise
+                        // run concurrently with the React commit.
+                        window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior })
                         setTab(targetTab)
-                        notifyTourOfLayoutChange()
                     }
+
+                    // The "Pomoć i instalacija" step (index 7) anchors on
+                    // the help-replay + install buttons. On desktop they
+                    // sit in the top-right of the navbar and are always
+                    // visible; on mobile the same pair lives inside the
+                    // hamburger drawer's Stack, so we have to open the
+                    // drawer before Joyride looks for the anchor.
+                    // Closes again at every other step so the previous
+                    // content stays in view. NavBar listens for these
+                    // events — desktop is unaffected because the drawer
+                    // block doesn't render at md+.
+                    const isHelpInstallStep = nextIndex === 7
+                    window.dispatchEvent(new CustomEvent(
+                        isHelpInstallStep ? "bela:open-nav-menu" : "bela:close-nav-menu",
+                    ))
                 }}
                 onFinished={() => {
                     setTourForceRun(undefined)
+                    // Signal to FirstRunInstallPrompt (mounted at the app
+                    // root) that the whole onboarding journey is done. It
+                    // suppresses itself while either tour is running so it
+                    // doesn't overlap; this event releases the gate so the
+                    // install dialog can finally appear after the user
+                    // lands back on /turniri.
+                    window.dispatchEvent(new CustomEvent("bela:tour-finished"))
+                    // Drawer cleanup — if the user finished from the
+                    // help-install step on mobile, the hamburger is still
+                    // open. Close it so the post-tour /turniri page isn't
+                    // partially obscured.
+                    window.dispatchEvent(new CustomEvent("bela:close-nav-menu"))
                     // After the farewell step, drop the user back on the
                     // /turniri landing so they're not stranded on the
                     // detail page they were just guided through. Matches

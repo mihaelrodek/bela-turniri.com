@@ -28,8 +28,6 @@ import {
     TURNIRI_LIST_TOUR_STEPS,
     TOUR_RESUME_DETAIL_KEY,
     TOUR_DEMO_TOURNAMENT_SLUG,
-    LIST_TOUR_OPEN_FILTERS_INDEX,
-    LIST_TOUR_AFTER_FILTERS_INDEX,
     notifyTourOfLayoutChange,
 } from "../components/tourSteps"
 
@@ -184,7 +182,23 @@ function TournamentCardView({
     return (
         <RouterLink
             to={`/turniri/${t.slug ?? t.uuid}`}
-            style={{ display: "block", textDecoration: "none", color: "inherit" }}
+            // display:flex + height:100% so the link stretches to fill
+            // its grid cell. CSS Grid already stretches each cell to the
+            // tallest row height, but a `display: block` <a> tag sizes
+            // to its own content and breaks the chain — the inner Box's
+            // `h="full"` then resolves against the short link, not the
+            // tall cell, so cards with shorter titles ended up shorter
+            // than their neighbours with multi-line titles. The flex
+            // column also gives the inner content a stretching parent
+            // (so the body's `flex="1"` + `mt="auto"` push the meta
+            // row to the bottom of every card uniformly).
+            style={{
+                display: "flex",
+                flexDirection: "column",
+                height: "100%",
+                textDecoration: "none",
+                color: "inherit",
+            }}
         >
             <Box
                 borderWidth="1px"
@@ -941,25 +955,18 @@ export default function TournamentsPage() {
                 seenStorageKey={TURNIRI_LIST_TOUR_KEY}
                 forceRun={tourReplayKey > 0 ? true : undefined}
                 onStepChange={(nextIndex) => {
-                    // Side effects keyed off step index:
-                    //   - entering the "filters expanded" step → open
-                    //     the filter card so the user actually sees
-                    //     the inputs being described,
-                    //   - leaving the filter run (anything after) →
-                    //     close the card again so the tour doesn't
-                    //     end with a giant open panel.
-                    // Each toggle changes the height of the anchor, so
-                    // we nudge Joyride to re-measure after the layout
-                    // settles. Otherwise the tooltip floats off-screen
-                    // because it was positioned against the collapsed
-                    // (or just-collapsed) card geometry.
-                    if (nextIndex === LIST_TOUR_OPEN_FILTERS_INDEX) {
-                        setFiltersOpen(true)
-                        notifyTourOfLayoutChange()
-                    } else if (nextIndex >= LIST_TOUR_AFTER_FILTERS_INDEX) {
-                        setFiltersOpen(false)
-                        notifyTourOfLayoutChange()
-                    }
+                    // We used to auto-expand the filter card when the
+                    // "Filteri pretrage" step landed so the user could
+                    // see the actual inputs. That made the
+                    // `[data-tour="turniri-filters"]` anchor grow from
+                    // ~50 px tall (collapsed) to ~250 px tall (expanded),
+                    // which pushed the popper-positioned tooltip far
+                    // below the controls it was describing — the tip
+                    // appeared at the page bottom, visually disconnected
+                    // from its spotlight. Now the card stays collapsed;
+                    // the spotlight hugs the small toolbar and the
+                    // tooltip sits right under it. The user can still
+                    // tap "Filteri" themselves after the tour ends.
 
                     // Mobile-only: open the hamburger drawer at the nav
                     // steps so the `data-tour="nav-items"` anchor (which
@@ -996,7 +1003,14 @@ export default function TournamentsPage() {
                         const target = finished[0] ?? upcoming[0]
                         slug = (target as any)?.slug || target?.uuid
                     }
-                    if (!slug) return
+                    if (!slug) {
+                        // No tournament to bridge to — tour effectively
+                        // ends here. Release the FirstRunInstallPrompt
+                        // gate so the install dialog can appear (it sat
+                        // out the tour because it would have overlapped).
+                        window.dispatchEvent(new CustomEvent("bela:tour-finished"))
+                        return
+                    }
                     try {
                         window.sessionStorage.setItem(TOUR_RESUME_DETAIL_KEY, "1")
                     } catch { /* private mode */ }

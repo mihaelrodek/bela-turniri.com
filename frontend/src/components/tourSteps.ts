@@ -64,13 +64,17 @@ export const TURNIRI_LIST_TOUR_STEPS: Step[] = [
             "Ispod nadolazećih turnira nalaze se završeni turniri koje možeš otvoriti i pregledati ždrijeb i pobjednike.",
         placement: "top",
     },
-    // 5 — filters intro (collapsed view). After this step the parent
-    // opens the filters card so the next step lands on the contents.
+    // 5 — filters intro (collapsed view). The filter card is intentionally
+    // left collapsed during the tour — auto-expanding it grew the anchor
+    // tall enough that the popper-placed tooltip ended up well below the
+    // viewport's centre, disconnected from the spotlight. Keeping it
+    // collapsed gives a small anchor and a cleanly-placed tooltip; the
+    // user can tap "Filteri" themselves after the tour to explore.
     {
         target: '[data-tour="turniri-filters"]',
         title: "Filteri pretrage",
         content:
-            "Ovdje možeš pretraživati turnire i filtrirati po određenim kriterijima.",
+            "Ovdje možeš pretraživati turnire po imenu. Klikom na 'Filteri' otvaraš dodatne opcije — filtriraj po lokaciji, cijeni i udaljenosti od tebe.",
         placement: "bottom",
     },
     // 6 — bridge to detail tour. Anchored on the hand-picked demo
@@ -95,37 +99,39 @@ export const TURNIRI_LIST_TOUR_STEPS: Step[] = [
  * <p>Tab map (kept in sync with {@link DETAIL_TOUR_TAB_BY_INDEX} below
  * and the {@code onStepChange} in TournamentDetailsPage):
  *   - 0 → details
- *   - 2 → pairs
- *   - 4 → cjenik
- *   - 5 → bracket
+ *   - 1 → pairs
+ *   - 3 → cjenik
+ *   - 4 → bracket
  *
- * <p>Note: an earlier revision had a "Prijavi svoj par" step at index 3
+ * <p>Design note — every step in this tour anchors on a tab button
+ * (small + stable) or a first-card element (small + stable). An
+ * earlier revision also had two "content area" steps that anchored
+ * on the entire details box and the entire rounds list. Those huge
+ * anchors made the popper-placed tooltip flip to the page bottom
+ * (placement: "top" with no room above), visually disconnected from
+ * its spotlight. Their content was folded into the adjacent tab
+ * intro steps so the tour now describes both the tab AND what's in
+ * it from a single, well-anchored tooltip.
+ *
+ * <p>Also note: an even earlier revision had a "Prijavi svoj par" step
  * that anchored on {@code detail-prijavi-par}. It was removed because
  * the button is only visible to logged-in users on active tournaments,
- * and the demo tournament (finished) doesn't render it — the tour would
- * silently skip the step. All indices below shifted by one when that
- * step was deleted; the tab-index map at the bottom of this file
- * reflects the post-shift numbers.
+ * and the demo tournament (finished) doesn't render it — the tour
+ * would silently skip the step.
  */
 export const TURNIR_DETAIL_TOUR_STEPS: Step[] = [
-    // 0 — Detalji tab (tab switch happens in the parent callback).
+    // 0 — Detalji tab. Combined intro + content description so the
+    // tooltip stays anchored on the small tab button instead of the
+    // huge details grid.
     {
         target: '[data-tour="detail-tab-details"]',
         title: "Kartica \"Detalji\"",
         content:
-            "Krećemo sa karticom \"Detalji\" koja sadrži osnovne informacije o turniru.",
+            "Krećemo sa karticom \"Detalji\". Ovdje se nalaze svi osnovni podaci o turniru — lokacija, datum, kotizacija, nagrade i kontakt organizatora.",
         placement: "bottom",
         disableBeacon: true,
     },
-    // 1 — details content area.
-    {
-        target: '[data-tour="detail-content-details"]',
-        title: "Informacije o turniru",
-        content:
-            "Ovdje se nalaze svi detalji turnira - lokacija, datum, kotizacija, nagrade i kontakt organizatora.",
-        placement: "top",
-    },
-    // 2 — Parovi tab (tab switches to "pairs" in the parent).
+    // 1 — Parovi tab (tab switches to "pairs" in the parent).
     {
         target: '[data-tour="detail-tab-pairs"]',
         title: "Kartica \"Parovi\"",
@@ -133,7 +139,7 @@ export const TURNIR_DETAIL_TOUR_STEPS: Step[] = [
             "U kartici \"Parovi\" vidiš sve prijavljene parove i njihov status u turniru.",
         placement: "bottom",
     },
-    // 3 — One pair card.
+    // 2 — One pair card. Small, stable anchor on the first pair.
     {
         target: '[data-tour="detail-first-pair"]',
         title: "Kartica para",
@@ -141,7 +147,7 @@ export const TURNIR_DETAIL_TOUR_STEPS: Step[] = [
             "Svaka kartica prikazuje ime para, broj pobjeda i poraza, te tko ga je prijavio. Klikom na karticu otvaraš povijest svih njegovih mečeva u turniru.",
         placement: "top",
     },
-    // 4 — Cjenik tab (tab switches to "cjenik" in the parent).
+    // 3 — Cjenik tab (tab switches to "cjenik" in the parent).
     {
         target: '[data-tour="detail-tab-cjenik"]',
         title: "Kartica \"Cjenik\"",
@@ -149,24 +155,18 @@ export const TURNIR_DETAIL_TOUR_STEPS: Step[] = [
             "Kartica \"Cjenik\" služi za organizatore. Ovdje organizator može dodjeliti cijene pića te ih kasnije dodati na račun određenog stola.",
         placement: "bottom",
     },
-    // 5 — Ždrijeb tab (tab switches to "bracket" in the parent).
+    // 4 — Ždrijeb tab. Combined intro + rounds description so the
+    // tooltip stays anchored on the small tab button instead of the
+    // huge rounds list (which sometimes has 8+ tall round cards).
     {
         target: '[data-tour="detail-tab-bracket"]',
         title: "Kartica \"Ždrijeb\"",
         content:
-            "Kartica \"Ždrijeb\" prikazuje sva kola turnira, svaki meč i rezultat.",
+            "Kartica \"Ždrijeb\" prikazuje sva kola turnira, svaki meč i rezultat. Svako kolo je vlastita kartica koju možeš proširiti za prikaz svih mečeva i rezultata.",
         placement: "bottom",
     },
-    // 6 — Rounds list (bracket tab is sticky from step 5).
-    {
-        target: '[data-tour="detail-rounds"]',
-        title: "Kola turnira",
-        content:
-            "Svako kolo je vlastita kartica. Klikom na zaglavlje kola možeš ga proširiti i vidjeti sve mečeve po stolovima i rezultate.",
-        placement: "top",
-    },
-    // 7 — Round-expand + fullscreen explanation. Anchored on the first
-    // round so the user has a concrete reference point.
+    // 5 — Round-expand + fullscreen explanation. Anchored on the first
+    // round so the user has a concrete (small) reference point.
     {
         target: '[data-tour="detail-first-round"]',
         title: "Proširivanje i puni zaslon",
@@ -174,7 +174,7 @@ export const TURNIR_DETAIL_TOUR_STEPS: Step[] = [
             "Prošireno kolo prikazuje svaki meč pojedinačno. Klikom na ikonu punog zaslona uz ždrijeb otvaraš veliki prikaz — koristi ga kad pokazuješ rezultate publici ili na velikom ekranu u kafiću.",
         placement: "top",
     },
-    // 8 — End-state note (still on bracket tab).
+    // 6 — End-state note (still on bracket tab).
     {
         target: '[data-tour="detail-tab-bracket"]',
         title: "Kraj turnira",
@@ -182,7 +182,19 @@ export const TURNIR_DETAIL_TOUR_STEPS: Step[] = [
             "Kad turnir završi, ovdje će biti prikazan cijeli ždrijeb, sva kola s rezultatima i konačni pobjednik. Završeni turniri ostaju vidljivi i kasnije za referencu.",
         placement: "bottom",
     },
-    // 9 — Thank-you / explore farewell.
+    // 7 — Pokaži kako (help replay) + Instaliraj. The parent opens the
+    // mobile hamburger drawer on this step because the labeled variants
+    // of these two buttons live inside the drawer; on desktop they're
+    // always visible in the top right and the same data-tour name
+    // resolves to that pair.
+    {
+        target: '[data-tour="help-install"]',
+        title: "Pomoć i instalacija",
+        content:
+            "Uvijek možeš ponovno pokrenuti ovu turu klikom na upitnik (?) ili instalirati aplikaciju na svoj uređaj klikom na strelicu (↓). Ova dva gumba uvijek su ti dostupna u izborniku.",
+        placement: "bottom",
+    },
+    // 8 — Thank-you / explore farewell.
     {
         target: "body",
         placement: "center",
@@ -222,21 +234,18 @@ export const TOUR_DEMO_TOURNAMENT_SLUG = "1-memorijalni-turnir-u-beli-benjamin-b
 export const TOUR_RESUME_DETAIL_KEY = "bela-tour-resume:turnir-detail"
 
 /**
- * Step indices on the list tour that toggle the filters card. The
- * parent reads this in its {@code onStepChange} callback to expand
- * the panel when the filters intro step lands (so the user actually
- * sees the location / price / radius inputs being described) and
- * collapse it again as soon as the tour moves on to the next step.
- *
- * <p>Current step layout:
- *   - 5 → "Filteri pretrage" intro (filters open here)
- *   - 6 → "Pogledajmo jedan turnir" bridge to demo card (filters close)
- *
- * <p>Keep this in sync with {@link TURNIRI_LIST_TOUR_STEPS}. If a step
- * is added before the filters step, both constants shift by one.
+ * Reserved for future use. Earlier revisions of the list tour
+ * auto-expanded the filter card when the "Filteri pretrage" step
+ * landed, so the user could see the actual inputs being described.
+ * That made the `[data-tour="turniri-filters"]` anchor tall enough
+ * that the popper-placed tooltip ended up well below the viewport
+ * centre, visually disconnected from its spotlight. The expansion
+ * was removed and the constants are kept as documentation in case
+ * we revisit (likely with a smaller inner anchor + an explicit
+ * tooltip placement) rather than re-deleting and re-adding them.
  */
-export const LIST_TOUR_OPEN_FILTERS_INDEX = 5  // index of "filters intro" step
-export const LIST_TOUR_AFTER_FILTERS_INDEX = 6 // first index after filters are done
+export const LIST_TOUR_OPEN_FILTERS_INDEX = -1
+export const LIST_TOUR_AFTER_FILTERS_INDEX = -1
 
 /**
  * Step-index → tab name mapping for the detail tour. The parent
@@ -245,16 +254,16 @@ export const LIST_TOUR_AFTER_FILTERS_INDEX = 6 // first index after filters are 
  * actually rendered (otherwise the spotlighted tab would be visible
  * but the user wouldn't see what we're talking about underneath).
  *
- * <p>Indices not listed inherit the previous step's tab — e.g. step 3
+ * <p>Indices not listed inherit the previous step's tab — e.g. step 2
  * (first-pair card) doesn't appear here because it just keeps the
- * "pairs" tab open from step 2. Same for steps 6/7/8 which all sit on
- * the bracket tab opened at step 5.
+ * "pairs" tab open from step 1. Same for steps 5 / 6 which both sit on
+ * the bracket tab opened at step 4.
  */
 export const DETAIL_TOUR_TAB_BY_INDEX: Record<number, "details" | "pairs" | "bracket" | "cjenik"> = {
     0: "details",
-    2: "pairs",
-    4: "cjenik",
-    5: "bracket",
+    1: "pairs",
+    3: "cjenik",
+    4: "bracket",
 }
 
 /**
@@ -265,27 +274,27 @@ export const DETAIL_TOUR_TAB_BY_INDEX: Record<number, "details" | "pairs" | "bra
  * but the tooltip stays pinned to the OLD anchor coordinates and
  * appears to "fly off" the element.
  *
- * <p>Fix: nudge popper to re-measure by dispatching synthetic scroll
- * and resize events at several timings. We hit four moments:
- *   - next animation frame (best case — fast, simple layout shifts),
- *   - 60 ms (catches React 19's auto-batched commits),
- *   - 200 ms (catches Chakra's lazy CSS transitions),
- *   - 500 ms (belt-and-suspenders for slow devices / heavier DOM trees).
+ * <p>Fix: nudge popper to re-measure by dispatching a synthetic scroll
+ * and resize event AFTER the layout transition has settled. We used to
+ * fire four times (rAF, 60 ms, 200 ms, 500 ms) hoping to catch every
+ * commit boundary, but each fire that landed mid-transition made
+ * popper recompute against an intermediate layout — the tooltip then
+ * animated through 3-4 positions before reaching the final one, which
+ * read as flicker. Combined with {@code floaterProps.disableAnimation}
+ * on PageTour (which removes the tooltip's own tween), a single fire
+ * after the layout is known to have stabilised is enough.
  *
- * <p>Each dispatch is idempotent — popper / react-floater no-op on
- * positions that haven't actually changed, so firing the same event
- * four times just costs a few cycles. We also dispatch both event
- * types because popper subscribes to both and which one wakes it up
- * varies across versions.
+ * <p>The 320 ms delay is empirically tuned to land just past Chakra's
+ * default content/show transitions (~200-250 ms) plus React 19's
+ * commit + paint budget. On slow devices the layout may finish later,
+ * but popper's own ResizeObserver picks up the final state — our nudge
+ * is a redundancy for environments where the observer is shaky, not
+ * the primary positioning mechanism.
  */
 export function notifyTourOfLayoutChange(): void {
     if (typeof window === "undefined") return
-    const fire = () => {
+    window.setTimeout(() => {
         window.dispatchEvent(new Event("scroll"))
         window.dispatchEvent(new Event("resize"))
-    }
-    requestAnimationFrame(fire)
-    window.setTimeout(fire, 60)
-    window.setTimeout(fire, 200)
-    window.setTimeout(fire, 500)
+    }, 320)
 }

@@ -308,12 +308,23 @@ export default function NavBar() {
                         gap="1.5"
                     >
                         <AuthArea />
-                        <HelpTourButton />
-                        {/* Conditional install icon — renders nothing on
-                            browsers that can't install or already have.
-                            Theme toggle moved to profile → Postavke tab
-                            so the choice is persisted per-user. */}
-                        <InstallAppButton size="sm" />
+                        {/* Help-replay button + install icon live in this
+                            sub-HStack so the guided tour's "Pomoć i
+                            instalacija" step has a tight anchor covering
+                            just these two affordances (not the entire
+                            nav-auth row, which also includes the auth
+                            button and would make the spotlight oversized). */}
+                        <HStack
+                            data-tour={isMobile ? undefined : "help-install"}
+                            gap="1.5"
+                        >
+                            <HelpTourButton />
+                            {/* Conditional install icon — renders nothing on
+                                browsers that can't install or already have.
+                                Theme toggle moved to profile → Postavke tab
+                                so the choice is persisted per-user. */}
+                            <InstallAppButton size="sm" />
+                        </HStack>
                     </HStack>
                 </Box>
 
@@ -430,15 +441,28 @@ export default function NavBar() {
                             <NavButton to="/karta">Karta</NavButton>
                             <NavButton to="/pronadi-para">Pronađi para</NavButton>
 
-                            {/* "Install app" lives here as a labeled
-                                button — only renders when installation is
-                                actually possible, otherwise null. Click
-                                propagates up to the Stack's onClick={onClose}
-                                so the drawer closes (the labeled variant
-                                fires the install or opens the iOS-steps
-                                dialog first, which is what we want). */}
-                            <InstallAppButton size="sm" variant="labeled" />
-                            <HelpTourButton variant="labeled" />
+                            {/* "Install app" + "Pokaži kako" share an inner
+                                Stack so the guided tour's "Pomoć i
+                                instalacija" step can anchor on them as a
+                                pair (same data-tour name as the desktop
+                                sub-HStack). Tour text references these two
+                                explicitly, so a tight spotlight on just
+                                them reads better than highlighting the
+                                full drawer.
+
+                                Note on click propagation: the outer Stack
+                                has onClick={onClose} so taps inside close
+                                the drawer. The labeled install button
+                                fires either the install prompt or the iOS
+                                steps dialog first, then propagates — which
+                                is what we want for normal usage. */}
+                            <Stack
+                                data-tour={isMobile ? "help-install" : undefined}
+                                gap={2}
+                            >
+                                <InstallAppButton size="sm" variant="labeled" />
+                                <HelpTourButton variant="labeled" />
+                            </Stack>
 
                             {/* Prijava is now permanently visible in the mobile
                                 top bar next to the burger — no need to
