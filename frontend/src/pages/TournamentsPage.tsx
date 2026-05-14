@@ -983,16 +983,28 @@ export default function TournamentsPage() {
                     ))
                     if (isNavStep) notifyTourOfLayoutChange()
                 }}
-                onFinished={() => {
-                    // Bridge to the detail-page tour. Preferred target is
-                    // the hardcoded demo tournament (29 pairs, 8 rounds,
-                    // full cjenik — a known-good record for the detail
-                    // tour). On production deploys where the demo SQL
-                    // hasn't been imported it won't be present, so fall
-                    // back to whatever finished tournament is loaded;
-                    // failing that, an upcoming card. The detail tour
-                    // anchors are tab + content-shaped so they work on
-                    // any tournament page even if the data is sparser.
+                onFinished={(info) => {
+                    // User pressed "Preskoči" or the X close button on
+                    // any list-tour step. They've signalled they don't
+                    // want any more onboarding right now — do NOT bridge
+                    // to the detail-page tour, do NOT navigate. Just
+                    // mark the journey finished so the install-prompt
+                    // gate releases and the user is left where they are.
+                    if (info?.skipped) {
+                        window.dispatchEvent(new CustomEvent("bela:tour-finished"))
+                        return
+                    }
+
+                    // Normal "Završi" path — bridge to the detail-page
+                    // tour. Preferred target is the hardcoded demo
+                    // tournament (29 pairs, 8 rounds, full cjenik — a
+                    // known-good record for the detail tour). On
+                    // production deploys where the demo SQL hasn't been
+                    // imported it won't be present, so fall back to
+                    // whatever finished tournament is loaded; failing
+                    // that, an upcoming card. The detail tour anchors
+                    // are tab + content-shaped so they work on any
+                    // tournament page even if the data is sparser.
                     const hasDemoLoaded = finished.some(
                         (t) => t.slug === TOUR_DEMO_TOURNAMENT_SLUG,
                     )

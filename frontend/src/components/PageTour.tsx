@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Joyride, {
     type CallBackProps,
     type Step,
+    ACTIONS,
     EVENTS,
     STATUS,
 } from "react-joyride"
@@ -54,8 +55,15 @@ export default function PageTour({
      * to true the tour starts; setting back to false stops it.
      */
     forceRun?: boolean
-    /** Fires once when the tour completes or is skipped. */
-    onFinished?: () => void
+    /**
+     * Fires once when the tour ends. The {@code skipped} flag is true
+     * when the user pressed "Preskoči" or clicked the close (X) button —
+     * both are treated as the user opting out. False on a normal
+     * "Završi" completion. Callers can branch on this to e.g. suppress
+     * a bridge navigation to another tour: skipping should halt the
+     * entire onboarding flow, completing should keep it going.
+     */
+    onFinished?: (info: { skipped: boolean }) => void
     /** Fires after each step transition. Receives the new step index. */
     onStepChange?: (nextIndex: number) => void
     /**
@@ -106,8 +114,20 @@ export default function PageTour({
         return () => clearTimeout(handle)
     }, [seenStorageKey, forceRun, autoStartDelayMs])
 
+    // Guard against firing onFinished twice for the same tour run. Joyride
+    // can emit overlapping events when the close (X) button is clicked —
+    // first an ACTIONS.CLOSE callback, then a STATUS.SKIPPED one as the
+    // internal state catches up. We only want to fire the parent callback
+    // once per run, so a ref tracks whether we've already handled the end.
+    // Reset on every fresh start (the auto-launch effect below + the
+    // forceRun branch both flip `run` from false to true).
+    const finishedRef = useRef(false)
+    useEffect(() => {
+        if (run) finishedRef.current = false
+    }, [run])
+
     function handleCallback(data: CallBackProps) {
-        const { status, type, index } = data
+        const { status, type, index, action } = data
 
         // Forward step transitions to the parent so it can switch tabs
         // / scroll into view / etc. STEP_AFTER fires when the user
@@ -117,13 +137,27 @@ export default function PageTour({
             onStepChange?.(index + 1)
         }
 
-        const finished = status === STATUS.FINISHED || status === STATUS.SKIPPED
-        if (finished) {
+        // Three ways the tour can end:
+        //   - STATUS.FINISHED: user clicked "Završi" on the last step.
+        //   - STATUS.SKIPPED:  user clicked "Preskoči" (the skip button
+        //                       wired through Joyride's locale).
+        //   - ACTIONS.CLOSE:   user clicked the (X) close button in the
+        //                       tooltip header. Without explicit handling
+        //                       Joyride would just pause the tour (status
+        //                       transitions to PAUSED), so the seen-flag
+        //                       wouldn't be written and the tour would
+        //                       auto-relaunch on the next visit. We want
+        //                       X to behave identically to Preskoči.
+        const closedByX = action === ACTIONS.CLOSE
+        const skippedByButton = status === STATUS.SKIPPED
+        const completed = status === STATUS.FINISHED
+        if ((closedByX || skippedByButton || completed) && !finishedRef.current) {
+            finishedRef.current = true
             setRun(false)
             if (seenStorageKey && typeof window !== "undefined") {
                 window.localStorage.setItem(seenStorageKey, "1")
             }
-            onFinished?.()
+            onFinished?.({ skipped: closedByX || skippedByButton })
         }
     }
 
