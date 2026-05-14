@@ -12,9 +12,13 @@ from the public internet, then register with Google.
 ## 1. Deploy the new code
 
 ```bash
-# From the repo root, on the prod host
-docker-compose -f docker-compose.prod.yaml pull
-docker-compose -f docker-compose.prod.yaml up -d --build backend edge
+# From the repo root, on the prod host.
+# --env-file is required so compose substitutes POSTGRES_*, MINIO_*,
+# FIREBASE_*, CORS_ORIGINS, APP_PUBLIC_BASE_URL, etc. — without it
+# the containers come up with blank values and the backend crashes
+# on startup.
+docker compose -f docker-compose.prod.yaml --env-file .env.prod pull
+docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --build backend edge
 ```
 
 Make sure both `backend` and `edge` (Caddy) restart — the Caddyfile
