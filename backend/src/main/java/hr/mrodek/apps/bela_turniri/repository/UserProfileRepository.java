@@ -65,4 +65,16 @@ public class UserProfileRepository implements PanacheRepositoryBase<UserProfile,
                 .page(0, capped)
                 .list();
     }
+
+    /**
+     * Full list of registered profiles, alphabetically by displayName.
+     * Used by the admin "Popis igrača" tab which wants every user the
+     * admin can navigate to, not just the top-N search hits.
+     *
+     * <p>No pagination yet — the user base is small enough that one page
+     * fits comfortably; revisit if/when it grows to thousands.
+     */
+    public List<UserProfile> listAllByDisplayName() {
+        return find("displayName is not null", Sort.by("displayName")).list();
+    }
 }

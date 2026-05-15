@@ -78,6 +78,7 @@ import {
 import { groupedPresets } from "../utils/drinkPresets"
 import { useAuth } from "../auth/AuthContext"
 import AdminDashboardTab from "../components/AdminDashboardTab"
+import AdminPlayersListTab from "../components/AdminPlayersListTab"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 
 /** Country dial codes shared with FindPair / CreateTournament. */
@@ -128,7 +129,7 @@ export default function PublicProfilePage() {
 
     // Profile page tabs. Predlošci + Postavke + Računi only show for the
     // profile owner; visitors viewing someone else's page see Turniri only.
-    const [profileTab, setProfileTab] = useState<"turniri" | "predlosci" | "postavke" | "racuni" | "dashboard">("turniri")
+    const [profileTab, setProfileTab] = useState<"turniri" | "predlosci" | "postavke" | "racuni" | "dashboard" | "popis-igraca">("turniri")
 
     // Per-route SEO. We deliberately do NOT include the user's phone in any
     // meta tag — phone display is a product call on the page itself, but
@@ -378,6 +379,19 @@ export default function PublicProfilePage() {
                             Dashboard
                         </Button>
                     )}
+                    {/* Admin-only Popis igrača tab — full list of all
+                        registered users with a one-click jump to their
+                        profile page. Same admin-claim gate as Dashboard. */}
+                    {isAdmin && (
+                        <Button
+                            size="sm"
+                            variant={profileTab === "popis-igraca" ? "solid" : "ghost"}
+                            colorPalette="purple"
+                            onClick={() => setProfileTab("popis-igraca")}
+                        >
+                            Popis igrača
+                        </Button>
+                    )}
                 </HStack>
             )}
 
@@ -515,6 +529,11 @@ export default function PublicProfilePage() {
             {/* === DASHBOARD tab — admin-only, on own profile === */}
             {isOwner && isAdmin && profileTab === "dashboard" && (
                 <AdminDashboardTab />
+            )}
+
+            {/* === POPIS IGRAČA tab — admin-only, on own profile === */}
+            {isOwner && isAdmin && profileTab === "popis-igraca" && (
+                <AdminPlayersListTab />
             )}
         </VStack>
     )

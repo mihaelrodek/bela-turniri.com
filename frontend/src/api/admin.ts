@@ -74,6 +74,17 @@ export async function adminSearchUsers(query: string): Promise<AdminUserDto[]> {
 }
 
 /**
+ * Full list of all registered profiles, alphabetical. Backs the admin
+ * "Popis igrača" tab. Distinct from {@link adminSearchUsers} (which
+ * is capped for the attach-target dropdown) — here we want every
+ * profile so the admin can browse and jump to any user's page.
+ */
+export async function adminListAllUsers(): Promise<AdminUserDto[]> {
+    const { data } = await http.get<AdminUserDto[]>("/admin/users/all")
+    return data
+}
+
+/**
  * Attach a pair to a user. Side-effects on the backend:
  *   - sets pair.submittedByUid = userUid (pair appears on the user's
  *     profile immediately via the existing participations query);

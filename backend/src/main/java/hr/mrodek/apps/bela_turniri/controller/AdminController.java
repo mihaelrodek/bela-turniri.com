@@ -125,6 +125,23 @@ public class AdminController {
     }
 
     /** ──────────────────────────────────────────────────────────────────
+     * Full list of all registered users, alphabetically. Backs the
+     * admin "Popis igrača" tab — distinct from {@link #searchUsers}
+     * (which caps at {@link #USER_SEARCH_LIMIT} for the dropdown
+     * picker) because here we want every profile, not the top-N
+     * search hits.
+     * ──────────────────────────────────────────────────────────────── */
+    @GET
+    @Path("/users/all")
+    public Response listAllUsers() {
+        List<AdminUserDto> dtos = profileRepo.listAllByDisplayName()
+                .stream()
+                .map(p -> new AdminUserDto(p.getUserUid(), p.getDisplayName(), p.getSlug()))
+                .toList();
+        return Response.ok(dtos).build();
+    }
+
+    /** ──────────────────────────────────────────────────────────────────
      * Attach a pair to a user. Two side-effects (both wrapped in a
      * single transaction so a half-attached pair never persists):
      *
