@@ -63,6 +63,12 @@ export default function FirstRunInstallPrompt() {
     // Re-runs whenever canInstall flips true (Chrome may fire the event a
     // few seconds after first paint), so the hint shows on the same visit
     // even if React mounted before the browser decided we're installable.
+    //
+    // This is the install prompt's ONLY auto-trigger — it fires once on
+    // the first site visit (until dismissed, which is persisted to
+    // localStorage). The guided tour no longer auto-runs, so there's no
+    // overlap to coordinate; users who want to install later use the
+    // "Instaliraj aplikaciju" button in the navbar / hamburger menu.
     useEffect(() => {
         if (dismissed) return
         if (installed) return
@@ -70,34 +76,6 @@ export default function FirstRunInstallPrompt() {
         const id = window.setTimeout(() => setOpen(true), SHOW_AFTER_MS)
         return () => window.clearTimeout(id)
     }, [dismissed, installed, canInstall, isIos])
-
-    /**
-     * Force-open the dialog when the guided tour finishes. The tour's
-     * farewell step explicitly points the user at the install button as
-     * something they can do next, so we re-open this dialog even if it
-     * was already dismissed earlier in the session — the explicit tour
-     * pointer is a more meaningful signal of intent than the silent
-     * dismissal of an unsolicited auto-popup.
-     *
-     * <p>Only fires when install is actually possible (canInstall || isIos)
-     * and the app isn't already installed; otherwise there's nothing
-     * useful to show and we no-op.
-     */
-    useEffect(() => {
-        function onTourFinished() {
-            if (installed) return
-            if (!canInstall && !isIos) return
-            // Clear dismissed flag locally so the dialog can render again
-            // (the rendered output short-circuits on `dismissed`). We do
-            // NOT persist this clear to localStorage — if the user
-            // dismisses again post-tour, that persisted flag is the one
-            // we want to keep.
-            setDismissed(false)
-            setOpen(true)
-        }
-        window.addEventListener("bela:tour-finished", onTourFinished)
-        return () => window.removeEventListener("bela:tour-finished", onTourFinished)
-    }, [canInstall, isIos, installed])
 
     function dismiss() {
         setOpen(false)

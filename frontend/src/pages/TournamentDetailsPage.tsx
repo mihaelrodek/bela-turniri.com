@@ -97,7 +97,6 @@ import PodiumEditor from "../components/PodiumEditor"
 import LocationMapPicker from "../components/LocationMapPicker"
 import PageTour from "../components/PageTour"
 import {
-    TURNIR_DETAIL_TOUR_KEY,
     TURNIR_DETAIL_TOUR_STEPS,
     TOUR_RESUME_DETAIL_KEY,
     DETAIL_TOUR_TAB_BY_INDEX,
@@ -4628,20 +4627,22 @@ export default function TournamentDetailsPage() {
                 onCreated={onManualRoundCreated}
             />
 
-            {/* Detail-page tour. Auto-runs once when arriving from the
-                list tour (we read TOUR_RESUME_DETAIL_KEY in initial state
-                above). On subsequent visits the localStorage seen-flag
-                suppresses the auto path; the NavBar "?" button still
-                triggers it via the window event. The onStepChange
-                callback drives tab switching so each step lands on a
-                tab that's actually mounted (the tab anchors are buttons,
-                visible regardless of which tab content is rendered, so
-                Joyride can find them either way — but switching the
-                visible content is what makes the tour feel guided). */}
+            {/* Detail-page tour. Runs in exactly two situations:
+                  - as a continuation when the user arrives from the
+                    list tour (TOUR_RESUME_DETAIL_KEY in sessionStorage,
+                    read into tourForceRun in the initial state above),
+                  - when the NavBar "?" ("Pokaži kako") button fires the
+                    replay window event.
+                No seenStorageKey is passed, so PageTour never auto-runs
+                this tour on a plain page visit. The onStepChange callback
+                drives tab switching so each step lands on a tab that's
+                actually mounted (the tab anchors are buttons, visible
+                regardless of which tab content is rendered, so Joyride
+                can find them either way — but switching the visible
+                content is what makes the tour feel guided). */}
             <PageTour
                 key={tourReplayKey}
                 steps={TURNIR_DETAIL_TOUR_STEPS}
-                seenStorageKey={TURNIR_DETAIL_TOUR_KEY}
                 forceRun={tourForceRun}
                 onStepChange={(nextIndex) => {
                     // Switch tabs at specific indices — see
@@ -4692,13 +4693,6 @@ export default function TournamentDetailsPage() {
                 }}
                 onFinished={() => {
                     setTourForceRun(undefined)
-                    // Signal to FirstRunInstallPrompt (mounted at the app
-                    // root) that the whole onboarding journey is done. It
-                    // suppresses itself while either tour is running so it
-                    // doesn't overlap; this event releases the gate so the
-                    // install dialog can finally appear after the user
-                    // lands back on /turniri.
-                    window.dispatchEvent(new CustomEvent("bela:tour-finished"))
                     // Drawer cleanup — if the user finished from the
                     // help-install step on mobile, the hamburger is still
                     // open. Close it so the post-tour /turniri page isn't

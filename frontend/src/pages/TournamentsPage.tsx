@@ -24,7 +24,6 @@ import { haversineKm } from "../utils/distance"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 import PageTour from "../components/PageTour"
 import {
-    TURNIRI_LIST_TOUR_KEY,
     TURNIRI_LIST_TOUR_STEPS,
     TOUR_RESUME_DETAIL_KEY,
     TOUR_DEMO_TOURNAMENT_SLUG,
@@ -487,25 +486,20 @@ export default function TournamentsPage() {
     // list — without this it would never be in the rendered DOM and the
     // bridge step's anchor would silently miss.
     //
-    // Triggered on tour auto-launch (seen-flag missing) AND on the
-    // manual "Pokaži kako" replay (tourReplayKey changed). A ref-backed
+    // The tour no longer auto-launches on first visit; it only runs via
+    // the navbar "Pokaži kako" button, which increments tourReplayKey.
+    // So we only need to eager-load when tourReplayKey > 0. A ref-backed
     // attempted-key marker stops the effect from firing again after
     // `finished` updates from our own fetch, since `finished` would
     // otherwise re-run the effect and risk fetching twice.
-    const eagerLoadKeyRef = useRef<number | "auto" | null>(null)
+    const eagerLoadKeyRef = useRef<number | null>(null)
     useEffect(() => {
         if (loading) return // wait for initial fetch to settle
-        // Pick the "session" identifier: replay key when replaying,
-        // "auto" when auto-launching for the first time, null when no
-        // tour will run (seen-flag set + no replay).
-        const seen = typeof window !== "undefined"
-            && window.localStorage.getItem(TURNIRI_LIST_TOUR_KEY)
-        const sessionKey: number | "auto" | null =
-            tourReplayKey > 0 ? tourReplayKey : seen ? null : "auto"
-        if (sessionKey == null) return
-        // Already attempted for this session — no-op.
-        if (eagerLoadKeyRef.current === sessionKey) return
-        eagerLoadKeyRef.current = sessionKey
+        // Only eager-load for a manual tour replay.
+        if (tourReplayKey === 0) return
+        // Already attempted for this replay — no-op.
+        if (eagerLoadKeyRef.current === tourReplayKey) return
+        eagerLoadKeyRef.current = tourReplayKey
 
         // Pull the rest of the finished list in one wide page. Generous
         // limit so we don't have to loop — finished tournaments count
@@ -943,16 +937,17 @@ export default function TournamentsPage() {
                 )}
             </Box>
 
-            {/* Guided tour. Two triggers: first visit auto-launches once
-                (gated by the seen-flag in localStorage), and the NavBar
-                "?" help button dispatches a window event we listen for
-                via tourReplayKey. After the final step we navigate to a
-                finished tournament with a sessionStorage resume flag,
-                and the detail page picks up the tour as a continuation. */}
+            {/* Guided tour. The tour no longer auto-launches on first
+                visit — it runs ONLY when the user clicks the NavBar "?"
+                ("Pokaži kako") button, which dispatches a window event
+                we pick up via tourReplayKey. No seenStorageKey is passed,
+                so PageTour's auto-launch path is disabled entirely. After
+                the final step we navigate to a finished tournament with
+                a sessionStorage resume flag, and the detail page picks
+                up the tour as a continuation. */}
             <PageTour
                 key={tourReplayKey}
                 steps={TURNIRI_LIST_TOUR_STEPS}
-                seenStorageKey={TURNIRI_LIST_TOUR_KEY}
                 forceRun={tourReplayKey > 0 ? true : undefined}
                 onStepChange={(nextIndex) => {
                     // We used to auto-expand the filter card when the
@@ -987,11 +982,9 @@ export default function TournamentsPage() {
                     // User pressed "Preskoči" or the X close button on
                     // any list-tour step. They've signalled they don't
                     // want any more onboarding right now — do NOT bridge
-                    // to the detail-page tour, do NOT navigate. Just
-                    // mark the journey finished so the install-prompt
-                    // gate releases and the user is left where they are.
+                    // to the detail-page tour, do NOT navigate. Leave the
+                    // user where they are.
                     if (info?.skipped) {
-                        window.dispatchEvent(new CustomEvent("bela:tour-finished"))
                         return
                     }
 
@@ -1016,11 +1009,7 @@ export default function TournamentsPage() {
                         slug = (target as any)?.slug || target?.uuid
                     }
                     if (!slug) {
-                        // No tournament to bridge to — tour effectively
-                        // ends here. Release the FirstRunInstallPrompt
-                        // gate so the install dialog can appear (it sat
-                        // out the tour because it would have overlapped).
-                        window.dispatchEvent(new CustomEvent("bela:tour-finished"))
+                        // No tournament to bridge to — tour ends here.
                         return
                     }
                     try {

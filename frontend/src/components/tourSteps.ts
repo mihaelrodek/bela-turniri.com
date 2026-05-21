@@ -204,7 +204,18 @@ export const TURNIR_DETAIL_TOUR_STEPS: Step[] = [
     },
 ]
 
-/** localStorage keys used by the tours to track whether a user has seen them. */
+/**
+ * localStorage keys that once tracked whether a user had seen each tour,
+ * back when the tours auto-launched on a first visit. The tours no
+ * longer auto-launch — they run only via the navbar "Pokaži kako"
+ * button — so these keys are no longer read or written anywhere.
+ *
+ * <p>Kept exported (rather than deleted) as documentation of the
+ * historical key names: if the auto-launch behaviour is ever brought
+ * back, reuse these exact strings so previously-flagged users aren't
+ * re-shown the tour. Safe to delete entirely if that's clearly off
+ * the table.
+ */
 export const TURNIRI_LIST_TOUR_KEY = "bela-tour-seen:turniri-list"
 export const TURNIR_DETAIL_TOUR_KEY = "bela-tour-seen:turnir-detail"
 

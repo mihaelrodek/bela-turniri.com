@@ -1,6 +1,41 @@
 import { useEffect, useState } from "react"
 import { Box, Text } from "@chakra-ui/react"
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet"
+// Leaflet's stylesheet — imported here (not just on the standalone /karta
+// page) because the create / edit tournament forms mount this picker
+// without ever loading MapPage's chunk. Without the CSS the tiles and
+// controls render unstyled / misaligned. Vite dedupes the import, so
+// pulling it in from two places is harmless.
+import "leaflet/dist/leaflet.css"
+import L from "leaflet"
+
+/**
+ * Custom marker icon for the picked location.
+ *
+ * <p>Why a hand-rolled {@code divIcon} instead of react-leaflet's
+ * default {@code <Marker>} icon: Leaflet's default icon points at PNG
+ * files bundled inside the leaflet package
+ * ({@code marker-icon.png} / {@code marker-shadow.png}). Vite doesn't
+ * rewrite those internal URLs, so the browser requests a path that
+ * 404s — the marker renders as an empty box (just the transparent
+ * icon frame / shadow, "only borders"). An inline-SVG divIcon carries
+ * its own artwork in the HTML string, so there's no image URL to
+ * resolve and the pin always shows. MapPage.tsx does the same thing.
+ *
+ * <p>Module-level constant — built once and reused for every render.
+ */
+const PICKER_PIN_ICON = L.divIcon({
+    html: `<svg width="28" height="38" viewBox="0 0 28 38" xmlns="http://www.w3.org/2000/svg">
+             <path d="M14 0C6.27 0 0 6.27 0 14c0 9.5 13 22.5 13.5 23a1 1 0 0 0 1 0C15 36.5 28 23.5 28 14c0-7.73-6.27-14-14-14z"
+                   fill="#3182CE" stroke="white" stroke-width="2"/>
+             <circle cx="14" cy="14" r="5" fill="white"/>
+           </svg>`,
+    className: "location-picker-pin",
+    iconSize: [28, 38],
+    // Anchor at the tip of the teardrop so the point sits exactly on
+    // the picked coordinate.
+    iconAnchor: [14, 38],
+})
 
 /**
  * Small Leaflet map for picking a location by clicking the map. Used as
@@ -89,7 +124,12 @@ export default function LocationMapPicker({
                     off-screen and the user would have to pan manually
                     to find it. */}
                 <RecenterOnValue value={value ?? null} />
-                {value && <Marker position={[value.lat, value.lng]} />}
+                {value && (
+                    <Marker
+                        position={[value.lat, value.lng]}
+                        icon={PICKER_PIN_ICON}
+                    />
+                )}
             </MapContainer>
 
             {/* Click-prompt overlay — small hint at the top so the user
