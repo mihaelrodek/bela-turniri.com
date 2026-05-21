@@ -99,4 +99,29 @@
         </addColumn>
     </changeSet>
 
+    <!-- Max pairs is now optional. Organisers can leave it unspecified,
+         which means "no cap" (rendered as "Neodređeno" on the tournament
+         page, ∞ elsewhere). Drop the NOT NULL constraint AND the column
+         default so a null genuinely means "no cap" rather than silently
+         becoming 16. Existing rows already have a value, so no backfill
+         is needed. -->
+    <changeSet id="2026-05-21-max-pairs-nullable" author="mrodek">
+        <dropNotNullConstraint tableName="tournaments"
+                               columnName="max_pairs"
+                               columnDataType="int"/>
+        <dropDefaultValue tableName="tournaments"
+                          columnName="max_pairs"
+                          columnDataType="int"/>
+        <rollback>
+            <addDefaultValue tableName="tournaments"
+                             columnName="max_pairs"
+                             columnDataType="int"
+                             defaultValueNumeric="16"/>
+            <addNotNullConstraint tableName="tournaments"
+                                  columnName="max_pairs"
+                                  columnDataType="int"
+                                  defaultNullValue="16"/>
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

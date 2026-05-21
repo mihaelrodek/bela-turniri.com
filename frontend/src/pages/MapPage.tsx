@@ -32,13 +32,29 @@ type TournamentWithCoords = TournamentCard & {
     longitude: number
 }
 
-type Bucket = "today" | "soon" | "later"
+type Bucket = "thisWeek" | "nextWeek" | "beyond"
 
-// Today = green, until end of next week (next Sunday) = yellow, beyond = red.
+// Three-tier urgency by start date (week starts Monday):
+//   - thisWeek  → green  — happening within the current week.
+//   - nextWeek  → yellow — after this week, up to next Sunday.
+//   - beyond    → red    — further out than that (or no date yet).
 const PIN_COLORS: Record<Bucket, string> = {
-    today: "#22C55E",  // green-500
-    soon: "#EAB308",   // yellow-500
-    later: "#EF4444",  // red-500
+    thisWeek: "#22C55E",  // green-500
+    nextWeek: "#EAB308",  // yellow-500
+    beyond: "#EF4444",    // red-500
+}
+
+/**
+ * End-of-this-week cutoff = the Sunday that closes the current week
+ * (week starts Mon). Covers the rest of today and the rest of this week.
+ */
+function endOfThisWeek(now: Date): Date {
+    const d = new Date(now)
+    d.setHours(23, 59, 59, 999)
+    const jsDay = d.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+    const daysToSunday = jsDay === 0 ? 0 : 7 - jsDay
+    d.setDate(d.getDate() + daysToSunday)
+    return d
 }
 
 /**
@@ -81,13 +97,15 @@ function makePinIcon(color: string, isUser = false): L.DivIcon {
 }
 
 function classify(startAt?: string | null): Bucket {
-    if (!startAt) return "later"
+    if (!startAt) return "beyond"
     const start = new Date(startAt).setHours(0, 0, 0, 0)
-    const today = new Date().setHours(0, 0, 0, 0)
-    const cutoff = endOfNextWeek(new Date()).getTime()
-    if (start === today) return "today"
-    if (start >= today && start <= cutoff) return "soon"
-    return "later"
+    const thisWeekEnd = endOfThisWeek(new Date()).getTime()
+    const nextWeekEnd = endOfNextWeek(new Date()).getTime()
+    // <= thisWeekEnd also catches today and any in-progress tournament
+    // whose start date is earlier in the current week.
+    if (start <= thisWeekEnd) return "thisWeek"
+    if (start <= nextWeekEnd) return "nextWeek"
+    return "beyond"
 }
 
 function formatDateShort(iso?: string | null): string {
@@ -220,6 +238,32 @@ export default function MapPage() {
     // Geolocation — auto-shows on return visits if permission was granted
     const { pos: userPos, status: geoStatus, request: requestLocation, hide: hideLocation } = useUserLocation()
 
+    // Auto-ask for location permission the first time the map is opened.
+    // We only fire while the hook reports "idle" — that's the browser's
+    // "prompt" state, i.e. the user hasn't decided yet. On return visits
+    // the hook resolves to "granted" / "denied" (the browser remembers
+    // the choice) and this never fires again. We also skip "hidden" so a
+    // user who explicitly hid their location isn't re-prompted.
+    //
+    // The hook resolves its mount check asynchronously (Permissions API),
+    // so we wait a short beat before requesting: if the status settles
+    // to a non-idle value within that window, this effect re-runs and
+    // the cleanup clears the timer before it fires.
+    const autoRequestedRef = useRef(false)
+    useEffect(() => {
+        if (autoRequestedRef.current) return
+        if (geoStatus !== "idle") return
+        const handle = window.setTimeout(() => {
+            autoRequestedRef.current = true
+            requestLocation()
+        }, 600)
+        return () => window.clearTimeout(handle)
+        // requestLocation is recreated each render but functionally
+        // stable; depending on it would reset the timer on unrelated
+        // re-renders (e.g. the tournament fetch resolving).
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [geoStatus])
+
     // Distance filter — slider 1–100 km, auto-applies. 100 is treated
     // as "show all" so dragging to the right edge disables the filter
     // entirely. Only meaningful when location is on; the slider is
@@ -333,9 +377,9 @@ export default function MapPage() {
 
                     {/* Legend */}
                     <HStack gap="3" wrap="wrap">
-                        <LegendChip color={PIN_COLORS.today} label="Danas" />
-                        <LegendChip color={PIN_COLORS.soon} label="Do sljedeće nedjelje" />
-                        <LegendChip color={PIN_COLORS.later} label="Kasnije" />
+                        <LegendChip color={PIN_COLORS.thisWeek} label="Ovaj tjedan" />
+                        <LegendChip color={PIN_COLORS.nextWeek} label="Do sljedeće nedjelje" />
+                        <LegendChip color={PIN_COLORS.beyond} label="Uskoro" />
                     </HStack>
                 </HStack>
 
@@ -444,7 +488,11 @@ export default function MapPage() {
                                                 background: PIN_COLORS[bucket],
                                             }}
                                         >
-                                            {bucket === "today" ? "Danas" : bucket === "soon" ? "Uskoro" : "Kasnije"}
+                                            {bucket === "thisWeek"
+                                                ? "Ovaj tjedan"
+                                                : bucket === "nextWeek"
+                                                    ? "Do sljedeće nedjelje"
+                                                    : "Uskoro"}
                                         </span>
                                         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
                                             <FiCalendar size={12} />

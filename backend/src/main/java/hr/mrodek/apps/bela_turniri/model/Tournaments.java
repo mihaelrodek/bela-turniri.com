@@ -59,8 +59,14 @@ public class Tournaments {
     @Column(length = 20, nullable = false)
     private TournamentStatus status = TournamentStatus.DRAFT;
 
-    @Column(name = "max_pairs", nullable = false)
-    private Integer maxPairs = 16;
+    /**
+     * Optional cap on the number of registered pairs. Null means "no
+     * cap" — the organiser left it unspecified, shown as "Neodređeno"
+     * on the tournament page and as an infinity sign elsewhere. When
+     * set it's always ≥ 2 (validated on the request DTO).
+     */
+    @Column(name = "max_pairs")
+    private Integer maxPairs;
 
     @Column(name = "entry_price", precision = 10, scale = 2, nullable = false)
     private BigDecimal entryPrice = BigDecimal.ZERO;
@@ -160,7 +166,8 @@ public class Tournaments {
     protected void onCreate() {
         if (uuid == null) uuid = UUID.randomUUID();     // 👈 generate server-side
         if (status == null) status = TournamentStatus.DRAFT;
-        if (maxPairs == null) maxPairs = 16;
+        // maxPairs is intentionally NOT defaulted — null is a valid,
+        // meaningful value ("no cap on registered pairs").
         if (entryPrice == null) entryPrice = BigDecimal.ZERO;
         if (repassagePrice == null) repassagePrice = BigDecimal.ZERO;
     }

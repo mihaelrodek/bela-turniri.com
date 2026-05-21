@@ -71,8 +71,8 @@ export type CreateTournamentPayload = {
     startAt?: string | null;          // ISO with offset
     status?: TournamentStatus | null; // default DRAFT (server-side safe)
 
-    // limits
-    maxPairs: number;                 // not null, default 16 (we send explicit)
+    // limits — optional; null means "no cap" ("Neodređeno" / ∞)
+    maxPairs?: number | null;
 
     // pricing (renamed)
     entryPrice: number;              // not null, default 0

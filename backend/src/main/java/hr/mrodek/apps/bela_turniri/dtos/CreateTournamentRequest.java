@@ -27,8 +27,11 @@ public record CreateTournamentRequest(
         @Size(max = 1000, message = "bannerUrl must be at most 1000 characters")
         String bannerUrl,
 
+        // Optional. null = "no cap" (organiser left it unspecified).
+        // @Min treats null as valid, so this only enforces "≥ 2" when
+        // a value is actually present.
         @Min(value = 2, message = "maxPairs must be at least 2")
-        Integer maxPairs,                      // default 16 if null
+        Integer maxPairs,
 
         @DecimalMin(value = "0.0", inclusive = true, message = "entryPrice cannot be negative")
         BigDecimal entryPrice,                 // default 0 if null

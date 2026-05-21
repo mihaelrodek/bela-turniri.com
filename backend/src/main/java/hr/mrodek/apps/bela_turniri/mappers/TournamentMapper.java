@@ -164,7 +164,8 @@ public interface TournamentMapper {
     @AfterMapping
     default void applyDefaults(CreateTournamentRequest req, @MappingTarget Tournaments t) {
         if (t.getStatus() == null) t.setStatus(TournamentStatus.DRAFT);
-        if (t.getMaxPairs() == null) t.setMaxPairs(16);
+        // maxPairs is intentionally NOT defaulted — null is a valid,
+        // meaningful value meaning "no cap" ("Neodređeno" in the UI).
 
         if (t.getEntryPrice() == null) t.setEntryPrice(BigDecimal.ZERO);
         if (t.getRepassagePrice() == null) t.setRepassagePrice(BigDecimal.ZERO);

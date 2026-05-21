@@ -246,7 +246,9 @@ export default function CreateTournamentPage() {
         repassagePrice: "30",
         repassageSecondPrice: "",
         repassageUntil: "finals",
-        maxPairs: "2",
+        // Empty by default — max pairs is optional. Left blank it means
+        // "no cap" ("Neodređeno").
+        maxPairs: "",
         rewardsMode: "fixed",
         fixed: { first: "", second: "", third: "" },
         percent: { first: "", second: "", third: "" },
@@ -353,8 +355,14 @@ export default function CreateTournamentPage() {
         onChange(key, sanitizeMoneyInput(value) as any)
 
     const handleMaxPairsChange = (value: string) => onChange("maxPairs", sanitizeInt(value))
+    // Max pairs is optional. An empty field means "no cap" and is left
+    // empty. Only when the user actually typed something do we clamp:
+    // a value below the minimum (2) snaps up to 2. We never force an
+    // empty field to a number — that would defeat the "no cap" option.
     const handleMaxPairsBlur = () => {
-        const n = parseInt(form.maxPairs || "0", 10)
+        const raw = form.maxPairs.trim()
+        if (raw === "") return // empty = "Neodređeno", leave it
+        const n = parseInt(raw, 10)
         if (!Number.isFinite(n) || n < 2) onChange("maxPairs", "2")
     }
 
@@ -405,8 +413,16 @@ export default function CreateTournamentPage() {
             return
         }
 
-        const parsedMaxPairs = parseInt(form.maxPairs || "0", 10)
-        const maxPairsSafe = Number.isFinite(parsedMaxPairs) && parsedMaxPairs >= 2 ? parsedMaxPairs : 16
+        // Max pairs is optional. An empty field → null ("no cap"). A
+        // filled field is clamped to the minimum of 2 (handleMaxPairsBlur
+        // already snaps it, this is the belt-and-suspenders pass for a
+        // form submitted without blurring the field first).
+        const maxPairsRaw = form.maxPairs.trim()
+        let maxPairsSafe: number | null = null
+        if (maxPairsRaw !== "") {
+            const parsed = parseInt(maxPairsRaw, 10)
+            maxPairsSafe = Number.isFinite(parsed) && parsed >= 2 ? parsed : 2
+        }
 
         const entrySafe = toMoney(form.entryPrice)
         const repSafe = toMoney(form.repassagePrice)
@@ -546,11 +562,14 @@ export default function CreateTournamentPage() {
                                     type="number"
                                     inputMode="numeric"
                                     min={2}
-                                    placeholder="npr. 32"
+                                    placeholder="Neodređeno"
                                     value={form.maxPairs}
                                     onChange={(e) => handleMaxPairsChange(e.target.value)}
                                     onBlur={handleMaxPairsBlur}
                                 />
+                                <Field.HelperText>
+                                    Nije obavezno — ostavi prazno za neograničen broj parova.
+                                </Field.HelperText>
                             </Field.Root>
                         </Box>
 

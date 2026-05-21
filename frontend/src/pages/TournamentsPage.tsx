@@ -256,7 +256,7 @@ function TournamentCardView({
                                 <FiUsers />
                                 <Text>
                                     {t.registeredPairs}
-                                    {typeof t.maxPairs === "number" ? ` / ${t.maxPairs}` : ""}
+                                    {typeof t.maxPairs === "number" ? ` / ${t.maxPairs}` : " / ∞"}
                                 </Text>
                             </HStack>
                         )}

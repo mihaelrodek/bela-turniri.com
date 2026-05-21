@@ -415,7 +415,9 @@ function buildEditForm(t: TournamentDetails): EditForm {
         details: t.details ?? "",
         startDate: isoToDate(t.startAt),
         startTime: isoToTime(t.startAt),
-        maxPairs: typeof t.maxPairs === "number" ? String(t.maxPairs) : "16",
+        // Empty string when there's no cap — keeps the edit field blank
+        // so "Neodređeno" round-trips instead of silently becoming 16.
+        maxPairs: typeof t.maxPairs === "number" ? String(t.maxPairs) : "",
         entryPrice: numberToMoneyStr(t.entryPrice),
         repassagePrice: numberToMoneyStr(t.repassagePrice),
         repassageSecondPrice:
@@ -434,8 +436,14 @@ function buildEditForm(t: TournamentDetails): EditForm {
 }
 
 function editFormToPayload(f: EditForm): CreateTournamentPayload {
-    const maxPairs = parseInt(f.maxPairs || "0", 10)
-    const maxPairsSafe = Number.isFinite(maxPairs) && maxPairs >= 2 ? maxPairs : 16
+    // Max pairs is optional. Empty field → null ("no cap"); a filled
+    // field is clamped to the minimum of 2.
+    const maxPairsRaw = f.maxPairs.trim()
+    let maxPairsSafe: number | null = null
+    if (maxPairsRaw !== "") {
+        const parsed = parseInt(maxPairsRaw, 10)
+        maxPairsSafe = Number.isFinite(parsed) && parsed >= 2 ? parsed : 2
+    }
     const entry = moneyToNumber(f.entryPrice) ?? 0
     const rep = moneyToNumber(f.repassagePrice) ?? 0
     // Empty string = not set → send null to wipe the second repassage server-side.
@@ -1803,7 +1811,7 @@ export default function TournamentDetailsPage() {
                                     <DetailTile
                                         icon={<FiUser size={13} />}
                                         label="Max parova"
-                                        value={typeof t.maxPairs === "number" ? t.maxPairs : "—"}
+                                        value={typeof t.maxPairs === "number" ? t.maxPairs : "Neodređeno"}
                                     />
 
                                     {t.location && (
@@ -2111,9 +2119,24 @@ export default function TournamentDetailsPage() {
                                                 type="number"
                                                 inputMode="numeric"
                                                 min={2}
+                                                placeholder="Neodređeno"
                                                 value={editForm.maxPairs}
                                                 onChange={(e) => patchEdit("maxPairs", sanitizeInt(e.target.value))}
+                                                onBlur={() => {
+                                                    // Optional field — empty stays empty
+                                                    // ("Neodređeno"). A filled value below
+                                                    // the minimum snaps up to 2.
+                                                    const raw = editForm.maxPairs.trim()
+                                                    if (raw === "") return
+                                                    const n = parseInt(raw, 10)
+                                                    if (!Number.isFinite(n) || n < 2) {
+                                                        patchEdit("maxPairs", "2")
+                                                    }
+                                                }}
                                             />
+                                            <Field.HelperText>
+                                                Ostavi prazno za neograničen broj parova.
+                                            </Field.HelperText>
                                         </Field.Root>
                                     </Box>
 
@@ -2917,7 +2940,12 @@ export default function TournamentDetailsPage() {
                                                         {pairs.length}
                                                     </Text>
                                                     <Text fontSize="sm" color="fg.muted">
-                                                        parova{capacity != null ? ` / ${capacity}` : ""}
+                                                        {/* "∞" when there's no cap — consistent
+                                                            with the count shown on the tournament
+                                                            cards / list. The dedicated "Max parova"
+                                                            tile on the Detalji tab spells it out as
+                                                            "Neodređeno" instead. */}
+                                                        parova{capacity != null ? ` / ${capacity}` : " / ∞"}
                                                     </Text>
                                                     {capacity != null && pairs.length > capacity && (
                                                         <Badge variant="solid" colorPalette="yellow" size="sm">

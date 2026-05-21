@@ -13,7 +13,9 @@ export async function createTournament(payload: CreateTournamentPayload): Promis
         details: payload.details ?? null,
         startAt: payload.startAt ?? null,
         status: payload.status ?? "DRAFT",
-        maxPairs: payload.maxPairs ?? 16,
+        // maxPairs is optional — null means "no cap" ("Neodređeno").
+        // Pass it straight through; do NOT default to 16.
+        maxPairs: payload.maxPairs ?? null,
         entryPrice: payload.entryPrice ?? 0,
         repassagePrice: payload.repassagePrice ?? 0,
         repassageSecondPrice: payload.repassageSecondPrice ?? null,
