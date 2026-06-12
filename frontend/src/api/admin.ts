@@ -147,3 +147,41 @@ export async function adminTransferTournament(
     )
     return data
 }
+
+export type TournamentStatusValue = "DRAFT" | "STARTED" | "FINISHED"
+
+export type SetStatusResponse = {
+    tournamentId: number
+    status: TournamentStatusValue
+    previousStatus: TournamentStatusValue | null
+}
+
+/**
+ * Admin override of a tournament's status. Bypasses the normal lifecycle
+ * guards in {@code TournamentController.startTournament} /
+ * {@code finishTournament}.
+ *
+ * <p>Used to correct mis-clicks (wrongly-finished tournaments → revert to
+ * STARTED / DRAFT) and to backfill events that ran outside the app
+ * (DRAFT → FINISHED retroactively).
+ *
+ * <p>Side-effects on the backend when reverting OUT OF FINISHED:
+ *   - {@code winnerName} cleared
+ *   - {@code secondPlaceName} / {@code thirdPlaceName} cleared
+ *
+ * Rounds + matches are NOT touched — use the existing
+ * {@code /tournaments/{uuid}/reset} endpoint when a full wipe is needed.
+ */
+export async function adminSetTournamentStatus(
+    tournamentId: number,
+    status: TournamentStatusValue,
+): Promise<SetStatusResponse> {
+    const { data } = await http.post<SetStatusResponse>(
+        `/admin/tournaments/${tournamentId}/status`,
+        { status },
+        {
+            successMessage: "Status turnira ažuriran.",
+        } as any,
+    )
+    return data
+}

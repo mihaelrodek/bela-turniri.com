@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { Container } from '@chakra-ui/react'
 import NavBar from './components/NavBar'
+import MobileTabBar from './components/MobileTabBar'
 import PushBootstrap from './components/PushBootstrap'
 import ThemeSync from './components/ThemeSync'
 import TournamentsPage from './pages/TournamentsPage'
@@ -63,7 +64,15 @@ export default function App() {
             {/* Pulls the user's saved theme from /user/me/profile on
                 login so the choice follows them across devices. */}
             <ThemeSync />
-            <Container maxW="6xl" py={6}>
+            <Container
+                maxW="6xl"
+                py={6}
+                // Mobile bottom-tab-bar is fixed at viewport bottom and ~64px
+                // tall; pad the main container's bottom on `base` so the
+                // last row of content isn't hidden behind it. On md+ the bar
+                // is display:none so the extra padding is dropped.
+                pb={{ base: "calc(72px + env(safe-area-inset-bottom))", md: "6" }}
+            >
                 {/* All user-facing routes use Croatian slugs. English slugs
                     (/tournaments, /profile, /calendar, …) are kept around
                     purely as <Navigate replace> aliases so existing
@@ -123,6 +132,11 @@ export default function App() {
                     <Route path="*" element={<NotFoundPage />} />
                 </Routes>
             </Container>
+            {/* Mobile-only bottom tab bar — supplements the hamburger
+                drawer in NavBar. The drawer still handles the help-tour
+                replay + install affordance, but day-to-day routing is
+                one tap away here on mobile. */}
+            <MobileTabBar />
         </>
     )
 }

@@ -2603,8 +2603,15 @@ export default function TournamentDetailsPage() {
                             !!user?.uid &&
                             pairs.some((p) => p.submittedByUid === user.uid)
                         // Self-registration is offered to everyone until the tournament
-                        // starts. Anonymous users get bounced to /login on click.
-                        const showSelfRegisterButton = !tournamentAlready
+                        // starts EXCEPT the organiser / admins. Owners already have a
+                        // "Dodaj par" affordance below, and showing both "Prijavi par za
+                        // turnir" + "Dodaj par" to the same person was misleading —
+                        // they're functionally close enough that organisers hesitated
+                        // over which to click. Hiding the self-register button for
+                        // owners + admins keeps "Dodaj par" as the single canonical
+                        // path; everyone else (anonymous + non-organiser logged-in
+                        // users) still sees the self-register flow.
+                        const showSelfRegisterButton = !tournamentAlready && !canEditTournament
 
                         const renderPair = (p: PairShort, _idx: number, eliminated: boolean) => {
                             const hasServerId = typeof p.id === "number" && p.id > 0

@@ -320,7 +320,6 @@ export default function MapPage() {
     const defaultCenter: [number, number] = [44.5, 16.5]
     const defaultZoom = 7
 
-    const missingCoords = tournaments.length - placedAll.length
     const hiddenByRadius = placedAll.length - placed.length
     const radiusDisabled = !userPos
 
@@ -589,12 +588,6 @@ export default function MapPage() {
                 </MapContainer>
             </Box>
 
-            {tournaments.length > 0 && missingCoords > 0 && (
-                <Text fontSize="xs" color="fg.muted">
-                    {missingCoords} {missingCoords === 1 ? "turnir" : "turnira"} nema poznatih koordinata.
-                    Backfill se može pokrenuti pozivom <code>POST /api/tournaments/geocode-missing</code>.
-                </Text>
-            )}
         </VStack>
     )
 }

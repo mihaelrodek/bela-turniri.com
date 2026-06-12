@@ -1,5 +1,6 @@
 package hr.mrodek.apps.bela_turniri.controller;
 
+import hr.mrodek.apps.bela_turniri.enums.TournamentStatus;
 import hr.mrodek.apps.bela_turniri.model.Pairs;
 import hr.mrodek.apps.bela_turniri.model.Tournaments;
 import hr.mrodek.apps.bela_turniri.model.UserPairPreset;
@@ -268,6 +269,86 @@ public class AdminController {
                 target.getDisplayName())).build();
     }
 
+    /** ──────────────────────────────────────────────────────────────────
+     * Admin override of tournament status. Bypasses the regular
+     * {@code /tournaments/{uuid}/start} and {@code /tournaments/{uuid}/finish}
+     * lifecycle guards (paid-pair count, exactly-one-active-pair rule, etc.)
+     * so an admin can correct mis-clicks or backfill tournaments that
+     * concluded outside the app.
+     *
+     * <p>Use cases:
+     *   - Tournament finished by date but never marked FINISHED in-app
+     *     (organiser ran it manually).
+     *   - Wrong "Završi turnir" click — revert from FINISHED back to STARTED
+     *     or DRAFT so the organiser can keep playing.
+     *   - Legacy import landed as DRAFT but the underlying event already
+     *     ran — bump straight to FINISHED.
+     *
+     * <p>Field hygiene:
+     *   - Always updates {@code status} and {@code updatedAt}.
+     *   - When moving INTO FINISHED with no winner already set, the field
+     *     stays null — the admin can fill it via the existing
+     *     {@code /tournaments/{uuid}/podium} endpoint afterwards.
+     *   - When moving OUT OF FINISHED (FINISHED → STARTED or DRAFT),
+     *     clears {@code winnerName} so a stale champion doesn't linger on
+     *     a tournament that's now in-progress or back to draft. Podium
+     *     names (silver / bronze) are also cleared to keep the read-back
+     *     consistent.
+     *
+     * <p>This endpoint does NOT delete rounds or matches when reverting
+     * to DRAFT — that's what {@code /tournaments/{uuid}/reset} is for
+     * (and it requires owner-or-admin auth, which an admin already has).
+     * Reverting status alone keeps the bracket data intact in case the
+     * admin wants the organiser to pick up exactly where they left off.
+     * ──────────────────────────────────────────────────────────────── */
+    @POST
+    @Path("/tournaments/{tournamentId}/status")
+    @Transactional
+    public Response overrideTournamentStatus(@PathParam("tournamentId") Long tournamentId,
+                                             SetStatusRequest body) {
+        if (body == null || body.status() == null || body.status().isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("STATUS_REQUIRED").build();
+        }
+        TournamentStatus next;
+        try {
+            next = TournamentStatus.valueOf(body.status().trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("INVALID_STATUS").build();
+        }
+
+        Tournaments tournament = tournamentsRepo.findById(tournamentId);
+        if (tournament == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity("TOURNAMENT_NOT_FOUND").build();
+        }
+
+        TournamentStatus prev = tournament.getStatus();
+        if (prev == next) {
+            // Idempotent — no-op when the status is already what we'd set.
+            return Response.ok(new SetStatusResponse(
+                    tournament.getId(), next.name(), prev != null ? prev.name() : null)).build();
+        }
+
+        // Reverting OUT OF FINISHED clears the champion + podium so a
+        // stale winner doesn't show on a tournament that's now back in
+        // progress or draft. The organiser can re-set them via the
+        // normal finish + podium flow afterwards.
+        if (prev == TournamentStatus.FINISHED && next != TournamentStatus.FINISHED) {
+            tournament.setWinnerName(null);
+            tournament.setSecondPlaceName(null);
+            tournament.setThirdPlaceName(null);
+        }
+
+        tournament.setStatus(next);
+        tournament.setUpdatedAt(OffsetDateTime.now());
+        tournamentsRepo.persist(tournament);
+
+        return Response.ok(new SetStatusResponse(
+                tournament.getId(), next.name(), prev != null ? prev.name() : null)).build();
+    }
+
     /* ─────────────────── helpers + DTOs ─────────────────── */
 
     /**
@@ -302,4 +383,8 @@ public class AdminController {
 
     public record TransferTournamentResponse(Long tournamentId, String userUid,
                                              String displayName) {}
+
+    public record SetStatusRequest(@NotBlank String status) {}
+
+    public record SetStatusResponse(Long tournamentId, String status, String previousStatus) {}
 }

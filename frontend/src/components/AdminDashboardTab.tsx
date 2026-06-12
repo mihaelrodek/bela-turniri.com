@@ -13,17 +13,20 @@ import {
     Text,
     VStack,
 } from "@chakra-ui/react"
-import { FiRepeat, FiSearch, FiUserPlus } from "react-icons/fi"
+import { FiAlertTriangle, FiRefreshCw, FiRepeat, FiSearch, FiUserPlus } from "react-icons/fi"
 import {
     adminAttachPair,
     adminListTournaments,
     adminListUnclaimedPairs,
     adminSearchUsers,
+    adminSetTournamentStatus,
     adminTransferTournament,
     type AdminPairDto,
     type AdminTournamentDto,
     type AdminUserDto,
+    type TournamentStatusValue,
 } from "../api/admin"
+import { resetTournament } from "../api/tournaments"
 
 /**
  * Admin-only "Dashboard" tab on the profile page. Two parallel flows
@@ -205,6 +208,65 @@ export default function AdminDashboardTab() {
         }
     }
 
+    /* ─────────────── Status override ─────────────── */
+
+    // Confirmation dialog for the status change. The target status is
+    // staged here while the dialog is open; null means "no dialog".
+    // We never apply a status change without the admin clicking
+    // through this confirmation — flipping FINISHED back to STARTED
+    // is destructive enough (clears winnerName + podium) that an
+    // accidental click on the button row should not commit it.
+    const [pendingStatus, setPendingStatus] = useState<TournamentStatusValue | null>(null)
+    const [savingStatus, setSavingStatus] = useState(false)
+
+    async function handleConfirmStatusChange() {
+        if (selectedTournament == null || pendingStatus == null) return
+        try {
+            setSavingStatus(true)
+            const result = await adminSetTournamentStatus(selectedTournament.id, pendingStatus)
+            // Patch the picker list in place so the badge next to the
+            // selected row updates without a full refetch.
+            setTournaments((prev) => prev?.map((t) =>
+                t.id === selectedTournament.id
+                    ? { ...t, status: result.status }
+                    : t,
+            ) ?? null)
+            setPendingStatus(null)
+        } finally {
+            setSavingStatus(false)
+        }
+    }
+
+    /* ─────────────── Reset tournament ─────────────── */
+
+    // Two-phase confirm: clicking the button opens the dialog, clicking
+    // Potvrdi in the dialog fires the actual POST. Resetting deletes
+    // rounds + matches and zeroes pair wins/losses on the backend, so
+    // an accidental click in the picker shouldn't commit it without a
+    // second look.
+    const [resetDialogOpen, setResetDialogOpen] = useState(false)
+    const [resetting, setResetting] = useState(false)
+
+    async function handleConfirmReset() {
+        if (selectedTournament == null) return
+        const uuid = selectedTournament.uuid
+        if (!uuid) return
+        try {
+            setResetting(true)
+            const updated = await resetTournament(uuid)
+            // Patch the picker list in place — the badge next to the
+            // selected row updates to DRAFT without refetching.
+            setTournaments((prev) => prev?.map((t) =>
+                t.id === selectedTournament.id
+                    ? { ...t, status: updated.status ?? "DRAFT" }
+                    : t,
+            ) ?? null)
+            setResetDialogOpen(false)
+        } finally {
+            setResetting(false)
+        }
+    }
+
     async function handleAttach(user: AdminUserDto) {
         if (attachTargetPair == null) return
         try {
@@ -305,7 +367,7 @@ export default function AdminDashboardTab() {
                                                         </Box>
                                                         {t.status && (
                                                             <Badge size="sm" variant="subtle"
-                                                                   colorPalette={t.status === "FINISHED" ? "gray" : "blue"}>
+                                                                   colorPalette={statusPalette(t.status)}>
                                                                 {t.status}
                                                             </Badge>
                                                         )}
@@ -428,6 +490,337 @@ export default function AdminDashboardTab() {
                     </Card.Body>
                 </Card.Root>
             )}
+
+            {selectedTournament != null && (
+                <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
+                    <Card.Body p={{ base: "4", md: "6" }}>
+                        <Stack gap="3">
+                            <Box>
+                                <Text fontSize="md" fontWeight="semibold">
+                                    Status turnira (override)
+                                </Text>
+                                <Text fontSize="sm" color="fg.muted">
+                                    Ručno postavi status turnira. Koristi se za ispravak
+                                    pogrešnih klikova (npr. slučajno "Završi turnir") ili za
+                                    backfill turnira koji su završili izvan aplikacije
+                                    (DRAFT → FINISHED). Status se mijenja bez provjere
+                                    parova / kola. Vraćanje iz FINISHED briše pobjednika
+                                    i podij — ne brišu se rundi/mečevi.
+                                </Text>
+                            </Box>
+
+                            <Box
+                                p="3"
+                                bg="bg.muted"
+                                rounded="md"
+                                borderWidth="1px"
+                                borderColor="border.subtle"
+                            >
+                                <Text fontSize="xs" color="fg.muted">TRENUTNI STATUS</Text>
+                                <HStack mt="1" gap="2" align="center">
+                                    {selectedTournament.status ? (
+                                        <Badge
+                                            size="sm"
+                                            variant="subtle"
+                                            colorPalette={statusPalette(selectedTournament.status)}
+                                        >
+                                            {selectedTournament.status}
+                                        </Badge>
+                                    ) : (
+                                        <Text fontSize="sm" color="fg.muted">— (nepoznato)</Text>
+                                    )}
+                                </HStack>
+                            </Box>
+
+                            <HStack gap="2" wrap="wrap">
+                                {(["DRAFT", "STARTED", "FINISHED"] as const).map((s) => {
+                                    const isCurrent = selectedTournament.status === s
+                                    return (
+                                        <Button
+                                            key={s}
+                                            size="sm"
+                                            variant={isCurrent ? "subtle" : "outline"}
+                                            colorPalette={statusPalette(s)}
+                                            disabled={isCurrent}
+                                            onClick={() => setPendingStatus(s)}
+                                            title={isCurrent ? "Već u tom statusu" : `Postavi status na ${s}`}
+                                        >
+                                            {s}
+                                        </Button>
+                                    )
+                                })}
+                            </HStack>
+                        </Stack>
+                    </Card.Body>
+                </Card.Root>
+            )}
+
+            {/* Reset tournament card — visible only when the tournament
+                is past DRAFT. Resetting a DRAFT is a no-op for the
+                organiser since they can already edit pairs, so we hide
+                the button there to keep the dashboard tidy. */}
+            {selectedTournament != null
+                && selectedTournament.status != null
+                && selectedTournament.status !== "DRAFT"
+                && (
+                <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
+                    <Card.Body p={{ base: "4", md: "6" }}>
+                        <Stack gap="3">
+                            <Box>
+                                <Text fontSize="md" fontWeight="semibold">
+                                    Resetiraj turnir
+                                </Text>
+                                <Text fontSize="sm" color="fg.muted">
+                                    Vraća turnir u stanje «nacrt» (DRAFT), briše sve runde
+                                    i mečeve, ali zadržava parove (pobjede / porazi se
+                                    nuliraju, ne briše se status «ima život»). Organizator
+                                    može odmah dodavati / mijenjati parove i ponovno
+                                    pokrenuti turnir. Pobjednik i podij se brišu.
+                                </Text>
+                            </Box>
+
+                            <HStack justify="flex-end">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    colorPalette="red"
+                                    onClick={() => setResetDialogOpen(true)}
+                                    disabled={!selectedTournament.uuid}
+                                    title={!selectedTournament.uuid
+                                        ? "Legacy turnir bez UUID-a — reset nije moguć"
+                                        : "Resetiraj turnir u DRAFT i obriši runde"}
+                                >
+                                    <FiRefreshCw /> Resetiraj turnir
+                                </Button>
+                            </HStack>
+                        </Stack>
+                    </Card.Body>
+                </Card.Root>
+            )}
+
+            {/* Reset confirmation dialog — spells out exactly what gets
+                wiped vs. kept so the admin doesn't accidentally nuke a
+                running tournament thinking it'll only clear status. */}
+            <Dialog.Root
+                open={resetDialogOpen}
+                onOpenChange={(e) => { if (!e.open) setResetDialogOpen(false) }}
+                placement="center"
+                motionPreset="slide-in-bottom"
+            >
+                <Portal>
+                    <Dialog.Backdrop />
+                    <Dialog.Positioner>
+                        <Dialog.Content maxW={{ base: "92%", md: "md" }}>
+                            <Dialog.Header>
+                                <Dialog.Title>
+                                    <HStack gap="2" align="center">
+                                        <Box color="red.fg"><FiAlertTriangle /></Box>
+                                        Resetiraj turnir?
+                                    </HStack>
+                                </Dialog.Title>
+                            </Dialog.Header>
+                            <Dialog.Body>
+                                <Stack gap="3">
+                                    {selectedTournament && (
+                                        <Box
+                                            p="3"
+                                            bg="bg.muted"
+                                            rounded="md"
+                                            borderWidth="1px"
+                                            borderColor="border.subtle"
+                                        >
+                                            <Text fontSize="xs" color="fg.muted">TURNIR</Text>
+                                            <Text fontSize="sm" fontWeight="medium">
+                                                {selectedTournament.name}
+                                            </Text>
+                                            {selectedTournament.status && (
+                                                <HStack mt="2" gap="2" align="center">
+                                                    <Badge
+                                                        size="sm"
+                                                        variant="subtle"
+                                                        colorPalette={statusPalette(selectedTournament.status)}
+                                                    >
+                                                        {selectedTournament.status}
+                                                    </Badge>
+                                                    <Text fontSize="sm" color="fg.muted">→</Text>
+                                                    <Badge size="sm" variant="subtle" colorPalette="blue">
+                                                        DRAFT
+                                                    </Badge>
+                                                </HStack>
+                                            )}
+                                        </Box>
+                                    )}
+
+                                    <Box
+                                        p="3"
+                                        bg="red.subtle"
+                                        rounded="md"
+                                        borderWidth="1px"
+                                        borderColor="red.muted"
+                                    >
+                                        <Text fontSize="sm" color="red.fg" fontWeight="medium" mb="1">
+                                            Briše se:
+                                        </Text>
+                                        <Text fontSize="xs" color="fg.muted">
+                                            • sve runde i mečevi<br />
+                                            • pobjednik (winnerName) i podij (2./3. mjesto)<br />
+                                            • pobjede / porazi parova (vraćaju se na 0)<br />
+                                            • status eliminacije parova (svi ponovo aktivni)
+                                        </Text>
+                                    </Box>
+
+                                    <Box
+                                        p="3"
+                                        bg="green.subtle"
+                                        rounded="md"
+                                        borderWidth="1px"
+                                        borderColor="green.muted"
+                                    >
+                                        <Text fontSize="sm" color="green.fg" fontWeight="medium" mb="1">
+                                            Zadržava se:
+                                        </Text>
+                                        <Text fontSize="xs" color="fg.muted">
+                                            • parovi (imena, kotizacija, «ima život» flag)<br />
+                                            • postavke turnira (cijene, lokacija, kontakt, plakat)
+                                        </Text>
+                                    </Box>
+                                </Stack>
+                            </Dialog.Body>
+                            <Dialog.Footer>
+                                <Button variant="ghost" onClick={() => setResetDialogOpen(false)} disabled={resetting}>
+                                    Odustani
+                                </Button>
+                                <Button
+                                    variant="solid"
+                                    colorPalette="red"
+                                    loading={resetting}
+                                    onClick={handleConfirmReset}
+                                >
+                                    Resetiraj
+                                </Button>
+                            </Dialog.Footer>
+                        </Dialog.Content>
+                    </Dialog.Positioner>
+                </Portal>
+            </Dialog.Root>
+
+            {/* Status-change confirmation dialog. Always renders the
+                consequences of the chosen transition (clearing
+                winner/podium when leaving FINISHED) so the admin
+                isn't surprised after the click. */}
+            <Dialog.Root
+                open={pendingStatus != null}
+                onOpenChange={(e) => { if (!e.open) setPendingStatus(null) }}
+                placement="center"
+                motionPreset="slide-in-bottom"
+            >
+                <Portal>
+                    <Dialog.Backdrop />
+                    <Dialog.Positioner>
+                        <Dialog.Content maxW={{ base: "92%", md: "md" }}>
+                            <Dialog.Header>
+                                <Dialog.Title>
+                                    <HStack gap="2" align="center">
+                                        <Box color="orange.fg"><FiAlertTriangle /></Box>
+                                        Promjena statusa turnira
+                                    </HStack>
+                                </Dialog.Title>
+                            </Dialog.Header>
+                            <Dialog.Body>
+                                <Stack gap="3">
+                                    {selectedTournament && pendingStatus && (
+                                        <>
+                                            <Box
+                                                p="3"
+                                                bg="bg.muted"
+                                                rounded="md"
+                                                borderWidth="1px"
+                                                borderColor="border.subtle"
+                                            >
+                                                <Text fontSize="xs" color="fg.muted">TURNIR</Text>
+                                                <Text fontSize="sm" fontWeight="medium">
+                                                    {selectedTournament.name}
+                                                </Text>
+                                                <HStack mt="2" gap="2" align="center">
+                                                    {selectedTournament.status && (
+                                                        <Badge
+                                                            size="sm"
+                                                            variant="subtle"
+                                                            colorPalette={statusPalette(selectedTournament.status)}
+                                                        >
+                                                            {selectedTournament.status}
+                                                        </Badge>
+                                                    )}
+                                                    <Text fontSize="sm" color="fg.muted">→</Text>
+                                                    <Badge
+                                                        size="sm"
+                                                        variant="subtle"
+                                                        colorPalette={statusPalette(pendingStatus)}
+                                                    >
+                                                        {pendingStatus}
+                                                    </Badge>
+                                                </HStack>
+                                            </Box>
+
+                                            {selectedTournament.status === "FINISHED" && pendingStatus !== "FINISHED" && (
+                                                <Box
+                                                    p="3"
+                                                    bg="orange.subtle"
+                                                    rounded="md"
+                                                    borderWidth="1px"
+                                                    borderColor="orange.muted"
+                                                >
+                                                    <Text fontSize="sm" color="orange.fg" fontWeight="medium">
+                                                        Vraćanje iz FINISHED
+                                                    </Text>
+                                                    <Text fontSize="xs" color="fg.muted" mt="1">
+                                                        Briše se pobjednik (winnerName) i podij
+                                                        (2./3. mjesto). Rundi i mečevi ostaju
+                                                        netaknuti — za potpuni reset koristi
+                                                        "Resetiraj turnir" na stranici turnira.
+                                                    </Text>
+                                                </Box>
+                                            )}
+
+                                            {pendingStatus === "FINISHED" && selectedTournament.status !== "FINISHED" && (
+                                                <Box
+                                                    p="3"
+                                                    bg="blue.subtle"
+                                                    rounded="md"
+                                                    borderWidth="1px"
+                                                    borderColor="blue.muted"
+                                                >
+                                                    <Text fontSize="sm" color="blue.fg" fontWeight="medium">
+                                                        Postavljanje na FINISHED
+                                                    </Text>
+                                                    <Text fontSize="xs" color="fg.muted" mt="1">
+                                                        Pobjednik se ne postavlja automatski.
+                                                        Otvori stranicu turnira pa postavi
+                                                        winnerName + podij ako su potrebni.
+                                                    </Text>
+                                                </Box>
+                                            )}
+                                        </>
+                                    )}
+                                </Stack>
+                            </Dialog.Body>
+                            <Dialog.Footer>
+                                <Button variant="ghost" onClick={() => setPendingStatus(null)} disabled={savingStatus}>
+                                    Odustani
+                                </Button>
+                                <Button
+                                    variant="solid"
+                                    colorPalette={pendingStatus ? statusPalette(pendingStatus) : "blue"}
+                                    loading={savingStatus}
+                                    onClick={handleConfirmStatusChange}
+                                >
+                                    Potvrdi
+                                </Button>
+                            </Dialog.Footer>
+                        </Dialog.Content>
+                    </Dialog.Positioner>
+                </Portal>
+            </Dialog.Root>
 
             {/* User-picker dialog. Only rendered when a pair is selected. */}
             <Dialog.Root
@@ -662,6 +1055,17 @@ export default function AdminDashboardTab() {
             </Dialog.Root>
         </VStack>
     )
+}
+
+/**
+ * Map a tournament status onto a Chakra colorPalette name. Keeps the
+ * picker badge, the override card's "current status" badge, and the
+ * confirm dialog all in visual sync.
+ */
+function statusPalette(status: string): "gray" | "blue" | "green" {
+    if (status === "FINISHED") return "gray"
+    if (status === "STARTED") return "green"
+    return "blue" // DRAFT (default)
 }
 
 /** Human-friendly HR date label for tournament rows. */

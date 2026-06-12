@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react"
 import {
-    Box, Flex, HStack, IconButton, Image, Button, Stack, Container, Menu, Text, chakra, useBreakpointValue, useDisclosure,
+    Box, Flex, HStack, IconButton, Image, Button, Container, Menu, Text, chakra, useBreakpointValue,
 } from "@chakra-ui/react"
 import { Link as RouterLink, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
 import { useColorModeValue } from "../color-mode"
-import { FiHelpCircle, FiLogOut, FiMenu, FiUser, FiX } from "react-icons/fi"
+import { FiHelpCircle, FiLogOut, FiUser } from "react-icons/fi"
 import { useAuth } from "../auth/AuthContext"
 import { getProfile } from "../api/userMe"
 import { InstallAppButton } from "./InstallAppButton"
@@ -116,7 +116,6 @@ function UserAvatar({
 }
 
 export default function NavBar() {
-    const { open, onOpen, onClose } = useDisclosure()
     const bg = useColorModeValue("white", "gray.800")
     const border = useColorModeValue("gray.200", "gray.700")
     const { user, signOut, loading } = useAuth()
@@ -126,7 +125,7 @@ export default function NavBar() {
      * True when the viewport is below the md breakpoint (Chakra's mobile
      * range). Computed via Chakra's breakpoint hook rather than CSS so we
      * can conditionally apply `data-tour` attributes — only the currently
-     * visible variant of the nav (desktop HStack vs. mobile drawer Stack)
+     * visible variant of the nav (desktop HStack vs. mobile top-bar Flex)
      * gets the anchor. Otherwise Joyride's querySelector would find the
      * hidden desktop nav first on mobile, anchor on a 0×0 element, and
      * the tooltip would render off-screen. {ssr: false} keeps SSR happy
@@ -134,30 +133,6 @@ export default function NavBar() {
      * runs in the browser anyway).
      */
     const isMobile = useBreakpointValue({ base: true, md: false }, { ssr: false }) ?? false
-
-    /**
-     * Tour-driven control of the mobile hamburger drawer. The guided
-     * tour dispatches `bela:open-nav-menu` when it lands on a step
-     * whose target lives inside the drawer (nav-items, nav-auth), and
-     * `bela:close-nav-menu` when it moves on. Listened for here so the
-     * drawer flips open without the user having to tap the burger
-     * themselves — otherwise the tour would highlight an empty area
-     * because the drawer's content isn't in the DOM when closed.
-     *
-     * <p>No-op on desktop — the events still fire from the tour but
-     * onOpen/onClose just toggle state that's never read (the drawer
-     * block is `display: none` on md+ regardless).
-     */
-    useEffect(() => {
-        function handleOpen() { onOpen() }
-        function handleClose() { onClose() }
-        window.addEventListener("bela:open-nav-menu", handleOpen)
-        window.addEventListener("bela:close-nav-menu", handleClose)
-        return () => {
-            window.removeEventListener("bela:open-nav-menu", handleOpen)
-            window.removeEventListener("bela:close-nav-menu", handleClose)
-        }
-    }, [onOpen, onClose])
 
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
     useEffect(() => {
@@ -328,7 +303,21 @@ export default function NavBar() {
                     </HStack>
                 </Box>
 
-                <Flex display={{ base: "flex", md: "none" }} align="center">
+                {/* ====================== Mobile top bar ======================
+                    Day-to-day navigation lives in the fixed bottom tab bar
+                    (MobileTabBar) — Turniri / Kalendar / Kreiraj / Karta /
+                    Profil are one tap away there. The hamburger drawer that
+                    used to host those links has been removed entirely. What
+                    stays in the top bar:
+
+                      - Brand mark (logo + "Bela Turniri") on the left
+                      - Auth control (avatar menu or Prijava) on the right
+                      - Help-replay + Install affordances next to it
+
+                    The `data-tour` anchors are kept so the guided tour can
+                    still spotlight nav-auth + help-install on mobile. The
+                    nav-items anchor moved to the bottom tab bar itself. */}
+                <Flex display={{ base: "flex", md: "none" }} align="center" gap="1">
                     <chakra.a
                         asChild
                         display="inline-flex"
@@ -356,12 +345,6 @@ export default function NavBar() {
                         </RouterLink>
                     </chakra.a>
                     <Box flex="1" />
-                    {/* Wrap the mobile auth control (avatar menu or Prijava
-                        button) in a Box with `data-tour="nav-auth"` so the
-                        guided tour has a target on mobile. Only set the
-                        attribute when the viewport is actually mobile so
-                        Joyride doesn't pick this Box up on desktop where
-                        the equivalent desktop HStack also has it. */}
                     <Box data-tour={isMobile ? "nav-auth" : undefined}>
                         {!loading && user && (
                             <Menu.Root>
@@ -370,7 +353,6 @@ export default function NavBar() {
                                         aria-label="Profil meni"
                                         size="sm"
                                         variant="ghost"
-                                        mr={1}
                                         px={1}
                                     >
                                         <UserAvatar name={user.displayName} email={user.email} avatarUrl={avatarUrl} />
@@ -394,82 +376,23 @@ export default function NavBar() {
                                 </Menu.Positioner>
                             </Menu.Root>
                         )}
-                        {/* Inline Prijava for anonymous mobile users — previously
-                            only reachable via the hamburger drawer. Showing it in
-                            the top bar means a one-tap sign-in path without
-                            having to discover the menu first. Hidden when the
-                            user is already logged in (the avatar menu replaces
-                            it above). */}
                         {!loading && !user && (
-                            <Button asChild size="sm" variant="solid" colorPalette="blue" mr={1}>
+                            <Button asChild size="sm" variant="solid" colorPalette="blue">
                                 <RouterLink to="/prijava">Prijava</RouterLink>
                             </Button>
                         )}
                     </Box>
-                    {/* Install button moved inside the burger drawer below
-                        so the top bar stays clean on mobile. Theme toggle
-                        lives in profile → Postavke (per-user). */}
-                    <IconButton
-                        onClick={open ? onClose : onOpen}
-                        aria-label={open ? "Close menu" : "Open menu"}
-                        variant="ghost"
-                        size="sm"
+                    {/* Help-replay + install icon — same pair as the desktop
+                        sub-HStack so the guided tour's "Pomoć i instalacija"
+                        step has a consistent anchor across breakpoints. */}
+                    <HStack
+                        data-tour={isMobile ? "help-install" : undefined}
+                        gap="1"
                     >
-                        {open ? <FiX /> : <FiMenu />}
-                    </IconButton>
+                        <HelpTourButton />
+                        <InstallAppButton size="sm" />
+                    </HStack>
                 </Flex>
-
-                {open && (
-                    <Box pt={3} pb={2} display={{ md: "none" }}>
-                        {/* `data-tour="nav-items"` lives on the open
-                            drawer's Stack so the guided tour anchors here
-                            on mobile. Setting the attribute conditionally
-                            on `isMobile` prevents collision with the
-                            desktop HStack — but in practice this block
-                            only renders on mobile anyway (`display: md:none`
-                            on its parent), so the guard is cheap insurance. */}
-                        <Stack
-                            data-tour={isMobile ? "nav-items" : undefined}
-                            gap={2}
-                            onClick={onClose}
-                        >
-                            <NavButton to="/turniri" exact>
-                                Turniri
-                            </NavButton>
-                            <NavButton to="/kalendar">Kalendar</NavButton>
-                            <NavButton to="/turniri/novi">Kreiraj turnir</NavButton>
-                            <NavButton to="/karta">Karta</NavButton>
-                            <NavButton to="/pronadi-para">Pronađi para</NavButton>
-
-                            {/* "Install app" + "Pokaži kako" share an inner
-                                Stack so the guided tour's "Pomoć i
-                                instalacija" step can anchor on them as a
-                                pair (same data-tour name as the desktop
-                                sub-HStack). Tour text references these two
-                                explicitly, so a tight spotlight on just
-                                them reads better than highlighting the
-                                full drawer.
-
-                                Note on click propagation: the outer Stack
-                                has onClick={onClose} so taps inside close
-                                the drawer. The labeled install button
-                                fires either the install prompt or the iOS
-                                steps dialog first, then propagates — which
-                                is what we want for normal usage. */}
-                            <Stack
-                                data-tour={isMobile ? "help-install" : undefined}
-                                gap={2}
-                            >
-                                <InstallAppButton size="sm" variant="labeled" />
-                                <HelpTourButton variant="labeled" />
-                            </Stack>
-
-                            {/* Prijava is now permanently visible in the mobile
-                                top bar next to the burger — no need to
-                                duplicate it inside the drawer. */}
-                        </Stack>
-                    </Box>
-                )}
             </Container>
         </Box>
     )
