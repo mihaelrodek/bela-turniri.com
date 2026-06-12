@@ -971,9 +971,18 @@ export default function CreateTournamentPage() {
             </VStack>
 
             {/* ===================== Sticky action bar ===================== */}
+            {/* zIndex must beat Leaflet's `.leaflet-control-container`
+                (z-index 1000). Without an explicit z-index here, the
+                sticky bar inherits `auto` and the Leaflet map's zoom
+                controls + the LocationMapPicker pane render in front of
+                the Odustani / Kreiraj buttons when the form is scrolled
+                so the map sits at the viewport bottom. 1100 is above
+                Leaflet but below NavBar's sticky top (zIndex 1000 there,
+                but they don't overlap so it's harmless). */}
             <Box
                 position="sticky"
                 bottom="0"
+                zIndex={1100}
                 bg="bg"
                 borderTopWidth="1px"
                 borderColor="border.subtle"

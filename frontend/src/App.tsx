@@ -67,11 +67,15 @@ export default function App() {
             <Container
                 maxW="6xl"
                 py={6}
-                // Mobile bottom-tab-bar is fixed at viewport bottom and ~64px
-                // tall; pad the main container's bottom on `base` so the
-                // last row of content isn't hidden behind it. On md+ the bar
-                // is display:none so the extra padding is dropped.
-                pb={{ base: "calc(72px + env(safe-area-inset-bottom))", md: "6" }}
+                // Mobile bottom-tab-bar's visual footprint = ~64px bar body +
+                // 28px raised Kreiraj circle that overflows above the bar via
+                // negative margin-top. Pad the main container's bottom by the
+                // full visual height (~100px) so the last row of content sits
+                // above the raised circle, not just above the bar body. iOS
+                // safe-area-inset-bottom stacks on top of that for the home
+                // indicator. On md+ the bar is display:none so the extra
+                // padding drops.
+                pb={{ base: "calc(100px + env(safe-area-inset-bottom))", md: "6" }}
             >
                 {/* All user-facing routes use Croatian slugs. English slugs
                     (/tournaments, /profile, /calendar, …) are kept around
