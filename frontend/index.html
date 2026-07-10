@@ -116,6 +116,24 @@
     }
     </script>
 
+    <script>
+      (function () {
+        var GA_ID = "G-Y0DXHY7BD7";
+        var h = location.hostname;
+        if (h !== "bela-turniri.com" && h !== "www.bela-turniri.com") return;
+        if (GA_ID.indexOf("XXXX") !== -1) return; /* not configured yet */
+        var s = document.createElement("script");
+        s.async = true;
+        s.src = "https://www.googletagmanager.com/gtag/js?id=" + GA_ID;
+        document.head.appendChild(s);
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        window.gtag = gtag;
+        gtag("js", new Date());
+        gtag("config", GA_ID);
+      })();
+    </script>
+
     <!-- Reserve the vertical-scrollbar gutter unconditionally. Without this
          rule a route swap from a short page (Kalendar — fits in viewport,
          no scrollbar) to a tall page (Kreiraj turnir — scrollbar appears)
