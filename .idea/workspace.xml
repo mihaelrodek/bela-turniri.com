@@ -4,39 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.env.prod.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.prod.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.github/workflows/ci.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/ci.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DEPLOY.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEPLOY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.prod.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.prod.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/App.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/CalendarSubscribeButton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/CalendarSubscribeButton.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/SiteFooter.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/SiteFooter.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/TournamentSidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/TournamentSidebar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/CalendarPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/CalendarPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/FullscreenRoundBoard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/FullscreenRoundBoard.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/MatchRow.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/MatchRow.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/fullscreenSize.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/fullscreenSize.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/tsconfig.app.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tsconfig.app.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/vite.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/vite.config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ops/deploy.sh" beforeDir="false" afterPath="$PROJECT_DIR$/ops/deploy.sh" afterDir="false" />
-    </list>
+    <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

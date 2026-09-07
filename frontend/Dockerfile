@@ -29,6 +29,15 @@ RUN npm ci
 # Copy the rest of the frontend source.
 COPY frontend/ ./
 
+# `@bela/engine` / `@bela/protocol` are resolved by vite.config.ts /
+# tsconfig.app.json as a relative alias to the SIBLING `game/` workspace's
+# source (`../game/packages/.../src/index.ts`, not a package published to
+# npm — see game/README.md). WORKDIR here is /app, so that alias resolves
+# to /game/... — this copy has to land at exactly that path or `npm run
+# build` fails with "Cannot find module '@bela/engine'" (it did, the first
+# time this shipped: the edge image never had `game/` in it at all).
+COPY game/ /game/
+
 # Vite reads VITE_* env vars at build time and inlines the values into
 # the bundle. They're not secrets (Firebase web config is public per
 # Firebase's docs), but they DO need to be set or auth will silently
