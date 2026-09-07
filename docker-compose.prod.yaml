@@ -212,7 +212,14 @@ services:
     mem_limit: 256m
     cpus: 0.5
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8285/health"]
+      # 127.0.0.1, NOT localhost: this Alpine image resolves "localhost" to
+      # ::1 first (see /etc/hosts), and the Node server binds IPv4-only
+      # ("0.0.0.0"), so a healthcheck via "localhost" gets ECONNREFUSED on
+      # the IPv6 loopback forever — container stays "unhealthy" even though
+      # the server is fine, and `edge` (depends_on: game: service_healthy)
+      # never starts. Confirmed live: `wget localhost:8285/health` failed,
+      # `wget 127.0.0.1:8285/health` succeeded, in the same container.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8285/health"]
       interval: 30s
       timeout: 10s
       retries: 3
