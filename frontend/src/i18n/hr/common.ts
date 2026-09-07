@@ -201,7 +201,7 @@ export const common = {
     "clipboard.copyFailed": "Kopiranje nije uspjelo",
 
     // --- Calendar subscribe dialog (components/CalendarSubscribeButton.tsx) --
-    "calendar.subscribeButton": "Pretplati se na kalendar",
+    "calendar.subscribeButton": "Pretplati se",
     "calendar.dialogTitle": "Pretplata na kalendar turnira",
     "calendar.description":
         "Pretplati se jednom i kalendar će se sam osvježavati — novi i nadolazeći turniri pojavit će se automatski, bez ponovnog preuzimanja.",

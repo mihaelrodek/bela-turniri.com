@@ -40,22 +40,32 @@ export default function SiteFooter(props: BoxProps) {
     // route for the same reason. Rendering this footer here as well would
     // push the document past 100dvh and bring the scrollbar (and a dead
     // gap under the action bar) right back.
-    if (pathname.startsWith("/turniri/novi")) return null
+    //
+    // /igra* is the same deal: the game table is a `100dvh - chrome` column
+    // with the hand docked at its bottom edge, and MobileTabBar hides there
+    // for exactly this reason too.
+    if (pathname.startsWith("/turniri/novi") || pathname.startsWith("/igra")) return null
 
     return (
         <Box
             as="footer"
-            borderTopWidth="1px"
+            borderTopWidth={{ base: "0", md: "1px" }}
             borderColor="border.subtle"
-            bg="bg.panel"
-            // Mirrors MobileTabBar's own visual-footprint comment: ~64px bar
-            // body + 28px raised Kreiraj circle that overflows above it via
-            // negative margin-top ≈ 100px, plus the iOS home-indicator inset
-            // stacked on top. md+ hides the bar entirely, so the reserve drops.
+            bg={{ base: "transparent", md: "bg.panel" }}
+            // Mobile (base/sm) does not show the footer at all — Kontakt /
+            // Privatnost / Uvjeti are reachable from the menu, and on a phone
+            // the strip only ever appeared squeezed between the content and
+            // the fixed MobileTabBar. The element still renders there, just
+            // empty: its `mb` is what reserves the room the fixed tab bar
+            // paints over (~64px bar body + 28px raised Kreiraj circle ≈ 100px,
+            // plus the iOS home-indicator inset), and `mt="auto"` from App.tsx
+            // keeps that reserve pinned to the bottom of short pages. md+
+            // hides the tab bar, so the reserve drops and the footer shows.
             mb={{ base: "calc(100px + env(safe-area-inset-bottom))", md: "0" }}
             {...props}
         >
             <Flex
+                display={{ base: "none", md: "flex" }}
                 maxW="6xl"
                 mx="auto"
                 px={{ base: "4", md: "6" }}

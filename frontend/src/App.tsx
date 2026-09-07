@@ -8,6 +8,7 @@ import ThemeSync from './components/ThemeSync'
 import LocaleSync from './components/LocaleSync'
 import SiteFooter from './components/SiteFooter'
 import { RequireAuth } from "./components/RequireAuth"
+import GameFeatureGate from "./game/GameFeatureGate"
 import { lazyWithReload } from "./utils/lazyWithReload"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -39,6 +40,11 @@ const ClaimNamePage = lazyWithReload(() => import('./pages/ClaimNamePage'))
 const ContactPage = lazyWithReload(() => import('./pages/ContactPage'))
 const PrivacyPage = lazyWithReload(() => import('./pages/PrivacyPage'))
 const TermsPage = lazyWithReload(() => import('./pages/TermsPage'))
+/* Online bela. Its own subtree (src/game) with a WebSocket client, a table
+   renderer and the shared @bela/engine types — none of which any other route
+   touches, so it is strictly a separate chunk. */
+const GameLobbyPage = lazyWithReload(() => import('./game/pages/GameLobbyPage'))
+const GameRoomPage = lazyWithReload(() => import('./game/pages/GameRoomPage'))
 
 /** Suspense fallback while a route chunk is being fetched. The min-height
  *  matches roughly what a page's first screenful occupies so the layout
@@ -167,6 +173,34 @@ export default function App() {
                         (SECTION_SLUG); an unknown one falls back to Detalji
                         rather than 404. */}
                     <Route path="/turniri/:uuid/:section?" element={<TournamentDetailsPage />} />
+                    {/* Online bela. Both routes require a signed-in user:
+                        the game server authenticates the socket with a
+                        Firebase ID token, so an anonymous visitor could not
+                        get past `hello` anyway. GameFeatureGate is the
+                        production kill switch (see its own file) — it sits
+                        outside RequireAuth so a signed-out visitor gets
+                        bounced to "/" instead of the login page while the
+                        feature is off. */}
+                    <Route
+                        path="/igra"
+                        element={
+                            <GameFeatureGate>
+                                <RequireAuth>
+                                    <GameLobbyPage />
+                                </RequireAuth>
+                            </GameFeatureGate>
+                        }
+                    />
+                    <Route
+                        path="/igra/soba/:roomId"
+                        element={
+                            <GameFeatureGate>
+                                <RequireAuth>
+                                    <GameRoomPage />
+                                </RequireAuth>
+                            </GameFeatureGate>
+                        }
+                    />
                     <Route path="/kalendar" element={<CalendarPage />} />
                     <Route path="/karta" element={<MapPage />} />
                     <Route path="/pronadi-para" element={<FindPairPage />} />

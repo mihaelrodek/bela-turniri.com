@@ -32,8 +32,6 @@ import {
     dayIso,
     groupByDay,
     monthOrdinal,
-    monthsWithEvents,
-    nearestMonthWithEvents,
     startMs,
     startOfDayMs,
     type CalendarTournament,
@@ -178,7 +176,6 @@ export default function CalendarPage() {
     }, [tournaments, nearMeEnabled, userPos])
 
     const byDay = useMemo(() => groupByDay(decorated), [decorated])
-    const eventMonths = useMemo(() => monthsWithEvents(decorated), [decorated])
 
     /** Everything from today onward, ascending — the agenda's whole payload. */
     const upcoming = useMemo(
@@ -206,7 +203,6 @@ export default function CalendarPage() {
     const hiddenGroupCount = agendaGroups.length - shownGroups.length
 
     /* ── Month view state ────────────────────────────────────────────── */
-    const cursorOrdinal = monthOrdinal(cursor.year, cursor.month)
     const monthItems = useMemo(
         () =>
             decorated
@@ -218,11 +214,6 @@ export default function CalendarPage() {
                 })
                 .sort((a, b) => startMs(a) - startMs(b)),
         [decorated, cursor.year, cursor.month],
-    )
-    const monthIsEmpty = !loading && monthItems.length === 0
-    const jumpTarget = useMemo(
-        () => (monthIsEmpty ? nearestMonthWithEvents(eventMonths, cursorOrdinal) : null),
-        [monthIsEmpty, eventMonths, cursorOrdinal],
     )
 
     /* The selected day resets whenever the visible month changes. Preference
@@ -282,7 +273,13 @@ export default function CalendarPage() {
                         {loading ? " " : plural("pages.calendar.upcomingCount", upcoming.length)}
                     </Text>
                 </Box>
-                <HStack gap="2" wrap="wrap">
+                {/* The toggle + "U blizini" + "Pretplati se" share one row
+                    even at 390px — none of them wrap to a second line. The
+                    two action buttons KEEP their text everywhere (that label
+                    is the point of them); it's the view toggle that goes
+                    icon-only below md, exactly like the grid/list toggle on
+                    the tournaments page. */}
+                <HStack gap="2" wrap="nowrap" flexShrink="0">
                     <ViewToggle value={view} onChange={setView} />
                     {/* Distance opt-in. Deliberately one button rather than the
                         tournaments list's full filter panel — the calendar shows
@@ -292,11 +289,14 @@ export default function CalendarPage() {
                             size="sm"
                             variant={nearMeEnabled ? "solid" : "outline"}
                             colorPalette="brand"
+                            px={{ base: "2", md: "4" }}
                             onClick={toggleNearMe}
                             disabled={geoStatus === "asking"}
                             loading={geoStatus === "asking"}
+                            whiteSpace="nowrap"
                         >
-                            <FiNavigation /> {t("pages.tournaments.nearMe.label")}
+                            <FiNavigation />
+                            {t("pages.tournaments.nearMe.label")}
                         </Button>
                     )}
                     <CalendarSubscribeButton />
@@ -432,34 +432,11 @@ export default function CalendarPage() {
 
                     {/* Everything below the grid is the detail the cells cannot
                         hold: on the phone it is the ONLY place the detail
-                        lives, on desktop it is where the real links are. */}
-                    {monthIsEmpty ? (
-                        <Box borderWidth="1px" borderStyle="dashed" borderColor="border.emphasized" rounded="xl">
-                            <EmptyState
-                                compact
-                                icon={FiCalendar}
-                                title={t("pages.calendar.emptyMonth.title")}
-                                description={
-                                    jumpTarget
-                                        ? t("pages.calendar.emptyMonth.description")
-                                        : t("pages.calendar.emptyMonth.noneAhead")
-                                }
-                                action={
-                                    jumpTarget ? (
-                                        <Button
-                                            size="sm"
-                                            colorPalette="brand"
-                                            onClick={() => setCursor(jumpTarget)}
-                                        >
-                                            {t("pages.calendar.emptyMonth.jump", {
-                                                month: `${t(`pages.calendar.month.${MONTH_KEYS[jumpTarget.month]}`)} ${jumpTarget.year}`,
-                                            })}
-                                        </Button>
-                                    ) : undefined
-                                }
-                            />
-                        </Box>
-                    ) : selectedDate ? (
+                        lives, on desktop it is where the real links are. The
+                        grid itself already shows when an empty month has
+                        nothing in it, so there is no separate empty-month
+                        block here any more. */}
+                    {selectedDate ? (
                         <VStack align="stretch" gap="2" pt="1">
                             <Text fontSize="sm" fontWeight="semibold" color="fg.soft">
                                 {formatDate(dayIso(selectedDate))}
@@ -509,13 +486,19 @@ function ViewToggle({ value, onChange }: { value: View; onChange: (v: View) => v
                 return (
                     <Button
                         key={id}
-                        size="xs"
+                        size="sm"
+                        px={{ base: "2", md: "4" }}
                         variant={active ? "solid" : "ghost"}
                         colorPalette={active ? "brand" : "gray"}
                         aria-pressed={active}
+                        aria-label={label}
+                        title={label}
                         onClick={() => onChange(id)}
                     >
-                        <Icon /> {label}
+                        <Icon />
+                        <Box as="span" display={{ base: "none", md: "inline" }}>
+                            {label}
+                        </Box>
                     </Button>
                 )
             })}

@@ -4,34 +4,39 @@ import { FiAward, FiCheckCircle } from "react-icons/fi"
 import { useTranslation } from "../../../i18n"
 import { type MatchLocal, winnerOf } from "../../../utils/tournamentMatch"
 import type { PairShort } from "../../../types/pairs"
-import { type FsSize, fsColumns, fsScoreText } from "./fullscreenSize"
+import { type FsSize, fsMetrics, fsScoreText } from "./fullscreenSize"
 
 /* ---------- Fullscreen round board ----------------------------------------
 
    What this screen is FOR: a laptop or a TV standing in the corner of the
    venue, showing the round that is being played. Nobody reads it from 40 cm
-   away — they read it from across a hall, looking for one thing ("which table
-   am I on?") and, once the round is running, for one more ("what is the score
-   on table 4?").
+   away — they read it from across a hall, looking for their own pair name and,
+   once the round is running, for the score on that line.
 
    That rules the layout:
-     • The board fills the viewport. Cards are grid cells with `1fr` rows, so
-       three matches make three tall cards and twelve make twelve smaller
-       ones — the empty two thirds of the old design are gone.
-     • Every type size is derived from ONE scalar (`unit` below) computed from
-       the number of rows and columns actually on screen, so the type grows
-       when there is room and shrinks when there isn't, instead of being
-       pinned to breakpoint tokens that know nothing about the match count.
-     • The table number is the loudest thing on the card: its own block, in
-       the solid brand colour, at roughly 40% of the cell unit.
+     • THE PAIR NAMES ARE THE CONTENT. They get the card's full width, wrap to
+       two lines, and are never squeezed down to an ellipsis after two letters
+       — which is exactly what the previous "table number owns a 40%-wide
+       column, names get what's left" split did on a 15-table round.
+     • The table number is a compact badge in the card's top-left corner. It is
+       still the first thing the eye lands on (solid brand fill, tabular
+       digits) but it costs one short row, not half the card.
+     • Cards size to their CONTENT (`auto` rows, `alignContent: start`), so a
+       three-table round is three short cards at the top of the board rather
+       than three cards stretched to a third of the screen each with the names
+       floating in the middle of an empty box.
+     • The grid is `repeat(auto-fill, minmax(minCol, 1fr))`, so column count
+       follows the actual screen: ~6 columns on a 1999px TV in "Manje",
+       ~4 in "Veće", 1 on a phone — with no match-count arithmetic involved.
      • Scores render as soon as they exist (typed, queued or saved), because
        a round in progress is what the wall is showing most of the time.
-     • A bye is the same card with a quiet blue block instead of a table
-       number — distinct, but not the red-flag "something is wrong here" the
-       old italic blue panel read as.
+     • A bye is the same card with a quiet blue badge in place of the table
+       number.
 
-   Sizing is a two-way switch: "larger" = fewer columns and bigger cards,
-   "smaller" = one more column and denser cards. */
+   "Manje"/"Veće" is one scale factor (see `fsMetrics`) applied to every type
+   size, padding and the column floor at once, so both modes stay fully
+   readable — "Manje" fits more tables per screen, it does not make them
+   unreadable. */
 
 export default function FullscreenRoundBoard({
     matches,
@@ -44,32 +49,20 @@ export default function FullscreenRoundBoard({
 }) {
     const { t: tr } = useTranslation()
 
-    const cols = fsColumns(matches.length, size)
-    const rows = Math.max(1, Math.ceil(matches.length / cols))
+    const z = fsMetrics(size)
 
-    /* The one scalar every type size below is a fraction of: roughly the
-       height of a single cell, with a width term so a very wide, very short
-       card can't grow type it has no horizontal room for. 82/94 rather than
-       100/100 because the header bar, the board's padding and the row gaps
-       are not the cards' to spend — deliberately a little conservative, since
-       type that lands slightly small is a worse-looking board and type that
-       lands slightly large is a clipped one. `dvh` matches the overlay's own
-       100dvh height. It is a CSS string, so the BROWSER does the scaling: a
-       window resize re-lays-out without a React render. */
-    const unit = `min(${(82 / rows).toFixed(2)}dvh, ${((94 / cols) * 0.42).toFixed(2)}vw)`
-
-    /* Phone values are ordinary tokens: at 1 column with a floor on the row
-       height the cell arithmetic would just fight the scroll container. */
-    const numberSize = { base: "4xl", md: `clamp(2.25rem, calc(${unit} * 0.4), 13rem)` }
-    const labelSize = { base: "2xs", md: `clamp(0.625rem, calc(${unit} * 0.07), 1.5rem)` }
-    const nameSize = { base: "lg", md: `clamp(1rem, calc(${unit} * 0.15), 4rem)` }
-    const scoreSize = { base: "xl", md: `clamp(1.1rem, calc(${unit} * 0.17), 4.5rem)` }
-    const blockW = { base: "84px", md: `clamp(4.5rem, calc(${unit} * 0.8), 18rem)` }
+    /* Every size below is a plain px string built from `z`, so the two modes
+       differ by exactly one multiplier and nothing else. */
+    const nameSize = `${z.name}px`
+    const scoreSize = `${z.score}px`
+    const labelSize = `${z.label}px`
+    const badgePadX = `${Math.round(z.padX * 0.6)}px`
+    const badgePadY = `${Math.round(z.padY * 0.25)}px`
 
     const pairLine = (name: string, score: string, isWinner: boolean) => (
-        <HStack gap={{ base: "2", md: "4" }} minW="0" align="center">
+        <HStack gap={`${z.rowGap}px`} minW="0" align="center">
             {isWinner && (
-                /* react-icons default to 1em, so the trophy scales with the
+                /* react-icons default to 1em, so the medal scales with the
                    name it belongs to without a second size formula. */
                 <Box color="green.fg" flexShrink={0} fontSize={nameSize} display="flex" aria-hidden="true">
                     <FiAward />
@@ -81,16 +74,23 @@ export default function FullscreenRoundBoard({
                 fontSize={nameSize}
                 fontWeight={isWinner ? "bold" : "medium"}
                 color={isWinner ? "green.fg" : "fg.ink"}
-                lineHeight="1.15"
-                overflow="hidden"
-                textOverflow="ellipsis"
-                whiteSpace="nowrap"
+                lineHeight="1.2"
+                /* Two lines, then ellipsis: long pair names must READ, but a
+                   card in a grid row can't be allowed to grow without a
+                   ceiling either. `break-word` keeps a single very long token
+                   inside the card instead of widening the column. */
+                lineClamp={2}
+                wordBreak="break-word"
             >
                 {name}
             </Text>
             {score !== "" && (
                 <Text
                     flexShrink={0}
+                    /* A floor wide enough for one digit, so the two scores on
+                       a card line up under each other. */
+                    minW={`${Math.round(z.score * 0.7)}px`}
+                    textAlign="right"
                     fontSize={scoreSize}
                     fontWeight="bold"
                     lineHeight="1"
@@ -106,18 +106,13 @@ export default function FullscreenRoundBoard({
     return (
         <Box
             display="grid"
-            /* Two different jobs at the two sizes, and they need different
-               boxes. On a screen the board OWNS its height: `100%` + `1fr`
-               rows means the cards divide the viewport between them and
-               nothing ever scrolls. On a phone the column is one card wide
-               and the round is simply a list, so the height goes back to
-               `auto` with a floor per card — a definite 100% there would pin
-               the rows to a screenful and clip whatever didn't fit instead of
-               letting the container scroll. */
-            h={{ base: "auto", md: "100%" }}
-            gridTemplateColumns={{ base: "minmax(0, 1fr)", md: `repeat(${cols}, minmax(0, 1fr))` }}
-            gridAutoRows={{ base: "minmax(96px, auto)", md: "minmax(0, 1fr)" }}
-            gap={{ base: "2", md: "3" }}
+            /* `min(px, 100%)` rather than a bare px floor: on a 390px phone the
+               "Veće" floor (435px) would otherwise overflow the viewport
+               instead of collapsing to one full-width column. */
+            gridTemplateColumns={`repeat(auto-fill, minmax(min(${z.minCol}px, 100%), 1fr))`}
+            gridAutoRows="auto"
+            alignContent="start"
+            gap={`${z.gap}px`}
         >
             {matches.map((m) => {
                 const a = m.pair1Name ?? (m.pair1Id ? pairById.get(m.pair1Id)?.name : undefined) ?? "—"
@@ -133,40 +128,50 @@ export default function FullscreenRoundBoard({
                     <Box
                         key={m.id}
                         display="flex"
-                        alignItems="stretch"
+                        flexDirection="column"
+                        gap={`${z.rowGap}px`}
                         minW="0"
-                        minH="0"
-                        overflow="hidden"
-                        rounded="xl"
+                        rounded="l3"
                         borderWidth="1px"
                         borderColor={isBye ? "blue.muted" : "border.emphasized"}
                         bg="bg.panel"
                         shadow="card"
+                        px={`${z.padX}px`}
+                        py={`${z.padY}px`}
                     >
-                        {/* The thing a player is scanning for. Solid brand
-                            fill, full card height, and the only block on the
-                            card allowed to be loud. */}
-                        <Box
-                            w={blockW}
-                            flexShrink={0}
+                        {/* The thing a player scans for, in one compact chip:
+                            loud enough to find from across the hall, small
+                            enough that it never costs the names their room. */}
+                        <HStack
+                            alignSelf="flex-start"
+                            align="baseline"
+                            gap={`${Math.round(z.rowGap * 0.75)}px`}
+                            rounded="l2"
+                            px={badgePadX}
+                            py={badgePadY}
                             bg={isBye ? "blue.subtle" : "brand.solid"}
                             color={isBye ? "blue.fg" : "brand.contrast"}
-                            display="flex"
-                            flexDirection="column"
-                            alignItems="center"
-                            justifyContent="center"
-                            textAlign="center"
-                            px="1"
-                            gap="0.5"
                         >
                             {isBye ? (
-                                /* Deliberately the SCORE size, not the table
-                                    number's: the bye block should read as
-                                    "nothing to play here", not compete with the
-                                    table numbers a player is scanning for. */
-                                <Box fontSize={scoreSize} display="flex" aria-hidden="true">
-                                    <FiCheckCircle />
-                                </Box>
+                                <>
+                                    <Box
+                                        fontSize={labelSize}
+                                        display="flex"
+                                        alignSelf="center"
+                                        aria-hidden="true"
+                                    >
+                                        <FiCheckCircle />
+                                    </Box>
+                                    <Text
+                                        fontSize={labelSize}
+                                        fontWeight="bold"
+                                        letterSpacing="wider"
+                                        textTransform="uppercase"
+                                        lineHeight="1.2"
+                                    >
+                                        {tr("tournament.bracket.bye")}
+                                    </Text>
+                                </>
                             ) : (
                                 <>
                                     <Text
@@ -175,63 +180,40 @@ export default function FullscreenRoundBoard({
                                         letterSpacing="wider"
                                         textTransform="uppercase"
                                         lineHeight="1.2"
-                                        opacity={0.85}
+                                        opacity={0.9}
                                     >
                                         {tr("tournament.tableLabel")}
                                     </Text>
                                     <Text
-                                        fontSize={numberSize}
+                                        fontSize={`${z.tableNo}px`}
                                         fontWeight="bold"
-                                        lineHeight="1"
+                                        lineHeight="1.1"
                                         fontVariantNumeric="tabular-nums"
                                     >
                                         {m.tableNo}
                                     </Text>
                                 </>
                             )}
-                        </Box>
+                        </HStack>
 
-                        <Box
-                            flex="1"
-                            minW="0"
-                            display="flex"
-                            flexDirection="column"
-                            justifyContent="center"
-                            gap={{ base: "1.5", md: "2" }}
-                            px={{ base: "3", md: "5" }}
-                            py={{ base: "2", md: "3" }}
-                        >
-                            {isBye ? (
-                                <>
-                                    <Text
-                                        fontSize={nameSize}
-                                        fontWeight="bold"
-                                        color="fg.ink"
-                                        lineHeight="1.15"
-                                        overflow="hidden"
-                                        textOverflow="ellipsis"
-                                        whiteSpace="nowrap"
-                                    >
-                                        {a}
-                                    </Text>
-                                    <Text
-                                        fontSize={labelSize}
-                                        fontWeight="semibold"
-                                        letterSpacing="wider"
-                                        textTransform="uppercase"
-                                        color="blue.fg"
-                                    >
-                                        {tr("tournament.bracket.bye")}
-                                    </Text>
-                                </>
-                            ) : (
-                                <>
-                                    {pairLine(a, scoreA, aWon)}
-                                    <Box h="1px" bg="border.subtle" flexShrink={0} />
-                                    {pairLine(b, scoreB, bWon)}
-                                </>
-                            )}
-                        </Box>
+                        {isBye ? (
+                            <Text
+                                fontSize={nameSize}
+                                fontWeight="bold"
+                                color="fg.ink"
+                                lineHeight="1.2"
+                                lineClamp={2}
+                                wordBreak="break-word"
+                            >
+                                {a}
+                            </Text>
+                        ) : (
+                            <>
+                                {pairLine(a, scoreA, aWon)}
+                                <Box h="1px" bg="border.subtle" flexShrink={0} />
+                                {pairLine(b, scoreB, bWon)}
+                            </>
+                        )}
                     </Box>
                 )
             })}

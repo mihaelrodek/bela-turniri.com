@@ -120,6 +120,32 @@ jobs:
         run: npm audit --audit-level=high
         continue-on-error: true
 
+  game:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: game
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: game/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build server bundle
+        run: npm run build:server
+
   docker-build:
     runs-on: ubuntu-latest
     # Build-only smoke test for both prod images - catches a broken

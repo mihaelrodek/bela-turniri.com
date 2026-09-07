@@ -1,0 +1,31 @@
+{
+  "name": "bela-game",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Bela online: engine, bots, protocol and the realtime game server (see README.md)",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p packages/protocol && tsc -p packages/engine && tsc -p packages/bots && tsc -p packages/server",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev:server": "npm run dev -w @bela/server",
+    "build:server": "npm run build -w @bela/server",
+    "lint": "eslint packages --ext .ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "fsevents@2.3.3": true
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@bela/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/index.js --sourcemap --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@bela/bots": "*",
+    "@bela/engine": "*",
+    "@bela/protocol": "*",
+    "jose": "^6.0.11",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.25.11",
+    "tsx": "^4.20.5"
+  }
+}

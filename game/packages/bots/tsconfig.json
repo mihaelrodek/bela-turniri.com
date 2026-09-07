@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@bela/engine": [
+        "../engine/src/index.ts"
+      ],
+      "@bela/protocol": [
+        "../protocol/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src",
+    "test"
+  ]
+}

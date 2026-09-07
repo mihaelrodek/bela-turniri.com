@@ -194,7 +194,7 @@ export const common: CommonDict = {
     "clipboard.copyFailed": "Kopiranje ni uspelo",
 
     // --- Calendar subscribe dialog -----------------------------------------------
-    "calendar.subscribeButton": "Naroči se na koledar",
+    "calendar.subscribeButton": "Naroči se",
     "calendar.dialogTitle": "Naročnina na koledar turnirjev",
     "calendar.description":
         "Naroči se enkrat in koledar se bo samodejno osveževal — novi in prihajajoči turnirji se bodo pojavili samodejno, brez ponovnega prenosa.",

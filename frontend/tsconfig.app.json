@@ -10,6 +10,14 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
+    /* Mirrors the Vite aliases: the online-bela engine and protocol are
+       consumed from the sibling `game/` workspace as TypeScript source.
+       `include` stays ["src"] — these files are pulled in as dependencies
+       of the imports that reference them, not compiled as roots. */
+    "paths": {
+      "@bela/engine": ["../game/packages/engine/src/index.ts"],
+      "@bela/protocol": ["../game/packages/protocol/src/index.ts"]
+    },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",

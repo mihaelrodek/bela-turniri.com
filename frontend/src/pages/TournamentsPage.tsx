@@ -641,15 +641,20 @@ export default function TournamentsPage() {
                                 )}
                             </Box>
 
-                            {/* "Sortiraj" keeps its label on phones too (the
-                                icon-only collapse was a deliberate space
-                                trade-off, dropped on request) — this row
-                                wraps instead of overflowing when that plus
-                                "Filteri" don't both fit 390px. */}
-                            <HStack gap="2" wrap="wrap" rowGap="2" justify={{ base: "space-between", md: "flex-start" }}>
+                            {/* Filteri + Sortiraj + the grid/list toggle share
+                                ONE row even at 360px: the two buttons are
+                                allowed to shrink and truncate their label
+                                (`minW="0"` on the button, `minW="0"` +
+                                `truncate` on the text span), and the toggle
+                                is pinned to the right with `ml="auto"` so it
+                                never gets squeezed out first. */}
+                            <HStack gap="2" align="center" wrap="nowrap">
                                 <Button
-                                    h={{ base: "42px", md: "44px" }}
-                                    px={{ base: "3", md: "4" }}
+                                    size={{ base: "sm", md: "md" }}
+                                    h={{ base: "36px", md: "44px" }}
+                                    px={{ base: "2", md: "4" }}
+                                    minW="0"
+                                    flexShrink="1"
                                     variant={activeFilterCount > 0 ? "solid" : "outline"}
                                     colorPalette={activeFilterCount > 0 ? "brand" : "gray"}
                                     bg={activeFilterCount > 0 ? undefined : "bg.panel"}
@@ -661,7 +666,12 @@ export default function TournamentsPage() {
                                         ? tt("pages.tournaments.filters.toggleHide")
                                         : tt("pages.tournaments.filters.toggleShow")}
                                 >
-                                    <FiFilter /> {tt("pages.tournaments.filters.button")}
+                                    <Box flexShrink="0" display="inline-flex">
+                                        <FiFilter />
+                                    </Box>
+                                    <Box as="span" minW="0" truncate>
+                                        {tt("pages.tournaments.filters.button")}
+                                    </Box>
                                     {activeFilterCount > 0 && (
                                         <Box
                                             ml="1"
@@ -670,23 +680,29 @@ export default function TournamentsPage() {
                                             bg="whiteAlpha.400"
                                             fontSize="2xs"
                                             fontWeight="bold"
+                                            flexShrink="0"
                                         >
                                             {activeFilterCount}
                                         </Box>
                                     )}
-                                    {filtersOpen ? <FiChevronUp /> : <FiChevronDown />}
+                                    <Box flexShrink="0" display="inline-flex">
+                                        {filtersOpen ? <FiChevronUp /> : <FiChevronDown />}
+                                    </Box>
                                 </Button>
 
                                 <Menu.Root>
                                     <Menu.Trigger asChild>
                                         <Button
-                                            h={{ base: "42px", md: "44px" }}
-                                            px={{ base: "3", md: "4" }}
+                                            size={{ base: "sm", md: "md" }}
+                                            h={{ base: "36px", md: "44px" }}
+                                            px={{ base: "2", md: "4" }}
                                             // Sized on md+ to the LONGEST label, not
                                             // the active one, so picking a different
                                             // sort never resizes the button and
-                                            // shifts the switcher beside it.
-                                            minW={{ base: "auto", md: "230px" }}
+                                            // shifts the switcher beside it. On
+                                            // phones it shrinks freely instead.
+                                            minW={{ base: "0", md: "230px" }}
+                                            flexShrink="1"
                                             variant="outline"
                                             colorPalette="gray"
                                             bg="bg.panel"
@@ -694,14 +710,24 @@ export default function TournamentsPage() {
                                             fontWeight="semibold"
                                             aria-label={tt("pages.tournaments.sort.label")}
                                         >
-                                            <FiSliders />
-                                            <Box as="span">
-                                                {tt("pages.tournaments.sort.label")}{" "}
+                                            <Box flexShrink="0" display="inline-flex">
+                                                <FiSliders />
+                                            </Box>
+                                            {/* The "Sortiraj:" prefix only shows on
+                                                md+ — on phones the icon plus the
+                                                current value ("Najraniji prvi") is
+                                                the whole story. */}
+                                            <Box as="span" minW="0" truncate>
+                                                <Box as="span" display={{ base: "none", md: "inline" }}>
+                                                    {tt("pages.tournaments.sort.label")}{" "}
+                                                </Box>
                                                 <Box as="span" color="brand.fg" fontWeight="bold">
                                                     {sortLabel}
                                                 </Box>
                                             </Box>
-                                            <FiChevronDown />
+                                            <Box flexShrink="0" display="inline-flex">
+                                                <FiChevronDown />
+                                            </Box>
                                         </Button>
                                     </Menu.Trigger>
                                     <Portal>
@@ -745,13 +771,14 @@ export default function TournamentsPage() {
 
                                 <HStack
                                     gap="1"
-                                    h={{ base: "42px", md: "44px" }}
+                                    h={{ base: "36px", md: "44px" }}
                                     px="1"
                                     bg="bg.panel"
                                     borderWidth="1px"
                                     borderColor="border.subtle"
                                     rounded="lg"
                                     flexShrink="0"
+                                    ml="auto"
                                     role="group"
                                     aria-label={tt("pages.tournaments.view.label")}
                                 >

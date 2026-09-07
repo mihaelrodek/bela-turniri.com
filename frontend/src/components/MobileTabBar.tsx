@@ -99,10 +99,14 @@ export default function MobileTabBar() {
     // collide with this row at the same viewport bottom). Auth pages
     // also hide it — there's nothing to navigate to until the user
     // signs in.
+    // The online-bela table (/igra*) is the same case as the create form: it
+    // sizes itself to `100dvh - chrome` and docks the hand on the viewport's
+    // bottom edge, which this bar would sit on top of.
     const hidden =
         pathname.startsWith("/prijava") ||
         pathname.startsWith("/registracija") ||
-        pathname.startsWith("/turniri/novi")
+        pathname.startsWith("/turniri/novi") ||
+        pathname.startsWith("/igra")
 
     if (hidden) return null
 

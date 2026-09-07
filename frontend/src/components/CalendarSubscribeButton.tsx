@@ -63,8 +63,20 @@ export default function CalendarSubscribeButton() {
 
     return (
         <>
-            <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-                <FiCalendar /> {t("common.calendar.subscribeButton")}
+            {/* Text collapses to icon-only below md — the calendar toolbar
+                (view toggle + "U blizini" + this) has to fit one row at
+                390px, and "Pretplati se" is the one word this button can
+                give up first without losing its meaning (the dialog it
+                opens repeats it in full). */}
+            <Button
+                size="sm"
+                variant="outline"
+                px={{ base: "2", md: "4" }}
+                onClick={() => setOpen(true)}
+                whiteSpace="nowrap"
+            >
+                <FiCalendar />
+                {t("common.calendar.subscribeButton")}
             </Button>
             <Dialog.Root
                 open={open}

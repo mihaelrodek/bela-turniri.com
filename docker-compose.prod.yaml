@@ -199,6 +199,36 @@ services:
     networks:
       - bela_internal
 
+  game:
+    build:
+      context: ./game
+      dockerfile: packages/server/Dockerfile
+    image: bela-game:latest
+    container_name: bela-game
+    <<: *default-logging
+    restart: unless-stopped
+    # Sized for a small VPS - Node.js WebSocket server footprint is light
+    # (primarily memory for active connections; CPU for game logic).
+    mem_limit: 256m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8285/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    environment:
+      # Game server port (must match Dockerfile EXPOSE 8285)
+      GAME_PORT: 8285
+      # Firebase OIDC — game server verifies auth tokens just like the backend
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      # CORS origins for the WebSocket handshake (same as backend)
+      GAME_CORS_ORIGINS: ${CORS_ORIGINS}
+      # Development: allow anonymous connections for testing (prod: unset)
+      GAME_DEV_ALLOW_ANON: ${GAME_DEV_ALLOW_ANON:-}
+    networks:
+      - bela_internal
+
   edge:
     build:
       context: .
@@ -229,6 +259,9 @@ services:
       # flaps during startup.
       backend:
         condition: service_started
+      # Game server must be healthy before edge starts routing to it
+      game:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
@@ -242,6 +275,10 @@ services:
       # ./ops/maintenance/ENABLED on the host; Caddy serves the
       # "Nadogradnja u tijeku" 503 page while that file exists.
       - ./ops/maintenance:/maintenance:ro
+      # Game feature flag (read-only). Toggle with `touch`/`rm
+      # ./ops/game-flag/ENABLED` - Caddy's /game-status.json reflects it
+      # instantly, the SPA polls that to show/hide "Igraj" without a redeploy.
+      - ./ops/game-flag:/game-flag:ro
     networks:
       - bela_internal
 

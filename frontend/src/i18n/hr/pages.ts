@@ -55,7 +55,7 @@ export const pages = {
        The listing's own control is now the "U krugu od" slider inside the
        filter panel; `nearMe.label` stays because CalendarPage still labels
        its own toggle with it. */
-    "tournaments.nearMe.label": "Blizu mene",
+    "tournaments.nearMe.label": "U blizini",
     "tournaments.nearMe.deniedTitle": "Lokacija nije dostupna",
     "tournaments.nearMe.deniedDescription":
         "Dopusti pristup lokaciji u pregledniku da bi filter po udaljenosti radio.",
@@ -190,11 +190,6 @@ export const pages = {
     "calendar.emptyAgenda.description":
         "Čim netko objavi novi turnir, pojavit će se ovdje. Pretplati se na kalendar i stiže ti automatski.",
     "calendar.emptyAgenda.cta": "Pogledaj sve turnire",
-    "calendar.emptyMonth.title": "Ovaj mjesec nema turnira",
-    "calendar.emptyMonth.description":
-        "Prazan mjesec je normalan — turniri se najavljuju nekoliko tjedana unaprijed.",
-    "calendar.emptyMonth.jump": "Skoči na {month}",
-    "calendar.emptyMonth.noneAhead": "Nema najavljenih turnira ni u jednom drugom mjesecu.",
 
     // --- Dan u mjesečnoj mreži ----------------------------------------------
     "calendar.day.selectAria": "Prikaži turnire za {date}",

@@ -63,6 +63,7 @@ export const profile = {
     "tournaments.emptyFiltered": "Nema turnira za odabrane filtere.",
 
     // --- Profile header: avatar, name, phone -------------------------------
+    "nav.sectionsAria": "Odjeljci profila",
     "avatar.alt": "Profilna slika",
     "avatar.change": "Promijeni profilnu sliku",
     "avatar.upload": "Učitaj profilnu sliku",

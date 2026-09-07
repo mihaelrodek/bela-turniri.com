@@ -52,6 +52,7 @@ export const profile: ProfileDict = {
     "tournaments.emptyFiltered": "Ni turnirjev za izbrane filtre.",
 
     // --- Profile header -----------------------------------------------------
+    "nav.sectionsAria": "Razdelki profila",
     "avatar.alt": "Profilna slika",
     "avatar.change": "Zamenjaj profilno sliko",
     "avatar.upload": "Naloži profilno sliko",

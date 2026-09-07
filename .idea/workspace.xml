@@ -7,143 +7,35 @@
     <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.env.prod.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.prod.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.github/workflows/ci.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/ci.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Caddyfile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DEPLOY.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEPLOY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/mvnw.cmd" beforeDir="false" afterPath="$PROJECT_DIR$/backend/mvnw.cmd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/StartupSanityCheck.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/StartupSanityCheck.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/AdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/AdminController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/CjenikController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/CjenikController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/HomePreviewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/HomePreviewController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/MatchBillController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/MatchBillController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/PairClaimController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/PairClaimController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/PairRequestController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/PairRequestController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/PresetClaimController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/PresetClaimController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/ProfilePreviewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/ProfilePreviewController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/PublicProfileController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/PublicProfileController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/PushController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/PushController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/ResourceController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/ResourceController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/RoundController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/RoundController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/SitemapController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/SitemapController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentPreviewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentPreviewController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserDrinkTemplateController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserDrinkTemplateController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserInvoicesController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserInvoicesController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserMeController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserMeController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserPairPresetController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserPairPresetController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/AddMatchDrinkRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/AddMatchDrinkRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/CreatePairRequestRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/CreatePairRequestRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/CreateTournamentRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/CreateTournamentRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/DrinkPriceDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/DrinkPriceDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/MatchBillDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/MatchBillDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PaidRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PaidRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PairDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PairDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PairRequestDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PairRequestDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PodiumRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PodiumRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PreserveMatchmakingRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PreserveMatchmakingRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/SaveDrinkPricesRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/SaveDrinkPricesRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/SelfRegisterPairRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/SelfRegisterPairRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/SyncProfileRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/SyncProfileRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/TournamentDetailsResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/TournamentDetailsResponse.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/UpdateMatchRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/UpdateMatchRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/UserPairPresetDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/UserPairPresetDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/UserProfileDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/UserProfileDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/errors/ConstraintViolationExceptionMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/errors/ConstraintViolationExceptionMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/errors/GenericExceptionMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/errors/GenericExceptionMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/errors/IllegalArgumentExceptionMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/errors/IllegalArgumentExceptionMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/errors/IllegalStateExceptionMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/errors/IllegalStateExceptionMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/errors/NotFoundExceptionMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/errors/NotFoundExceptionMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/Matches.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/Matches.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/Standings.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/Tournaments.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/Tournaments.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/UserProfile.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/UserProfile.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/MatchDrinkRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/MatchDrinkRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/MatchesRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/MatchesRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/PairRequestRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/PairRequestRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/PushSubscriptionRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/PushSubscriptionRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/TournamentsRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/TournamentsRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/CjenikService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/CjenikService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/GeocodeService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/GeocodeService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/MatchBillService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/MatchBillService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/PushService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/PushService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/RepassageService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/RepassageService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/RoundService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/RoundService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/SlugService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/SlugService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/StorageService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/StorageService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/TournamentSlugService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/TournamentSlugService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.prod.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.prod.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/public/manifest.webmanifest" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/manifest.webmanifest" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/public/sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/sw.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/App.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/admin.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/cjenik.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/cjenik.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/createTournament.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/http.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/http.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/pairClaim.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/pairClaim.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/pairRequests.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/pairRequests.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/pairs.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/presetClaim.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/presetClaim.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/push.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/push.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/round.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/round.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/tournaments.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/tournaments.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/upload.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/userMe.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/userMe.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/userPairPresets.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/userPairPresets.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/auth/AuthContext.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/auth/AuthContext.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/color-mode.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/color-mode.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/AdminDashboardTab.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/AdminDashboardTab.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/AdminPlayersListTab.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/AdminPlayersListTab.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/AvatarPreview.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/AvatarPreview.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/CjenikTab.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/CjenikTab.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/FirstRunInstallPrompt.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/FirstRunInstallPrompt.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/IosInstallSteps.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/IosInstallSteps.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/LocationAutocomplete.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/LocationAutocomplete.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/LocationMapPicker.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/LocationMapPicker.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ManualRoundDialog.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ManualRoundDialog.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/MatchBillButton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MatchBillButton.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/CalendarSubscribeButton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/CalendarSubscribeButton.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/PageTour.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/PageTour.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/PairRow.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/PodiumEditor.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/PodiumEditor.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/RequireAuth.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/RequireAuth.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ThemeSync.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ThemeSync.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/tourSteps.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/tourSteps.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/datepicker.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/datepicker.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/hooks/useDocumentHead.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/hooks/useDocumentHead.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/hooks/useInstallPrompt.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/hooks/useInstallPrompt.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/hooks/usePushSubscription.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/hooks/usePushSubscription.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/main.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/main.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/SiteFooter.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/SiteFooter.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/TournamentSidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/TournamentSidebar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/pages/CalendarPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/CalendarPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/ClaimNamePage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/ClaimNamePage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/ClaimPairPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/ClaimPairPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/CreateTournamentPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/CreateTournamentPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/FindPairPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/FindPairPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/LoginPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/LoginPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/MapPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/MapPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/NotFoundPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/NotFoundPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/ProfileRedirect.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/ProfileRedirect.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx.head" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/RegisterPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/RegisterPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentDetailsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentDetailsPage.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/system.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/system.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/toaster.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/toaster.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/types/tournaments.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/types/tournaments.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/utils/distance.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/utils/distance.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/utils/drinkPresets.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/utils/drinkPresets.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/FullscreenRoundBoard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/FullscreenRoundBoard.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/MatchRow.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/MatchRow.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/fullscreenSize.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/fullscreenSize.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tsconfig.app.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tsconfig.app.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/vite.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/vite.config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ops/deploy.sh" beforeDir="false" afterPath="$PROJECT_DIR$/ops/deploy.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -177,49 +69,49 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Application.BelaTurniriApplication.executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [clean].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [compile].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [install].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [test].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [validate].executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Quarkus Application.BelaTurniriApplication.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.restore.workspace.module&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feat/futsal-parity&quot;,
-    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;ignore_missing_gitignore&quot;: &quot;true&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/mihaelrodek/Programming/bela-turniri.com/frontend&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_interpreter_path&quot;: &quot;node&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;settings.javascript.runtime&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;D:\\Mihael\\Aplikacije\\bela-turniri.hr\\frontend\\node_modules\\typescript\\lib&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Application.BelaTurniriApplication.executor": "Run",
+    "Maven.bela-turniri [clean].executor": "Run",
+    "Maven.bela-turniri [compile].executor": "Run",
+    "Maven.bela-turniri [install].executor": "Run",
+    "Maven.bela-turniri [test].executor": "Run",
+    "Maven.bela-turniri [validate].executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Quarkus Application.BelaTurniriApplication.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.go.formatter.settings.were.checked": "true",
+    "RunOnceActivity.go.migrated.go.modules.settings": "true",
+    "RunOnceActivity.restore.workspace.module": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "main",
+    "go.import.settings.migrated": "true",
+    "ignore.virus.scanning.warn.message": "true",
+    "ignore_missing_gitignore": "true",
+    "javascript.preferred.runtime.type.id": "node",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/Users/mihaelrodek/Programming/bela-turniri.com/frontend",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_interpreter_path": "node",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "settings.javascript.runtime",
+    "to.speed.mode.migration.done": "true",
+    "ts.external.directory.path": "/Users/mihaelrodek/Programming/bela-turniri.com/game/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/frontend" />

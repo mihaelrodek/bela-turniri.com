@@ -60,6 +60,7 @@ git pull --ff-only
 echo "🏷  Tagging current images as :previous (rollback point)…"
 docker tag bela-backend:latest bela-backend:previous 2>/dev/null || true
 docker tag bela-edge:latest bela-edge:previous 2>/dev/null || true
+docker tag bela-game:latest bela-game:previous 2>/dev/null || true
 
 echo "🐳 Rebuild + restart…"
 if ! "${COMPOSE[@]}" up -d --build; then
@@ -71,6 +72,10 @@ if ! "${COMPOSE[@]}" up -d --build; then
     fi
     if docker image inspect bela-edge:previous >/dev/null 2>&1; then
         docker tag bela-edge:previous bela-edge:latest
+        ROLLED_BACK=1
+    fi
+    if docker image inspect bela-game:previous >/dev/null 2>&1; then
+        docker tag bela-game:previous bela-game:latest
         ROLLED_BACK=1
     fi
     if [[ "$ROLLED_BACK" -eq 1 ]]; then

@@ -31,7 +31,7 @@ export const pages: PagesDict = {
     "tournaments.seo.ogDescription":
         "Pregled vseh prihajajočih in odigranih Bela turnirjev na Hrvaškem in v regiji.",
 
-    "tournaments.nearMe.label": "Blizu mene",
+    "tournaments.nearMe.label": "V bližini",
     "tournaments.nearMe.deniedTitle": "Lokacija ni na voljo",
     "tournaments.nearMe.deniedDescription":
         "Dovoli dostop do lokacije v brskalniku, da bo filter razdalje deloval.",
@@ -142,11 +142,6 @@ export const pages: PagesDict = {
     "calendar.emptyAgenda.description":
         "Takoj ko kdo objavi nov turnir, se bo pojavil tukaj. Naroči se na koledar in pride samodejno.",
     "calendar.emptyAgenda.cta": "Poglej vse turnirje",
-    "calendar.emptyMonth.title": "Ta mesec ni turnirjev",
-    "calendar.emptyMonth.description":
-        "Prazen mesec je običajen — turnirji se napovedujejo nekaj tednov vnaprej.",
-    "calendar.emptyMonth.jump": "Skoči na {month}",
-    "calendar.emptyMonth.noneAhead": "V nobenem drugem mesecu ni napovedanih turnirjev.",
 
     "calendar.day.selectAria": "Prikaži turnirje za {date}",
     "calendar.day.none": "Na ta dan ni turnirjev.",

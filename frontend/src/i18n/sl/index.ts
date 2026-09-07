@@ -6,6 +6,7 @@ import { pages } from "./pages"
 import { forms } from "./forms"
 import { admin } from "./admin"
 import { legal } from "./legal"
+import { game } from "./game"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Slovenian dictionary. Same six namespaces as `../hr`, in the same order;
@@ -24,4 +25,5 @@ export const sl: Dictionary = {
     forms,
     admin,
     legal,
+    game,
 }

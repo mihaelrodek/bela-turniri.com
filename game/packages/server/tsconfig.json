@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@bela/engine": [
+        "../engine/src/index.ts"
+      ],
+      "@bela/protocol": [
+        "../protocol/src/index.ts"
+      ],
+      "@bela/bots": [
+        "../bots/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src",
+    "test"
+  ]
+}

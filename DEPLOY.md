@@ -135,6 +135,45 @@ docker compose -f docker-compose.prod.yaml down
 docker compose -f docker-compose.prod.yaml down -v
 ```
 
+## Game server
+
+The standalone Node.js WebSocket server for live Bela card games runs alongside
+the main stack (`bela-game` service). It listens on **port 8285** internally,
+reachable from the browser at the public path **/ws/game** (Caddy routes this
+via the internal Docker network).
+
+Environment variables (in `.env.prod`):
+- `GAME_PORT=8285` — server listen port (must match Dockerfile EXPOSE).
+- `FIREBASE_PROJECT_ID` — game server verifies auth tokens against the same
+  Firebase project as the backend.
+- `GAME_CORS_ORIGINS` — WebSocket CORS whitelist (typically same as
+  `CORS_ORIGINS`).
+- `GAME_DEV_ALLOW_ANON=1` — dev only: allow anonymous sessions for testing
+  (omit in prod).
+
+The `./ops/deploy.sh` script rebuilds the game image alongside the backend and
+edge, and includes `bela-game` in the image-rollback logic. The Caddy routing
+(see Caddyfile, `/ws/game*` block) strips the `/ws/game` prefix and reverse-proxies
+to `game:8285`, allowing the game server to serve WebSockets at the internal path `/`.
+
+Health check: `GET http://localhost:8285/health` (must return 200). If the
+server is unhealthy, the edge service refuses to start until it recovers.
+
+### Feature flag ("Igraj" kill switch)
+
+The game ships **off by default** — a fresh box has no
+`ops/game-flag/ENABLED` file, so `/game-status.json` answers
+`{"enabled":false}`, the "Igraj" nav link stays hidden, and `/igra` bounces
+signed-in visitors back to `/`. Same trick as the maintenance flag: it's a
+host bind-mount Caddy stat()s per request, so no rebuild/redeploy/reload
+is needed to flip it.
+
+```bash
+./ops/toggle-game.sh on      # switch it on
+./ops/toggle-game.sh off     # switch it off
+./ops/toggle-game.sh status  # check current state
+```
+
 ## Maintenance mode, deploy scripts, backups
 
 ### `ops/deploy.sh` and `ops/up.sh`

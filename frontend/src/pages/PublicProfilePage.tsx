@@ -15,7 +15,8 @@ import { Link as RouterLink, useNavigate, useParams } from "react-router-dom"
 import { FiAlertCircle } from "react-icons/fi"
 import { getPublicProfile, type PublicProfile } from "../api/publicProfile"
 import type { MyTournamentParticipation } from "../api/userMe"
-import { CONTENT_STICKY_TOP, NAVBAR_TOP } from "../components/navChrome"
+import { CONTENT_STICKY_TOP } from "../components/navChrome"
+import { StickyHeaderStrip, StickyPageHeader } from "../components/StickyPageHeader"
 import { useAuth } from "../auth/authContextValue"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 import { errorMessage } from "../utils/apiError"
@@ -394,27 +395,23 @@ export default function PublicProfilePage() {
             </Box>
 
             <VStack align="stretch" gap="4" flex="1" minW="0">
-                {/* Collapsed header for base → lg: no card border any more —
-                    a bare identity row + a pill tab strip, both pinned under
-                    the navbar so they stay reachable while the section below
-                    scrolls. Same frosted-band construction (and the same
-                    `-24px` Container-padding swallow) as
-                    `TournamentSidebar`'s `TournamentMobileBar`, so every
-                    sticky mobile header in the app reads as one system. */}
-                <Box
-                    display={{ base: "block", lg: "none" }}
-                    position="sticky"
-                    top={NAVBAR_TOP}
-                    zIndex={100}
-                    layerStyle="glass.bar"
-                    mt="-24px"
-                    pt="24px"
-                    pb="2"
-                    mb="3"
-                >
+                {/* Collapsed header for base → lg: a bare identity row + a
+                    scrollable pill strip, pinned under the navbar so they
+                    stay reachable while the section below scrolls. It is the
+                    SAME `StickyPageHeader` the tournament shell uses — full
+                    bleed to both screen edges, square, hairline-bottomed, on
+                    the navbar's own frosted surface — so the two headers are
+                    one component rather than two drifting copies. */}
+                <StickyPageHeader display={{ base: "block", lg: "none" }} mb="0">
                     <Box pb="2.5">{identity}</Box>
-                    {sectionNav}
-                </Box>
+                    <StickyHeaderStrip
+                        as="nav"
+                        aria-label={t("profile.nav.sectionsAria")}
+                        activeKey={profileTab}
+                    >
+                        {sectionNav}
+                    </StickyHeaderStrip>
+                </StickyPageHeader>
 
                 {/* === TURNIRI === */}
                 {profileTab === "turniri" && tournamentsCard}
@@ -482,10 +479,16 @@ function TabChunkLoading() {
 
 /**
  * The section links. One component for both shells: a full-width stacked
- * list inside the desktop sidebar card, and a wrapping row of pills in the
- * collapsed card above the content on smaller screens. Only the width, the
- * radius and the flex direction differ, so a second component would just be
- * two copies of the same active-state logic.
+ * list inside the desktop sidebar card, and a single non-wrapping row of
+ * pills in the pinned band above the content on smaller screens. Only the
+ * width, the radius and the flex direction differ, so a second component
+ * would just be two copies of the same active-state logic.
+ *
+ * Below `lg` the row does NOT wrap. An admin sees seven entries — three of
+ * them the purple admin chips — and a wrapping row put three lines of pills
+ * in a header that is pinned for the whole page, eating a third of a 390px
+ * screen. It scrolls sideways inside `StickyHeaderStrip` instead, which is
+ * also what the tournament shell does with its own section pills.
  */
 function ProfileSectionNav({
     sections,
@@ -499,9 +502,10 @@ function ProfileSectionNav({
     return (
         <Flex
             direction={{ base: "row", lg: "column" }}
-            wrap={{ base: "wrap", lg: "nowrap" }}
+            wrap="nowrap"
             gap="1"
             align="stretch"
+            minW={{ base: "max-content", lg: "0" }}
         >
             {sections.map((s) => {
                 const isActive = s.key === active
@@ -516,11 +520,13 @@ function ProfileSectionNav({
                         key={s.key}
                         type="button"
                         onClick={() => onSelect(s.key)}
+                        data-nav-active={isActive ? "true" : undefined}
                         aria-current={isActive ? "page" : undefined}
                         display="inline-flex"
                         alignItems="center"
                         gap="2"
                         w={{ base: "auto", lg: "full" }}
+                        flexShrink={0}
                         px="3"
                         py="2"
                         border="0"
@@ -540,6 +546,7 @@ function ProfileSectionNav({
                             outlineColor: "brand.focusRing",
                             outlineOffset: "1px",
                         }}
+                        css={{ scrollSnapAlign: "start" }}
                     >
                         <Box
                             as="span"

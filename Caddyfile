@@ -71,6 +71,26 @@ bela-turniri.com, www.bela-turniri.com {
         }
     }
 
+    # ─── 0a. Game feature flag ────────────────────────────────────────
+    # /game-status.json tells the SPA whether the "Igraj" (online bela)
+    # feature is switched on. Same trick as the maintenance flag above:
+    # the flag lives on a host bind-mount (see docker-compose.prod.yaml)
+    # so it's toggled with `touch`/`rm ops/game-flag/ENABLED` - no image
+    # rebuild, no redeploy, no Caddy reload (stat'd per request). Absent
+    # file = disabled, so a fresh box defaults to "off" until you flip it.
+    @game_flag_file {
+        file {
+            root /game-flag
+            try_files /ENABLED
+        }
+    }
+    handle /game-status.json {
+        header Cache-Control "no-store"
+        header Content-Type "application/json"
+        respond @game_flag_file `{"enabled":true}` 200
+        respond `{"enabled":false}` 200
+    }
+
     # ─── 0. Block Quarkus non-application endpoints from the public ─────
     # /api/q/* is the SmallRye health / OpenAPI / metrics namespace. It must
     # NOT be reachable from the internet (it leaks datasource up/down state and
@@ -176,7 +196,29 @@ bela-turniri.com, www.bela-turniri.com {
         }
     }
 
-    # ─── 1b. Realtime websocket ───────────────────────────────────────
+    # ─── 1b. Game server websocket ────────────────────────────────────
+    # Standalone Node.js WebSocket server for real-time game sessions. Must
+    # be placed BEFORE the generic /ws/* handler so it wins the match.
+    #
+    # Path: clients use /ws/game; game server listens on port 8285. `handle_path`
+    # strips /ws/game, leaving just /, which the game server's WebSocket handler
+    # receives. No rewrite needed - game server is not behind a root-path like
+    # the backend.
+    #
+    # Rate limit zone separate from tournament live sockets: game connections
+    # may be more active (card plays, chat, bids) than tournament spectating.
+    handle_path /ws/game* {
+        rate_limit {
+            zone ws_game {
+                key    {remote_host}
+                events 600
+                window 1m
+            }
+        }
+        reverse_proxy game:8285
+    }
+
+    # ─── 1c. Tournament realtime websocket ─────────────────────────────
     # Open tournament pages hold one socket here and get a tiny "something
     # changed" ping when a result is entered, so every spectator sees it
     # without refreshing (the ping carries no data - the client refetches

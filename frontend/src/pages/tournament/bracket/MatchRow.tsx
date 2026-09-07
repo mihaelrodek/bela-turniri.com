@@ -114,8 +114,8 @@ function MatchRow({
         return (
             <Box
                 {...shellProps}
-                px="2.5"
-                py="2"
+                px={{ base: "2", md: "2.5" }}
+                py={{ base: "1.5", md: "2" }}
                 display="flex"
                 alignItems="center"
                 gap="3"
@@ -136,11 +136,13 @@ function MatchRow({
                 <Text
                     fontWeight="semibold"
                     fontSize="sm"
+                    lineHeight={{ base: "1.25", md: "normal" }}
                     flex="1"
                     minW="0"
-                    overflow="hidden"
+                    overflow={{ base: "visible", md: "hidden" }}
                     textOverflow="ellipsis"
-                    whiteSpace="nowrap"
+                    whiteSpace={{ base: "normal", md: "nowrap" }}
+                    wordBreak="break-word"
                 >
                     {a}
                 </Text>
@@ -289,10 +291,20 @@ function MatchRow({
     )
 
     /* Both sides get the SAME treatment: same container, same bounded width,
-       same truncation. The winner is a small award icon, not a
+       same emphasis. The winner is a small award icon, not a
        differently-shaped box — the old build gave pair 1 a filled panel and
        left pair 2 as bare text, so the row read as "one highlighted thing,
-       then some text" instead of "A vs B". */
+       then some text" instead of "A vs B".
+
+       OVERFLOW differs by shell, on purpose. The desktop grid truncates: its
+       two name columns are `minmax(0, 1fr)` either side of a fixed score
+       block, and a wrapping name there would make one row taller than its
+       neighbours and break the column rhythm the whole grid exists for. The
+       phone shell wraps instead — a name is one per line there, nothing is
+       aligned against it, and a clipped "Marko I. / Ivan H…" is unreadable
+       exactly when it matters most: finding your own pair in a round of
+       fifteen tables. `lineHeight` is tightened so a wrapped second line
+       costs ~17px rather than a full leading step. */
     const pairCell = (name: string, isWinner: boolean, align: "start" | "end") => (
         <HStack
             gap="1.5"
@@ -308,9 +320,11 @@ function MatchRow({
                 fontWeight={isWinner ? "semibold" : "normal"}
                 color={isWinner ? "fg.ink" : "fg.soft"}
                 fontSize="sm"
-                overflow="hidden"
+                lineHeight={{ base: "1.25", md: "normal" }}
+                overflow={{ base: "visible", md: "hidden" }}
                 textOverflow="ellipsis"
-                whiteSpace="nowrap"
+                whiteSpace={{ base: "normal", md: "nowrap" }}
+                wordBreak="break-word"
                 textAlign={align === "end" ? "right" : "left"}
                 minW="0"
             >
@@ -327,7 +341,13 @@ function MatchRow({
     /* The hot path of the whole screen: scores typed pitchside, on a phone,
        one-handed. Big targets, numeric keypad, and Enter walks to the next box
        so a round is one continuous entry run. */
-    const scoreBox = (which: "A" | "B", value: string, size: "sm" | "md", w: string) => (
+    const scoreBox = (
+        which: "A" | "B",
+        value: string,
+        size: "sm" | "md",
+        w: string,
+        h?: string,
+    ) => (
         <Input
             data-score-input={which}
             size={size}
@@ -340,6 +360,7 @@ function MatchRow({
                     : tr("tournament.match.scoreAria", { pair: b })
             }
             w={w}
+            h={h}
             textAlign="center"
             fontWeight="bold"
             value={value}
@@ -363,24 +384,33 @@ function MatchRow({
                result is being typed. */
             aria-label={`${a} — ${b} · ${stateLabel}`}
             {...shellProps}
-            px="2.5"
-            py="2"
+            px={{ base: "2", md: "2.5" }}
+            py={{ base: "1.5", md: "2" }}
         >
             {/* Phone layout — scoreboard style. One pair per line with its own
                 score box at the right edge, and a header bar carrying the table
-                chip and the same fixed action slot the desktop grid uses. */}
-            <Box display={{ base: "flex", md: "none" }} flexDirection="column" gap="1.5">
+                chip and the same fixed action slot the desktop grid uses.
+
+                DENSITY: a full round is fifteen of these stacked, so every
+                px here is paid fifteen times. The score inputs are `sm` with
+                a 36px floor rather than a full `md` (40px) box, and the tile
+                padding and inter-row gaps are each one step tighter — about
+                16px off a ~152px tile, a whole extra table per screenful.
+                The 44px action controls are deliberately NOT shrunk: they are
+                the ones actually pressed, at speed, while a round is being
+                entered. */}
+            <Box display={{ base: "flex", md: "none" }} flexDirection="column" gap="1">
                 <HStack justify="space-between" align="center">
                     {tableBadge}
                     {actionSlot}
                 </HStack>
                 <HStack gap="2">
                     <Box flex="1" minW="0">{pairCell(a, !!aIsWinner, "start")}</Box>
-                    {scoreBox("A", m._score1 ?? "", "md", "64px")}
+                    {scoreBox("A", m._score1 ?? "", "sm", "56px", "36px")}
                 </HStack>
                 <HStack gap="2">
                     <Box flex="1" minW="0">{pairCell(b, !!bIsWinner, "start")}</Box>
-                    {scoreBox("B", m._score2 ?? "", "md", "64px")}
+                    {scoreBox("B", m._score2 ?? "", "sm", "56px", "36px")}
                 </HStack>
             </Box>
 

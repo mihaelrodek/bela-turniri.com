@@ -5,6 +5,7 @@ import { pages } from "./pages"
 import { forms } from "./forms"
 import { admin } from "./admin"
 import { legal } from "./legal"
+import { game } from "./game"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Croatian dictionary — the SOURCE OF TRUTH for the whole app.
@@ -26,6 +27,7 @@ export const hr = {
     forms,
     admin,
     legal,
+    game,
 }
 
 /** The shape every other locale must match, key for key. */

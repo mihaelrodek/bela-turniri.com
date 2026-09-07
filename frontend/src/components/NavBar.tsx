@@ -9,6 +9,7 @@ import { useColorMode } from "../color-mode-hooks"
 import { updateColorMode } from "../api/userMe"
 import { useInstallPrompt } from "../hooks/useInstallPrompt"
 import { useInvalidateMyProfile, useMyProfile } from "../hooks/useMyProfile"
+import { useGameEnabled } from "../game/hooks/useGameEnabled"
 import { useTranslation } from "../i18n"
 import { InstallAppButton } from "./InstallAppButton"
 import LanguagePicker from "./LanguagePicker"
@@ -443,6 +444,11 @@ export default function NavBar() {
      */
     const isMobile = useBreakpointValue({ base: true, md: false }, { ssr: false }) ?? false
 
+    // Production kill switch for the online bela feature (see
+    // game/hooks/useGameEnabled.ts) — the "Igraj" link stays hidden until
+    // it resolves true, rather than flashing then disappearing.
+    const gameEnabled = useGameEnabled()
+
     // Bridge for the legacy `bela:profile-updated` window event that
     // PublicProfilePage dispatches after an avatar upload/removal: turn it into
     // a cache invalidation so every consumer of qk.profile repaints (the avatar
@@ -550,6 +556,11 @@ export default function NavBar() {
                         <NavButton to="/turniri/novi">{t("common.nav.kreirajTurnir")}</NavButton>
                         <NavButton to="/karta">{t("common.nav.karta")}</NavButton>
                         <NavButton to="/pronadi-para">{t("common.nav.pronadjiPara")}</NavButton>
+                        {/* Online bela (src/game). Its label lives in the
+                            `game` namespace with the rest of that subtree,
+                            not in `common`. Hidden until the production
+                            flag resolves true — see `gameEnabled` above. */}
+                        {gameEnabled && <NavButton to="/igra">{t("game.nav.igraj")}</NavButton>}
                     </NavCapsule>
 
                     {/* One trigger, nothing else: theme, language and install

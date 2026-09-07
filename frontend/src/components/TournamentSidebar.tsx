@@ -1,7 +1,8 @@
 import type { ReactNode } from "react"
 import { Badge, Box, chakra, Flex, Heading, HStack, Text } from "@chakra-ui/react"
 import { useTranslation } from "../i18n"
-import { CONTENT_STICKY_TOP, NAVBAR_H, NAVBAR_TOP } from "./navChrome"
+import { CONTENT_STICKY_TOP, NAVBAR_H } from "./navChrome"
+import { StickyHeaderStrip, StickyPageHeader } from "./StickyPageHeader"
 
 /* ──────────────────────────────────────────────────────────────────────────
    TournamentSidebar — the navigation shell of the tournament detail screen.
@@ -27,14 +28,11 @@ import { CONTENT_STICKY_TOP, NAVBAR_H, NAVBAR_TOP } from "./navChrome"
    ──────────────
    Both shells derive their `top` from `components/navChrome.ts`, the single
    source of truth for the navbar's rendered height — the values used to be
-   hard-coded here and drifted the moment the header changed size. The mobile
-   band pins at NAVBAR_TOP; the desktop column at CONTENT_STICKY_TOP, which
-   is the same figure plus the app Container's 24px top padding.
-
-   The mobile band also pulls itself up by the Container's own top padding
-   (`mt="-24px"` + matching `pt`) so the painted background reaches the
-   navbar's bottom edge from scroll 0; without that, content scrolled
-   visibly through a 24px transparent strip before the band caught.
+   hard-coded here and drifted the moment the header changed size. The
+   desktop column pins at CONTENT_STICKY_TOP (navbar + the app Container's
+   24px top padding); the mobile band's own offset, its full-bleed geometry
+   and the Container-padding swallow all live in `StickyPageHeader`, shared
+   with the profile page's identical band.
 
    `SIDEBAR_MAX_H` needs one CSS length, not a breakpoint object, so it is
    built from NAVBAR_H's md value — the only breakpoint at which the desktop
@@ -260,7 +258,10 @@ export function TournamentSidebar({
  *
  * The section switcher scrolls horizontally rather than wrapping: four
  * Croatian labels do not fit a 390px phone, and a wrapping row would make
- * the pinned band tall enough to eat a third of the screen.
+ * the pinned band tall enough to eat a third of the screen. It runs to both
+ * screen edges (see `StickyHeaderStrip`) so the row visibly continues past
+ * the viewport instead of looking like a clipped card, and the active pill
+ * is scrolled back into view whenever the section changes.
  */
 export function TournamentMobileBar({
     name,
@@ -278,22 +279,7 @@ export function TournamentMobileBar({
 }) {
     const { t: tr } = useTranslation()
     return (
-        <Box
-            display={{ base: "block", lg: "none" }}
-            position="sticky"
-            top={NAVBAR_TOP}
-            zIndex={100}
-            // Same frosted band as the navbar directly above it, so the two
-            // read as one continuous piece of chrome rather than an opaque
-            // strip stuck under a translucent one.
-            layerStyle="glass.bar"
-            // Swallow the app Container's top padding so the painted band is
-            // flush with the navbar from the very first pixel of scroll.
-            mt="-24px"
-            pt="24px"
-            pb="2"
-            mb="3"
-        >
+        <StickyPageHeader display={{ base: "block", lg: "none" }}>
             <HStack align="flex-start" gap="2" mb="2.5">
                 <Box flex="1" minW="0">
                     <Heading
@@ -316,17 +302,10 @@ export function TournamentMobileBar({
                 )}
             </HStack>
 
-            <Box
+            <StickyHeaderStrip
                 as="nav"
                 aria-label={tr("tournament.nav.sectionsAria")}
-                overflowX="auto"
-                mx="-1"
-                px="1"
-                pb="1"
-                css={{
-                    scrollbarWidth: "none",
-                    "&::-webkit-scrollbar": { display: "none" },
-                }}
+                activeKey={active}
             >
                 <HStack gap="1.5" minW="max-content">
                     {sections.map((s) => {
@@ -337,6 +316,7 @@ export function TournamentMobileBar({
                                 type="button"
                                 onClick={() => onSelect(s.key)}
                                 data-tour={tourAnchors ? s.tour : undefined}
+                                data-nav-active={isActive ? "true" : undefined}
                                 aria-current={isActive ? "page" : undefined}
                                 display="flex"
                                 alignItems="center"
@@ -354,6 +334,7 @@ export function TournamentMobileBar({
                                 borderColor={isActive ? "colorPalette.solid" : "border.subtle"}
                                 cursor="pointer"
                                 transition="background 120ms, color 120ms"
+                                css={{ scrollSnapAlign: "start" }}
                             >
                                 <Box display="flex" alignItems="center">{s.icon}</Box>
                                 <Text as="span" whiteSpace="nowrap">{s.label}</Text>
@@ -361,7 +342,7 @@ export function TournamentMobileBar({
                         )
                     })}
                 </HStack>
-            </Box>
-        </Box>
+            </StickyHeaderStrip>
+        </StickyPageHeader>
     )
 }
