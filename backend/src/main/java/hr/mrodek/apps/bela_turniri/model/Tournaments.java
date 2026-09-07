@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.annotations.Where;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -22,7 +22,7 @@ import java.util.UUID;
 // tournament deleted is a single-field update; once the flag flips, the
 // row vanishes from every read path without us having to audit every
 // repository method.
-@Where(clause = "is_deleted = false")
+@SQLRestriction("is_deleted = false")
 @Getter @Setter @NoArgsConstructor
 public class Tournaments {
 
@@ -156,7 +156,7 @@ public class Tournaments {
 
     /**
      * Soft-delete marker. Set by an admin via DELETE /tournaments/{uuid}.
-     * Combined with the class-level {@code @Where(clause = "is_deleted = false")},
+     * Combined with the class-level {@code @SQLRestriction("is_deleted = false")},
      * once this flips to {@code true} the row disappears from every read.
      */
     @Column(name = "is_deleted", nullable = false)

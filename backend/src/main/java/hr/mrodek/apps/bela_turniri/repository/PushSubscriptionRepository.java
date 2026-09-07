@@ -23,4 +23,18 @@ public class PushSubscriptionRepository implements AppRepository<PushSubscriptio
         if (endpoint == null || endpoint.isBlank()) return;
         delete("endpoint", endpoint);
     }
+
+    /**
+     * Endpoint-scoped delete that also requires ownership. Endpoints are
+     * unguessable, but "unguessable" is not an authorisation model — a
+     * leaked endpoint (they show up in client-side logs and bug reports)
+     * shouldn't let a third party silence someone else's device.
+     *
+     * @return number of rows removed (0 when the endpoint belongs to someone else)
+     */
+    public long deleteByEndpointAndUser(String endpoint, String uid) {
+        if (endpoint == null || endpoint.isBlank()) return 0;
+        if (uid == null || uid.isBlank()) return 0;
+        return delete("endpoint = ?1 and userUid = ?2", endpoint, uid);
+    }
 }

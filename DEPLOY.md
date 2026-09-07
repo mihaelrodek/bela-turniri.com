@@ -134,3 +134,142 @@ docker compose -f docker-compose.prod.yaml down
 # Stop and DELETE all data (full wipe)
 docker compose -f docker-compose.prod.yaml down -v
 ```
+
+## Maintenance mode, deploy scripts, backups
+
+### `ops/deploy.sh` and `ops/up.sh`
+
+Prefer these over a raw `docker compose ... up -d --build` for any update
+that touches production traffic - they show visitors the "Nadogradnja u
+tijeku" (upgrade in progress) page for the duration of the rebuild instead
+of intermittent 502s / connection resets while containers restart.
+
+```bash
+./ops/deploy.sh             # full release: git pull + rebuild + restart + prune
+./ops/up.sh                 # guarded rebuild + restart, no git pull, no prune
+./ops/up.sh backend         # ...only the backend service
+```
+
+Both scripts `touch ops/maintenance/ENABLED` before touching the stack and
+`rm` it in an `EXIT` trap, so the flag always clears - even if the build
+fails or you Ctrl-C. The flag is a plain file on a host bind-mount
+(`./ops/maintenance:/maintenance:ro` on the `edge` service in
+`docker-compose.prod.yaml`); Caddy `stat()`s it per request (see the
+`@maintenance` matcher at the top of the Caddyfile), so toggling it needs no
+image rebuild and no Caddy reload. `ops/maintenance/ENABLED` is gitignored -
+never commit it.
+
+To trigger maintenance mode manually (e.g. for a DB migration you want to
+babysit without traffic in the way):
+
+```bash
+touch ops/maintenance/ENABLED     # ON
+# ...do the thing...
+rm ops/maintenance/ENABLED        # OFF
+```
+
+### Backups
+
+`ops/backup-db.sh` dumps Postgres, gzips it into `./backups/`, and deletes
+anything older than 14 days:
+
+```bash
+./ops/backup-db.sh
+```
+
+Crontab line for a nightly 03:00 backup (as the `deploy` user):
+
+```
+0 3 * * * cd /home/deploy/bela-turniri.com && ./ops/backup-db.sh >> /home/deploy/backups/backup.log 2>&1
+```
+
+For off-site backups, install `rclone`, configure a remote (Backblaze B2 is
+~$6/TB-month, basically free at this scale), and add a second cron line:
+`30 3 * * * rclone sync /home/deploy/bela-turniri.com/backups remote:bela-backups`.
+
+The Hetzner volume snapshots (the +20% backup option you ticked at server
+creation) are *also* taken weekly - they cover the case where Postgres-level
+backups don't help (e.g. you `rm -rf` the whole repo).
+
+### Restoring a backup
+
+`ops/restore-db.sh` reverses `ops/backup-db.sh`: it drops and recreates the
+database, then restores from a given dump file. **Destructive** - everything
+currently in the database is gone once you confirm.
+
+```bash
+./ops/restore-db.sh backups/bela-2026-09-04-0300.sql.gz
+```
+
+It prompts for an explicit `yes` (pass `-y` to skip, e.g. for a scripted
+disaster-recovery drill), shows the maintenance page for the duration (same
+as `ops/deploy.sh` / `ops/up.sh`), stops the backend before touching the
+database, and restarts it afterwards. It picks the restore method from the
+file extension - `.gz` (what `ops/backup-db.sh` produces) is gunzipped into
+`psql`, `.dump`/`.backup` (a custom-format `pg_dump -Fc` archive) goes
+through `pg_restore`, anything else is fed to `psql` as plain SQL.
+
+### `/api/q/*` is no longer public
+
+The SmallRye health / OpenAPI namespace (`/api/q/health`, `/api/q/openapi`,
+etc.) now 404s at the Caddy edge - it leaked datasource up/down state and
+internal route info to anyone who found it. The `backend` service's own
+Docker healthcheck (`docker compose ps`) and the `depends_on` startup
+ordering still hit it directly on the internal network, so nothing
+legitimate is affected. If you need it for local debugging, `docker compose
+exec backend curl localhost:8085/api/q/health/ready` from inside the stack,
+or `docker compose exec` a shell into `backend`.
+
+### Rate limiting
+
+The Caddy image now bundles the `caddy-ratelimit` module (built via `xcaddy`
+in `frontend/Dockerfile`, `caddy-build` stage). Two per-IP zones are active,
+keyed on `{remote_host}`:
+
+- `/api/*` (general API traffic): 3000 requests / minute.
+- `/api/preview/*` and `/sitemap.xml` (SSR preview renders, sitemap): 120
+  requests / minute - these do real DB reads plus HTML rendering per hit, so
+  they get a much tighter cap.
+- `POST /api/contact`: 5 requests / minute - the contact form sends real
+  outbound email per submission, so it's capped far below the general zone.
+
+A client that exceeds its zone's limit gets `429 Too Many Requests` instead
+of reaching the backend. If a legitimate integration starts tripping these
+(e.g. a monitoring service polling too fast), raise the relevant zone's
+`events` in the Caddyfile rather than removing the limit.
+
+## Email (Resend)
+
+Outgoing mail (today: the `/kontakt` form's notification) goes through the
+[Resend](https://resend.com) HTTP API — one authenticated `POST` from
+`backend/.../services/EmailService.java`, no SMTP stack in the build. Sends
+are fire-and-forget and deferred to after commit, so a dead provider can
+never fail a request; **with `RESEND_API_KEY` unset the backend boots
+normally and every send is a silent no-op**, which is exactly how local dev
+runs. Contact-form submissions are always stored in `contact_messages`
+first, so an unconfigured or broken mailbox loses a notification, never a
+message.
+
+Setup:
+
+1. Create a Resend account and add **bela-turniri.com** under *Domains*.
+2. Add the DNS records Resend shows you at your registrar — an SPF `TXT`
+   record and a DKIM `TXT` record (plus the optional DMARC one). Wait for
+   the domain to flip to *Verified*; until it does, every send is rejected.
+3. Create an API key under *API Keys* with sending permission.
+4. Put these in `.env.prod` and redeploy (`./ops/deploy.sh`):
+
+```bash
+RESEND_API_KEY=re_...                                  # the key from step 3
+MAIL_FROM=Bela turniri <noreply@bela-turniri.com>      # must be on the verified domain
+CONTACT_TO=you@your-domain.tld                         # where the form is delivered
+```
+
+`Reply-To` on the notification is set to the person who wrote in, so
+answering is one tap — the `MAIL_FROM` mailbox itself does not need to
+receive.
+
+Verify after deploy: `docker compose -f docker-compose.prod.yaml logs backend
+| grep Mail:` should show `Mail: Resend configured, from=…, contactTo=…`. If
+either variable is missing you get a `WARN` at boot instead, and failed sends
+are logged at `WARN` with the request id.

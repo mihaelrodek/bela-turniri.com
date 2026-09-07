@@ -9,7 +9,7 @@ export type PushPublicKeyResponse = {
 export async function fetchPushPublicKey(): Promise<PushPublicKeyResponse> {
     const { data } = await http.get<PushPublicKeyResponse>("/push/public-key", {
         silent: true,
-    } as any)
+    })
     return data
 }
 
@@ -30,16 +30,8 @@ export async function registerPushSubscription(sub: PushSubscriptionJSON): Promi
             // No success toast — this is background plumbing the user
             // already opted in to via the OS permission prompt.
             silent: true,
-        } as any,
+        },
     )
-}
-
-/** Tell the backend we're no longer interested in this endpoint. */
-export async function unregisterPushSubscription(endpoint: string): Promise<void> {
-    await http.delete("/push/subscribe", {
-        params: { endpoint },
-        silent: true,
-    } as any)
 }
 
 /**

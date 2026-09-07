@@ -1,0 +1,83 @@
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+        Read-path indexes. Nothing here changes shape or data — each
+        changeSet only adds an index, and each is guarded by an
+        indexExists precondition with onFail="MARK_RAN" so a database
+        that already has the index (created by hand on prod, say) simply
+        records the changeSet as run instead of failing the boot.
+
+        One index per changeSet on purpose: a partial failure then leaves
+        the rest of the set applicable.
+    -->
+
+    <!--
+        RoundService / bill flows filter matches by tournament and then by
+        status (findByTournament_IdAndStatus, the "all finished?" checks).
+        Only idx_matches_round existed, which doesn't help those.
+    -->
+    <changeSet id="2026-09-02-perf-indexes-matches-tournament-status" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_matches_tournament_status"/>
+            </not>
+        </preConditions>
+        <createIndex tableName="matches" indexName="idx_matches_tournament_status">
+            <column name="tournament_id"/>
+            <column name="status"/>
+        </createIndex>
+    </changeSet>
+
+    <!--
+        pair1_id / pair2_id have FK constraints but Postgres does NOT index
+        the referencing side automatically. The pair match-history and
+        invoice queries filter on both, and every pair delete has to scan
+        matches to honour the ON DELETE SET NULL.
+    -->
+    <changeSet id="2026-09-02-perf-indexes-matches-pair1" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_matches_pair1"/>
+            </not>
+        </preConditions>
+        <createIndex tableName="matches" indexName="idx_matches_pair1">
+            <column name="pair1_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="2026-09-02-perf-indexes-matches-pair2" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_matches_pair2"/>
+            </not>
+        </preConditions>
+        <createIndex tableName="matches" indexName="idx_matches_pair2">
+            <column name="pair2_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!--
+        The public listings are all "not deleted (the @Where filter) + a
+        status predicate, ordered by start_at". The existing single-column
+        idx_tournaments_is_deleted / idx_tournaments_start_at can't serve
+        that as one access path; this composite can.
+    -->
+    <changeSet id="2026-09-02-perf-indexes-tournaments-list" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_tournaments_list"/>
+            </not>
+        </preConditions>
+        <createIndex tableName="tournaments" indexName="idx_tournaments_list">
+            <column name="is_deleted"/>
+            <column name="status"/>
+            <column name="start_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

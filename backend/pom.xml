@@ -15,7 +15,7 @@
         <!-- Quarkus platform coords -->
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
-        <quarkus.platform.version>3.15.3</quarkus.platform.version>
+        <quarkus.platform.version>3.15.6</quarkus.platform.version>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
@@ -48,7 +48,14 @@
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.15.1</version>
+            <version>2.16.1</version>
+        </dependency>
+
+        <!-- Image downscale/recompress in StorageService -->
+        <dependency>
+            <groupId>net.coobird</groupId>
+            <artifactId>thumbnailator</artifactId>
+            <version>0.4.20</version>
         </dependency>
 
         <!-- JSON / Validation / JDBC -->
@@ -80,6 +87,37 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-liquibase</artifactId>
         </dependency>
+        <!-- Caffeine-backed local cache (quarkus-cache). Used to memoise the
+             server-rendered SEO preview pages and the sitemap, which are
+             identical for every caller and expensive to rebuild per bot hit. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-cache</artifactId>
+        </dependency>
+
+        <!-- WebSockets (websockets-next). Carries tiny "something changed"
+             pings to open tournament pages; the client then refetches over
+             REST, so the socket never has to know about DTO shapes. NOTE:
+             the route is registered UNDER quarkus.http.root-path, so the
+             backend actually serves /api/ws/live and the public /ws/live
+             URL is rewritten by Caddy (prod) and Vite (dev). -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-websockets-next</artifactId>
+        </dependency>
+
+        <!-- QR encoding for the tournament share codes. -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>3.5.3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>javase</artifactId>
+            <version>3.5.3</version>
+        </dependency>
+
         <!-- OIDC / JWT verification (used to verify Firebase Auth ID tokens) -->
         <dependency>
             <groupId>io.quarkus</groupId>

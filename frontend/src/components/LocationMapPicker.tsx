@@ -8,6 +8,7 @@ import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-lea
 // pulling it in from two places is harmless.
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
+import { useTranslation } from "../i18n"
 
 /**
  * Custom marker icon for the picked location.
@@ -23,11 +24,16 @@ import L from "leaflet"
  * resolve and the pin always shows. MapPage.tsx does the same thing.
  *
  * <p>Module-level constant — built once and reused for every render.
+ *
+ * <p>The colours are literal hexes on purpose: this markup is handed to
+ * Leaflet, i.e. it never passes through Chakra's style engine, and the pin
+ * sits on map tiles rather than an app surface, so it must not follow the
+ * light/dark flip.
  */
 const PICKER_PIN_ICON = L.divIcon({
     html: `<svg width="28" height="38" viewBox="0 0 28 38" xmlns="http://www.w3.org/2000/svg">
              <path d="M14 0C6.27 0 0 6.27 0 14c0 9.5 13 22.5 13.5 23a1 1 0 0 0 1 0C15 36.5 28 23.5 28 14c0-7.73-6.27-14-14-14z"
-                   fill="#3182CE" stroke="white" stroke-width="2"/>
+                   fill="#227342" stroke="white" stroke-width="2"/>
              <circle cx="14" cy="14" r="5" fill="white"/>
            </svg>`,
     className: "location-picker-pin",
@@ -71,6 +77,7 @@ export default function LocationMapPicker({
      *  to ensure the map doesn't collapse if its parent has no height. */
     minH?: string | number
 }) {
+    const { t } = useTranslation()
     const [busy, setBusy] = useState(false)
     const [err, setErr] = useState<string | null>(null)
 
@@ -90,7 +97,7 @@ export default function LocationMapPicker({
             const displayName = await reverseGeocode(lat, lng)
             onPick({ displayName, lat, lng })
         } catch {
-            setErr("Greška pri dohvaćanju adrese.")
+            setErr(t("common.location.reverseGeocodeError"))
         } finally {
             setBusy(false)
         }
@@ -99,8 +106,8 @@ export default function LocationMapPicker({
     return (
         <Box
             position="relative"
-            h={height as any}
-            minH={minH as any}
+            h={height}
+            minH={minH}
             rounded="md"
             overflow="hidden"
             borderWidth="1px"
@@ -113,8 +120,8 @@ export default function LocationMapPicker({
                 scrollWheelZoom={false}
             >
                 <TileLayer
-                    attribution='&copy; OpenStreetMap'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                    url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                 />
                 <ClickHandler onClick={handleClick} />
                 {/* RecenterOnValue keeps the map's view in sync with the
@@ -132,12 +139,15 @@ export default function LocationMapPicker({
                 )}
             </MapContainer>
 
-            {/* Click-prompt overlay — small hint at the top so the user
-                knows the map is interactive without crowding the tiles. */}
+            {/* Click-prompt overlay — top RIGHT, not left: Leaflet renders its
+                zoom control at the top left with a higher z-index, so a hint
+                anchored there is partly hidden behind the +/- buttons. */}
             <Box
                 position="absolute"
                 top="2"
-                left="2"
+                right="2"
+                maxW="calc(100% - 5rem)"
+                textAlign="right"
                 bg="bg"
                 px="2"
                 py="1"
@@ -148,7 +158,7 @@ export default function LocationMapPicker({
                 pointerEvents="none"
                 zIndex={400}
             >
-                Klikni na kartu za odabir lokacije
+                {t("common.location.clickHint")}
             </Box>
 
             {busy && (
@@ -163,7 +173,7 @@ export default function LocationMapPicker({
                     zIndex={500}
                 >
                     <Text bg="bg" px="3" py="1" rounded="md" fontSize="sm" shadow="md">
-                        Tražim adresu…
+                        {t("common.location.searchingAddress")}
                     </Text>
                 </Box>
             )}

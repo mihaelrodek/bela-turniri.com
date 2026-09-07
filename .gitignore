@@ -14,6 +14,16 @@ scripts/service-account.json
 scripts/node_modules/
 
 # ──────────────────────────────────────────────────────────
+# Ops — maintenance flag + local DB backups
+# ──────────────────────────────────────────────────────────
+# Toggled by ops/deploy.sh / ops/up.sh (touch/rm); the directory itself
+# (with .gitkeep) is tracked so the bind mount in docker-compose.prod.yaml
+# always has somewhere to mount even before the first deploy.
+ops/maintenance/ENABLED
+# Written by ops/backup-db.sh — local Postgres dumps, never committed.
+backups/
+
+# ──────────────────────────────────────────────────────────
 # OS cruft
 # ──────────────────────────────────────────────────────────
 .DS_Store

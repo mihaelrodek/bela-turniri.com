@@ -6,6 +6,7 @@ import Joyride, {
     EVENTS,
     STATUS,
 } from "react-joyride"
+import { useTranslation } from "../i18n"
 
 /**
  * Wrapper around {@link Joyride} with Chakra-matched theming, Croatian
@@ -74,6 +75,7 @@ export default function PageTour({
      */
     autoStartDelayMs?: number
 }) {
+    const { t } = useTranslation()
     const [run, setRun] = useState(false)
 
     // NB: we used to body-lock scroll (overflow: hidden on html + body)
@@ -198,24 +200,24 @@ export default function PageTour({
             // positions even with animation on.
             callback={handleCallback}
             locale={{
-                back: "Natrag",
-                close: "Zatvori",
-                last: "Završi",
-                next: "Dalje",
-                skip: "Preskoči",
-                open: "Otvori",
-                nextLabelWithProgress: "Dalje ({step}/{steps})",
+                back: t("common.tour.nav.back"),
+                close: t("common.close"),
+                last: t("common.tour.nav.last"),
+                next: t("common.tour.nav.next"),
+                skip: t("common.tour.nav.skip"),
+                open: t("common.tour.nav.open"),
+                nextLabelWithProgress: t("common.tour.nav.nextWithProgress"),
             }}
             styles={{
                 options: {
-                    // Chakra "blue.solid" — keeps the tour buttons +
-                    // beacon visually consistent with the rest of the
-                    // app's primary action colour.
-                    primaryColor: "#3182CE",
+                    // Read straight off the theme so the tour buttons and
+                    // beacon track the brand ramp in system.ts instead of a
+                    // pinned hex (they used to be a literal #3182CE).
+                    primaryColor: "var(--chakra-colors-brand-solid)",
                     zIndex: 2000,
-                    arrowColor: "var(--chakra-colors-bg)",
-                    backgroundColor: "var(--chakra-colors-bg)",
-                    textColor: "var(--chakra-colors-fg)",
+                    arrowColor: "var(--chakra-colors-bg-panel)",
+                    backgroundColor: "var(--chakra-colors-bg-panel)",
+                    textColor: "var(--chakra-colors-fg-ink)",
                     overlayColor: "rgba(0, 0, 0, 0.55)",
                 },
                 tooltipContainer: {

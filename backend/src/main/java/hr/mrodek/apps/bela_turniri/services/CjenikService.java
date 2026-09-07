@@ -26,6 +26,19 @@ public class CjenikService {
 
     @Inject TournamentDrinkPriceRepository priceRepo;
     @Inject UserDrinkTemplateRepository templateRepo;
+    @Inject MessageService messages;
+
+    @Inject hr.mrodek.apps.bela_turniri.realtime.LiveBroadcaster live;
+
+    /**
+     * Ping every open tournament page that the cjenik changed. The send is
+     * deferred until the caller's transaction commits (see LiveBroadcaster).
+     */
+    private void broadcast(Tournaments t) {
+        if (t == null || t.getUuid() == null) return;
+        live.notifyTournament(t.getUuid().toString(),
+                hr.mrodek.apps.bela_turniri.realtime.LiveBroadcaster.SCOPE_TOURNAMENT);
+    }
 
     /* =========================================================
        Per-tournament cjenik
@@ -78,6 +91,8 @@ public class CjenikService {
             priceRepo.delete(orphan);
         }
 
+        broadcast(t);
+
         return kept.stream().map(CjenikService::toDto).toList();
     }
 
@@ -105,7 +120,7 @@ public class CjenikService {
     @Transactional
     public List<DrinkPriceDto> replaceTemplate(String userUid, String templateName, List<DrinkPriceDto> items) {
         String tname = trimToNull(templateName);
-        if (tname == null) throw new IllegalArgumentException("Template name is required");
+        if (tname == null) throw new IllegalArgumentException(messages.t("cjenik.template.nameRequired"));
         templateRepo.deleteByUserUidAndTemplateName(userUid, tname);
         List<UserDrinkTemplate> kept = new ArrayList<>();
         int order = 0;
@@ -131,10 +146,10 @@ public class CjenikService {
     public void renameTemplate(String userUid, String oldName, String newName) {
         String oldT = trimToNull(oldName);
         String newT = trimToNull(newName);
-        if (oldT == null || newT == null) throw new IllegalArgumentException("Template name is required");
+        if (oldT == null || newT == null) throw new IllegalArgumentException(messages.t("cjenik.template.nameRequired"));
         if (oldT.equals(newT)) return;
         if (templateRepo.exists(userUid, newT)) {
-            throw new IllegalStateException("Template with this name already exists.");
+            throw new IllegalStateException(messages.t("cjenik.template.exists"));
         }
         templateRepo.renameTemplate(userUid, oldT, newT);
     }
@@ -142,7 +157,7 @@ public class CjenikService {
     @Transactional
     public void deleteTemplate(String userUid, String templateName) {
         String t = trimToNull(templateName);
-        if (t == null) throw new IllegalArgumentException("Template name is required");
+        if (t == null) throw new IllegalArgumentException(messages.t("cjenik.template.nameRequired"));
         templateRepo.deleteByUserUidAndTemplateName(userUid, t);
     }
 

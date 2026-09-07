@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      Waiter ("konobar") access to a tournament's drink bills.
+
+      The organiser runs the tournament, but the drinks are served and
+      collected by venue staff who have no account, no phone of ours and no
+      business editing the tournament. Giving them the organiser's login is
+      what actually happens today; this replaces it with a per-tournament
+      4-letter code that unlocks the bills view and nothing else.
+
+      Two tables rather than one:
+
+        * tournament_waiter_access  — the CURRENT code, one row per
+          tournament that has ever generated one. Keyed BY the tournament id
+          (no surrogate key): a tournament has exactly one live code, and
+          making that a primary key means the database enforces it instead
+          of the service having to.
+
+        * tournament_waiter_session — one row per redeemed code, i.e. per
+          device that is logged in as a waiter. The `token` is the bearer
+          credential the device then sends in `X-Waiter-Token`.
+
+      Why sessions are a table and not a signed token: revocation. There is
+      no expiry and no separate "revoke" endpoint — regenerating the code
+      deletes every session row for that tournament, which is why
+      `tournament_id` is indexed even though nothing lists sessions by
+      tournament. That bulk delete IS the revocation mechanism, and it has
+      to be cheap enough that an organiser never hesitates to use it.
+
+      tableExists / MARK_RAN on both, matching the rest of this changelog:
+      re-running against a database where the table was already created by
+      hand is a no-op rather than a startup failure.
+    -->
+
+    <changeSet id="2026-09-04-tournament-waiter-access" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="tournament_waiter_access"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="tournament_waiter_access">
+            <!-- PK *and* FK: one live code per tournament, enforced by the
+                 primary key rather than by a unique index the service could
+                 forget to check. -->
+            <column name="tournament_id" type="bigint">
+                <constraints primaryKey="true" nullable="false"
+                             foreignKeyName="fk_twa_tournament"
+                             references="tournaments(id)"
+                             deleteCascade="true"/>
+            </column>
+            <!-- Four uppercase letters, I and O excluded — the code is read
+                 aloud across a bar and typed on a phone keyboard. -->
+            <column name="code" type="varchar(4)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2026-09-04-tournament-waiter-session" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="tournament_waiter_session"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="tournament_waiter_session">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tournament_id" type="bigint">
+                <constraints nullable="false"
+                             foreignKeyName="fk_tws_tournament"
+                             references="tournaments(id)"
+                             deleteCascade="true"/>
+            </column>
+            <!-- Opaque bearer credential (ClaimTokens: 24 random bytes,
+                 base64-url, 32 chars). UNIQUE because every request looks a
+                 session up by it — the unique index IS the lookup index. -->
+            <column name="token" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Best-effort "this device is still in use" stamp, written at
+                 most once a minute per session so a busy bar doesn't turn
+                 every bill read into a write. -->
+            <column name="last_used_at" type="timestamptz"/>
+        </createTable>
+
+        <addUniqueConstraint tableName="tournament_waiter_session"
+                             columnNames="token"
+                             constraintName="uq_tws_token"/>
+
+        <!-- Drives the bulk delete that revokes access on regenerate. -->
+        <createIndex tableName="tournament_waiter_session" indexName="idx_tws_tournament">
+            <column name="tournament_id"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

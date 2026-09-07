@@ -18,6 +18,8 @@ public record MatchBillDto(
         BigDecimal total,
         OffsetDateTime paidAt,
         String paidByUid,
+        /** Display snapshot of who settled it — see {@code Matches#paidByName}. */
+        String paidByName,
         Long loserPairId,
         String loserPairName
 ) {}

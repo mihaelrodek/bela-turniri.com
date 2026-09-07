@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="hr" data-maintenance="true">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#227342" />
+    <!-- Auto-reload every 20 s: the instant the deploy finishes and the flag is
+         cleared, the visitor's browser reloads straight into the live app. -->
+    <meta http-equiv="refresh" content="20" />
+    <title>Nadogradnja u tijeku - Bela turniri</title>
+    <style>
+        /* Brand palette, hardcoded on purpose: during maintenance EVERY request
+           returns this page, so it can load no stylesheet, font or image of its
+           own. Keep the accent in sync with the app's theme-color (#227342,
+           brand.600) and manifest.webmanifest's background_color. */
+        :root { color-scheme: light; }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: radial-gradient(120% 90% at 50% 0%, #edf7f0 0%, #ffffff 62%);
+            color: #1a202c;
+            display: grid;
+            place-items: center;
+            padding: clamp(24px, 6vh, 56px) 24px;
+            -webkit-font-smoothing: antialiased;
+        }
+        .card {
+            width: 100%;
+            max-width: 560px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        /* Real app logo (inlined - the four Bela/Hungarian card suits). It must
+           be inlined, not <img src>, because during maintenance every request -
+           including one for /bela-turniri-symbol.svg - returns THIS page, so
+           an external logo would 404. Kept in sync with
+           frontend/public/bela-turniri-symbol.svg. */
+        .logo {
+            width: min(148px, 42vw);
+            margin: 0 auto 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .logo svg { display: block; width: 100%; height: auto; filter: drop-shadow(0 8px 22px rgba(20, 40, 70, 0.18)); }
+        .wordmark {
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin: 0 0 28px;
+            color: #1a202c;
+        }
+        .wordmark span { color: #227342; }
+        .copy {
+            width: 100%;
+            max-width: 440px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        h1 {
+            font-size: 26px;
+            line-height: 1.2;
+            margin: 0 0 12px;
+            letter-spacing: -0.025em;
+            font-weight: 800;
+        }
+        p {
+            font-size: 15px;
+            line-height: 1.6;
+            margin: 0 auto;
+            max-width: 360px;
+            color: rgba(26, 32, 44, 0.68);
+        }
+        p + p { margin-top: 10px; }
+        /* Mono eyebrow above the headline. */
+        .eyebrow {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            /* Trailing letter-spacing after the last glyph widens the text's
+               own box without adding a visible glyph, which skews centered
+               text to the left. text-indent nudges it back on-center. */
+            text-indent: 0.18em;
+            text-transform: uppercase;
+            text-align: center;
+            color: #227342;
+            margin: 0 0 10px;
+        }
+        .dots {
+            display: inline-flex;
+            gap: 6px;
+            margin-top: 28px;
+        }
+        .dots span {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #227342;
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+        .dots span:nth-child(2) { animation-delay: 0.2s; }
+        .dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; transform: scale(0.85); }
+            50%      { opacity: 1;   transform: scale(1); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .dots span { animation: none; opacity: 0.75; }
+        }
+        @media (max-width: 520px) {
+            .logo { width: min(120px, 38vw); margin-bottom: 16px; }
+            .wordmark { font-size: 22px; }
+            .copy { max-width: 360px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <div class="logo">
+            <!-- Symbol-only logo: herc, pik, žir and kara/bundeva (the four
+                 Bela/Hungarian card suits). Inlined from
+                 bela-turniri-symbol.svg, viewBox cropped to the artwork. -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="290 150 620 740" role="img" aria-label="Bela turniri">
+                <defs>
+                    <linearGradient id="redGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stop-color="#ff3a2d"/>
+                        <stop offset="0.55" stop-color="#e31916"/>
+                        <stop offset="1" stop-color="#b80d0d"/>
+                    </linearGradient>
+                    <linearGradient id="greenGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stop-color="#79c844"/>
+                        <stop offset="0.52" stop-color="#2f8c38"/>
+                        <stop offset="1" stop-color="#0f5f2d"/>
+                    </linearGradient>
+                    <linearGradient id="yellowGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stop-color="#fff36a"/>
+                        <stop offset="0.48" stop-color="#ffc928"/>
+                        <stop offset="1" stop-color="#d89108"/>
+                    </linearGradient>
+                    <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stop-color="#ffd65c"/>
+                        <stop offset="0.55" stop-color="#d99613"/>
+                        <stop offset="1" stop-color="#9f5b08"/>
+                    </linearGradient>
+                    <linearGradient id="brownGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stop-color="#b66b15"/>
+                        <stop offset="0.55" stop-color="#81410e"/>
+                        <stop offset="1" stop-color="#4e2308"/>
+                    </linearGradient>
+                    <pattern id="capHatch" width="30" height="30" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                        <path d="M0 0 L0 30" stroke="#5b2a0b" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+                    </pattern>
+                    <clipPath id="acornCapClip">
+                        <path d="M510 644 C518 584 682 584 690 644 L690 694 C645 676 555 676 510 694 Z"/>
+                    </clipPath>
+                </defs>
+                <g stroke-linejoin="round" stroke-linecap="round">
+                    <g id="herc">
+                        <path d="M600 402 C586 374 510 332 498 264 C487 199 556 173 600 225 C644 173 713 199 702 264 C690 332 614 374 600 402 Z"
+                              fill="url(#redGrad)" stroke="#321005" stroke-width="13"/>
+                        <path d="M600 225 C644 173 713 199 702 264 C690 332 614 374 600 402 Z"
+                              fill="#ff4b3e" opacity="0.22"/>
+                    </g>
+                    <g id="pik">
+                        <path d="M448 342 C375 395 323 480 348 557 C361 599 396 609 426 590 C436 584 443 574 448 563 C453 574 460 584 470 590 C501 609 535 599 549 557 C574 480 521 395 448 342 Z"
+                              fill="url(#greenGrad)" stroke="#052b12" stroke-width="13"/>
+                        <path d="M448 548 L448 625" fill="none" stroke="#062d13" stroke-width="12"/>
+                        <path d="M418 625 L478 625 L468 585 L428 585 Z" fill="#1e7a33" stroke="#052b12" stroke-width="9"/>
+                    </g>
+                    <g id="kara" transform="translate(678 336)">
+                        <path d="M112 0 C97 0 88 10 88 29 C47 53 26 103 26 170 C26 204 5 213 0 226 C42 260 180 260 222 226 C217 213 196 204 196 170 C196 103 175 53 134 29 C134 10 127 0 112 0 Z"
+                              fill="url(#yellowGrad)" stroke="#321005" stroke-width="12"/>
+                        <path d="M25 184 C64 202 158 202 197 184 L207 217 C165 244 57 244 15 217 Z"
+                              fill="#c82b1c" stroke="#321005" stroke-width="8"/>
+                        <g fill="#188436" stroke="#052b12" stroke-width="4">
+                            <path d="M42 199 L58 220 L72 199 Z"/>
+                            <path d="M76 202 L92 224 L106 202 Z"/>
+                            <path d="M111 203 L127 224 L141 202 Z"/>
+                            <path d="M147 202 L163 222 L177 200 Z"/>
+                        </g>
+                        <circle cx="111" cy="256" r="23" fill="#6cae22" stroke="#321005" stroke-width="9"/>
+                    </g>
+                    <g id="zir">
+                        <path d="M600 667 C545 669 508 710 516 769 C524 827 600 861 600 861 C600 861 676 827 684 769 C692 710 655 669 600 667 Z"
+                              fill="url(#goldGrad)" stroke="#321005" stroke-width="13"/>
+                        <path d="M510 644 C518 584 682 584 690 644 L690 694 C645 676 555 676 510 694 Z"
+                              fill="url(#brownGrad)" stroke="#321005" stroke-width="13"/>
+                        <path d="M510 644 C518 584 682 584 690 644 L690 694 C645 676 555 676 510 694 Z"
+                              fill="url(#capHatch)" clip-path="url(#acornCapClip)" opacity="0.7"/>
+                        <path d="M585 588 C588 559 612 559 615 588 L614 612 L586 612 Z"
+                              fill="url(#brownGrad)" stroke="#321005" stroke-width="10"/>
+                    </g>
+                </g>
+            </svg>
+        </div>
+        <p class="wordmark">Bela <span>turniri</span></p>
+        <div class="copy">
+            <p class="eyebrow">Nadogradnja</p>
+            <h1>Nadogradnja u tijeku</h1>
+            <p>
+                Radimo na poboljšanjima aplikacije. Stranica će uskoro ponovno biti
+                dostupna - stranica se osvježava sama, ne treba ništa raditi.
+            </p>
+            <p>
+                Hvala na strpljenju!
+            </p>
+            <div class="dots" aria-hidden="true">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

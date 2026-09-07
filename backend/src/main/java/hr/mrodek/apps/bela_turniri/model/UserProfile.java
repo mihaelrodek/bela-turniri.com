@@ -52,6 +52,20 @@ public class UserProfile {
     @Column(name = "color_mode", length = 10)
     private String colorMode;
 
+    /**
+     * Per-user language preference — a BCP-47 base tag ("hr", "sl"). Null
+     * means the user hasn't picked one; the frontend then falls back to the
+     * browser language and finally to Croatian.
+     *
+     * <p>Also the locale to compose PUSH NOTIFICATIONS and e-mails for this
+     * user in: those are built while handling somebody else's request (the
+     * organiser draws a round, every player gets notified), so the request
+     * locale is the wrong one. Use
+     * {@code MessageService.t(messages.localeOf(profile.getLocale()), key, ...)}.
+     */
+    @Column(name = "locale", length = 5)
+    private String locale;
+
     @UpdateTimestamp
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;

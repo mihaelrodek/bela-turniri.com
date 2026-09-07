@@ -13,6 +13,7 @@ import {
 import { Link as RouterLink } from "react-router-dom"
 import { FiExternalLink, FiSearch, FiUser } from "react-icons/fi"
 import { adminListAllUsers, type AdminUserDto } from "../api/admin"
+import { useTranslation } from "../i18n"
 
 /**
  * Admin-only "Popis igrača" tab on the profile page. Lists every
@@ -34,6 +35,7 @@ import { adminListAllUsers, type AdminUserDto } from "../api/admin"
  * (the existing {@code /admin/users?q=…} endpoint already supports it).
  */
 export default function AdminPlayersListTab() {
+    const { t } = useTranslation()
     const [users, setUsers] = useState<AdminUserDto[] | null>(null)
     const [loading, setLoading] = useState(false)
     const [search, setSearch] = useState("")
@@ -63,10 +65,9 @@ export default function AdminPlayersListTab() {
             <Card.Body p={{ base: "4", md: "6" }}>
                 <Stack gap="3">
                     <Box>
-                        <Text fontSize="lg" fontWeight="semibold">Popis igrača</Text>
+                        <Text fontSize="lg" fontWeight="semibold">{t("admin.playersList.heading")}</Text>
                         <Text fontSize="sm" color="fg.muted">
-                            Svi registrirani igrači — klikni "Otvori profil" za
-                            navigaciju na korisničku stranicu.
+                            {t("admin.playersList.description")}
                         </Text>
                     </Box>
 
@@ -86,9 +87,10 @@ export default function AdminPlayersListTab() {
                         </Box>
                         <Input
                             pl="9"
-                            placeholder="Pretraži po imenu i prezimenu ili slug-u…"
+                            placeholder={t("admin.playersList.search.placeholder")}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
+                            aria-label={t("admin.playersList.search.placeholder")}
                         />
                     </Box>
 
@@ -96,18 +98,18 @@ export default function AdminPlayersListTab() {
                         <HStack py="4" justify="center"><Spinner size="sm" /></HStack>
                     ) : users == null ? (
                         <Text fontSize="sm" color="fg.muted">
-                            Nije moguće učitati popis igrača.
+                            {t("admin.playersList.loading.error")}
                         </Text>
                     ) : filtered.length === 0 ? (
                         <Text fontSize="sm" color="fg.muted">
-                            Nema rezultata.
+                            {t("admin.playersList.empty")}
                         </Text>
                     ) : (
                         <>
                             <Text fontSize="xs" color="fg.muted">
                                 {search.trim()
-                                    ? `${filtered.length} od ${users.length} igrača`
-                                    : `Ukupno: ${users.length} igrača`}
+                                    ? t("admin.playersList.summary", { filteredCount: filtered.length, totalCount: users.length })
+                                    : t("admin.playersList.summary.all", { totalCount: users.length })}
                             </Text>
                             <VStack align="stretch" gap="2">
                                 {filtered.map((u) => (
@@ -128,11 +130,11 @@ export default function AdminPlayersListTab() {
                                             </Box>
                                             <Box minW="0" flex="1">
                                                 <Text fontSize="sm" fontWeight="medium" truncate>
-                                                    {u.displayName || "(bez imena)"}
+                                                    {u.displayName || t("admin.playersList.userFallback")}
                                                 </Text>
                                                 {u.slug && (
                                                     <Text fontSize="xs" color="fg.muted" truncate>
-                                                        /profil/{u.slug}
+                                                        {t("admin.playersList.userProfile", { slug: u.slug })}
                                                     </Text>
                                                 )}
                                             </Box>
@@ -154,7 +156,7 @@ export default function AdminPlayersListTab() {
                                                 colorPalette="blue"
                                             >
                                                 <RouterLink to={`/profil/${u.slug}`}>
-                                                    <FiExternalLink /> Otvori profil
+                                                    <FiExternalLink /> {t("admin.playersList.openProfileButton")}
                                                 </RouterLink>
                                             </Button>
                                         ) : (
@@ -163,9 +165,9 @@ export default function AdminPlayersListTab() {
                                                 variant="outline"
                                                 colorPalette="gray"
                                                 disabled
-                                                title="Slug nije postavljen za ovog korisnika"
+                                                title={t("admin.playersList.slugMissing")}
                                             >
-                                                Bez slug-a
+                                                {t("admin.playersList.slugMissing.button")}
                                             </Button>
                                         )}
                                     </HStack>

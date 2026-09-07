@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import { Box, chakra, HStack, Input, Spinner, Text, VStack } from "@chakra-ui/react"
 import { FiMapPin } from "react-icons/fi"
+import { useTranslation } from "../i18n"
 
 type NominatimAddress = {
     house_number?: string
@@ -54,7 +55,7 @@ const DEBOUNCE_MS = 350
  * Then we append the municipality (or city/town as fallback) when it's
  * different from the place itself.
  */
-export function formatNominatimAddress(r: NominatimResult): string {
+function formatNominatimAddress(r: NominatimResult): string {
     const a = r.address
     if (!a) return r.display_name
 
@@ -180,6 +181,7 @@ export function LocationAutocomplete({
     placeholder?: string
     disabled?: boolean
 }) {
+    const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -243,13 +245,17 @@ export function LocationAutocomplete({
                 })
                 .catch((e) => {
                     if (e?.name === "AbortError") return
-                    setError("Greška pri dohvaćanju prijedloga.")
+                    setError(t("common.location.fetchError"))
                     setResults([])
                 })
                 .finally(() => setLoading(false))
         }, DEBOUNCE_MS)
 
         return () => clearTimeout(handle)
+        // `t` is a fresh closure every render (see i18n/index.ts) — depending on
+        // it would re-fire the debounced fetch on every render, not just when
+        // the query changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query])
 
     useEffect(() => {
@@ -318,6 +324,7 @@ export function LocationAutocomplete({
                 onFocus={() => setOpen(true)}
                 onKeyDown={onKeyDown}
                 placeholder={placeholder}
+                aria-label={placeholder}
                 disabled={disabled}
                 autoComplete="off"
             />
@@ -346,7 +353,7 @@ export function LocationAutocomplete({
                     {loading && (
                         <HStack px="3" py="2" gap="2" color="fg.muted" fontSize="sm">
                             <Spinner size="xs" />
-                            <Text>Tražim…</Text>
+                            <Text>{t("common.location.searching")}</Text>
                         </HStack>
                     )}
 
@@ -356,7 +363,7 @@ export function LocationAutocomplete({
 
                     {!loading && !error && results.length === 0 && (
                         <Text px="3" py="2" color="fg.muted" fontSize="sm">
-                            Nema rezultata.
+                            {t("common.location.noResults")}
                         </Text>
                     )}
 

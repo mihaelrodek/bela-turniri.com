@@ -9,6 +9,8 @@ import jakarta.validation.constraints.Size;
  * displayName may be blank — the slug service has a fallback for that case.
  */
 public record SyncProfileRequest(
-        @Size(max = 200, message = "displayName must be at most 200 characters")
+        // `message` is an i18n bundle key (i18n/messages_*.properties), resolved
+        // into the caller's language by errors/ConstraintViolationExceptionMapper.
+        @Size(max = 200, message = "validation.profile.displayName.max")
         String displayName
 ) {}

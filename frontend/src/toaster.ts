@@ -1,4 +1,5 @@
 import { createToaster } from "@chakra-ui/react"
+import { hasTranslation, t } from "./i18n"
 
 /**
  * Single shared toaster instance. Components and the axios interceptor
@@ -18,27 +19,20 @@ export const toaster = createToaster({
 })
 
 /**
- * Croatian copy for common HTTP errors. Keys are the HTTP status; the
- * fallback at the end covers anything not enumerated. The axios interceptor
- * uses these only when the backend hasn't returned a useful body message.
+ * Copy for common HTTP errors, used by the axios interceptor only when the
+ * backend hasn't returned a useful body message of its own.
+ *
+ * The table itself now lives in the dictionaries (`common.error.http.<status>`
+ * in src/i18n/{hr,sl}/common.ts) — the Croatian wording is unchanged. `t()`
+ * rather than `useTranslation()` because this is called from the interceptor,
+ * which is not a component; it reads the live `currentLocale` at call time.
+ * `hasTranslation` picks the specific string when we have one and the
+ * {status} catch-all otherwise.
  */
-const STATUS_FALLBACKS_HR: Record<number, string> = {
-    400: "Neispravan zahtjev.",
-    401: "Niste prijavljeni.",
-    403: "Nemate ovlasti za ovu akciju.",
-    404: "Resurs nije pronađen.",
-    409: "Konflikt — pokušajte osvježiti stranicu.",
-    413: "Datoteka je prevelika.",
-    422: "Neispravni podaci.",
-    429: "Previše zahtjeva — pokušajte za nekoliko sekundi.",
-    500: "Greška na poslužitelju.",
-    502: "Poslužitelj nedostupan.",
-    503: "Servis privremeno nedostupan.",
-}
-
 export function statusFallback(status?: number): string {
-    if (!status) return "Greška u mreži."
-    return STATUS_FALLBACKS_HR[status] ?? `Greška (HTTP ${status}).`
+    if (!status) return t("common.error.network")
+    const key = `common.error.http.${status}`
+    return hasTranslation(key) ? t(key) : t("common.error.http.unknown", { status })
 }
 
 export function showSuccess(title: string, description?: string) {
@@ -51,7 +45,18 @@ export function showSuccess(title: string, description?: string) {
 }
 
 export function showError(title: string, description?: string) {
+    // Dedupe identical errors into a single toast. On a page that fires
+    // several requests at once (e.g. /turniri: upcoming + finished + count), a
+    // backend outage would otherwise stack three copies of "Greška na
+    // poslužitelju". A stable id keyed on the message collapses them — if one
+    // is already on screen we just refresh it instead of adding another.
+    const id = `err:${title}:${description ?? ""}`
+    if (toaster.isVisible(id)) {
+        toaster.update(id, { type: "error", title, description, duration: 5500 })
+        return
+    }
     toaster.create({
+        id,
         type: "error",
         title,
         description,

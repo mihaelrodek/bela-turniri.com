@@ -14,8 +14,10 @@ import java.util.UUID;
 public record UserPairPresetDto(
         UUID uuid,
 
-        @NotBlank(message = "name is required")
-        @Size(max = 200, message = "name must be at most 200 characters")
+        // `message` is an i18n bundle key (i18n/messages_*.properties), resolved
+        // into the caller's language by errors/ConstraintViolationExceptionMapper.
+        @NotBlank(message = "validation.pair.name.required")
+        @Size(max = 200, message = "validation.pair.name.max")
         String name,
 
         Boolean hidden,

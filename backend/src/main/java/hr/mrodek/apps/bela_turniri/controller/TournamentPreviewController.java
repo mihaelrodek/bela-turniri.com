@@ -5,6 +5,9 @@ import hr.mrodek.apps.bela_turniri.model.Pairs;
 import hr.mrodek.apps.bela_turniri.model.Tournaments;
 import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.TournamentsRepository;
+import hr.mrodek.apps.bela_turniri.services.PreviewHtml;
+import hr.mrodek.apps.bela_turniri.services.PreviewRenderService;
+import hr.mrodek.apps.bela_turniri.services.PreviewRenderService.PreviewPage;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -12,6 +15,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -19,7 +23,6 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 
 /**
  * Server-side rendered preview HTML for crawlers (WhatsApp, Slack, Facebook,
@@ -51,30 +54,56 @@ public class TournamentPreviewController {
     @Inject
     PairsRepository pairsRepo;
 
+    @Inject
+    PreviewRenderService previewCache;
+
+    private static final Logger LOG = Logger.getLogger(TournamentPreviewController.class);
+
     @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.com")
     String publicBaseUrl;
 
-    // Optional<> rather than a defaulted String — Quarkus refuses to register
-    // an empty defaultValue, so a non-Optional String here would crash boot
-    // when APP_DEFAULT_OG_IMAGE isn't set in the environment.
-    @ConfigProperty(name = "app.default-og-image")
-    Optional<String> defaultOgImage;
+    // No default-og-image config read here: og:image now always points at
+    // the rendered share-image.png endpoint (see #render below), and
+    // ShareImageController itself is the one that falls back to the static
+    // bela-turniri-og-card.png (1200x630) if the render ever fails — so the
+    // fallback still exists, just one layer down from where it used to live.
 
     /** Croatian-localized formatter, e.g. "ned, 24. svibnja 2026. u 18:00". */
     private static final DateTimeFormatter HR_DATETIME =
             DateTimeFormatter.ofPattern("EEE, d. MMMM yyyy. 'u' HH:mm", Locale.forLanguageTag("hr-HR"));
 
+
     @GET
     @Path("/{idOrSlug}")
     @Produces("text/html; charset=UTF-8")
     public Response preview(@PathParam("idOrSlug") String idOrSlug) {
+        // Memoised per uuid-or-slug: one shared tournament link gets unfurled
+        // once per chat member, and Googlebot re-crawls in bursts. The whole
+        // fetch+render sits inside the supplier so a hit costs no queries.
+        // A not-found render escapes as a NotFoundSignal so it is NOT memoised
+        // — a tournament created seconds later must be visible immediately.
+        PreviewPage page;
+        try {
+            page = previewCache.tournament(idOrSlug, () -> render(idOrSlug));
+        } catch (RuntimeException e) {
+            PreviewPage missed = PreviewRenderService.notFoundPageOf(e);
+            if (missed == null) throw e;
+            page = missed;
+        }
+        return Response.status(page.status())
+                .entity(page.body())
+                .type("text/html; charset=UTF-8")
+                // Never let a CDN hold a 404 for 5-10 minutes.
+                .header("Cache-Control", page.status() == 200 ? PreviewHtml.PREVIEW_CACHE_CONTROL : "no-store")
+                .build();
+    }
+
+    /** Fetch + render, called only on a cache miss. */
+    private PreviewPage render(String idOrSlug) {
         // Accept either UUID (legacy share URLs) or pretty slug (new format).
         Tournaments t = tournamentsRepo.findByUuidOrSlug(idOrSlug).orElse(null);
         if (t == null) {
-            return Response.status(Response.Status.NOT_FOUND)
-                    .type("text/html; charset=UTF-8")
-                    .entity(notFoundHtml())
-                    .build();
+            return PreviewPage.notFound(notFoundHtml());
         }
 
         String name = t.getName() != null ? t.getName() : "Bela turnir";
@@ -89,16 +118,18 @@ public class TournamentPreviewController {
 
 
         // og:image must be an absolute URL — bots fetch it directly from
-        // wherever they are. Point them at the backend image proxy on the
-        // public hostname; the proxy reads from the (private) MinIO bucket.
-        String image = null;
-        if (t.getResource() != null && t.getResource().getId() != null) {
-            image = base + "/api/resources/" + t.getResource().getId() + "/image";
-        } else {
-            image = defaultOgImage.filter(s -> !s.isBlank()).orElse(null);
-        }
+        // wherever they are. Point them at the rendered per-tournament share
+        // card (ShareImageController) rather than the tournament's uploaded
+        // poster: unlike a poster, the card always exists (name/date/place
+        // are rendered directly, no dependency on an uploaded resource) and
+        // it's sized to the 1200×630 OG standard the poster never was — the
+        // old square poster crop is exactly the "every link looks the same"
+        // problem this feature replaces. ShareImageController itself falls
+        // back to the static site-level card if rendering ever fails, so no
+        // fallback branch is needed here.
+        String image = base + "/api/tournaments/" + idOrSlug + "/share-image.png";
 
-        return Response.ok(renderHtml(t, name, description, image, spaUrl)).build();
+        return PreviewPage.ok(renderHtml(t, name, description, image, spaUrl));
     }
 
     /* ───────────────────── helpers ───────────────────── */
@@ -159,6 +190,7 @@ public class TournamentPreviewController {
         sb.append("<title>").append(escapeHtml(name)).append(" — bela-turniri.com</title>\n");
         sb.append("<meta name=\"description\" content=\"").append(escapeAttr(description)).append("\">\n");
         sb.append("<link rel=\"canonical\" href=\"").append(escapeAttr(spaUrl)).append("\">\n");
+        appendIconLinks(sb);
 
         // OpenGraph
         sb.append("<meta property=\"og:type\" content=\"article\">\n");
@@ -168,8 +200,12 @@ public class TournamentPreviewController {
         sb.append("<meta property=\"og:description\" content=\"").append(escapeAttr(description)).append("\">\n");
         sb.append("<meta property=\"og:url\" content=\"").append(escapeAttr(spaUrl)).append("\">\n");
         if (image != null && !image.isBlank()) {
-            sb.append("<meta property=\"og:image\" content=\"").append(escapeAttr(image)).append("\">\n");
-            sb.append("<meta property=\"og:image:alt\" content=\"").append(escapeAttr(name)).append("\">\n");
+            // Matches ShareImageRenderer.WIDTH/HEIGHT exactly (the standard
+            // OG aspect ratio, same as PreviewHtml.DEFAULT_OG_IMAGE_WIDTH/HEIGHT)
+            // — declaring these lets crawlers lay out the preview card
+            // without fetching the image first.
+            PreviewHtml.appendOgImageMeta(sb, image,
+                    PreviewHtml.DEFAULT_OG_IMAGE_WIDTH, PreviewHtml.DEFAULT_OG_IMAGE_HEIGHT, name);
         }
 
         // Twitter
@@ -329,7 +365,11 @@ public class TournamentPreviewController {
             }
         } catch (RuntimeException e) {
             // Defensive: a missing FK or lazy-init blow-up shouldn't take
-            // down the preview entirely. Log and skip the section.
+            // down the preview entirely — skip the section and serve the
+            // rest. WARN (not silence): a preview that quietly drops its
+            // participant list is exactly the kind of degradation nobody
+            // notices until an SEO audit months later.
+            LOG.warnf(e, "Preview: skipping participants section for tournament id=%s", t.getId());
         }
 
         // Status banner — finished tournaments are still useful for SEO
@@ -349,6 +389,17 @@ public class TournamentPreviewController {
         sb.append("<p><a href=\"").append(escapeAttr(spaUrl))
                 .append("\">Otvori turnir u aplikaciji bela-turniri.com</a></p>\n");
         sb.append("</article>\n");
+    }
+
+    /**
+     * Absolute favicon / touch-icon links. Chat clients and Google's favicon
+     * crawler resolve icon links against the document URL they were handed,
+     * which for a shared link may be a proxied one — absolute URLs built from
+     * {@code app.public-base-url} remove the ambiguity. File names match what
+     * is actually shipped in {@code frontend/public/}.
+     */
+    private void appendIconLinks(StringBuilder sb) {
+        PreviewHtml.appendIconLinks(sb, publicBaseUrl.replaceAll("/+$", ""));
     }
 
     private String notFoundHtml() {
@@ -489,53 +540,16 @@ public class TournamentPreviewController {
      * close the script element.
      */
     private static String jsonEscape(String s) {
-        if (s == null) return "";
-        StringBuilder out = new StringBuilder(s.length() + 8);
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"'  -> out.append("\\\"");
-                case '\\' -> out.append("\\\\");
-                case '\n' -> out.append("\\n");
-                case '\r' -> out.append("\\r");
-                case '\t' -> out.append("\\t");
-                case '\b' -> out.append("\\b");
-                case '\f' -> out.append("\\f");
-                case '/'  -> {
-                    // Only escape "/" when it's the slash in "</", which is
-                    // the only sequence that can prematurely terminate a
-                    // <script> block. Escaping every "/" makes the JSON
-                    // noisier than it needs to be.
-                    if (i > 0 && s.charAt(i - 1) == '<') out.append("\\/");
-                    else out.append('/');
-                }
-                default -> {
-                    if (c < 0x20) {
-                        out.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        out.append(c);
-                    }
-                }
-            }
-        }
-        return out.toString();
+        return PreviewHtml.jsonEscape(s);
     }
 
     /** Minimal HTML escape for text node content. */
     private static String escapeHtml(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
+        return PreviewHtml.escapeHtml(s);
     }
 
     /** Stricter escape for attribute values (also escapes quotes). */
     private static String escapeAttr(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#39;");
+        return PreviewHtml.escapeAttr(s);
     }
 }

@@ -12,53 +12,55 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 public record CreateTournamentRequest(
-        @NotBlank(message = "name is required")
-        @Size(max = 200, message = "name must be at most 200 characters")
+        // `message` is an i18n bundle key (i18n/messages_*.properties), resolved
+        // into the caller's language by errors/ConstraintViolationExceptionMapper.
+        @NotBlank(message = "validation.tournament.name.required")
+        @Size(max = 200, message = "validation.tournament.name.max")
         String name,
 
-        @Size(max = 200, message = "location must be at most 200 characters")
+        @Size(max = 200, message = "validation.tournament.location.max")
         String location,
 
-        @Size(max = 4000, message = "details must be at most 4000 characters")
+        @Size(max = 4000, message = "validation.tournament.details.max")
         String details,
 
         OffsetDateTime startAt,
 
-        @Size(max = 1000, message = "bannerUrl must be at most 1000 characters")
+        @Size(max = 1000, message = "validation.tournament.bannerUrl.max")
         String bannerUrl,
 
         // Optional. null = "no cap" (organiser left it unspecified).
         // @Min treats null as valid, so this only enforces "≥ 2" when
         // a value is actually present.
-        @Min(value = 2, message = "maxPairs must be at least 2")
+        @Min(value = 2, message = "validation.tournament.maxPairs.min")
         Integer maxPairs,
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "entryPrice cannot be negative")
+        @DecimalMin(value = "0.0", inclusive = true, message = "validation.tournament.entryPrice.negative")
         BigDecimal entryPrice,                 // default 0 if null
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "repassagePrice cannot be negative")
+        @DecimalMin(value = "0.0", inclusive = true, message = "validation.tournament.repassagePrice.negative")
         BigDecimal repassagePrice,             // default 0 if null
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "repassageSecondPrice cannot be negative")
+        @DecimalMin(value = "0.0", inclusive = true, message = "validation.tournament.repassageSecondPrice.negative")
         BigDecimal repassageSecondPrice,       // nullable
 
         RepassageUntil repassageUntil,         // FINALS | SEMIFINALS | FIRST_ROUND
 
-        @Size(max = 200, message = "contactName must be at most 200 characters")
+        @Size(max = 200, message = "validation.tournament.contactName.max")
         String contactName,
 
-        @Size(max = 50, message = "contactPhone must be at most 50 characters")
+        @Size(max = 50, message = "validation.tournament.contactPhone.max")
         String contactPhone,
 
         RewardType rewardType,                 // FIXED | PERCENTAGE
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "rewardFirst cannot be negative")
+        @DecimalMin(value = "0.0", inclusive = true, message = "validation.tournament.rewardFirst.negative")
         BigDecimal rewardFirst,
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "rewardSecond cannot be negative")
+        @DecimalMin(value = "0.0", inclusive = true, message = "validation.tournament.rewardSecond.negative")
         BigDecimal rewardSecond,
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "rewardThird cannot be negative")
+        @DecimalMin(value = "0.0", inclusive = true, message = "validation.tournament.rewardThird.negative")
         BigDecimal rewardThird,
 
         TournamentStatus status                // DRAFT | STARTED | FINISHED (default DRAFT if null)

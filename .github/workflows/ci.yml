@@ -1,0 +1,159 @@
+name: CI
+
+# Build-only CI - no deploy step here (that's ops/deploy.sh on the VPS).
+# Goal is just to catch "doesn't compile" / "doesn't typecheck" / "doesn't
+# build" / "tests fail" before it reaches main, since there's no staging
+# environment.
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    # Postgres for the %dev,test datasource fallback (see
+    # backend/src/main/resources/application.properties). Mapped to the
+    # SAME port (5485) the local docker-compose.yaml uses, matching the
+    # jdbc.url default (jdbc:postgresql://localhost:5485/bela-turniri.com)
+    # so @QuarkusTest needs no extra env vars beyond what's set below.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: bela-turniri.com
+          POSTGRES_USER: mrodek
+          POSTGRES_PASSWORD: "1234"
+        ports:
+          - 5485:5432
+        options: >-
+          --health-cmd="pg_isready -U mrodek -d bela-turniri.com"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      # GitHub Actions `services:` can't override a container's command, and
+      # the official minio/minio image requires `server /data` as an
+      # argument - it won't start with just env vars. Run it as a plain
+      # `docker run` step instead, on the same port (9085) the local
+      # docker-compose.yaml uses, matching minio.endpoint's default
+      # (http://localhost:9085) so no extra env var is needed for that.
+      # StorageService creates the bucket itself on first use
+      # (bucketExists/makeBucket), so there's no need to pre-create it here.
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio \
+            -p 9085:9000 -p 9185:9001 \
+            -e MINIO_ROOT_USER=minio \
+            -e MINIO_ROOT_PASSWORD=minio12345 \
+            minio/minio:RELEASE.2024-10-02T17-50-41Z \
+            server /data --console-address ":9001"
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:9085/minio/health/live && exit 0
+            sleep 2
+          done
+          echo "MinIO did not become healthy in time" >&2
+          exit 1
+
+      - name: Test
+        run: ./mvnw -B -ntp test
+        env:
+          POSTGRES_USER: mrodek
+          POSTGRES_PASSWORD: "1234"
+          MINIO_ROOT_USER: minio
+          MINIO_ROOT_PASSWORD: minio12345
+          MINIO_BUCKET: bela-posters
+
+      # Separate from the test run so a packaging-only regression (e.g. a
+      # fast-jar layout issue) is still caught even though `test` above
+      # doesn't invoke the package phase.
+      - name: Package (skip tests)
+        run: ./mvnw -B -ntp -DskipTests package
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc -b --noEmit
+
+      - name: Build
+        run: npm run build
+
+      # continue-on-error: the lint baseline currently fails with 135 errors
+      # (9 warnings) - mostly pre-existing @typescript-eslint/no-explicit-any
+      # in large page components. Not a CI gate yet; wire this in for real
+      # once the baseline is paid down, otherwise every PR goes red for
+      # pre-existing issues it didn't introduce.
+      - name: Lint (non-blocking)
+        run: npm run lint
+        continue-on-error: true
+
+      # continue-on-error: a known-vulnerable transitive dep shouldn't block
+      # every PR the day a CVE is published - it's a signal to go fix it,
+      # not a hard gate yet. Revisit once the backlog (if any) is paid down.
+      - name: Audit dependencies (non-blocking)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+  docker-build:
+    runs-on: ubuntu-latest
+    # Build-only smoke test for both prod images - catches a broken
+    # Dockerfile (bad COPY path, missing build arg, base image typo) before
+    # it reaches the VPS. No push: these images only ever get built on the
+    # server itself (see ops/deploy.sh / ops/up.sh), this job just proves
+    # the Dockerfiles still produce something.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: backend/src/main/docker/Dockerfile.jvm
+          push: false
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      # Firebase VITE_* build args are baked into the SPA bundle but aren't
+      # secrets (see frontend/Dockerfile) - dummy values are fine for a
+      # build-only smoke test, nothing here talks to real Firebase.
+      - name: Build edge image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: false
+          build-args: |
+            VITE_FIREBASE_API_KEY=dummy
+            VITE_FIREBASE_AUTH_DOMAIN=dummy.firebaseapp.com
+            VITE_FIREBASE_PROJECT_ID=dummy
+            VITE_FIREBASE_APP_ID=dummy
+          cache-from: type=gha,scope=edge
+          cache-to: type=gha,mode=max,scope=edge

@@ -11,6 +11,7 @@ import {
 } from "@chakra-ui/react"
 import { FiDownload, FiX } from "react-icons/fi"
 import { useInstallPrompt } from "../hooks/useInstallPrompt"
+import { useTranslation } from "../i18n"
 import IosInstallSteps from "./IosInstallSteps"
 
 /**
@@ -55,6 +56,7 @@ function persistDismissed() {
 
 
 export default function FirstRunInstallPrompt() {
+    const { t } = useTranslation()
     const { canInstall, isIos, installed, install } = useInstallPrompt()
     const [open, setOpen] = useState(false)
     const [dismissed, setDismissed] = useState<boolean>(() => readDismissed())
@@ -122,12 +124,12 @@ export default function FirstRunInstallPrompt() {
                                     />
                                     <Box flex="1">
                                         <Text fontWeight="semibold" fontSize="md">
-                                            Instaliraj Bela Turniri
+                                            {t("common.install.title")}
                                         </Text>
                                         <Text fontSize="sm" color="fg.muted">
                                             {isIos
-                                                ? "Dodaj aplikaciju na svoj iPhone u 3 koraka:"
-                                                : "Spremi Bela Turniri kao aplikaciju i otvori je jednim klikom s početnog zaslona."}
+                                                ? t("common.install.iosSubtitle")
+                                                : t("common.install.genericSubtitle")}
                                         </Text>
                                     </Box>
                                 </HStack>
@@ -141,7 +143,7 @@ export default function FirstRunInstallPrompt() {
                                 <HStack gap="2" justify="flex-end" wrap="wrap">
                                     <Button variant="ghost" size="sm" onClick={dismiss}>
                                         <FiX />
-                                        {isIos ? " Razumijem" : " Možda kasnije"}
+                                        {isIos ? ` ${t("common.install.dismissIos")}` : ` ${t("common.install.dismissLater")}`}
                                     </Button>
                                     {canInstall && (
                                         <Button
@@ -150,7 +152,7 @@ export default function FirstRunInstallPrompt() {
                                             size="sm"
                                             onClick={onInstallClick}
                                         >
-                                            <FiDownload /> Instaliraj
+                                            <FiDownload /> {t("common.install.installButton")}
                                         </Button>
                                     )}
                                 </HStack>

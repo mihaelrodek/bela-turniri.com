@@ -1,4 +1,5 @@
 import { http } from "./http"
+import { t } from "../i18n"
 
 export type MyTournamentParticipation = {
     tournamentUuid: string
@@ -20,36 +21,6 @@ export type MyTournamentParticipation = {
     isWinner: boolean
 }
 
-export async function listMyTournaments(): Promise<MyTournamentParticipation[]> {
-    const { data } = await http.get<MyTournamentParticipation[]>("/user/me/tournaments")
-    return data
-}
-
-/** "Moji pari" row — pairs the user is linked to across tournaments. */
-export type MyPairDto = {
-    pairId: number
-    pairName: string
-    tournamentId: number
-    tournamentName: string
-    tournamentRef: string | null
-    tournamentStartAt: string | null
-    isPrimary: boolean
-    pendingApproval: boolean
-    primaryName: string | null
-    primarySlug: string | null
-    coOwnerName: string | null
-    coOwnerSlug: string | null
-    /** Only set when isPrimary — token used for the /claim-pair/{token} share URL. */
-    claimToken: string | null
-}
-
-export async function listMyPairs(): Promise<MyPairDto[]> {
-    const { data } = await http.get<MyPairDto[]>("/user/me/pairs", {
-        silent: true,
-    } as any)
-    return data
-}
-
 export type UserProfile = {
     phoneCountry: string | null
     phone: string | null
@@ -58,6 +29,8 @@ export type UserProfile = {
     avatarUrl?: string | null
     /** "light" or "dark"; null until the user picks one. */
     colorMode?: "light" | "dark" | null
+    /** BCP-47 base tag ("hr" | "sl"); null until the user picks one. */
+    locale?: string | null
 }
 
 export async function getProfile(): Promise<UserProfile> {
@@ -69,7 +42,7 @@ export async function updateProfile(payload: { phoneCountry: string | null; phon
     const { data } = await http.put<UserProfile>(
         "/user/me/profile",
         payload,
-        { successMessage: "Profil je spremljen." } as any,
+        { successMessage: t("common.toast.profileSaved") },
     )
     return data
 }
@@ -83,7 +56,25 @@ export async function updateColorMode(mode: "light" | "dark"): Promise<UserProfi
     const { data } = await http.put<UserProfile>(
         "/user/me/profile",
         { colorMode: mode },
-        { silent: true } as any,
+        { silent: true },
+    )
+    return data
+}
+
+/**
+ * Persist the user's language choice so it follows the account across devices
+ * (LocaleSync applies it again on the next login elsewhere). PATCH, not the
+ * profile PUT: that endpoint rewrites the contact fields from the body, so a
+ * language-only PUT would blank the user's phone number. Silent — the UI has
+ * already switched language, a "saved" toast would be noise.
+ */
+export async function updateLocale(locale: string): Promise<UserProfile> {
+    // ToastOpts is declaration-merged into AxiosRequestConfig in
+    // api/http.ts, so `silent` is a real, typed option — no cast needed.
+    const { data } = await http.patch<UserProfile>(
+        "/user/me/profile/locale",
+        { locale },
+        { silent: true },
     )
     return data
 }
@@ -97,7 +88,7 @@ export async function syncProfile(displayName: string | null | undefined): Promi
     const { data } = await http.post<UserProfile>(
         "/user/me/sync",
         { displayName: displayName ?? null },
-        { silent: true } as any,
+        { silent: true },
     )
     return data
 }
@@ -110,8 +101,8 @@ export async function uploadAvatar(file: File): Promise<UserProfile> {
         fd,
         {
             headers: { "Content-Type": "multipart/form-data" },
-            successMessage: "Profilna slika je spremljena.",
-        } as any,
+            successMessage: t("common.toast.avatarSaved"),
+        },
     )
     return data
 }
@@ -119,7 +110,7 @@ export async function uploadAvatar(file: File): Promise<UserProfile> {
 export async function deleteAvatar(): Promise<UserProfile> {
     const { data } = await http.delete<UserProfile>(
         "/user/me/avatar",
-        { successMessage: "Profilna slika je uklonjena." } as any,
+        { successMessage: t("common.toast.avatarRemoved") },
     )
     return data
 }

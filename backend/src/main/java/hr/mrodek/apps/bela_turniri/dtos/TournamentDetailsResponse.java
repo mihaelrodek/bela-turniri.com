@@ -48,5 +48,19 @@ public record TournamentDetailsResponse(
 
         // Creator (Firebase UID + display name copied at create-time).
         String createdByUid,
-        String createdByName
+        String createdByName,
+
+        /**
+         * Last write to the tournament row ({@code @UpdateTimestamp}).
+         *
+         * <p>There is no dedicated "finished at" column — FINISH only flips
+         * {@code status} and stamps {@code winnerName} — so this is the
+         * closest thing to a finish time the model has. The SPA uses it to
+         * decide whether a FINISHED tournament is still worth holding a
+         * websocket open for: the podium is usually filled in during the
+         * minutes right after the final, and each of those edits bumps this
+         * value again, so the grace window follows the organiser instead of
+         * expiring mid-edit.
+         */
+        OffsetDateTime updatedAt
 ) {}

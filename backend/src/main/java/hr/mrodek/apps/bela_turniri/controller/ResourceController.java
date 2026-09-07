@@ -6,6 +6,7 @@ import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
@@ -49,11 +50,31 @@ public class ResourceController {
     @Inject
     MinioClient minio;
 
+    @Inject hr.mrodek.apps.bela_turniri.services.MessageService messages;
+
     @GET
     @Path("/{id}/image")
-    public Response getImage(@PathParam("id") Long id) {
+    public Response getImage(@PathParam("id") Long id,
+                              @HeaderParam("If-None-Match") String ifNoneMatch) {
         Resources r = repo.findByIdOptional(id)
-                .orElseThrow(() -> new NotFoundException("Resource not found: " + id));
+                .orElseThrow(() -> new NotFoundException(messages.t("resource.notFound", String.valueOf(id))));
+
+        // ETag is the raw value MinIO returned on PUT (StorageService),
+        // stored unquoted on the entity — HTTP wants it quoted on the wire.
+        String rawEtag = r.getEtag();
+        String quotedEtag = (rawEtag != null && !rawEtag.isBlank())
+                ? "\"" + rawEtag + "\""
+                : null;
+
+        if (quotedEtag != null && ifNoneMatch != null && etagMatches(ifNoneMatch, quotedEtag)) {
+            // Client already has this exact blob cached — confirm validity
+            // without re-streaming the body. Cache headers are repeated so a
+            // 304 refreshes the browser's cache lifetime too.
+            Response.ResponseBuilder notModified = Response.status(Response.Status.NOT_MODIFIED)
+                    .header("Cache-Control", "public, max-age=31536000, immutable")
+                    .header("ETag", quotedEtag);
+            return notModified.build();
+        }
 
         // Stream MinIO's response straight to the client — never buffer the
         // whole blob in memory. The MinIO client's GetObjectResponse is an
@@ -76,7 +97,7 @@ public class ResourceController {
                 ? r.getContentType()
                 : MediaType.APPLICATION_OCTET_STREAM;
 
-        return Response.ok(body)
+        Response.ResponseBuilder ok = Response.ok(body)
                 // Use the stored, sanitized Content-Type — set by StorageService
                 // from the validated extension, not from any client header.
                 .header("Content-Type", ct)
@@ -87,7 +108,24 @@ public class ResourceController {
                 // Defense-in-depth — even if Content-Type were ever wrong, the
                 // browser must not sniff the bytes as HTML/JS.
                 .header("X-Content-Type-Options", "nosniff")
-                .header("Content-Disposition", "inline")
-                .build();
+                .header("Content-Disposition", "inline");
+        if (quotedEtag != null) {
+            ok.header("ETag", quotedEtag);
+        }
+        return ok.build();
+    }
+
+    /**
+     * Minimal If-None-Match evaluation: browsers send back exactly the ETag
+     * we gave them, but the header technically allows a comma-separated
+     * list (and "*"). We don't need full RFC 7232 weak-comparison support
+     * here — resources are immutable so a strong exact match is enough.
+     */
+    private static boolean etagMatches(String ifNoneMatch, String quotedEtag) {
+        if ("*".equals(ifNoneMatch.trim())) return true;
+        for (String candidate : ifNoneMatch.split(",")) {
+            if (candidate.trim().equals(quotedEtag)) return true;
+        }
+        return false;
     }
 }

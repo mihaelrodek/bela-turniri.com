@@ -1,0 +1,43 @@
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+        NOTE on tournaments(uuid): NOT added here. Tournaments.uuid already
+        carries @Column(nullable = false, unique = true) (see tournaments.xml),
+        and Postgres backs every UNIQUE constraint with an index automatically
+        — a second index on the same column would be pure duplication.
+    -->
+
+    <!--
+        PairsRepository.findMyParticipations (the profile "my tournaments"
+        list, also rendered by ProfilePreviewController) and
+        existsClaimedPairForUserByName both filter on
+        `lower(trim(name)) = ...` / `lower(trim(name)) in (...)`. Postgres
+        can't use a plain btree index on `name` for either predicate since
+        the expression on the column defeats it — a matching expression
+        index lets both queries use an index scan instead of a seq scan.
+
+        <createIndex> only supports plain column references, not SQL
+        expressions, so this goes through <sql> directly. Uses IF NOT
+        EXISTS itself (Postgres-specific, matches the rest of this backend)
+        as well as an indexExists precondition, so a database that already
+        has the index — created by hand, or from a retried boot — doesn't
+        re-run the DDL.
+    -->
+    <changeSet id="2026-09-04-pairs-name-lower-trim-index" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_pairs_name_lower_trim"/>
+            </not>
+        </preConditions>
+        <sql>CREATE INDEX IF NOT EXISTS idx_pairs_name_lower_trim ON pairs (lower(trim(name)))</sql>
+        <rollback>
+            <sql>DROP INDEX IF EXISTS idx_pairs_name_lower_trim</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      Idempotency store for offline-tolerant score entry.
+
+      The organiser types results on a phone in a hall with bad Wi-Fi, so
+      the SPA queues score / drink-bill / kotizacija writes in localStorage
+      and replays them on reconnect. Every queued write carries a client-
+      generated UUID in `X-Client-Op-Id`; this table remembers the ids the
+      server has already applied together with the exact status + body it
+      answered, so a replay returns the identical response instead of
+      applying the mutation a second time.
+
+      One generic table instead of a `client_op_id` column per entity: the
+      queued mutations are heterogeneous (match score, drinks add/remove,
+      pay/unpay, pair paid flag) and each new one would otherwise need its
+      own column, index and lookup.
+
+      `client_op_id` is UNIQUE — that index IS the concurrency gate. Two
+      replays racing each other both try to insert the same id; Postgres
+      lets exactly one through and the loser reads the winner's stored
+      response.
+
+      `http_status = 0` is the "claimed, still running" sentinel written
+      before the mutation executes. It is never observable outside the
+      owning transaction: if the mutation fails, the claim rolls back with
+      it, so a failed write leaves no "already done" marker.
+
+      Rows are pruned after 7 days — longer than any realistic outage,
+      short enough that the table stays tiny.
+
+      tableExists / MARK_RAN so re-running against a database where the
+      table was already created by hand is a no-op rather than a startup
+      failure.
+    -->
+
+    <changeSet id="2026-09-03-processed-operations" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="processed_operations"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="processed_operations">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- Client-minted UUID. varchar(100) leaves room for a prefixed
+                 fallback id from WebViews without crypto.randomUUID(). -->
+            <column name="client_op_id" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Firebase UID of the caller that first ran the operation. A
+                 replay from a different account is NOT served this row. -->
+            <column name="user_uid" type="varchar(64)"/>
+            <column name="endpoint" type="varchar(200)"/>
+            <column name="http_status" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="response_body" type="text"/>
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="processed_operations"
+                             columnNames="client_op_id"
+                             constraintName="uq_processed_operations_client_op_id"/>
+
+        <!-- Drives the 7-day prune. -->
+        <createIndex tableName="processed_operations" indexName="idx_processed_operations_created_at">
+            <column name="created_at"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

@@ -18,17 +18,41 @@
 #
 #   docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --build
 #
-# Update workflow:
+# Update workflow - prefer the maintenance-guarded scripts so users see the
+# "Nadogradnja u tijeku" page during the rebuild instead of errors:
 #
-#   git pull
+#   ./ops/deploy.sh             # full release: git pull + rebuild + prune
+#   ./ops/up.sh                 # guarded compose up (no pull/prune); pass a
+#                               # service name to rebuild just that one
+#
+# The raw command below does the same rebuild but shows NO maintenance page
+# (docker compose has no hooks to toggle the flag) - use it only when you
+# deliberately want a hot, in-place update with no maintenance page:
+#
 #   docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --build
 #   docker image prune -f       # reclaim space from old images
+
+# Shared log policy - cap container logs so the json-file driver can't grow
+# unbounded and fill the VPS disk. 10 MB × 3 files = max 30 MB per service.
+# Merged into each service below via the `<<: *default-logging` anchor.
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
 
 services:
   postgres:
     image: postgres:16-alpine
     container_name: bela-postgres
+    <<: *default-logging
     restart: unless-stopped
+    # Sized for a small VPS (Hetzner CX22, 4 GB RAM) with backend/minio/
+    # caddy sharing the box. postgres:16-alpine's own defaults (shared_buffers
+    # etc.) are modest enough to run comfortably inside this.
+    mem_limit: 512m
+    cpus: 1.0
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -51,7 +75,12 @@ services:
   minio:
     image: minio/minio:RELEASE.2024-10-02T17-50-41Z
     container_name: bela-minio
+    <<: *default-logging
     restart: unless-stopped
+    # Sized for a small VPS - MinIO's own footprint is small at this scale
+    # (a handful of posters/avatars, no heavy erasure-coding cluster).
+    mem_limit: 256m
+    cpus: 0.5
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -71,6 +100,7 @@ services:
   minio-setup:
     image: minio/mc:latest
     container_name: bela-minio-setup
+    <<: *default-logging
     depends_on:
       minio:
         condition: service_healthy
@@ -98,16 +128,42 @@ services:
       dockerfile: src/main/docker/Dockerfile.jvm
     image: bela-backend:latest
     container_name: bela-backend
+    <<: *default-logging
     restart: unless-stopped
+    # Sized for a small VPS (Hetzner CX22, 4 GB RAM) shared with postgres/
+    # minio/caddy. JAVA_OPTS below overrides the Dockerfile's default
+    # -XX:MaxRAMPercentage=75.0 with a lower percentage: the JVM reads the
+    # container's cgroup limit (mem_limit), so 65% of 768m ≈ 500m heap,
+    # leaving ~270m for metaspace/thread stacks/direct buffers/GC overhead -
+    # tighter than the 75% default leaves at this container size.
+    mem_limit: 768m
+    cpus: 1.5
     depends_on:
       postgres:
         condition: service_healthy
       minio:
         condition: service_healthy
+    healthcheck:
+      # quarkus.http.root-path=/api, so the SmallRye readiness probe lives at
+      # /api/q/health/ready (datasource + MinIO readiness). curl ships in the
+      # eclipse-temurin:21-jre base image used by
+      # backend/src/main/docker/Dockerfile.jvm (verified: Ubuntu-based, has
+      # both curl and wget), so no extra package install needed. Public
+      # internet access to /api/q/* is blocked at the Caddy edge (see
+      # Caddyfile) - this check hits the container directly.
+      test: ["CMD", "curl", "-fsS", "http://localhost:8085/api/q/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
       # Activate the prod profile so %prod overrides in application.properties
       # take effect (Swagger off, JSON logs on if configured, etc.).
       QUARKUS_PROFILE: prod
+
+      # Overrides the Dockerfile's default MaxRAMPercentage=75.0 - see the
+      # mem_limit comment above for why 65% fits this container size better.
+      JAVA_OPTS: "-XX:+UseG1GC -XX:MaxRAMPercentage=65.0 -Djava.security.egd=file:/dev/urandom"
 
       # Datasource — Postgres is reachable as `postgres` on the internal net.
       POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
@@ -133,6 +189,13 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:mihael.rodek1@gmail.com}
+
+      # Outgoing e-mail (Resend). If RESEND_API_KEY is unset the backend
+      # boots and the contact form still stores every message - it just
+      # sends no notification (EmailService WARNs about it at boot).
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-Bela turniri <noreply@bela-turniri.com>}
+      CONTACT_TO: ${CONTACT_TO:-}
     networks:
       - bela_internal
 
@@ -149,9 +212,23 @@ services:
         VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID}
     image: bela-edge:latest
     container_name: bela-edge
+    <<: *default-logging
     restart: unless-stopped
+    # Sized for a small VPS - Caddy's own footprint is tiny (reverse proxy +
+    # static file serving); the rate-limit module and TLS session cache are
+    # the only meaningful extra memory users.
+    mem_limit: 128m
+    cpus: 0.5
     depends_on:
-      - backend
+      # service_started, not service_healthy - the backend's own healthcheck
+      # can take a while (Liquibase migrations, JVM warmup), and edge doesn't
+      # actually need the backend UP to start; Caddy's lb_try_duration on the
+      # /api/* reverse_proxy already retries for a few seconds on its own.
+      # Gating on service_healthy here would delay `up -d` for the whole
+      # stack and risk a deploy deadlock if the backend healthcheck ever
+      # flaps during startup.
+      backend:
+        condition: service_started
     ports:
       - "80:80"
       - "443:443"
@@ -161,6 +238,10 @@ services:
       # hit the Let's Encrypt rate limit.
       - caddy_data:/data
       - caddy_config:/config
+      # Maintenance flag (read-only). The deploy script touches/removes
+      # ./ops/maintenance/ENABLED on the host; Caddy serves the
+      # "Nadogradnja u tijeku" 503 page while that file exists.
+      - ./ops/maintenance:/maintenance:ro
     networks:
       - bela_internal
 

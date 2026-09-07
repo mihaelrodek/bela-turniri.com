@@ -1,4 +1,5 @@
 import { http } from "./http"
+import { t } from "../i18n"
 
 /** One row of a cjenik (tournament or template). */
 export type DrinkPriceDto = {
@@ -24,6 +25,8 @@ export type MatchBillDto = {
     total: number | string
     paidAt?: string | null
     paidByUid?: string | null
+    /** Display snapshot of who settled it — the organiser's name, or a waiter's invited name. */
+    paidByName?: string | null
     /** Surfaced once match is FINISHED (and not BYE) so UI can label the bill. */
     loserPairId?: number | null
     loserPairName?: string | null
@@ -36,18 +39,28 @@ export type MatchBillDto = {
 export async function fetchTournamentCjenik(uuid: string): Promise<DrinkPriceDto[]> {
     const { data } = await http.get<DrinkPriceDto[]>(`/tournaments/${uuid}/cjenik`, {
         silent: true,
-    } as any)
+    })
     return data
 }
 
+/**
+ * `waiterToken` is set only for a "head waiter" — a credential invited with
+ * cjenik rights (`TournamentWaiter.canEditCjenik`) — sent as `X-Waiter-Token`
+ * so `CjenikController.putTournamentCjenik` can authorise them without an
+ * account. Omitted (or null) for the organiser, whose ordinary Firebase
+ * bearer is authorisation enough — see `WaiterAccessService#authorizeCjenikAccess`.
+ */
 export async function saveTournamentCjenik(
     uuid: string,
     items: DrinkPriceDto[],
+    waiterToken?: string | null,
 ): Promise<DrinkPriceDto[]> {
     const { data } = await http.put<DrinkPriceDto[]>(
         `/tournaments/${uuid}/cjenik`,
         { items },
-        { successMessage: "Cjenik spremljen" } as any,
+        waiterToken
+            ? { headers: { "X-Waiter-Token": waiterToken }, silent: true }
+            : { successMessage: t("common.toast.cjenikSaved") },
     )
     return data
 }
@@ -61,8 +74,8 @@ export async function saveCjenikAsTemplate(
         null,
         {
             params: { name: templateName },
-            successMessage: `Spremljeno u predložak "${templateName}"`,
-        } as any,
+            successMessage: t("common.toast.templateSavedAs", { name: templateName }),
+        },
     )
     return data
 }
@@ -76,8 +89,8 @@ export async function importCjenikTemplate(
         null,
         {
             params: { name: templateName },
-            successMessage: `Predložak "${templateName}" učitan`,
-        } as any,
+            successMessage: t("common.toast.templateImported", { name: templateName }),
+        },
     )
     return data
 }
@@ -90,7 +103,7 @@ export async function importCjenikTemplate(
 export async function fetchMyTemplateNames(): Promise<string[]> {
     const { data } = await http.get<string[]>(`/user/me/drink-templates`, {
         silent: true,
-    } as any)
+    })
     return data
 }
 
@@ -98,7 +111,7 @@ export async function fetchMyTemplateNames(): Promise<string[]> {
 export async function fetchMyTemplate(name: string): Promise<DrinkPriceDto[]> {
     const { data } = await http.get<DrinkPriceDto[]>(
         `/user/me/drink-templates/${encodeURIComponent(name)}/items`,
-        { silent: true } as any,
+        { silent: true },
     )
     return data
 }
@@ -111,7 +124,7 @@ export async function saveMyTemplate(
     const { data } = await http.put<DrinkPriceDto[]>(
         `/user/me/drink-templates/${encodeURIComponent(name)}/items`,
         { items },
-        { successMessage: `Predložak "${name}" spremljen` } as any,
+        { successMessage: t("common.toast.templateSaved", { name }) },
     )
     return data
 }
@@ -123,14 +136,14 @@ export async function renameMyTemplate(
     await http.post(
         `/user/me/drink-templates/${encodeURIComponent(oldName)}/rename`,
         { newName },
-        { successMessage: "Predložak preimenovan" } as any,
+        { successMessage: t("common.toast.templateRenamed") },
     )
 }
 
 export async function deleteMyTemplate(name: string): Promise<void> {
     await http.delete(
         `/user/me/drink-templates/${encodeURIComponent(name)}`,
-        { successMessage: `Predložak "${name}" obrisan` } as any,
+        { successMessage: t("common.toast.templateDeletedNamed", { name }) },
     )
 }
 
@@ -144,9 +157,24 @@ export async function fetchMatchBill(
 ): Promise<MatchBillDto> {
     const { data } = await http.get<MatchBillDto>(
         `/tournaments/${uuid}/matches/${matchId}/bill`,
-        { silent: true } as any,
+        { silent: true },
     )
     return data
+}
+
+/**
+ * `opts.opId` is the offline queue's operation id, sent as
+ * `X-Client-Op-Id`. The bartender adds drinks on a phone at the table,
+ * which is exactly where the signal dies; the backend applies a given id
+ * exactly once, so a replayed add can never put the same rakija on the bill
+ * twice. Set per request — `api/http.ts` is shared by every call and most
+ * of them are not queued.
+ */
+type OpIdOpts = { opId?: string }
+
+/** Per-request config carrying the idempotency header, or nothing. */
+function opIdHeader(opts?: OpIdOpts) {
+    return opts?.opId ? { headers: { "X-Client-Op-Id": opts.opId } } : {}
 }
 
 export async function addMatchDrink(
@@ -154,11 +182,12 @@ export async function addMatchDrink(
     matchId: number,
     priceId: number,
     quantity: number = 1,
+    opts?: OpIdOpts,
 ): Promise<MatchBillDto> {
     const { data } = await http.post<MatchBillDto>(
         `/tournaments/${uuid}/matches/${matchId}/drinks`,
         { priceId, quantity },
-        { silent: true } as any,
+        { silent: true, ...opIdHeader(opts) },
     )
     return data
 }
@@ -167,10 +196,11 @@ export async function removeMatchDrink(
     uuid: string,
     matchId: number,
     drinkId: number,
+    opts?: OpIdOpts,
 ): Promise<MatchBillDto> {
     const { data } = await http.delete<MatchBillDto>(
         `/tournaments/${uuid}/matches/${matchId}/drinks/${drinkId}`,
-        { silent: true } as any,
+        { silent: true, ...opIdHeader(opts) },
     )
     return data
 }
@@ -178,11 +208,12 @@ export async function removeMatchDrink(
 export async function markMatchPaid(
     uuid: string,
     matchId: number,
+    opts?: OpIdOpts & { silent?: boolean },
 ): Promise<MatchBillDto> {
     const { data } = await http.post<MatchBillDto>(
         `/tournaments/${uuid}/matches/${matchId}/pay`,
         null,
-        { successMessage: "Plaćeno" } as any,
+        { silent: opts?.silent, successMessage: t("common.toast.matchPaid"), ...opIdHeader(opts) },
     )
     return data
 }
@@ -190,11 +221,12 @@ export async function markMatchPaid(
 export async function markMatchUnpaid(
     uuid: string,
     matchId: number,
+    opts?: OpIdOpts & { silent?: boolean },
 ): Promise<MatchBillDto> {
     const { data } = await http.post<MatchBillDto>(
         `/tournaments/${uuid}/matches/${matchId}/unpay`,
         null,
-        { successMessage: "Označeno kao neplaćeno" } as any,
+        { silent: opts?.silent, successMessage: t("common.toast.matchUnpaid"), ...opIdHeader(opts) },
     )
     return data
 }
@@ -223,6 +255,6 @@ export type UserInvoiceDto = {
 export async function fetchMyInvoices(): Promise<UserInvoiceDto[]> {
     const { data } = await http.get<UserInvoiceDto[]>(`/user/me/invoices`, {
         silent: true,
-    } as any)
+    })
     return data
 }

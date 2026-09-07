@@ -12,22 +12,25 @@ import {
     VStack,
 } from "@chakra-ui/react"
 import { FcGoogle } from "react-icons/fc"
-import { useAuth } from "../auth/AuthContext"
+import { FirebaseError } from "firebase/app"
+import { useAuth } from "../auth/authContextValue"
+import { nextFromState, pickSafeNext } from "../utils/safeNextPath"
+import { t, useTranslation } from "../i18n"
 
-function authErrorMessage(err: any): string {
-    const code: string = err?.code ?? ""
+function authErrorMessage(err: unknown): string {
+    const code = err instanceof FirebaseError ? err.code : ""
     switch (code) {
         case "auth/email-already-in-use":
-            return "Već postoji račun s tom email adresom. Probaj se prijaviti."
+            return t("forms.register.error.emailInUse")
         case "auth/invalid-email":
-            return "Neispravan format email adrese."
+            return t("forms.auth.invalidEmail")
         case "auth/weak-password":
-            return "Lozinka je preslaba. Mora imati barem 6 znakova."
+            return t("forms.register.error.weakPassword")
         case "auth/popup-closed-by-user":
         case "auth/cancelled-popup-request":
             return ""
         default:
-            return err?.message ?? "Registracija nije uspjela."
+            return err instanceof Error ? err.message : t("forms.register.error.generic")
     }
 }
 
@@ -36,6 +39,7 @@ export default function RegisterPage() {
     const location = useLocation()
     const [searchParams] = useSearchParams()
     const { signUp, signInWithGoogle, user, loading: authLoading } = useAuth()
+    const { t } = useTranslation()
 
     const [name, setName] = useState("")
     const [email, setEmail] = useState("")
@@ -44,12 +48,14 @@ export default function RegisterPage() {
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    // Honour ?next= from the URL (claim-name flow uses it), then
-    // navigation-state hint, then the default home for tournaments.
-    const redirectTo =
-        searchParams.get("next") ??
-        (location.state as { from?: string } | null)?.from ??
-        "/turniri"
+    // Honour ?next= from the URL (claim-name flow uses it), then the
+    // navigation-state hint, then the default home for tournaments. Both
+    // inputs are attacker-controllable, so pickSafeNext rejects anything that
+    // isn't a plain same-origin path (see utils/safeNextPath.ts).
+    const redirectTo = pickSafeNext(
+        [searchParams.get("next"), nextFromState(location.state)],
+        "/turniri",
+    )
 
     /**
      * If the user is already signed in, /register has nothing to do —
@@ -66,22 +72,22 @@ export default function RegisterPage() {
         e.preventDefault()
         setError(null)
         if (!email.trim() || !password) {
-            setError("Email i lozinka su obavezni.")
+            setError(t("forms.register.validation.required"))
             return
         }
         if (password.length < 6) {
-            setError("Lozinka mora imati barem 6 znakova.")
+            setError(t("forms.register.validation.weakPassword"))
             return
         }
         if (password !== confirm) {
-            setError("Lozinke se ne podudaraju.")
+            setError(t("forms.register.validation.passwordMismatch"))
             return
         }
         try {
             setSubmitting(true)
             await signUp(email.trim(), password, name.trim() || undefined)
             navigate(redirectTo, { replace: true })
-        } catch (e: any) {
+        } catch (e: unknown) {
             const msg = authErrorMessage(e)
             if (msg) setError(msg)
         } finally {
@@ -94,7 +100,7 @@ export default function RegisterPage() {
         try {
             await signInWithGoogle()
             navigate(redirectTo, { replace: true })
-        } catch (e: any) {
+        } catch (e: unknown) {
             const msg = authErrorMessage(e)
             if (msg) setError(msg)
         }
@@ -105,7 +111,7 @@ export default function RegisterPage() {
             <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
                 <Card.Body p={{ base: "5", md: "6" }}>
                     <VStack align="stretch" gap="4">
-                        <Heading size="md">Registracija</Heading>
+                        <Heading size="md">{t("forms.register.heading")}</Heading>
 
                         <Button
                             variant="outline"
@@ -113,28 +119,28 @@ export default function RegisterPage() {
                             onClick={onGoogle}
                             disabled={submitting}
                         >
-                            <FcGoogle size={18} /> Registriraj se s Googleom
+                            <FcGoogle size={18} /> {t("forms.register.googleButton")}
                         </Button>
 
                         <HStack>
                             <Box flex="1" h="1px" bg="border.subtle" />
-                            <Text fontSize="xs" color="fg.muted">ili</Text>
+                            <Text fontSize="xs" color="fg.muted">{t("forms.auth.orDivider")}</Text>
                             <Box flex="1" h="1px" bg="border.subtle" />
                         </HStack>
 
                         <form onSubmit={onSubmit}>
                             <VStack align="stretch" gap="3">
                                 <Field.Root>
-                                    <Field.Label>Ime <Box as="span" color="fg.muted" fontSize="xs">(opcionalno)</Box></Field.Label>
+                                    <Field.Label>{t("forms.register.nameLabel")} <Box as="span" color="fg.muted" fontSize="xs">{t("forms.register.nameOptional")}</Box></Field.Label>
                                     <Input
                                         autoComplete="name"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
-                                        placeholder="npr. Marko"
+                                        placeholder={t("forms.register.namePlaceholder")}
                                     />
                                 </Field.Root>
                                 <Field.Root required>
-                                    <Field.Label>Email</Field.Label>
+                                    <Field.Label>{t("forms.auth.email")}</Field.Label>
                                     <Input
                                         type="email"
                                         autoComplete="email"
@@ -143,17 +149,17 @@ export default function RegisterPage() {
                                     />
                                 </Field.Root>
                                 <Field.Root required>
-                                    <Field.Label>Lozinka</Field.Label>
+                                    <Field.Label>{t("forms.auth.password")}</Field.Label>
                                     <Input
                                         type="password"
                                         autoComplete="new-password"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                     />
-                                    <Field.HelperText>Najmanje 6 znakova.</Field.HelperText>
+                                    <Field.HelperText>{t("forms.register.passwordHelper")}</Field.HelperText>
                                 </Field.Root>
                                 <Field.Root required>
-                                    <Field.Label>Potvrdi lozinku</Field.Label>
+                                    <Field.Label>{t("forms.register.confirmPasswordLabel")}</Field.Label>
                                     <Input
                                         type="password"
                                         autoComplete="new-password"
@@ -175,15 +181,15 @@ export default function RegisterPage() {
                                     loading={submitting}
                                     disabled={submitting}
                                 >
-                                    Kreiraj račun
+                                    {t("forms.register.submit")}
                                 </Button>
                             </VStack>
                         </form>
 
                         <Text fontSize="sm" color="fg.muted" textAlign="center">
-                            Već imaš račun?{" "}
+                            {t("forms.register.hasAccount")}{" "}
                             <Box as="span" color="blue.fg" fontWeight="medium">
-                                <RouterLink to="/prijava">Prijavi se</RouterLink>
+                                <RouterLink to="/prijava">{t("forms.register.loginLink")}</RouterLink>
                             </Box>
                         </Text>
                     </VStack>

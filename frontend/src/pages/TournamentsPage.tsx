@@ -1,28 +1,56 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import {
-    Badge,
     Box,
     Button,
-    Card,
+    chakra,
+    Grid,
     Heading,
     HStack,
     IconButton,
-    Image,
     Input,
-    Skeleton,
+    Menu,
+    Portal,
     Slider,
     Stack,
     Text,
     VStack,
 } from "@chakra-ui/react"
 import { Link as RouterLink, useNavigate } from "react-router-dom"
-import { FiCalendar, FiChevronDown, FiChevronUp, FiClock, FiFilter, FiNavigation, FiPlus, FiSearch, FiUsers, FiX } from "react-icons/fi"
-import type { TournamentCard } from "../types/tournaments"
+import {
+    FiCalendar,
+    FiCheck,
+    FiChevronDown,
+    FiChevronUp,
+    FiFilter,
+    FiGrid,
+    FiList,
+    FiNavigation,
+    FiPlus,
+    FiSearch,
+    FiSliders,
+    FiX,
+} from "react-icons/fi"
 import { fetchTournaments, fetchTournamentsCount } from "../api/tournaments"
+import { qk } from "../queryClient"
 import { useUserLocation } from "../hooks/useUserLocation"
 import { haversineKm } from "../utils/distance"
 import { useDocumentHead } from "../hooks/useDocumentHead"
-import PageTour from "../components/PageTour"
+import { useSearchHotkey } from "../hooks/useSearchHotkey"
+import { showError } from "../toaster"
+import { useTranslation, usePlural } from "../i18n"
+import EmptyState from "../components/EmptyState"
+import ListingCard, { ListingCardSkeleton } from "../components/ListingCard"
+import ListingRow, { ListingRowSkeleton } from "../components/ListingRow"
+import {
+    NEARBY_DEFAULT_KM,
+    RADIUS_MAX_KM,
+    SORT_MODES,
+    sortNeedsLocation,
+    sortTournaments,
+    type ListingTournament,
+    type SortMode,
+} from "../components/listingShared"
 import {
     TURNIRI_LIST_TOUR_STEPS,
     TOUR_RESUME_DETAIL_KEY,
@@ -30,331 +58,206 @@ import {
     notifyTourOfLayoutChange,
 } from "../components/tourSteps"
 
-/** The list DTO now includes a public UUID you want to route with */
-type TournamentCardWithUuid = TournamentCard & { uuid: string }
+/* react-joyride and the whole tour runtime are only ever needed when the user
+   taps the NavBar "?" button, which the overwhelming majority never do — so
+   the component is split out of the list's own chunk and fetched on demand.
+   `PageTour` renders null until it has steps to run, so a Suspense fallback of
+   `null` keeps the page pixel-identical while the chunk loads. */
+const PageTour = lazy(() => import("../components/PageTour"))
 
-// ---------- formatters ----------
-function formatDate(iso?: string | null) {
-    if (!iso) return "—"
-    const d = new Date(iso)
-    return new Intl.DateTimeFormat("hr-HR", {
-        weekday: "short",
-        day: "2-digit",
-        month: "short",
-    }).format(d)
-}
-function formatTime(iso?: string | null) {
-    if (!iso) return "—"
-    const d = new Date(iso)
-    return new Intl.DateTimeFormat("hr-HR", {
-        hour: "2-digit",
-        minute: "2-digit",
-    }).format(d)
-}
-function fmtEuro(n?: number | null) {
-    if (typeof n !== "number" || !isFinite(n)) return null
-    const s = n.toFixed(2)
-    const trimmed = s.endsWith(".00") ? s.slice(0, -3) : s
-    return `${trimmed}€`
+/* ──────────────────────────────────────────────────────────────────────────
+   TournamentsPage — the listing.
+
+   The screen is one toolbar over two sections:
+
+     1. a single-row toolbar — search (with a real ⌘K / Ctrl-K shortcut behind
+        the hint chip), a "Filteri" disclosure, a "Sortiraj" menu and a
+        Mreža/Popis view switcher;
+     2. a filter panel that only exists while "Filteri" is on, holding the
+        location, kotizacija and repasaž ranges plus the "U krugu od" radius —
+        the old "Blizu mene" toggle and its three radius chips MOVED here and
+        became that one slider, rather than a second set of controls;
+     3. "Nadolazeći" and "Završeni turniri", both rendered through the same
+        view mode so the switcher is a property of the page, not of one list.
+
+   Filtering and sorting apply to the upcoming list only. The finished list is
+   server-paginated ("Učitaj više"), so narrowing it client-side would show a
+   count the server never agreed to.
+   ────────────────────────────────────────────────────────────────────── */
+
+/** Stable empty default for the query results — a fresh `[]` literal on every
+ *  render would bust the filtering useMemos below. */
+const EMPTY_CARDS: ListingTournament[] = []
+
+const FINISHED_PREVIEW_LIMIT = 6
+
+/** Grid ↔ list is a viewing preference, not a filter: it survives navigating
+ *  away and back within the tab, and resets on the next visit. sessionStorage
+ *  (not localStorage) is exactly that lifetime. */
+const VIEW_STORAGE_KEY = "bela:turniri-view"
+
+type ViewMode = "grid" | "list"
+
+function readStoredView(): ViewMode {
+    try {
+        return window.sessionStorage.getItem(VIEW_STORAGE_KEY) === "list" ? "list" : "grid"
+    } catch {
+        /* private mode — fall back to the default */
+        return "grid"
+    }
 }
 
-/** Compact "Danas" / "Sutra" / "Za N dana" relative label, hr-HR. */
-function relativeDays(iso?: string | null): string | null {
-    if (!iso) return null
-    const startMs = new Date(iso).setHours(0, 0, 0, 0)
-    const todayMs = new Date().setHours(0, 0, 0, 0)
-    const diff = Math.round((startMs - todayMs) / (24 * 60 * 60 * 1000))
-    if (diff === 0) return "Danas"
-    if (diff === 1) return "Sutra"
-    if (diff > 1 && diff <= 14) return `Za ${diff} dana`
-    return null
+/** Dictionary leaf for each sort mode, so the internal keys can stay terse
+ *  while the copy lives in `pages.tournaments.sort.*`. */
+const SORT_LABEL_KEY: Record<SortMode, string> = {
+    date_asc: "pages.tournaments.sort.dateAsc",
+    date_desc: "pages.tournaments.sort.dateDesc",
+    price_asc: "pages.tournaments.sort.priceAsc",
+    popular: "pages.tournaments.sort.popular",
+    name_asc: "pages.tournaments.sort.nameAsc",
+    distance_asc: "pages.tournaments.sort.distanceAsc",
 }
 
-// ---------- subcomponents ----------
+/** Small upper-case letter-spaced caption over each control in the filter
+ *  panel. The dictionary keeps the copy in normal case; the shouting is
+ *  presentation, so it happens here. */
+function FilterLabel({ children }: { children: React.ReactNode }) {
+    return (
+        <Text
+            fontSize="2xs"
+            fontWeight="bold"
+            letterSpacing="0.1em"
+            textTransform="uppercase"
+            color="fg.muted"
+            mb="1.5"
+        >
+            {children}
+        </Text>
+    )
+}
 
-/** Image area with status badge overlays. */
-function CardBanner({
-                        t,
-                        variant,
-                    }: {
-    t: TournamentCardWithUuid
-    variant: "upcoming" | "finished"
+/** One half of the Mreža/Popis segmented control. The label is hidden on
+ *  phones, so the accessible name has to come from `aria-label` — without it
+ *  the button has no name at all at 390px. */
+function ViewToggleButton({
+    active,
+    onClick,
+    icon,
+    label,
+}: {
+    active: boolean
+    onClick: () => void
+    icon: React.ReactNode
+    label: string
 }) {
-    const isFull =
-        typeof t.registeredPairs === "number" &&
-        typeof t.maxPairs === "number" &&
-        t.registeredPairs >= t.maxPairs
-
-    const relative = relativeDays(t.startAt)
-
     return (
-        <Box
-            position="relative"
-            bg="bg.muted"
-            h={{ base: "130px", md: "140px" }}
-            overflow="hidden"
+        <chakra.button
+            type="button"
+            onClick={onClick}
+            aria-label={label}
+            aria-pressed={active}
+            display="inline-flex"
+            alignItems="center"
+            gap="1.5"
+            px={{ base: "2.5", md: "3" }}
+            py="1.5"
+            rounded="md"
+            fontSize="xs"
+            fontWeight="bold"
+            cursor="pointer"
+            bg={active ? "brand.solid" : "transparent"}
+            color={active ? "brand.contrast" : "fg.muted"}
+            transition="background-color .15s ease, color .15s ease"
+            _hover={active ? undefined : { color: "fg.ink" }}
         >
-            {t.bannerUrl ? (
-                <Image
-                    src={t.bannerUrl}
-                    alt={t.name}
-                    w="100%"
-                    h="100%"
-                    objectFit="cover"
-                    objectPosition="top center"
-                    draggable={false}
-                    style={
-                        variant === "finished"
-                            ? { filter: "grayscale(0.6) brightness(0.92)" }
-                            : undefined
-                    }
-                />
-            ) : (
-                <Box
-                    w="100%"
-                    h="100%"
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="center"
-                >
-                    <Text color="fg.muted" fontSize="xs">Nema plakata</Text>
-                </Box>
-            )}
-
-            {/* Top-right: date pill */}
-            {t.startAt && (
-                <Box
-                    position="absolute"
-                    top="2"
-                    right="2"
-                    bg="blackAlpha.700"
-                    color="white"
-                    px="2"
-                    py="0.5"
-                    rounded="md"
-                    fontSize="xs"
-                    fontWeight="medium"
-                    backdropFilter="blur(4px)"
-                >
-                    {formatDate(t.startAt)}
-                </Box>
-            )}
-
-            {/* Top-left: status badge */}
-            <Box position="absolute" top="2" left="2">
-                {variant === "finished" ? (
-                    <Badge size="sm" colorPalette="gray" variant="solid">
-                        Završen
-                    </Badge>
-                ) : isFull ? (
-                    <Badge size="sm" colorPalette="orange" variant="solid">
-                        Mjesta puna
-                    </Badge>
-                ) : relative ? (
-                    <Badge size="sm" colorPalette="blue" variant="solid">
-                        {relative}
-                    </Badge>
-                ) : (
-                    <Badge size="sm" colorPalette="blue" variant="solid">
-                        Nadolazeći
-                    </Badge>
-                )}
-            </Box>
-        </Box>
+            {icon}
+            <Box as="span" display={{ base: "none", md: "inline" }}>{label}</Box>
+        </chakra.button>
     )
 }
 
-/** Single tournament card. Whole card is the link, no nested links inside. */
-function TournamentCardView({
-                                t,
-                                variant,
-                            }: {
-    t: TournamentCardWithUuid
-    variant: "upcoming" | "finished"
-}) {
-    const price = fmtEuro(t.entryPrice)
-    const rep = fmtEuro(t.repassagePrice)
-    const priceBlock = price ? (rep ? `${price} + ${rep}` : price) : null
-
-    const winner = (t.winnerName ?? "").trim()
-
-    return (
-        <RouterLink
-            to={`/turniri/${t.slug ?? t.uuid}`}
-            // display:flex + height:100% so the link stretches to fill
-            // its grid cell. CSS Grid already stretches each cell to the
-            // tallest row height, but a `display: block` <a> tag sizes
-            // to its own content and breaks the chain — the inner Box's
-            // `h="full"` then resolves against the short link, not the
-            // tall cell, so cards with shorter titles ended up shorter
-            // than their neighbours with multi-line titles. The flex
-            // column also gives the inner content a stretching parent
-            // (so the body's `flex="1"` + `mt="auto"` push the meta
-            // row to the bottom of every card uniformly).
-            style={{
-                display: "flex",
-                flexDirection: "column",
-                height: "100%",
-                textDecoration: "none",
-                color: "inherit",
-            }}
-        >
-            <Box
-                borderWidth="1px"
-                borderColor="border.emphasized"
-                rounded="xl"
-                overflow="hidden"
-                bg="bg"
-                shadow="sm"
-                transition="transform .15s ease, box-shadow .15s ease, border-color .15s ease"
-                _hover={{
-                    shadow: "md",
-                    transform: "translateY(-2px)",
-                    borderColor: "border.emphasized",
-                }}
-                h="full"
-                display="flex"
-                flexDirection="column"
-            >
-                <CardBanner t={t} variant={variant} />
-
-                <VStack align="stretch" gap="2" p="3" flex="1">
-                    <Text
-                        fontWeight="semibold"
-                        fontSize={{ base: "sm", md: "md" }}
-                        lineHeight="short"
-                    >
-                        {t.name}
-                    </Text>
-
-                    {variant === "finished" && winner && (
-                        <HStack gap="1.5" align="center">
-                            <Text fontSize="xs" color="fg.muted">Pobjednici -</Text>
-                            <Badge size="sm" colorPalette="yellow" variant="subtle">
-                                {winner}
-                            </Badge>
-                        </HStack>
-                    )}
-
-                    <HStack
-                        gap="3"
-                        rowGap="1"
-                        wrap="wrap"
-                        fontSize="xs"
-                        color="fg.muted"
-                        mt="auto"
-                    >
-                        {t.startAt && (
-                            <HStack gap="1">
-                                <FiClock />
-                                <Text>{formatTime(t.startAt)}</Text>
-                            </HStack>
-                        )}
-                        {priceBlock && <Text>{priceBlock}</Text>}
-                        {typeof t.registeredPairs === "number" && (
-                            <HStack gap="1">
-                                <FiUsers />
-                                <Text>
-                                    {t.registeredPairs}
-                                    {typeof t.maxPairs === "number" ? ` / ${t.maxPairs}` : " / ∞"}
-                                </Text>
-                            </HStack>
-                        )}
-                    </HStack>
-                </VStack>
-            </Box>
-        </RouterLink>
-    )
-}
-
-/** Loading skeleton matching the card shape. */
-function CardSkeleton() {
-    return (
-        <Box
-            borderWidth="1px"
-            borderColor="border.emphasized"
-            rounded="xl"
-            overflow="hidden"
-        >
-            <Skeleton h={{ base: "130px", md: "140px" }} />
-            <VStack align="stretch" gap="2" p="3">
-                <Skeleton h="4" w="70%" />
-                <Skeleton h="3" w="50%" />
-            </VStack>
-        </Box>
-    )
-}
-
-/** Empty state with optional CTA. */
-function EmptyState({
-                        title,
-                        description,
-                        cta,
-                    }: {
+/**
+ * The list's empty branches keep their dashed outline; the content inside is
+ * the shared EmptyState primitive so this page and the pair board render the
+ * same icon tile, spacing and muted copy.
+ */
+function ListEmptyState({
+    title,
+    description,
+    cta,
+}: {
     title: string
     description?: string
     cta?: React.ReactNode
 }) {
     return (
-        <Box
-            borderWidth="1px"
-            borderColor="border.emphasized"
-            borderStyle="dashed"
-            rounded="xl"
-            py="10"
-            px="6"
-        >
-            <VStack gap="2">
-                <Box color="fg.muted">
-                    <FiCalendar size={24} />
-                </Box>
-                <Text fontWeight="medium">{title}</Text>
-                {description && (
-                    <Text color="fg.muted" fontSize="sm" textAlign="center">
-                        {description}
-                    </Text>
-                )}
-                {cta && <Box mt="2">{cta}</Box>}
-            </VStack>
+        <Box borderWidth="1px" borderColor="border.emphasized" borderStyle="dashed" rounded="xl">
+            <EmptyState compact icon={FiCalendar} title={title} description={description} action={cta} />
         </Box>
     )
 }
 
 // ---------- page ----------
-const FINISHED_PREVIEW_LIMIT = 6
-
-/**
- * Upper bound for the "U krugu od:" slider. Reaching this value is
- * semantically "no radius filter" — the filter logic short-circuits to
- * "all". The maximum is intentionally low (100 km, not 500) because
- * Croatia + immediate neighbours are well-covered by a 100 km radius
- * already, and a tighter range gives the slider better pixel-per-km
- * resolution.
- */
-const RADIUS_MAX_KM = 100
 
 export default function TournamentsPage() {
+    // `t` is the per-card tournament item throughout the listing components —
+    // alias the translator here for symmetry with them.
+    const { t: tt, locale } = useTranslation()
+    const plural = usePlural()
+
     useDocumentHead({
-        title: "Bela turniri u Hrvatskoj — bela-turniri.com",
-        description:
-            "Pregled svih nadolazećih i odigranih Bela turnira u Hrvatskoj i regiji. Pretraži po lokaciji, datumu i cijeni.",
-        ogTitle: "Bela turniri u Hrvatskoj",
-        ogDescription:
-            "Pregled svih nadolazećih i odigranih Bela turnira u Hrvatskoj i regiji.",
+        title: tt("pages.tournaments.seo.title"),
+        description: tt("pages.tournaments.seo.description"),
+        ogTitle: tt("pages.tournaments.seo.ogTitle"),
+        ogDescription: tt("pages.tournaments.seo.ogDescription"),
         ogType: "website",
         canonical: "https://bela-turniri.com/turniri",
     })
 
     const navigate = useNavigate()
 
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    /* ── Data ──────────────────────────────────────────────────────────────
+       Three independent react-query entries instead of one big effect. Coming
+       back to /turniri inside the 30 s staleTime repaints from cache with no
+       request at all; past that it repaints from cache and revalidates in the
+       background, so the list never flashes an empty skeleton again.
+       ──────────────────────────────────────────────────────────────────── */
 
-    const [loadingFinished, setLoadingFinished] = useState(true)
-    const [errorFinished, setErrorFinished] = useState<string | null>(null)
+    // How many finished tournaments to ask the server for. "Učitaj više" and
+    // the tour's eager-load both just raise this number; the query key carries
+    // it, so each page size is its own cache entry and keepPreviousData keeps
+    // the shorter list on screen while the longer one loads.
+    const [finishedLimit, setFinishedLimit] = useState(FINISHED_PREVIEW_LIMIT)
 
-    const [upcoming, setUpcoming] = useState<TournamentCardWithUuid[]>([])
-    const [finished, setFinished] = useState<TournamentCardWithUuid[]>([])
+    const upcomingQuery = useQuery({
+        queryKey: qk.tournaments({ status: "upcoming" }),
+        queryFn: () => fetchTournaments("upcoming"),
+    })
+    const finishedQuery = useQuery({
+        queryKey: qk.tournaments({ status: "finished", limit: finishedLimit }),
+        queryFn: () => fetchTournaments("finished", { offset: 0, limit: finishedLimit }),
+        placeholderData: keepPreviousData,
+    })
+    const finishedCountQuery = useQuery({
+        queryKey: qk.tournamentsCount("finished"),
+        queryFn: () => fetchTournamentsCount("finished"),
+    })
+
+    const upcoming = (upcomingQuery.data ?? EMPTY_CARDS) as ListingTournament[]
+    const finished = (finishedQuery.data ?? EMPTY_CARDS) as ListingTournament[]
+    const finishedTotal = finishedCountQuery.data ?? 0
+
+    const loading = upcomingQuery.isPending
+    const error = upcomingQuery.error
+        ? (upcomingQuery.error.message || tt("pages.tournaments.loadErrorFallback"))
+        : null
+    const loadingFinished = finishedQuery.isPending
+    const errorFinished = finishedQuery.error
+        ? (finishedQuery.error.message || tt("pages.tournaments.loadFinishedErrorFallback"))
+        : null
+    // Fetching a LARGER page while the previous one is still on screen — i.e.
+    // exactly the "Učitaj više" spinner state.
+    const loadingMoreFinished = finishedQuery.isFetching && !finishedQuery.isPending
 
     // Tour replay state — the NavBar "Pokaži kako" button dispatches a
     // window event we listen for here. Incrementing the counter on each
@@ -368,32 +271,86 @@ export default function TournamentsPage() {
         window.addEventListener("bela:tour-replay", onReplay)
         return () => window.removeEventListener("bela:tour-replay", onReplay)
     }, [])
-    // Finished list is paginated server-side — the initial fetch returns
-    // FINISHED_PAGE_SIZE rows; "Učitaj više" appends the next page until
-    // every finished tournament is loaded. finishedTotal lets us know when
-    // there's nothing more to fetch.
-    const [finishedTotal, setFinishedTotal] = useState(0)
-    const [loadingMoreFinished, setLoadingMoreFinished] = useState(false)
 
-    // ---- Search + filters (apply to upcoming) ----
-    const [filtersOpen, setFiltersOpen] = useState(false) // not expanded by default
+    /* ── Toolbar state ──────────────────────────────────────────────────── */
+    const [filtersOpen, setFiltersOpen] = useState(false) // collapsed by default
+    const [view, setView] = useState<ViewMode>(readStoredView)
+    const [sortMode, setSortMode] = useState<SortMode>("date_asc")
     const [search, setSearch] = useState("")
     const [locationFilter, setLocationFilter] = useState("")
     const [priceMin, setPriceMin] = useState("")
     const [priceMax, setPriceMax] = useState("")
-    // Distance filter — always a number, applied when location is on.
-    // The slider goes 1–100 km; reaching the max (100) is treated as
-    // "show all", so dragging to the end disables the filter rather
-    // than just stretching the circle. Default 100 = no radius filter
-    // active until the user moves the slider inwards.
+    const [repassageMin, setRepassageMin] = useState("")
+    const [repassageMax, setRepassageMax] = useState("")
+    /* "U krugu od" — the old "Blizu mene" toggle plus its 25/50/100 chips,
+       collapsed into one slider. Parked at RADIUS_MAX_KM, which reads as
+       "Sve" and short-circuits the distance predicate entirely, so the filter
+       stays OFF on a return visit where the browser silently restored a
+       previously-granted position. */
     const [radiusKm, setRadiusKm] = useState<number>(RADIUS_MAX_KM)
 
-    // User location (for nearby filter) — silently restored if previously granted
-    const {
-        pos: userPos,
-        status: geoStatus,
-        request: requestLocation,
-    } = useUserLocation()
+    useEffect(() => {
+        try {
+            window.sessionStorage.setItem(VIEW_STORAGE_KEY, view)
+        } catch {
+            /* private mode — the pick just won't survive a navigation */
+        }
+    }, [view])
+
+    /* ── ⌘K / Ctrl-K focuses the search box ──────────────────────────────
+       The listener and the Apple test live in `hooks/useSearchHotkey` — the
+       pair board's toolbar is the same toolbar and needs the same shortcut,
+       and two copies of a global keydown handler is how two screens end up
+       disagreeing about it. */
+    const searchRef = useRef<HTMLInputElement>(null)
+    useSearchHotkey(searchRef)
+
+    /* ── User location, for the radius filter ───────────────────────────── */
+    const { pos: userPos, status: geoStatus, request: requestLocation } = useUserLocation()
+
+    // Tracks a request() we triggered ourselves from the "Uključi" button, so
+    // the denial toast fires exactly once for that user action and never as a
+    // side effect of an unrelated re-render (e.g. the browser already being in
+    // the "denied" state on mount, before the user touched anything).
+    const awaitingPermissionRef = useRef(false)
+    useEffect(() => {
+        if (!awaitingPermissionRef.current) return
+        if (geoStatus === "asking") return // still resolving
+        if (geoStatus === "denied" || geoStatus === "unsupported") {
+            awaitingPermissionRef.current = false
+            if (geoStatus === "denied") {
+                showError(
+                    tt("pages.tournaments.nearMe.deniedTitle"),
+                    tt("pages.tournaments.nearMe.deniedDescription"),
+                )
+            }
+            return
+        }
+        if (!userPos) return // granted, position still on its way
+        awaitingPermissionRef.current = false
+        // Asking for a position and then seeing nothing change would read as a
+        // broken button, so land the slider on the default "blizu" radius —
+        // unless the user had already dragged it somewhere themselves.
+        setRadiusKm((km) => (km >= RADIUS_MAX_KM ? NEARBY_DEFAULT_KM : km))
+        // `tt` is a fresh closure every render; depending on it would re-run
+        // this effect constantly. The ref guard makes a re-run a no-op anyway.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [geoStatus, userPos])
+
+    /** "Uključi" next to the radius slider — asks the browser for a position,
+     *  or explains why it can't when permission is already refused. */
+    function enableLocation() {
+        if (geoStatus === "denied") {
+            // Already known to be denied — don't even ask, just explain.
+            showError(
+                tt("pages.tournaments.nearMe.deniedTitle"),
+                tt("pages.tournaments.nearMe.deniedDescription"),
+            )
+            return
+        }
+        awaitingPermissionRef.current = true
+        requestLocation()
+    }
 
     const sanitizeNum = (s: string) => s.replace(/[^\d.,]/g, "").replace(",", ".")
     const parseNum = (s: string): number | null => {
@@ -401,81 +358,41 @@ export default function TournamentsPage() {
         const n = parseFloat(s)
         return Number.isFinite(n) ? n : null
     }
-    // RADIUS_MAX_KM is the slider's right edge and semantically "show all" —
-    // don't count it as an active filter chip when the user is at the max.
+
+    /** The radius filter is only doing anything when we know where the user is
+     *  AND the slider is off its "Sve" stop. */
+    const nearMeActive = !!userPos && radiusKm < RADIUS_MAX_KM
+
     const activeFilterCount =
         (locationFilter.trim() ? 1 : 0) +
         (priceMin.trim() ? 1 : 0) +
         (priceMax.trim() ? 1 : 0) +
-        (userPos && radiusKm < RADIUS_MAX_KM ? 1 : 0)
-    const resetFilters = () => {
+        (repassageMin.trim() ? 1 : 0) +
+        (repassageMax.trim() ? 1 : 0) +
+        (nearMeActive ? 1 : 0)
+
+    const isFiltering = search.trim().length > 0 || activeFilterCount > 0
+
+    function resetFilters() {
         setSearch("")
         setLocationFilter("")
         setPriceMin("")
         setPriceMax("")
+        setRepassageMin("")
+        setRepassageMax("")
         setRadiusKm(RADIUS_MAX_KM)
     }
 
-    useEffect(() => {
-        let cancelled = false
-        ;(async () => {
-            try {
-                setLoading(true); setError(null)
-                setLoadingFinished(true); setErrorFinished(null)
-
-                // Fetch upcoming (no pagination — typically small), the
-                // first page of finished, and the total finished count
-                // (so we know whether to show the "Učitaj više" button).
-                const [dataUpcoming, dataFinishedPage, finishedTotalCount] = await Promise.all([
-                    fetchTournaments("upcoming"),
-                    fetchTournaments("finished", { offset: 0, limit: FINISHED_PREVIEW_LIMIT }),
-                    fetchTournamentsCount("finished"),
-                ])
-
-                if (!cancelled) {
-                    setUpcoming(dataUpcoming as TournamentCardWithUuid[])
-                    setFinished(dataFinishedPage as TournamentCardWithUuid[])
-                    setFinishedTotal(finishedTotalCount)
-                }
-            } catch (e: any) {
-                if (!cancelled) {
-                    setError(e?.message ?? "Failed to load tournaments")
-                    setErrorFinished(e?.message ?? "Failed to load finished tournaments")
-                    setUpcoming([])
-                    setFinished([])
-                    setFinishedTotal(0)
-                }
-            } finally {
-                if (!cancelled) {
-                    setLoading(false)
-                    setLoadingFinished(false)
-                }
-            }
-        })()
-        return () => { cancelled = true }
-    }, [])
-
     /**
-     * Append the next page of finished tournaments. Idempotent — re-clicking
-     * "Učitaj više" while a fetch is in-flight is a no-op thanks to
-     * loadingMoreFinished. We use the current length as the offset so the
-     * server returns rows we don't already have.
+     * Ask the server for a bigger slice of the finished list. Idempotent —
+     * re-clicking "Učitaj više" while a fetch is in-flight is a no-op because
+     * the button is disabled on `loadingMoreFinished`, and raising the limit to
+     * the same value is a cache hit.
      */
-    async function loadMoreFinished() {
+    function loadMoreFinished() {
         if (loadingMoreFinished) return
         if (finished.length >= finishedTotal) return
-        setLoadingMoreFinished(true)
-        try {
-            const next = await fetchTournaments("finished", {
-                offset: finished.length,
-                limit: FINISHED_PREVIEW_LIMIT,
-            })
-            setFinished((prev) => [...prev, ...(next as TournamentCardWithUuid[])])
-        } catch {
-            // Toast surfaces the error; no extra UI needed.
-        } finally {
-            setLoadingMoreFinished(false)
-        }
+        setFinishedLimit((n) => n + FINISHED_PREVIEW_LIMIT)
     }
 
     const finishedHasMore = finished.length < finishedTotal
@@ -495,441 +412,678 @@ export default function TournamentsPage() {
     const eagerLoadKeyRef = useRef<number | null>(null)
     useEffect(() => {
         if (loading) return // wait for initial fetch to settle
-        // Only eager-load for a manual tour replay.
         if (tourReplayKey === 0) return
-        // Already attempted for this replay — no-op.
         if (eagerLoadKeyRef.current === tourReplayKey) return
         eagerLoadKeyRef.current = tourReplayKey
 
-        // Pull the rest of the finished list in one wide page. Generous
-        // limit so we don't have to loop — finished tournaments count
-        // in the dozens to low hundreds, not thousands. Skip when the
-        // demo is already in the loaded slice.
-        if (finished.some((t) => t.slug === TOUR_DEMO_TOURNAMENT_SLUG)) return
+        if (finished.some((item) => item.slug === TOUR_DEMO_TOURNAMENT_SLUG)) return
         if (finishedTotal === 0) return
 
-        let cancelled = false
-        ;(async () => {
-            try {
-                const all = await fetchTournaments("finished", {
-                    offset: 0,
-                    limit: Math.max(finishedTotal, 200),
-                })
-                if (cancelled) return
-                setFinished(all as TournamentCardWithUuid[])
-            } catch {
-                /* toast surfaces error; tour will silently miss anchor */
-            }
-        })()
-        return () => { cancelled = true }
-    // `finished` is intentionally NOT in deps — the effect updates it,
-    // and re-running on every update would cause repeat fetches.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // Raising the limit is all it takes — the query re-keys and fetches the
+        // wide page, keeping the current list on screen meanwhile.
+        setFinishedLimit((n) => Math.max(n, finishedTotal, 200))
+        // `finished` is intentionally NOT in deps — the effect changes what it
+        // resolves to, and re-running on every update would loop.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tourReplayKey, loading, finishedTotal])
 
-    // Apply search + filters to upcoming
-    const filteredUpcoming = useMemo(() => {
+    /* ── Search + filters + sort, applied to the upcoming list ────────────
+       When a position is known every survivor gets a `distanceKm` (so the
+       cards can show it and "Najbliži prvi" has something to sort on); when
+       the radius is narrower than "Sve" the ones outside it are dropped.
+       Tournaments without geocoded coordinates can't be measured against a
+       radius at all, so instead of silently vanishing they are counted
+       separately and surfaced as a note under the grid.
+       ──────────────────────────────────────────────────────────────────── */
+    const { visible: filteredUpcoming, missingLocationCount } = useMemo(() => {
         const q = search.trim().toLowerCase()
         const loc = locationFilter.trim().toLowerCase()
         const min = parseNum(priceMin)
         const max = parseNum(priceMax)
+        const repMin = parseNum(repassageMin)
+        const repMax = parseNum(repassageMax)
         const me = userPos ? { lat: userPos[0], lng: userPos[1] } : null
-        return upcoming.filter((t) => {
-            if (q && !t.name.toLowerCase().includes(q)) return false
-            if (loc && !(t.location ?? "").toLowerCase().includes(loc)) return false
-            if (typeof t.entryPrice === "number") {
-                if (min != null && t.entryPrice < min) return false
-                if (max != null && t.entryPrice > max) return false
-            } else {
-                // tournaments without a known entryPrice are filtered out only when a price filter is active
-                if (min != null || max != null) return false
-            }
-            // Nearby filter. Active only when the user has location
-            // enabled AND the slider is below the max. Reaching the max
-            // (RADIUS_MAX_KM) is the explicit "show all" affordance, so
-            // the predicate short-circuits to true. Tournaments without
-            // geocoded coords are still excluded while the filter is
-            // active because we can't tell whether they're in range.
-            if (me && radiusKm < RADIUS_MAX_KM) {
-                if (typeof t.latitude !== "number" || typeof t.longitude !== "number") {
-                    return false
-                }
-                if (haversineKm(me, { lat: t.latitude, lng: t.longitude }) > radiusKm) {
-                    return false
-                }
-            }
-            return true
-        })
-    }, [upcoming, search, locationFilter, priceMin, priceMax, userPos, radiusKm])
+        const limitByRadius = !!me && radiusKm < RADIUS_MAX_KM
 
-    const isFiltering =
-        search.trim().length > 0 || activeFilterCount > 0
+        let missing = 0
+        const base: ListingTournament[] = []
 
-    const gridCols = { base: "1fr", md: "1fr 1fr", lg: "1fr 1fr 1fr" }
+        for (const item of upcoming) {
+            const place = (item.location ?? "").toLowerCase()
+            // The placeholder promises name / city / venue, and `location` is
+            // where both the city and the hall end up, so one query hits both.
+            if (q && !item.name.toLowerCase().includes(q) && !place.includes(q)) continue
+            if (loc && !place.includes(loc)) continue
+
+            if (typeof item.entryPrice === "number") {
+                if (min != null && item.entryPrice < min) continue
+                if (max != null && item.entryPrice > max) continue
+            } else if (min != null || max != null) {
+                // Tournaments with no known kotizacija drop out only once a
+                // kotizacija bound is actually set.
+                continue
+            }
+
+            if (typeof item.repassagePrice === "number") {
+                if (repMin != null && item.repassagePrice < repMin) continue
+                if (repMax != null && item.repassagePrice > repMax) continue
+            } else if (repMin != null || repMax != null) {
+                continue
+            }
+
+            if (!me) {
+                base.push(item)
+                continue
+            }
+            if (typeof item.latitude !== "number" || typeof item.longitude !== "number") {
+                if (limitByRadius) {
+                    missing += 1
+                    continue
+                }
+                base.push(item)
+                continue
+            }
+            const distanceKm = haversineKm(me, { lat: item.latitude, lng: item.longitude })
+            if (limitByRadius && distanceKm > radiusKm) continue
+            base.push({ ...item, distanceKm })
+        }
+
+        return {
+            visible: sortTournaments(base, sortMode, locale === "sl" ? "sl-SI" : "hr-HR"),
+            missingLocationCount: missing,
+        }
+    }, [
+        upcoming,
+        search,
+        locationFilter,
+        priceMin,
+        priceMax,
+        repassageMin,
+        repassageMax,
+        userPos,
+        radiusKm,
+        sortMode,
+        locale,
+    ])
+
+    // Distinguishes the two empty-result reasons: nothing within the radius
+    // (widen it) vs. the generic "no filter matches" (clear them).
+    const noneNearby = nearMeActive && filteredUpcoming.length === 0 && upcoming.length > 0
+
+    const gridCols = { base: "1fr", md: "1fr 1fr", lg: "repeat(3, 1fr)" }
+
+    /** Both sections render through the same switch, so "Mreža"/"Popis" is a
+     *  property of the page rather than of one list. */
+    function renderItems(items: ListingTournament[], variant: "upcoming" | "finished") {
+        if (view === "list") {
+            return (
+                <VStack align="stretch" gap="2">
+                    {items.map((item, idx) => (
+                        <Box
+                            key={item.uuid}
+                            data-tour={
+                                variant === "upcoming" && idx === 0
+                                    ? "turniri-first-card"
+                                    : undefined
+                            }
+                        >
+                            <ListingRow item={item} variant={variant} />
+                        </Box>
+                    ))}
+                </VStack>
+            )
+        }
+        return (
+            <Grid templateColumns={gridCols} gap="4">
+                {items.map((item, idx) => (
+                    <Box
+                        key={item.uuid}
+                        // The first upcoming card carries a tour anchor so the
+                        // "Pogledajmo jedan turnir" step has a concrete element
+                        // to point at. Anchored on the wrapper so the data
+                        // attribute doesn't have to be threaded through
+                        // ListingCard.
+                        data-tour={
+                            variant === "upcoming" && idx === 0 ? "turniri-first-card" : undefined
+                        }
+                    >
+                        <ListingCard item={item} variant={variant} priority={idx === 0} />
+                    </Box>
+                ))}
+            </Grid>
+        )
+    }
+
+    const skeletons = view === "list" ? (
+        <VStack align="stretch" gap="2">
+            <ListingRowSkeleton />
+            <ListingRowSkeleton />
+            <ListingRowSkeleton />
+        </VStack>
+    ) : (
+        <Grid templateColumns={gridCols} gap="4">
+            <ListingCardSkeleton />
+            <ListingCardSkeleton />
+            <ListingCardSkeleton />
+        </Grid>
+    )
+
+    const sortLabel = tt(SORT_LABEL_KEY[sortMode])
 
     return (
         <VStack align="stretch" gap="8">
             {/* ===================== Upcoming ===================== */}
             <Box>
-                {/* Single rounded card holding search, filter toggle, AND the
-                    create-tournament CTA. Putting the button INSIDE the card
-                    (instead of beside it) means on mobile all three controls
-                    can sit on the same row when there's room, and the page
-                    saves the visual height of the previously-separate button
-                    block. */}
-                {/* Filter toolbar — used to be gated on `upcoming.length > 0`
-                    but that hid the entire card on production deploys with
-                    no upcoming tournaments yet, which also dropped the
-                    `turniri-filters` tour anchor from the DOM and stalled
-                    the guided tour at the previous step. Now we render
-                    whenever the initial fetch has settled, regardless of
-                    list size — the Pretraži / Filteri / Kreiraj turnir
-                    controls are still meaningful with an empty list
-                    (creating the first tournament is in fact the most
-                    likely action a user takes on an empty board). */}
+                {/* Toolbar — rendered as soon as the initial fetch settles,
+                    regardless of list size. Gating it on `upcoming.length > 0`
+                    used to hide it entirely on a deploy with no tournaments
+                    yet, which also dropped the `turniri-filters` tour anchor
+                    from the DOM and stalled the guided tour at the previous
+                    step. */}
                 {!loading && (
-                    <Card.Root
-                        data-tour="turniri-filters"
-                        variant="outline"
-                        rounded="xl"
-                        borderColor="border.emphasized"
-                        shadow="sm"
-                        mb="4"
-                    >
-                        <Card.Body py="3" px={{ base: "3", md: "4" }}>
-                            {/* Mobile: search on its own row; below it Filteri,
-                                Očisti sve, and Kreiraj turnir share a flex row
-                                so the create CTA never disappears below the
-                                fold. Desktop: everything inline. */}
-                            <Stack
-                                direction={{ base: "column", md: "row" }}
-                                gap="2"
-                                align="stretch"
-                            >
-                                <Box position="relative" flex="1" minW={{ base: "100%", md: "260px" }}>
+                    <Box data-tour="turniri-filters" mb="4">
+                        {/* One row on md+; on phones the search takes the full
+                            width and the three controls share the row beneath
+                            it (see the notes on each control). */}
+                        <Stack direction={{ base: "column", md: "row" }} gap="2" align="stretch">
+                            <Box position="relative" flex="1" minW={{ base: "100%", md: "260px" }}>
+                                <Box
+                                    position="absolute"
+                                    left="3.5"
+                                    top="50%"
+                                    color="fg.muted"
+                                    pointerEvents="none"
+                                    zIndex="1"
+                                    style={{ transform: "translateY(-50%)" }}
+                                >
+                                    <FiSearch />
+                                </Box>
+                                <Input
+                                    ref={searchRef}
+                                    h={{ base: "42px", md: "44px" }}
+                                    pl="10"
+                                    pr="16"
+                                    bg="bg.panel"
+                                    borderColor="border.subtle"
+                                    rounded="lg"
+                                    placeholder={tt("pages.tournaments.search.placeholder")}
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        // Escape empties a non-empty box, then
+                                        // gets out of the way on a second press.
+                                        if (e.key !== "Escape") return
+                                        if (search) {
+                                            e.preventDefault()
+                                            setSearch("")
+                                        } else {
+                                            e.currentTarget.blur()
+                                        }
+                                    }}
+                                    aria-label={tt("pages.tournaments.search.placeholder")}
+                                />
+                                {search && (
                                     <Box
                                         position="absolute"
-                                        left="3"
+                                        right="2.5"
                                         top="50%"
                                         style={{ transform: "translateY(-50%)" }}
-                                        color="fg.muted"
-                                        pointerEvents="none"
                                     >
-                                        <FiSearch />
-                                    </Box>
-                                    <Input
-                                        size={{ base: "md", md: "sm" }}
-                                        pl="9"
-                                        pr={search ? "9" : "3"}
-                                        placeholder="Pretraži po imenu turnira…"
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                    />
-                                    {search && (
                                         <IconButton
-                                            aria-label="Očisti pretragu"
+                                            aria-label={tt("pages.tournaments.search.clearAria")}
                                             size="xs"
                                             variant="ghost"
-                                            position="absolute"
-                                            right="2"
-                                            top="50%"
-                                            style={{ transform: "translateY(-50%)" }}
                                             onClick={() => setSearch("")}
                                         >
                                             <FiX />
                                         </IconButton>
-                                    )}
-                                </Box>
-                                <HStack gap="2" wrap="wrap">
-                                    <Button
-                                        size={{ base: "md", md: "sm" }}
-                                        variant={activeFilterCount > 0 ? "solid" : "outline"}
-                                        colorPalette={activeFilterCount > 0 ? "blue" : "gray"}
-                                        onClick={() => setFiltersOpen((v) => !v)}
-                                        aria-expanded={filtersOpen}
-                                        title={filtersOpen ? "Sakrij filtere" : "Prikaži filtere"}
-                                        flex={{ base: "1", md: "none" }}
-                                    >
-                                        <FiFilter /> Filteri
-                                        {activeFilterCount > 0 && (
-                                            <Badge ml="1" colorPalette="blue" variant="solid" size="sm">
-                                                {activeFilterCount}
-                                            </Badge>
-                                        )}
-                                        {filtersOpen ? <FiChevronUp /> : <FiChevronDown />}
-                                    </Button>
-                                    {/* "Očisti sve" used to live here, conditional on
-                                        isFiltering. The appear/disappear caused the
-                                        toolbar to shift sideways every time a filter
-                                        was added or removed. It now lives inside the
-                                        Filteri panel next to the radius slider, where
-                                        it can render conditionally without nudging
-                                        the rest of the toolbar layout. */}
-                                    {/* Create-tournament CTA — sits inline with
-                                        the filter controls. Solid blue so the
-                                        primary action stays visually distinct
-                                        from the outlined Filteri button. */}
-                                    <Button
-                                        asChild
-                                        size={{ base: "md", md: "sm" }}
-                                        variant="solid"
-                                        colorPalette="blue"
-                                        flex={{ base: "1", md: "none" }}
-                                    >
-                                        <RouterLink to="/turniri/novi">
-                                            <FiPlus /> Kreiraj turnir
-                                        </RouterLink>
-                                    </Button>
-                                </HStack>
-                            </Stack>
+                                    </Box>
+                                )}
+                            </Box>
 
-                            {filtersOpen && (
-                                <>
-                                    <Box
-                                        mt="3"
-                                        pt="3"
-                                        borderTopWidth="1px"
-                                        borderColor="border.emphasized"
-                                        display="grid"
-                                        gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }}
-                                        gap="3"
-                                    >
-                                        <Box>
-                                            <Text fontSize="xs" fontWeight="medium" color="fg.muted" mb="1">
-                                                Lokacija
-                                            </Text>
+                            {/* "Sortiraj" keeps its label on phones too (the
+                                icon-only collapse was a deliberate space
+                                trade-off, dropped on request) — this row
+                                wraps instead of overflowing when that plus
+                                "Filteri" don't both fit 390px. */}
+                            <HStack gap="2" wrap="wrap" rowGap="2" justify={{ base: "space-between", md: "flex-start" }}>
+                                <Button
+                                    h={{ base: "42px", md: "44px" }}
+                                    px={{ base: "3", md: "4" }}
+                                    variant={activeFilterCount > 0 ? "solid" : "outline"}
+                                    colorPalette={activeFilterCount > 0 ? "brand" : "gray"}
+                                    bg={activeFilterCount > 0 ? undefined : "bg.panel"}
+                                    rounded="lg"
+                                    fontWeight="semibold"
+                                    onClick={() => setFiltersOpen((v) => !v)}
+                                    aria-expanded={filtersOpen}
+                                    title={filtersOpen
+                                        ? tt("pages.tournaments.filters.toggleHide")
+                                        : tt("pages.tournaments.filters.toggleShow")}
+                                >
+                                    <FiFilter /> {tt("pages.tournaments.filters.button")}
+                                    {activeFilterCount > 0 && (
+                                        <Box
+                                            ml="1"
+                                            px="1.5"
+                                            rounded="full"
+                                            bg="whiteAlpha.400"
+                                            fontSize="2xs"
+                                            fontWeight="bold"
+                                        >
+                                            {activeFilterCount}
+                                        </Box>
+                                    )}
+                                    {filtersOpen ? <FiChevronUp /> : <FiChevronDown />}
+                                </Button>
+
+                                <Menu.Root>
+                                    <Menu.Trigger asChild>
+                                        <Button
+                                            h={{ base: "42px", md: "44px" }}
+                                            px={{ base: "3", md: "4" }}
+                                            // Sized on md+ to the LONGEST label, not
+                                            // the active one, so picking a different
+                                            // sort never resizes the button and
+                                            // shifts the switcher beside it.
+                                            minW={{ base: "auto", md: "230px" }}
+                                            variant="outline"
+                                            colorPalette="gray"
+                                            bg="bg.panel"
+                                            rounded="lg"
+                                            fontWeight="semibold"
+                                            aria-label={tt("pages.tournaments.sort.label")}
+                                        >
+                                            <FiSliders />
+                                            <Box as="span">
+                                                {tt("pages.tournaments.sort.label")}{" "}
+                                                <Box as="span" color="brand.fg" fontWeight="bold">
+                                                    {sortLabel}
+                                                </Box>
+                                            </Box>
+                                            <FiChevronDown />
+                                        </Button>
+                                    </Menu.Trigger>
+                                    <Portal>
+                                        <Menu.Positioner>
+                                            <Menu.Content minW="240px">
+                                                {SORT_MODES.map((mode) => {
+                                                    const active = mode === sortMode
+                                                    const blocked = sortNeedsLocation(mode) && !userPos
+                                                    return (
+                                                        <Menu.Item
+                                                            key={mode}
+                                                            value={mode}
+                                                            disabled={blocked}
+                                                            onSelect={() => {
+                                                                if (!blocked) setSortMode(mode)
+                                                            }}
+                                                        >
+                                                            <HStack gap="2.5" w="full">
+                                                                <Box
+                                                                    color="brand.fg"
+                                                                    opacity={active ? 1 : 0}
+                                                                    flexShrink="0"
+                                                                    display="inline-flex"
+                                                                >
+                                                                    <FiCheck />
+                                                                </Box>
+                                                                <Text
+                                                                    flex="1"
+                                                                    fontWeight={active ? "bold" : "medium"}
+                                                                >
+                                                                    {tt(SORT_LABEL_KEY[mode])}
+                                                                </Text>
+                                                            </HStack>
+                                                        </Menu.Item>
+                                                    )
+                                                })}
+                                            </Menu.Content>
+                                        </Menu.Positioner>
+                                    </Portal>
+                                </Menu.Root>
+
+                                <HStack
+                                    gap="1"
+                                    h={{ base: "42px", md: "44px" }}
+                                    px="1"
+                                    bg="bg.panel"
+                                    borderWidth="1px"
+                                    borderColor="border.subtle"
+                                    rounded="lg"
+                                    flexShrink="0"
+                                    role="group"
+                                    aria-label={tt("pages.tournaments.view.label")}
+                                >
+                                    <ViewToggleButton
+                                        active={view === "grid"}
+                                        onClick={() => setView("grid")}
+                                        icon={<FiGrid size={15} />}
+                                        label={tt("pages.tournaments.view.grid")}
+                                    />
+                                    <ViewToggleButton
+                                        active={view === "list"}
+                                        onClick={() => setView("list")}
+                                        icon={<FiList size={15} />}
+                                        label={tt("pages.tournaments.view.list")}
+                                    />
+                                </HStack>
+                            </HStack>
+                        </Stack>
+
+                        {/* ── Expanded filter panel ────────────────────────── */}
+                        {filtersOpen && (
+                            <Box
+                                mt="3"
+                                p="4"
+                                bg="bg.panel"
+                                borderWidth="1px"
+                                borderColor="border.subtle"
+                                rounded="xl"
+                                shadow="card"
+                            >
+                                <Grid
+                                    templateColumns={{ base: "1fr", md: "minmax(180px, 1fr) auto auto" }}
+                                    gap="3"
+                                >
+                                    <Box minW="0">
+                                        <FilterLabel>
+                                            {tt("pages.tournaments.filters.locationLabel")}
+                                        </FilterLabel>
+                                        <Input
+                                            size="sm"
+                                            placeholder={tt("pages.tournaments.filters.locationPlaceholder")}
+                                            value={locationFilter}
+                                            onChange={(e) => setLocationFilter(e.target.value)}
+                                        />
+                                    </Box>
+                                    <Box minW="0">
+                                        <FilterLabel>
+                                            {tt("pages.tournaments.filters.priceLabel")}
+                                        </FilterLabel>
+                                        <HStack gap="1.5">
                                             <Input
                                                 size="sm"
-                                                placeholder="npr. Zagreb"
-                                                value={locationFilter}
-                                                onChange={(e) => setLocationFilter(e.target.value)}
+                                                w={{ base: "full", md: "80px" }}
+                                                inputMode="decimal"
+                                                placeholder={tt("pages.tournaments.filters.priceFromPlaceholder")}
+                                                value={priceMin}
+                                                onChange={(e) => setPriceMin(sanitizeNum(e.target.value))}
                                             />
-                                        </Box>
-                                        <Box>
-                                            <Text fontSize="xs" fontWeight="medium" color="fg.muted" mb="1">
-                                                Kotizacija (€)
-                                            </Text>
-                                            <HStack gap="2">
-                                                <Input
-                                                    size="sm"
-                                                    inputMode="decimal"
-                                                    placeholder="od"
-                                                    value={priceMin}
-                                                    onChange={(e) => setPriceMin(sanitizeNum(e.target.value))}
-                                                />
-                                                <Text color="fg.muted">–</Text>
-                                                <Input
-                                                    size="sm"
-                                                    inputMode="decimal"
-                                                    placeholder="do"
-                                                    value={priceMax}
-                                                    onChange={(e) => setPriceMax(sanitizeNum(e.target.value))}
-                                                />
-                                            </HStack>
-                                        </Box>
+                                            <Text color="fg.subtle">–</Text>
+                                            <Input
+                                                size="sm"
+                                                w={{ base: "full", md: "80px" }}
+                                                inputMode="decimal"
+                                                placeholder={tt("pages.tournaments.filters.priceToPlaceholder")}
+                                                value={priceMax}
+                                                onChange={(e) => setPriceMax(sanitizeNum(e.target.value))}
+                                            />
+                                        </HStack>
                                     </Box>
+                                    <Box minW="0">
+                                        <FilterLabel>
+                                            {tt("pages.tournaments.filters.repassageLabel")}
+                                        </FilterLabel>
+                                        <HStack gap="1.5">
+                                            <Input
+                                                size="sm"
+                                                w={{ base: "full", md: "80px" }}
+                                                inputMode="decimal"
+                                                placeholder={tt("pages.tournaments.filters.priceFromPlaceholder")}
+                                                value={repassageMin}
+                                                onChange={(e) => setRepassageMin(sanitizeNum(e.target.value))}
+                                            />
+                                            <Text color="fg.subtle">–</Text>
+                                            <Input
+                                                size="sm"
+                                                w={{ base: "full", md: "80px" }}
+                                                inputMode="decimal"
+                                                placeholder={tt("pages.tournaments.filters.priceToPlaceholder")}
+                                                value={repassageMax}
+                                                onChange={(e) => setRepassageMax(sanitizeNum(e.target.value))}
+                                            />
+                                        </HStack>
+                                    </Box>
+                                </Grid>
 
-                                    {/* Nearby radius — draggable 1–100 km. Auto-applies
-                                        on change. Reaching the max (100) is the
-                                        "show all" affordance — the filter
-                                        short-circuits at that point. Disabled until
-                                        the user enables location.
-
-                                        The "Očisti sve" button lives at the right
-                                        edge of this row instead of in the toolbar
-                                        above. Putting it inside the filters panel
-                                        avoids the layout shift the toolbar version
-                                        caused every time a filter was added/removed.
-                                        The button is positioned via `ml="auto"`
-                                        rather than rendered conditionally so the
-                                        row height stays constant when there are no
-                                        filters active — we just disable the button
-                                        instead. */}
-                                    <Box mt="3">
-                                        <HStack gap="2" mb="1.5" align="center" wrap="wrap">
-                                            <Text fontSize="xs" fontWeight="medium" color="fg.muted">
-                                                U krugu od:
+                                {/* Second row: the radius that used to be a
+                                    "Blizu mene" toggle plus three chips. One
+                                    slider says the same thing with fewer
+                                    controls, and its right edge is where
+                                    "Očisti sve" lives — inside the panel, so it
+                                    can appear and disappear without nudging the
+                                    toolbar above. */}
+                                <Box mt="4" pt="3" borderTopWidth="1px" borderColor="border.subtle">
+                                    <HStack gap="2" mb="2" align="center" wrap="wrap">
+                                        <FilterLabel>
+                                            {tt("pages.tournaments.filters.radiusLabel")}
+                                        </FilterLabel>
+                                        <Text
+                                            fontSize="xs"
+                                            fontWeight="bold"
+                                            color="brand.fg"
+                                            mb="1.5"
+                                            minW="46px"
+                                        >
+                                            {!userPos
+                                                ? "—"
+                                                : radiusKm >= RADIUS_MAX_KM
+                                                    ? tt("pages.tournaments.filters.radiusAll")
+                                                    : `${radiusKm} km`}
+                                        </Text>
+                                        {geoStatus === "unsupported" ? (
+                                            // No Geolocation API (or an insecure
+                                            // context): hide the control rather
+                                            // than offer a button that can never
+                                            // work.
+                                            <Text fontSize="xs" color="fg.muted" mb="1.5">
+                                                {tt("pages.tournaments.nearMe.unsupported")}
                                             </Text>
-                                            <Text fontSize="xs" fontWeight="semibold" color="blue.fg">
-                                                {userPos
-                                                    ? (radiusKm >= RADIUS_MAX_KM ? "Sve" : `${radiusKm} km`)
-                                                    : "—"}
-                                            </Text>
-                                            {!userPos && (
-                                                <Button
-                                                    size="xs"
-                                                    variant="ghost"
-                                                    colorPalette="blue"
-                                                    onClick={requestLocation}
-                                                    disabled={geoStatus === "asking" || geoStatus === "unsupported"}
-                                                    loading={geoStatus === "asking"}
-                                                >
-                                                    <FiNavigation /> Uključi lokaciju
-                                                </Button>
-                                            )}
-                                            {geoStatus === "denied" && (
-                                                <Text fontSize="xs" color="fg.muted">
-                                                    Lokacija je odbijena u pregledniku.
-                                                </Text>
-                                            )}
+                                        ) : !userPos ? (
                                             <Button
                                                 size="xs"
                                                 variant="ghost"
-                                                onClick={resetFilters}
-                                                disabled={!isFiltering}
-                                                ml="auto"
-                                                title={isFiltering ? "Očisti sve filtere" : "Nema aktivnih filtera"}
+                                                colorPalette="brand"
+                                                mb="1.5"
+                                                onClick={enableLocation}
+                                                disabled={geoStatus === "asking"}
+                                                loading={geoStatus === "asking"}
                                             >
-                                                Očisti sve
+                                                <FiNavigation /> {tt("pages.tournaments.nearMe.enable")}
                                             </Button>
-                                        </HStack>
-                                        <Slider.Root
-                                            min={1}
-                                            max={RADIUS_MAX_KM}
-                                            step={1}
-                                            value={[radiusKm]}
-                                            onValueChange={(e) => setRadiusKm(e.value[0])}
-                                            disabled={!userPos}
-                                            colorPalette="blue"
+                                        ) : null}
+                                        {geoStatus === "denied" && (
+                                            <Text fontSize="xs" color="fg.muted" mb="1.5">
+                                                {tt("pages.tournaments.nearMe.denied")}
+                                            </Text>
+                                        )}
+                                        <Button
+                                            size="xs"
+                                            variant="ghost"
+                                            ml="auto"
+                                            mb="1.5"
+                                            onClick={resetFilters}
+                                            disabled={!isFiltering}
+                                            title={isFiltering
+                                                ? tt("pages.tournaments.filters.clearAllTitleActive")
+                                                : tt("pages.tournaments.filters.clearAllTitleInactive")}
                                         >
-                                            <Slider.Control>
-                                                <Slider.Track>
-                                                    <Slider.Range />
-                                                </Slider.Track>
-                                                <Slider.Thumbs />
-                                            </Slider.Control>
-                                        </Slider.Root>
-                                    </Box>
-                                </>
-                            )}
-                        </Card.Body>
-                    </Card.Root>
+                                            {tt("pages.tournaments.filters.clearAll")}
+                                        </Button>
+                                    </HStack>
+                                    <Slider.Root
+                                        min={5}
+                                        max={RADIUS_MAX_KM}
+                                        step={5}
+                                        value={[radiusKm]}
+                                        onValueChange={(e) => setRadiusKm(e.value[0])}
+                                        disabled={!userPos}
+                                        colorPalette="brand"
+                                        aria-label={[tt("pages.tournaments.filters.radiusLabel")]}
+                                    >
+                                        <Slider.Control>
+                                            <Slider.Track>
+                                                <Slider.Range />
+                                            </Slider.Track>
+                                            <Slider.Thumbs />
+                                        </Slider.Control>
+                                    </Slider.Root>
+                                </Box>
+                            </Box>
+                        )}
+                    </Box>
                 )}
 
-                {/* When upcoming.length === 0, no separate create button is
-                    rendered here — the empty state below has its own inline
-                    CTA so we don't double up. */}
-
                 {loading ? (
-                    <Box display="grid" gridTemplateColumns={gridCols} gap="4">
-                        <CardSkeleton />
-                        <CardSkeleton />
-                        <CardSkeleton />
-                    </Box>
+                    skeletons
                 ) : upcoming.length === 0 ? (
-                    <EmptyState
-                        title={error ? "Nije moguće učitati turnire" : "Nema nadolazećih turnira"}
-                        description={
-                            error
-                                ? error
-                                : "Kreiraj turnir i počni primati prijave parova."
-                        }
+                    <ListEmptyState
+                        title={error
+                            ? tt("pages.tournaments.empty.upcomingErrorTitle")
+                            : tt("pages.tournaments.empty.upcomingEmptyTitle")}
+                        description={error ?? tt("pages.tournaments.empty.upcomingEmptyDescription")}
                         cta={
                             !error && (
-                                <Button asChild size="sm" colorPalette="blue">
+                                <Button asChild size="sm" colorPalette="brand">
                                     <RouterLink to="/turniri/novi">
-                                        <FiPlus /> Kreiraj turnir
+                                        <FiPlus /> {tt("pages.tournaments.createCta")}
                                     </RouterLink>
                                 </Button>
                             )
                         }
                     />
                 ) : filteredUpcoming.length === 0 ? (
-                    <EmptyState
-                        title="Nema rezultata"
-                        description="Nijedan turnir ne odgovara odabranim filterima."
-                        cta={
-                            <Button size="sm" variant="outline" onClick={resetFilters}>
-                                Očisti filtere
-                            </Button>
-                        }
-                    />
+                    // "No tournaments near you" (the radius found zero, but the
+                    // unfiltered list isn't empty) reads differently from the
+                    // generic "no filter matches" below — the fix there is to
+                    // widen the radius, not to clear every filter.
+                    noneNearby ? (
+                        <ListEmptyState
+                            title={tt("pages.tournaments.empty.noneNearbyTitle")}
+                            description={tt("pages.tournaments.empty.noneNearbyDescription", { radius: radiusKm })}
+                            cta={
+                                <HStack gap="2" justify="center">
+                                    {radiusKm < RADIUS_MAX_KM && (
+                                        <Button
+                                            size="sm"
+                                            colorPalette="brand"
+                                            onClick={() =>
+                                                setRadiusKm((km) => Math.min(RADIUS_MAX_KM, km + 25))
+                                            }
+                                        >
+                                            {tt("pages.tournaments.empty.widenRadius")}
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setRadiusKm(RADIUS_MAX_KM)}
+                                    >
+                                        {tt("pages.tournaments.empty.disableNearMe")}
+                                    </Button>
+                                </HStack>
+                            }
+                        />
+                    ) : (
+                        <ListEmptyState
+                            title={tt("pages.tournaments.empty.noResultsTitle")}
+                            description={tt("pages.tournaments.empty.noResultsDescription")}
+                            cta={
+                                <Button size="sm" variant="outline" onClick={resetFilters}>
+                                    {tt("pages.tournaments.empty.clearFilters")}
+                                </Button>
+                            }
+                        />
+                    )
                 ) : (
-                    <Box data-tour="turniri-upcoming" display="grid" gridTemplateColumns={gridCols} gap="4">
-                        {filteredUpcoming.map((t, idx) => (
-                            <Box
-                                key={t.uuid}
-                                // First card gets a tour anchor so the
-                                // "Pogledajmo jedan turnir" step has a
-                                // concrete element to point at. Anchored
-                                // here instead of on the inner card so
-                                // the data attribute doesn't need to be
-                                // threaded through TournamentCardView.
-                                data-tour={idx === 0 ? "turniri-first-card" : undefined}
-                            >
-                                <TournamentCardView t={t} variant="upcoming" />
-                            </Box>
-                        ))}
-                    </Box>
+                    <>
+                        <Box data-tour="turniri-upcoming">
+                            {renderItems(filteredUpcoming, "upcoming")}
+                        </Box>
+                        {/* Tournaments without geocoded coordinates can't be
+                            measured against the radius — rather than silently
+                            vanishing, they're counted here so the user knows
+                            the list isn't the full picture. */}
+                        {missingLocationCount > 0 && (
+                            <Text fontSize="xs" color="fg.muted" mt="3">
+                                {plural("pages.tournaments.missingLocation", missingLocationCount)}
+                            </Text>
+                        )}
+                    </>
                 )}
             </Box>
 
             {/* ===================== Finished ===================== */}
             <Box data-tour="turniri-finished">
-                <Heading size="lg" mb="4">Završeni turniri</Heading>
+                <Heading size="lg" mb="4">{tt("pages.tournaments.finishedHeading")}</Heading>
 
                 {loadingFinished ? (
-                    <Box display="grid" gridTemplateColumns={gridCols} gap="4">
-                        <CardSkeleton />
-                        <CardSkeleton />
-                        <CardSkeleton />
-                    </Box>
+                    skeletons
                 ) : finished.length === 0 ? (
-                    <EmptyState
+                    <ListEmptyState
                         title={
                             errorFinished
-                                ? "Nije moguće učitati završene turnire"
-                                : "Još nema završenih turnira"
+                                ? tt("pages.tournaments.empty.finishedErrorTitle")
+                                : tt("pages.tournaments.empty.finishedEmptyTitle")
                         }
                         description={
-                            errorFinished
-                                ? errorFinished
-                                : "Završeni turniri će se pojaviti ovdje."
+                            errorFinished ?? tt("pages.tournaments.empty.finishedEmptyDescription")
                         }
                     />
                 ) : (
                     <>
-                        {/* Pick which finished card hosts the
-                            `turniri-demo-card` tour anchor. Preferred:
-                            the hand-picked demo tournament identified
-                            by TOUR_DEMO_TOURNAMENT_SLUG. Fallback: the
-                            first finished card. Without the fallback,
-                            production deploys that haven't imported the
-                            demo tournament would have no anchor at all
-                            and the tour's bridge step would stall — the
-                            user would land on "Završeni turniri" with a
-                            Next button that goes nowhere. */}
-                        {(() => null)()}
-                        <Box display="grid" gridTemplateColumns={gridCols} gap="4">
-                            {finished.map((t, idx) => {
-                                const demoIdx = finished.findIndex(
-                                    (x) => x.slug === TOUR_DEMO_TOURNAMENT_SLUG,
-                                )
-                                const anchorIdx = demoIdx >= 0 ? demoIdx : 0
+                        {/* Which finished entry hosts the `turniri-demo-card`
+                            tour anchor. Preferred: the hand-picked demo
+                            tournament identified by TOUR_DEMO_TOURNAMENT_SLUG.
+                            Fallback: the first finished one. Without the
+                            fallback, deploys that never imported the demo
+                            would have no anchor at all and the tour's bridge
+                            step would stall on a Next button that goes
+                            nowhere. */}
+                        {(() => {
+                            const demoIdx = finished.findIndex(
+                                (item) => item.slug === TOUR_DEMO_TOURNAMENT_SLUG,
+                            )
+                            const anchorIdx = demoIdx >= 0 ? demoIdx : 0
+                            const wrap = (node: React.ReactNode, idx: number) => (
+                                <Box data-tour={idx === anchorIdx ? "turniri-demo-card" : undefined}>
+                                    {node}
+                                </Box>
+                            )
+                            if (view === "list") {
                                 return (
-                                    <Box
-                                        key={t.uuid}
-                                        data-tour={idx === anchorIdx ? "turniri-demo-card" : undefined}
-                                    >
-                                        <TournamentCardView t={t} variant="finished" />
-                                    </Box>
+                                    <VStack align="stretch" gap="2">
+                                        {finished.map((item, idx) => (
+                                            <Box key={item.uuid}>
+                                                {wrap(<ListingRow item={item} variant="finished" />, idx)}
+                                            </Box>
+                                        ))}
+                                    </VStack>
                                 )
-                            })}
-                        </Box>
+                            }
+                            return (
+                                <Grid templateColumns={gridCols} gap="4">
+                                    {finished.map((item, idx) => (
+                                        <Box key={item.uuid}>
+                                            {wrap(<ListingCard item={item} variant="finished" />, idx)}
+                                        </Box>
+                                    ))}
+                                </Grid>
+                            )
+                        })()}
                         {/* Učitaj više — fetches the next page from the backend
-                            and appends it. Hidden when we've already loaded all
-                            finished tournaments. Shows a loading state on the
-                            button itself so the user gets immediate feedback. */}
+                            and appends it. Hidden once everything is loaded. */}
                         {finishedHasMore && (
                             <HStack justify="center" mt="4">
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    colorPalette="blue"
+                                    colorPalette="brand"
                                     onClick={loadMoreFinished}
                                     loading={loadingMoreFinished}
                                 >
-                                    Učitaj više ({finishedTotal - finished.length})
+                                    {tt("pages.tournaments.loadMore", { count: finishedTotal - finished.length })}
                                 </Button>
                             </HStack>
                         )}
@@ -937,87 +1091,68 @@ export default function TournamentsPage() {
                 )}
             </Box>
 
-            {/* Guided tour. The tour no longer auto-launches on first
-                visit — it runs ONLY when the user clicks the NavBar "?"
-                ("Pokaži kako") button, which dispatches a window event
-                we pick up via tourReplayKey. No seenStorageKey is passed,
-                so PageTour's auto-launch path is disabled entirely. After
-                the final step we navigate to a finished tournament with
-                a sessionStorage resume flag, and the detail page picks
-                up the tour as a continuation. */}
-            <PageTour
-                key={tourReplayKey}
-                steps={TURNIRI_LIST_TOUR_STEPS}
-                forceRun={tourReplayKey > 0 ? true : undefined}
-                onStepChange={(nextIndex) => {
-                    // We used to auto-expand the filter card when the
-                    // "Filteri pretrage" step landed so the user could
-                    // see the actual inputs. That made the
-                    // `[data-tour="turniri-filters"]` anchor grow from
-                    // ~50 px tall (collapsed) to ~250 px tall (expanded),
-                    // which pushed the popper-positioned tooltip far
-                    // below the controls it was describing — the tip
-                    // appeared at the page bottom, visually disconnected
-                    // from its spotlight. Now the card stays collapsed;
-                    // the spotlight hugs the small toolbar and the
-                    // tooltip sits right under it. The user can still
-                    // tap "Filteri" themselves after the tour ends.
+            {/* Guided tour. It no longer auto-launches on first visit — it runs
+                ONLY when the user clicks the NavBar "?" ("Pokaži kako") button,
+                which dispatches a window event we pick up via tourReplayKey. No
+                seenStorageKey is passed, so PageTour's auto-launch path is
+                disabled entirely. After the final step we navigate to a
+                finished tournament with a sessionStorage resume flag, and the
+                detail page picks the tour up as a continuation. */}
+            <Suspense fallback={null}>
+                <PageTour
+                    key={tourReplayKey}
+                    steps={TURNIRI_LIST_TOUR_STEPS()}
+                    forceRun={tourReplayKey > 0 ? true : undefined}
+                    onStepChange={(nextIndex) => {
+                        // The filter panel deliberately stays collapsed during
+                        // the tour: expanding it grew the
+                        // `[data-tour="turniri-filters"]` anchor from ~50px to
+                        // ~250px, which pushed the popper-positioned tooltip
+                        // far below the controls it was describing. The user
+                        // can still tap "Filteri" once the tour ends.
 
-                    // Mobile-only: open the hamburger drawer at the nav
-                    // steps so the `data-tour="nav-items"` anchor (which
-                    // lives inside the drawer's Stack on mobile) is in
-                    // the DOM when Joyride looks for it. Close it again
-                    // as soon as we move past the auth step so the user
-                    // sees the tournament list for the next anchor.
-                    // The NavBar listens for these events and toggles
-                    // its drawer state — desktop is unaffected because
-                    // the drawer block doesn't render at md+.
-                    const isNavStep = nextIndex === 1 || nextIndex === 2
-                    window.dispatchEvent(new CustomEvent(
-                        isNavStep ? "bela:open-nav-menu" : "bela:close-nav-menu",
-                    ))
-                    if (isNavStep) notifyTourOfLayoutChange()
-                }}
-                onFinished={(info) => {
-                    // User pressed "Preskoči" or the X close button on
-                    // any list-tour step. They've signalled they don't
-                    // want any more onboarding right now — do NOT bridge
-                    // to the detail-page tour, do NOT navigate. Leave the
-                    // user where they are.
-                    if (info?.skipped) {
-                        return
-                    }
+                        // Mobile-only: open the hamburger drawer at the nav
+                        // steps so the `data-tour="nav-items"` anchor (which
+                        // lives inside the drawer's Stack on mobile) is in the
+                        // DOM when Joyride looks for it, and close it again as
+                        // soon as we move past the auth step. Desktop is
+                        // unaffected — the drawer block doesn't render at md+.
+                        const isNavStep = nextIndex === 1 || nextIndex === 2
+                        window.dispatchEvent(new CustomEvent(
+                            isNavStep ? "bela:open-nav-menu" : "bela:close-nav-menu",
+                        ))
+                        if (isNavStep) notifyTourOfLayoutChange()
+                    }}
+                    onFinished={(info) => {
+                        // "Preskoči" / the X close button: the user has said
+                        // they don't want any more onboarding right now — do
+                        // NOT bridge to the detail-page tour, do NOT navigate.
+                        if (info?.skipped) return
 
-                    // Normal "Završi" path — bridge to the detail-page
-                    // tour. Preferred target is the hardcoded demo
-                    // tournament (29 pairs, 8 rounds, full cjenik — a
-                    // known-good record for the detail tour). On
-                    // production deploys where the demo SQL hasn't been
-                    // imported it won't be present, so fall back to
-                    // whatever finished tournament is loaded; failing
-                    // that, an upcoming card. The detail tour anchors
-                    // are tab + content-shaped so they work on any
-                    // tournament page even if the data is sparser.
-                    const hasDemoLoaded = finished.some(
-                        (t) => t.slug === TOUR_DEMO_TOURNAMENT_SLUG,
-                    )
-                    let slug: string | undefined
-                    if (hasDemoLoaded && TOUR_DEMO_TOURNAMENT_SLUG) {
-                        slug = TOUR_DEMO_TOURNAMENT_SLUG
-                    } else {
-                        const target = finished[0] ?? upcoming[0]
-                        slug = (target as any)?.slug || target?.uuid
-                    }
-                    if (!slug) {
-                        // No tournament to bridge to — tour ends here.
-                        return
-                    }
-                    try {
-                        window.sessionStorage.setItem(TOUR_RESUME_DETAIL_KEY, "1")
-                    } catch { /* private mode */ }
-                    navigate(`/turniri/${slug}`)
-                }}
-            />
+                        // Normal "Završi" path — bridge to the detail-page
+                        // tour. Preferred target is the hardcoded demo
+                        // tournament (29 pairs, 8 rounds, full cjenik — a
+                        // known-good record). On deploys where the demo SQL
+                        // was never imported, fall back to whatever finished
+                        // tournament is loaded, then to an upcoming one.
+                        const hasDemoLoaded = finished.some(
+                            (item) => item.slug === TOUR_DEMO_TOURNAMENT_SLUG,
+                        )
+                        let slug: string | undefined
+                        if (hasDemoLoaded && TOUR_DEMO_TOURNAMENT_SLUG) {
+                            slug = TOUR_DEMO_TOURNAMENT_SLUG
+                        } else {
+                            const target = finished[0] ?? upcoming[0]
+                            slug = target?.slug || target?.uuid
+                        }
+                        if (!slug) return // nothing to bridge to — tour ends here
+                        try {
+                            window.sessionStorage.setItem(TOUR_RESUME_DETAIL_KEY, "1")
+                        } catch { /* private mode */ }
+                        navigate(`/turniri/${slug}`)
+                    }}
+                />
+            </Suspense>
         </VStack>
     )
 }

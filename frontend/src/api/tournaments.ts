@@ -1,4 +1,5 @@
 import { http } from "./http";
+import { t } from "../i18n";
 import type {
     CreateTournamentPayload,
     TournamentCard,
@@ -6,8 +7,28 @@ import type {
 } from "../types/tournaments";
 import type { PairDraft, PairShort } from "../types/pairs";
 
-export async function createTournament(payload: CreateTournamentPayload): Promise<TournamentDetails> {
+/**
+ * Create a tournament.
+ *
+ * With a poster file this sends ONE multipart request to
+ * `/tournaments/multipart` (JSON in the "data" part, the image in "poster")
+ * so the tournament and its artwork land in a single transaction; without one
+ * it posts plain JSON to `/tournaments`.
+ *
+ * `resourceId` is passed through with the rest of the payload, and unknown
+ * extras (`bannerUrl` when the organiser pasted a URL instead of uploading)
+ * survive the normalisation below — hence the spread.
+ *
+ * Note the Content-Type on the multipart branch: axios's browser adapter
+ * unsets it for a FormData body so the browser can append its own boundary,
+ * the same trick `uploadTournamentPoster` below relies on.
+ */
+export async function createTournament(
+    payload: CreateTournamentPayload,
+    posterFile?: File | null,
+): Promise<TournamentDetails> {
     const body: CreateTournamentPayload = {
+        ...payload,
         name: payload.name.trim(),
         location: payload.location ?? null,
         details: payload.details ?? null,
@@ -29,10 +50,25 @@ export async function createTournament(payload: CreateTournamentPayload): Promis
         resourceId: payload.resourceId ?? null,
     };
 
+    if (posterFile) {
+        const fd = new FormData();
+        fd.append("data", JSON.stringify(body));
+        fd.append("poster", posterFile, posterFile.name);
+        const { data } = await http.post<TournamentDetails>(
+            "/tournaments/multipart",
+            fd,
+            {
+                headers: { "Content-Type": "multipart/form-data" },
+                successMessage: t("common.toast.tournamentCreated"),
+            },
+        );
+        return data;
+    }
+
     const { data } = await http.post<TournamentDetails>(
         "/tournaments",
         body,
-        { successMessage: "Turnir je kreiran." } as any,
+        { successMessage: t("common.toast.tournamentCreated") },
     );
     return data;
 }
@@ -52,6 +88,15 @@ export async function fetchTournaments(
  * Backend-side total count for a status bucket. Used by the "Učitaj više"
  * button on the finished list to know when to stop offering more.
  */
+/**
+ * Tournaments the signed-in user organised, newest start first — feeds the
+ * "Učitaj iz predloška" picker on the create-tournament wizard.
+ */
+export async function fetchMyTournaments(): Promise<TournamentCard[]> {
+    const { data } = await http.get<TournamentCard[]>("/tournaments/mine", { silent: true })
+    return data
+}
+
 export async function fetchTournamentsCount(
     status: "finished" = "finished",
 ): Promise<number> {
@@ -59,12 +104,22 @@ export async function fetchTournamentsCount(
         params: { status },
         // No success toast for a background count.
         silent: true,
-    } as any);
+    });
     return data.total
 }
 
-export async function fetchTournamentDetails(uuid: string): Promise<TournamentDetails> {
-    const { data } = await http.get<TournamentDetails>(`/tournaments/${uuid}`);
+/**
+ * `opts.silent` suppresses the interceptor's error toast — used by the
+ * tournament page's background live-poll, where a transient network blip
+ * should not throw a red toast over whatever the user is reading.
+ */
+export async function fetchTournamentDetails(
+    uuid: string,
+    opts?: { silent?: boolean },
+): Promise<TournamentDetails> {
+    const { data } = await http.get<TournamentDetails>(`/tournaments/${uuid}`, {
+        silent: opts?.silent,
+    });
     return data;
 }
 
@@ -75,7 +130,7 @@ export async function updateTournament(
     const { data } = await http.put<TournamentDetails>(
         `/tournaments/${uuid}`,
         payload,
-        { successMessage: "Turnir je ažuriran." } as any,
+        { successMessage: t("common.toast.tournamentUpdated") },
     );
     return data;
 }
@@ -102,8 +157,8 @@ export async function uploadTournamentPoster(
         fd,
         {
             headers: { "Content-Type": "multipart/form-data" },
-            silent: true, // the JSON save already toasted "Turnir je ažuriran."
-        } as any,
+            silent: true, // the JSON save already toasted "Turnir je ažuriran." (common.toast.tournamentUpdated)
+        },
     )
     return data
 }
@@ -112,18 +167,14 @@ export async function uploadTournamentPoster(
 export async function deleteTournamentPoster(uuid: string): Promise<TournamentDetails> {
     const { data } = await http.delete<TournamentDetails>(
         `/tournaments/${uuid}/poster`,
-        { silent: true } as any,
+        { silent: true },
     )
     return data
 }
 
-export async function fetchPairs(tournamentId: string): Promise<PairShort[]> {
-    const { data } = await http.get<PairShort[]>(`/tournaments/${tournamentId}/pairs`);
-    return data;
-}
-
-export async function fetchTournamentPairs(uuid: string): Promise<PairShort[]> {
-    const { data } = await http.get<PairShort[]>(`/tournaments/${uuid}/pairs`)
+/** `opts.silent` — see fetchRounds; used by the tournament page live-poll. */
+export async function fetchTournamentPairs(uuid: string, opts?: { silent?: boolean }): Promise<PairShort[]> {
+    const { data } = await http.get<PairShort[]>(`/tournaments/${uuid}/pairs`, { silent: opts?.silent })
     return data
 }
 
@@ -143,7 +194,7 @@ export async function replacePairs(tournamentId: string, pairs: Array<PairShort 
         extraLife: !!p.extraLife,
         wins: Number.isFinite(p.wins) ? p.wins : 0,
         losses: Number.isFinite(p.losses) ? p.losses : 0,
-        paid: !!(p as any).paid,
+        paid: !!p.paid,
     }));
 
     const { data } = await http.put<PairShort[]>(`/tournaments/${tournamentId}/pairs`, payload);
@@ -154,16 +205,23 @@ export async function buyExtraLife(tournamentUuid: string, pairId: number): Prom
     const { data } = await http.post<PairShort>(
         `/tournaments/${tournamentUuid}/pairs/${pairId}/extra-life`,
         undefined,
-        { successMessage: "Dodatni život je kupljen." } as any,
+        { successMessage: t("common.toast.extraLifeBought") },
     )
     return data
 }
 
 export async function finishTournament(uuid: string): Promise<TournamentDetails> {
+    // 409 means the backend refused on a business rule (a round still open,
+    // more than one pair still active, the tournament already finished). The
+    // bare code it returns is not user-facing copy, so the caller translates
+    // it into Croatian itself — suppress the generic toast here.
     const { data } = await http.post<TournamentDetails>(
         `/tournaments/${uuid}/finish`,
         undefined,
-        { successMessage: "Turnir je završen." } as any,
+        {
+            successMessage: t("common.toast.tournamentFinished"),
+            silentErrorStatuses: [409],
+        },
     )
     return data
 }
@@ -176,9 +234,9 @@ export async function startTournament(uuid: string): Promise<TournamentDetails> 
         `/tournaments/${uuid}/start`,
         undefined,
         {
-            successMessage: "Turnir je pokrenut.",
+            successMessage: t("common.toast.tournamentStarted"),
             silentErrorStatuses: [409],
-        } as any,
+        },
     )
     return data
 }
@@ -196,7 +254,7 @@ export async function resetTournament(uuid: string): Promise<TournamentDetails> 
     const res = await http.post<TournamentDetails>(
         `/tournaments/${uuid}/reset`,
         {},
-        { successMessage: "Turnir je resetiran." } as any,
+        { successMessage: t("common.toast.tournamentReset") },
     )
     return res.data
 }
@@ -215,13 +273,30 @@ export async function setPodium(
     const { data } = await http.patch<TournamentDetails>(
         `/tournaments/${uuid}/podium`,
         { secondPlaceName, thirdPlaceName },
-        { successMessage: "Postolje spremljeno." } as any,
+        { successMessage: t("common.toast.podiumSaved") },
     )
     return data
 }
 
-export async function setPairPaid(uuid: string, pairId: number, paid: boolean) {
-    const { data } = await http.patch(`/tournaments/${uuid}/pairs/${pairId}/paid`, { paid });
+/**
+ * Kotizacija toggle. `opts.opId` carries the offline queue's operation id in
+ * `X-Client-Op-Id`; the backend applies each id exactly once, so a toggle
+ * typed during an outage can be replayed without flipping the flag twice.
+ */
+export async function setPairPaid(
+    uuid: string,
+    pairId: number,
+    paid: boolean,
+    opts?: { silent?: boolean; opId?: string },
+): Promise<PairShort> {
+    const { data } = await http.patch<PairShort>(
+        `/tournaments/${uuid}/pairs/${pairId}/paid`,
+        { paid },
+        {
+            silent: opts?.silent,
+            ...(opts?.opId ? { headers: { "X-Client-Op-Id": opts.opId } } : {}),
+        },
+    );
     return data;
 }
 
@@ -229,7 +304,7 @@ export async function selfRegisterPair(tournamentUuid: string, name: string): Pr
     const { data } = await http.post<PairShort>(
         `/tournaments/${tournamentUuid}/pairs/self-register`,
         { name },
-        { successMessage: "Prijava poslana." } as any,
+        { successMessage: t("common.toast.registrationSent") },
     )
     return data
 }
@@ -238,7 +313,7 @@ export async function approvePair(tournamentUuid: string, pairId: number): Promi
     const { data } = await http.post<PairShort>(
         `/tournaments/${tournamentUuid}/pairs/${pairId}/approve`,
         undefined,
-        { successMessage: "Par je odobren." } as any,
+        { successMessage: t("common.toast.pairApproved") },
     )
     return data
 }
@@ -246,13 +321,13 @@ export async function approvePair(tournamentUuid: string, pairId: number): Promi
 export async function deletePair(tournamentUuid: string, pairId: number): Promise<void> {
     await http.delete(
         `/tournaments/${tournamentUuid}/pairs/${pairId}`,
-        { successMessage: "Par je obrisan." } as any,
+        { successMessage: t("common.toast.pairDeleted") },
     )
 }
 
 export async function deleteTournament(tournamentUuid: string): Promise<void> {
     await http.delete(
         `/tournaments/${tournamentUuid}`,
-        { successMessage: "Turnir je obrisan." } as any,
+        { successMessage: t("common.toast.tournamentDeleted") },
     )
 }

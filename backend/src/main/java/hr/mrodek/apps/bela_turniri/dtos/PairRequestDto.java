@@ -21,6 +21,14 @@ public class PairRequestDto {
     private OffsetDateTime tournamentStartAt;
     private String playerName;
     private String phone;
+    /**
+     * Whether the poster left a phone number at all — stamped BEFORE
+     * {@code phone} is nulled for anonymous callers, so a signed-out visitor
+     * can be told "there is a number, sign in to see it" instead of the UI
+     * having to guess. Without this the redacted payload is indistinguishable
+     * from a request that simply has no number.
+     */
+    private boolean hasPhone;
     private String note;
     private String status;       // OPEN | MATCHED
     private OffsetDateTime createdAt;

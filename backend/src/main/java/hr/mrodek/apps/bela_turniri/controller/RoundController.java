@@ -4,21 +4,19 @@ import hr.mrodek.apps.bela_turniri.dtos.ManualRoundRequest;
 import hr.mrodek.apps.bela_turniri.dtos.MatchDto;
 import hr.mrodek.apps.bela_turniri.dtos.RoundDto;
 import hr.mrodek.apps.bela_turniri.dtos.UpdateMatchRequest;
-import hr.mrodek.apps.bela_turniri.model.Tournaments;
-import hr.mrodek.apps.bela_turniri.repository.TournamentsRepository;
+import hr.mrodek.apps.bela_turniri.services.CurrentUser;
+import hr.mrodek.apps.bela_turniri.services.IdempotencyService;
 import hr.mrodek.apps.bela_turniri.services.RoundService;
+import hr.mrodek.apps.bela_turniri.services.TournamentAccess;
 import io.quarkus.security.Authenticated;
-import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.util.List;
-import java.util.UUID;
 
 @Path("/tournaments/{uuid}/rounds")
 @Produces(MediaType.APPLICATION_JSON)
@@ -26,23 +24,22 @@ import java.util.UUID;
 public class RoundController {
 
     @Inject RoundService roundService;
-    @Inject TournamentsRepository tournamentsRepo;
-    @Inject SecurityIdentity identity;
-    @Inject JsonWebToken jwt;
+    @Inject TournamentAccess access;
+    @Inject IdempotencyService idempotency;
+    @Inject CurrentUser currentUser;
 
-    /** Throws 403 if the current user is neither the tournament's creator nor an admin. */
+    /** Route label stored on the replay marker — diagnostics only. */
+    private static final String UPDATE_MATCH_ENDPOINT =
+            "PUT /tournaments/{uuid}/rounds/{roundId}/matches/{matchId}";
+
+    /**
+     * 404 when the tournament doesn't exist, 403 when the caller may not
+     * manage it. The path segment is a slug or a UUID — {@link
+     * TournamentAccess#loadForEdit} accepts either, since tournaments grew
+     * pretty slugs after the first shared links were already in the wild.
+     */
     private void assertCanEdit(String idOrSlug) {
-        // Accept slug or UUID — the URL the user is on may be either form
-        // because tournaments now expose a pretty slug.
-        Tournaments t = tournamentsRepo.findByUuidOrSlug(idOrSlug).orElse(null);
-        if (t == null) throw new NotFoundException();
-        boolean admin = identity != null && identity.hasRole("admin");
-        if (admin) return;
-        String me = jwt != null ? jwt.getSubject() : null;
-        boolean owner = me != null && me.equals(t.getCreatedByUid());
-        if (!owner) {
-            throw new ForbiddenException("Only the creator or an admin can modify this tournament.");
-        }
+        access.loadForEdit(idOrSlug);
     }
 
     @GET
@@ -76,18 +73,34 @@ public class RoundController {
         return roundService.drawManualRound(uuid, req);
     }
 
+    /**
+     * The one write the organiser makes over and over, from a phone, in a
+     * hall with unreliable Wi-Fi. The SPA queues it offline and replays on
+     * reconnect, so it accepts an optional {@code X-Client-Op-Id}: the same
+     * id sent twice applies the score once and returns the identical
+     * {@link MatchDto} body both times (see {@link IdempotencyService}).
+     * Without the header nothing changes — the work simply runs.
+     *
+     * <p>The access check stays OUTSIDE the idempotent block on purpose: a
+     * replayed op id must not let a caller who has since lost edit rights
+     * read back a response they are no longer entitled to.
+     */
     @PUT
     @Path("/{roundId}/matches/{matchId}")
     @Authenticated
     @Transactional
-    public MatchDto updateMatch(
+    public Response updateMatch(
             @PathParam("uuid") String uuid,
             @PathParam("roundId") Long roundId,
             @PathParam("matchId") Long matchId,
+            @HeaderParam("X-Client-Op-Id") String clientOpId,
             @Valid UpdateMatchRequest req
     ) {
         assertCanEdit(uuid);
-        return roundService.updateMatchScore(uuid, roundId, matchId, req);
+        return idempotency.execute(clientOpId, currentUser.uidOrNull(), UPDATE_MATCH_ENDPOINT, () -> {
+            MatchDto saved = roundService.updateMatchScore(uuid, roundId, matchId, req);
+            return Response.ok(saved).build();
+        });
     }
 
     @DELETE

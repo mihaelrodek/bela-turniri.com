@@ -1,8 +1,14 @@
 import {http} from "./http"
+import { t } from "../i18n"
 import type { RoundDto, MatchDto } from "../types/round"
 
-export async function fetchRounds(uuid: string): Promise<RoundDto[]> {
-    const { data } = await http.get<RoundDto[]>(`/tournaments/${uuid}/rounds`)
+/**
+ * `opts.silent` suppresses the interceptor's error toast — used by the
+ * background live-poll on the tournament page, where a transient network
+ * blip should not throw a red toast over whatever the user is reading.
+ */
+export async function fetchRounds(uuid: string, opts?: { silent?: boolean }): Promise<RoundDto[]> {
+    const { data } = await http.get<RoundDto[]>(`/tournaments/${uuid}/rounds`, { silent: opts?.silent })
     return data
 }
 
@@ -33,20 +39,36 @@ export async function drawManualRound(
     const { data } = await http.post<RoundDto>(
         `/tournaments/${uuid}/rounds/manual`,
         { matches },
-        { successMessage: "Kolo generirano." } as any,
+        { successMessage: t("common.toast.roundGenerated") },
     )
     return data
 }
 
+/**
+ * `opts.silent` suppresses both the success and the error toast. The
+ * "finish whole round" action saves every table in one go and would
+ * otherwise stack one toast per match; it reports a single summary itself.
+ *
+ * `opts.opId` is the offline queue's operation id. It travels as
+ * `X-Client-Op-Id`, and the backend applies a given id exactly once — which
+ * is what makes replaying a score typed during a Wi-Fi outage safe. The
+ * header is set per request rather than in an interceptor because
+ * `api/http.ts` is shared by every call and most of them are not queued.
+ */
 export async function updateMatchScore(
     uuid: string,
     roundId: number,
     matchId: number,
-    body: { score1: number | null; score2: number | null }
+    body: { score1: number | null; score2: number | null },
+    opts?: { silent?: boolean; opId?: string }
 ): Promise<MatchDto> {
     const { data } = await http.put<MatchDto>(
         `/tournaments/${uuid}/rounds/${roundId}/matches/${matchId}`,
-        body
+        body,
+        {
+            silent: opts?.silent,
+            ...(opts?.opId ? { headers: { "X-Client-Op-Id": opts.opId } } : {}),
+        }
     )
     return data
 }
@@ -60,8 +82,16 @@ export async function hardResetRound(uuid: string, roundId: number): Promise<voi
     }
 }
 
+/**
+ * Closes a round. This is the ONLY toast the "Završi rundu" flow shows —
+ * the per-match score saves it runs first are all `silent`.
+ */
 export async function finishRound(tournamentUuid: string, roundId: number): Promise<RoundDto> {
-    const { data } = await http.put<RoundDto>(`/tournaments/${tournamentUuid}/rounds/${roundId}/finish`)
+    const { data } = await http.put<RoundDto>(
+        `/tournaments/${tournamentUuid}/rounds/${roundId}/finish`,
+        undefined,
+        { successMessage: t("common.toast.roundFinished") },
+    )
     return data
 }
 

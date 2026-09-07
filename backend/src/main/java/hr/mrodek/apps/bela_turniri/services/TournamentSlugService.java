@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 public class TournamentSlugService {
 
     @Inject TournamentsRepository tournamentsRepo;
+    @Inject MessageService messages;
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("dd-MM-yyyy");
@@ -62,7 +63,7 @@ public class TournamentSlugService {
             suffix++;
             // Defensive: stop runaway loops — should never realistically hit.
             if (suffix > 1000) {
-                throw new IllegalStateException("Could not generate unique slug for " + t.getName());
+                throw new IllegalStateException(messages.t("tournament.slug.exhausted", t.getName()));
             }
         }
     }

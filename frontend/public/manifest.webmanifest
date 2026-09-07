@@ -8,7 +8,7 @@
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
-  "theme_color": "#3182ce",
+  "theme_color": "#227342",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -27,6 +27,36 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Turniri",
+      "short_name": "Turniri",
+      "description": "Pregledaj popis turnira",
+      "url": "/turniri",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Kalendar",
+      "short_name": "Kalendar",
+      "description": "Pregledaj kalendar turnira",
+      "url": "/kalendar",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Karta",
+      "short_name": "Karta",
+      "description": "Pronađi turnire na karti",
+      "url": "/karta",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Novi turnir",
+      "short_name": "Novi turnir",
+      "description": "Kreiraj novi turnir",
+      "url": "/turniri/novi",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

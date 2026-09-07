@@ -1,0 +1,282 @@
+package hr.mrodek.apps.bela_turniri.services;
+
+import hr.mrodek.apps.bela_turniri.dtos.MyTournamentParticipationDto;
+import hr.mrodek.apps.bela_turniri.dtos.PairMatchHistoryDto;
+import hr.mrodek.apps.bela_turniri.dtos.PublicProfileDto;
+import hr.mrodek.apps.bela_turniri.model.Matches;
+import hr.mrodek.apps.bela_turniri.model.Pairs;
+import hr.mrodek.apps.bela_turniri.model.Tournaments;
+import hr.mrodek.apps.bela_turniri.model.UserPairPreset;
+import hr.mrodek.apps.bela_turniri.model.UserProfile;
+import hr.mrodek.apps.bela_turniri.repository.MatchesRepository;
+import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
+import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
+import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.NotFoundException;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Aggregation behind the public profile page —
+ * {@link hr.mrodek.apps.bela_turniri.controller.PublicProfileController}
+ * loads the slug/auth context and delegates here: preset ownership,
+ * archive/hidden filtering, pair collapsing and phone redaction.
+ */
+@ApplicationScoped
+public class PublicProfileService {
+
+    @Inject UserProfileRepository profileRepo;
+    @Inject UserPairPresetRepository presetRepo;
+    @Inject PairsRepository pairRepo;
+    @Inject MatchesRepository matchRepo;
+    @Inject MessageService messages;
+
+    /**
+     * Build the public profile DTO for {@code slug}.
+     *
+     * @param viewerUid the caller's Firebase UID, or {@code null} when
+     *                  anonymous or a different user than the profile owner
+     * @param anonymous true when no verified bearer token was presented —
+     *                  gates phone-number redaction
+     */
+    public PublicProfileDto getBySlug(String slug, String viewerUid, boolean anonymous) {
+        var profile = profileRepo.findBySlug(slug)
+                .orElseThrow(() -> new NotFoundException(messages.t("profile.notFound", slug)));
+
+        String uid = profile.getUserUid();
+
+        // Load every preset the profile owner is a party to — primary OR
+        // co-owner — across BOTH active and archived rows. We need the
+        // archived set to filter participations, the active+claimed set
+        // to attach partner info to each pair summary, and the legacy
+        // by-name list for the participations query fallback.
+        var ownedPresets = presetRepo.list(
+                "userUid = ?1 or coOwnerUid = ?1",
+                uid
+        );
+
+        // Archived names — hidden from EVERYONE (owner + visitors).
+        // Once both owners agreed to archive, the pair is "gone" from
+        // public-facing UI even though the underlying Pairs rows stay
+        // for tournament-side history.
+        Set<String> archivedLowered = new HashSet<>();
+        // Hidden names — only filtered for non-owner viewers.
+        Set<String> hiddenLowered = new HashSet<>();
+        // Name key → partner UID, resolved to profiles in one bulk lookup
+        // below instead of a per-row query (was the N+1 here).
+        Map<String, String> partnerUidByName = new HashMap<>();
+
+        for (var pp : ownedPresets) {
+            if (pp.getName() == null) continue;
+            String key = pp.getName().trim().toLowerCase(Locale.ROOT);
+            if (pp.isArchived()) {
+                archivedLowered.add(key);
+                continue;
+            }
+            if (pp.isHidden()) hiddenLowered.add(key);
+            // Active + claimed → resolve the OTHER owner from the
+            // profile-owner's perspective and stash for later lookup.
+            String partnerUid = null;
+            if (uid.equals(pp.getUserUid())) {
+                partnerUid = pp.getCoOwnerUid();
+            } else if (uid.equals(pp.getCoOwnerUid())) {
+                partnerUid = pp.getUserUid();
+            }
+            if (partnerUid != null && !partnerUid.isBlank()) {
+                partnerUidByName.put(key, partnerUid);
+            }
+        }
+
+        // One bulk query for every partner profile referenced above, used to
+        // enrich PairSummary so the UI can show a clickable "Partner: X" on
+        // each chip.
+        Map<String, UserProfile> partnerProfilesByUid = profileRepo.findByUids(partnerUidByName.values());
+        Map<String, UserProfile> partnerByName = new HashMap<>();
+        for (var e : partnerUidByName.entrySet()) {
+            UserProfile partner = partnerProfilesByUid.get(e.getValue());
+            if (partner != null) partnerByName.put(e.getKey(), partner);
+        }
+
+        // Owner-of-this-profile sees hidden pairs (just not the archived
+        // ones); anonymous + everyone else gets both hidden + archived
+        // filtering.
+        boolean viewerIsOwner = viewerUid != null && viewerUid.equals(uid);
+
+        // Preset names list for the legacy by-name participation fallback,
+        // skipping archived ones (no point pulling pairs that we'll
+        // immediately filter back out).
+        List<String> presetNames = ownedPresets.stream()
+                .filter(pp -> !pp.isArchived())
+                .map(UserPairPreset::getName)
+                .toList();
+
+        var participations = pairRepo.findMyParticipations(uid, presetNames);
+
+        var participationDtos = participations.stream()
+                .map(PublicProfileService::toParticipationDto)
+                .filter(p -> {
+                    if (p.pairName() == null) return true;
+                    String key = p.pairName().trim().toLowerCase(Locale.ROOT);
+                    // Archived → drop for everyone.
+                    if (archivedLowered.contains(key)) return false;
+                    // Hidden → drop for non-owner viewers only.
+                    if (!viewerIsOwner && hiddenLowered.contains(key)) return false;
+                    return true;
+                })
+                .toList();
+
+        // Build pair summary by collapsing on lower-cased trimmed name and
+        // counting tournaments + wins per group. Attach partner info
+        // (the OTHER owner) when the name matches an active claimed preset.
+        Map<String, int[]> agg = new LinkedHashMap<>();
+        Map<String, String> prettyName = new LinkedHashMap<>();
+        for (var p : participationDtos) {
+            String key = p.pairName() == null ? "" : p.pairName().trim().toLowerCase(Locale.ROOT);
+            if (key.isEmpty()) continue;
+            prettyName.putIfAbsent(key, p.pairName().trim());
+            int[] cur = agg.computeIfAbsent(key, k -> new int[]{0, 0});
+            cur[0] += 1;
+            if (p.isWinner()) cur[1] += 1;
+        }
+
+        var pairs = new ArrayList<PublicProfileDto.PairSummary>(agg.size());
+        for (var e : agg.entrySet()) {
+            var partner = partnerByName.get(e.getKey());
+            pairs.add(new PublicProfileDto.PairSummary(
+                    prettyName.get(e.getKey()),
+                    e.getValue()[0],
+                    e.getValue()[1],
+                    partner == null ? null : partner.getSlug(),
+                    partner == null ? null : partner.getDisplayName()
+            ));
+        }
+        // Most-played pair first so the UI default selection is the strongest signal.
+        pairs.sort((a, b) -> Integer.compare(b.tournamentCount(), a.tournamentCount()));
+
+        // Phone is hidden from anonymous callers so this endpoint can't be
+        // used as a one-click PII scraper. Logged-in users get the real
+        // value; anonymous callers see nulls AND a hasPhone=true flag so the
+        // SPA can render a blurred placeholder that links to /login.
+        boolean hasPhone = profile.getPhone() != null && !profile.getPhone().isBlank();
+        String phoneCountry = anonymous ? null : profile.getPhoneCountry();
+        String phone = anonymous ? null : profile.getPhone();
+
+        // Avatar — proxied URL pattern, same as posters. Public per product
+        // decision (the page itself is anonymous-readable). Touching the
+        // lazy association requires an active transaction; the surrounding
+        // request scope provides one.
+        String avatarUrl = null;
+        if (profile.getAvatar() != null && profile.getAvatar().getId() != null) {
+            avatarUrl = "/api/resources/" + profile.getAvatar().getId() + "/image";
+        }
+
+        return new PublicProfileDto(
+                profile.getSlug(),
+                profile.getDisplayName(),
+                phoneCountry,
+                phone,
+                hasPhone,
+                avatarUrl,
+                pairs,
+                participationDtos
+        );
+    }
+
+    /**
+     * Match-by-match history for one pair on this profile. Walks
+     * {@code m.getRound()/getPair1()/getPair2()} — all lazy — so the caller
+     * must run this inside an active transaction (see
+     * {@code PublicProfileController#getPairMatches}).
+     */
+    public PairMatchHistoryDto getPairMatches(String slug, Long pairId) {
+        var profile = profileRepo.findBySlug(slug)
+                .orElseThrow(() -> new NotFoundException(messages.t("profile.notFound", slug)));
+
+        var pair = pairRepo.findByIdOptional(pairId)
+                .orElseThrow(() -> new NotFoundException(messages.t("pair.notFound.withId", String.valueOf(pairId))));
+
+        // Make sure this pair actually belongs to that profile — either by uid
+        // or by preset-name fallback. Prevents anyone from drilling into other
+        // people's pairs by guessing pairId via someone else's slug.
+        boolean ownsByUid = pair.getSubmittedByUid() != null
+                && pair.getSubmittedByUid().equals(profile.getUserUid());
+        boolean ownsByPreset = false;
+        if (!ownsByUid && pair.getSubmittedByUid() == null) {
+            String pairName = pair.getName() == null ? "" : pair.getName().trim().toLowerCase(Locale.ROOT);
+            ownsByPreset = presetRepo.findByUserUid(profile.getUserUid()).stream()
+                    .map(UserPairPreset::getName)
+                    .anyMatch(n -> n != null && n.trim().toLowerCase(Locale.ROOT).equals(pairName));
+        }
+        if (!ownsByUid && !ownsByPreset) {
+            // Treat as missing — same shape as a wrong slug so we don't leak
+            // existence-by-id.
+            throw new NotFoundException(messages.t("pair.notFound.forProfile"));
+        }
+
+        Tournaments t = pair.getTournament();
+        var rows = new ArrayList<PairMatchHistoryDto.Row>();
+        for (Matches m : matchRepo.findByPairId(pair.getId())) {
+            boolean isPair1 = m.getPair1() != null && m.getPair1().getId().equals(pair.getId());
+            Pairs opponent = isPair1 ? m.getPair2() : m.getPair1();
+            Integer ourScore  = isPair1 ? m.getScore1() : m.getScore2();
+            Integer oppScore  = isPair1 ? m.getScore2() : m.getScore1();
+            Boolean won = null;
+            if (m.getWinnerPair() != null) {
+                won = m.getWinnerPair().getId().equals(pair.getId());
+            }
+            boolean isBye = opponent == null;
+
+            rows.add(new PairMatchHistoryDto.Row(
+                    m.getRound() == null ? null : m.getRound().getNumber(),
+                    m.getTableNo(),
+                    opponent == null ? null : opponent.getName(),
+                    ourScore,
+                    oppScore,
+                    m.getStatus() == null ? null : m.getStatus().name(),
+                    won,
+                    isBye
+            ));
+        }
+
+        return new PairMatchHistoryDto(
+                pair.getId(),
+                pair.getName(),
+                t == null ? null : t.getName(),
+                rows
+        );
+    }
+
+    private static MyTournamentParticipationDto toParticipationDto(Pairs p) {
+        Tournaments t = p.getTournament();
+        boolean isWinner =
+                t.getWinnerName() != null
+                        && p.getName() != null
+                        && t.getWinnerName().trim().equalsIgnoreCase(p.getName().trim());
+        return new MyTournamentParticipationDto(
+                t.getUuid(),
+                t.getSlug(),
+                t.getName(),
+                t.getLocation(),
+                t.getStartAt(),
+                t.getStatus() == null ? null : t.getStatus().name(),
+                t.getWinnerName(),
+                p.getId(),
+                p.getName(),
+                p.isPendingApproval(),
+                p.isEliminated(),
+                p.isExtraLife(),
+                p.getWins(),
+                p.getLosses(),
+                isWinner
+        );
+    }
+}

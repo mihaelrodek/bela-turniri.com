@@ -1,22 +1,69 @@
 /*
- * Minimal service worker — exists primarily so Chrome / Edge / Samsung Internet
- * fire the `beforeinstallprompt` event. Without an SW the browser refuses to
- * surface the install prompt at all, even with a perfect manifest.
+ * Service worker — exists primarily so Chrome / Edge / Samsung Internet fire
+ * the `beforeinstallprompt` event (no SW → the browser refuses the install
+ * prompt even with a perfect manifest), and to give the installed PWA a useful
+ * offline story for a tournament organiser in a hall with flaky Wi-Fi:
  *
- * It also gives us a network-first fetch handler that:
- *   - Lets every request go to the network normally (no caching surprises).
- *   - Falls back to the cached app shell when the network is unreachable, so
- *     a tournament organizer at a venue with flaky Wi-Fi can still open the
- *     installed app and see *something* (just the SPA shell — API data still
- *     needs the network).
+ *   - SPA navigations: network-first, fall back to the cached app shell so a
+ *     cold launch offline still boots index.html instead of the browser's
+ *     "no internet" page, and to a tiny inline offline page as a last resort.
+ *   - API reads (GET /api/*): network-first, fall back to the LAST cached
+ *     snapshot. Online it's always fresh (and the snapshot is refreshed); the
+ *     cache is served ONLY when the network is unreachable. That lets the round
+ *     view and the standings open — and survive a reload — with no signal.
+ *     Network-first is the key: there's no stale-JSON surprise while connected.
+ *   - Writes (POST/PUT/PATCH/DELETE): never touched — straight to the network.
+ *   - /assets/* and cross-origin: never touched. Vite hashes every asset and
+ *     Caddy serves them `immutable`, so the browser's own HTTP cache already
+ *     does the right thing — and staying out avoids the class of bug where a
+ *     failed fetch + cache miss resolved to `undefined` and crashed the worker
+ *     with "Failed to convert value to 'Response'".
  *
- * Keeping the worker tiny is deliberate: a richer cache strategy is easy to
- * shoot yourself in the foot with (stale React bundle, stale API JSON).
- * Revisit when there's a concrete offline use case.
+ * Per-user endpoints are excluded from the API cache entirely (see
+ * NEVER_CACHE_API below): the snapshot would otherwise survive a sign-out and
+ * be served to the next person on the device. The same goes for ANY request
+ * that carries an `Authorization` header — the response is by definition the
+ * signed-in variant, and several endpoints return organiser-only fields to the
+ * owner and a trimmed body to everyone else on the very same URL.
  */
 
-const CACHE = "bela-shell-v1";
+const CACHE = "bela-shell-v2";
+const API_CACHE = "bela-api-v1";
 const SHELL = ["/", "/index.html", "/manifest.webmanifest"];
+// Cap the runtime API cache so a long-running install can't grow it unbounded.
+const API_CACHE_LIMIT = 80;
+// Never persist an offline snapshot of these — they're per-user, per-device or
+// auth-varying (the same URL answers differently for the owner and a guest).
+const NEVER_CACHE_API = [
+    "/api/user/",
+    "/api/admin/",
+    "/api/push/",
+    "/api/pair-requests",
+    "/api/public/users/",
+    // The .ics subscription feed: bytes for a calendar client, never a
+    // snapshot the SPA reads back, and big enough to matter in an 80-entry
+    // cache (CalendarFeedController).
+    "/api/calendar/",
+];
+// Same idea, but for paths that need a pattern rather than a prefix.
+const NEVER_CACHE_API_PATTERNS = [
+    /^\/api\/tournaments\/[^/]+\/pairs/,
+    // Rendered images, not JSON: an anonymous GET /api/* like any other, so
+    // without this the QR code and the 1200x630 Open Graph card land in the
+    // API snapshot cache and evict the round/standings JSON that offline mode
+    // actually depends on. Both are already ETag'd and served from the
+    // browser's own HTTP cache.
+    /^\/api\/tournaments\/[^/]+\/qr\.png/,
+    /^\/api\/tournaments\/[^/]+\/share-image\.png/,
+    // Waiter ("konobar") bills. These carry no `Authorization` header — the
+    // credential is `X-Waiter-Token` — so the auth check above does not catch
+    // them, yet the body is exactly the kind of per-credential data that check
+    // exists to keep out of the snapshot: one tournament's drink bills, who
+    // owes what, and what has been settled. Without this line the list and
+    // every opened bill survive "Izlaz" (and a regenerated code) in
+    // Cache Storage, readable by whoever holds the device next.
+    /^\/api\/tournaments\/[^/]+\/waiter\//,
+];
 
 self.addEventListener("install", (event) => {
     // Pre-cache the SPA shell so a cold offline launch from the home-screen
@@ -26,14 +73,28 @@ self.addEventListener("install", (event) => {
     );
     // Skip waiting so a fresh deploy activates on the next page load instead
     // of waiting for every tab to close.
+    //
+    // DECISION: this stays unconditional rather than switching to the
+    // "waiting" SW + postMessage({type: "SKIP_WAITING"}) pattern. Bela ships
+    // small, frequent deploys; an organiser mid-tournament with a tab that
+    // never closes shouldn't run a build from before a bug fix for hours.
+    // The cost — an open tab's already-loaded JS not knowing a new worker
+    // took over underneath it — is covered on the client side instead:
+    // src/components/SwUpdateToast.tsx watches for an "installed" worker
+    // while a controller already exists (= an update, not the first install)
+    // and shows a persistent "new version" toast with a reload action, so a
+    // tab can't end up silently stuck on stale code without the user being
+    // told.
     self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-    // Wipe any older shell caches.
+    // Wipe any caches that aren't in the current whitelist (older shell
+    // versions); keep the shell AND the runtime API-snapshot cache.
+    const keep = new Set([CACHE, API_CACHE]);
     event.waitUntil(
         caches.keys().then((keys) =>
-            Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+            Promise.all(keys.filter((k) => !keep.has(k)).map((k) => caches.delete(k)))
         )
     );
     self.clients.claim();
@@ -44,39 +105,100 @@ self.addEventListener("fetch", (event) => {
     // Only intercept GETs — POST/PUT/PATCH/DELETE go straight to the network.
     if (req.method !== "GET") return;
 
-    // Don't touch API or auth traffic — those must always be live, and Cache
-    // Storage on cross-origin (Firebase) URLs would just confuse things.
     const url = new URL(req.url);
+    // Leave cross-origin (Firebase, MinIO posters, map tiles) to the browser.
     if (url.origin !== self.location.origin) return;
-    if (url.pathname.startsWith("/api/")) return;
+    // Hashed build output is already immutable in the HTTP cache — hands off.
+    if (url.pathname.startsWith("/assets/")) return;
 
-    // SPA navigations: try network first, fall back to cached index.html so an
-    // offline app launch still boots the React shell.
-    if (req.mode === "navigate") {
-        event.respondWith(
-            fetch(req).catch(() => caches.match("/index.html"))
-        );
+    // API reads: network-first with a last-snapshot fallback (see file header).
+    if (url.pathname.startsWith("/api/")) {
+        event.respondWith(apiNetworkFirst(req, url));
         return;
     }
 
-    // Static assets: stale-while-revalidate. Serve from cache if we have it,
-    // refresh in the background. Vite cache-busts every JS/CSS asset with a
-    // hash, so old bundles never overwrite new ones.
-    event.respondWith(
-        caches.match(req).then((cached) => {
-            const network = fetch(req)
-                .then((resp) => {
-                    if (resp && resp.status === 200 && resp.type === "basic") {
-                        const clone = resp.clone();
-                        caches.open(CACHE).then((c) => c.put(req, clone)).catch(() => {});
-                    }
-                    return resp;
-                })
-                .catch(() => cached);
-            return cached || network;
-        })
-    );
+    // Everything else the SW owns is a top-level SPA navigation.
+    if (req.mode !== "navigate") return;
+    event.respondWith(navigationNetworkFirst(req));
 });
+
+// Network-first for GET /api/*: serve fresh when online (and refresh the
+// snapshot), fall back to the last cached snapshot offline. respondWith ALWAYS
+// resolves to a real Response — never undefined — so offline never crashes the
+// worker.
+async function apiNetworkFirst(req, url) {
+    // An Authorization header means this is the signed-in variant of the
+    // response — never write it to a cache the next person on the device (or
+    // this same person after a sign-out) can read back.
+    const authenticated = !!req.headers.get("authorization");
+    const cacheable =
+        !authenticated
+        && !NEVER_CACHE_API.some((p) => url.pathname.startsWith(p))
+        && !NEVER_CACHE_API_PATTERNS.some((re) => re.test(url.pathname));
+    let cache = null;
+    if (cacheable) {
+        try { cache = await caches.open(API_CACHE); } catch (_) { /* private mode */ }
+    }
+    try {
+        const resp = await fetch(req);
+        // Cache only clean, complete, same-origin 200s — never errors, 206
+        // partials or opaque responses (those would poison the snapshot).
+        if (cache && resp && resp.status === 200 && resp.type === "basic") {
+            const copy = resp.clone();
+            cache.put(req, copy)
+                .then(() => trimCache(cache, API_CACHE_LIMIT))
+                .catch(() => {});
+        }
+        return resp;
+    } catch (_) {
+        if (cache) {
+            const hit = await cache.match(req);
+            if (hit) return hit;
+        }
+        // No snapshot — reply in a shape axios rejects (503) so the app shows
+        // its own error/empty state instead of rendering bad data.
+        return new Response(
+            JSON.stringify({ offline: true }),
+            {
+                status: 503,
+                headers: { "Content-Type": "application/json; charset=utf-8" },
+            }
+        );
+    }
+}
+
+// SPA navigation: network-first, fall back to the cached shell, and as a last
+// resort a tiny offline page.
+async function navigationNetworkFirst(req) {
+    try {
+        return await fetch(req);
+    } catch (_) {
+        const shell =
+            (await caches.match("/index.html")) || (await caches.match("/"));
+        if (shell) return shell;
+        return new Response(
+            "<!doctype html><meta charset='utf-8'><title>Nema veze</title>" +
+                "<body style='font-family:sans-serif;padding:2rem'>" +
+                "<p>Trenutno nema veze sa serverom. Pokušaj ponovno za koji trenutak.</p>",
+            {
+                status: 503,
+                headers: { "Content-Type": "text/html; charset=utf-8" },
+            }
+        );
+    }
+}
+
+// Keep the runtime API cache bounded. Cache.keys() preserves insertion order,
+// so the oldest snapshots are at the front — evict from there when over the cap.
+async function trimCache(cache, limit) {
+    try {
+        const keys = await cache.keys();
+        const over = keys.length - limit;
+        for (let i = 0; i < over; i++) await cache.delete(keys[i]);
+    } catch (_) {
+        /* best-effort — a full cache just stops growing */
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────
 //  Web Push: receive + click handling
@@ -118,9 +240,20 @@ self.addEventListener("notificationclick", (event) => {
     const targetUrl = (event.notification.data && event.notification.data.url) || "/";
     // Resolve to an absolute URL — clients.navigate and url comparison
     // both want the full form.
+    //
+    // Origin guard: the push payload's `url` is server-controlled today, but a
+    // compromised backend OR an unsigned push (some browsers don't validate
+    // VAPID strictly) could attempt a `javascript:` URI or a cross-origin URL
+    // to hijack the SW. Reject anything that doesn't resolve to OUR origin
+    // before any client.navigate / openWindow / postMessage call below.
     let targetAbs;
     try {
-        targetAbs = new URL(targetUrl, self.location.origin).href;
+        const resolved = new URL(targetUrl, self.location.origin);
+        if (resolved.origin !== self.location.origin) {
+            targetAbs = self.location.origin + "/";
+        } else {
+            targetAbs = resolved.href;
+        }
     } catch (_) {
         targetAbs = self.location.origin + "/";
     }

@@ -37,5 +37,38 @@
     <include file="db/changelog/user_pair_presets_archive.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/user_profiles_color_mode.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/tournaments_podium.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/perf_indexes.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/user_profiles_locale.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/processed_operations.xml" relativeToChangelogFile="false"/>
+
+    <!-- Drops the never-used `standings` table and its sequence, each behind
+         its own precondition with onFail="CONTINUE" — so nothing is recorded
+         in DATABASECHANGELOG until the drop really happens, and a database
+         that still has rows (production does) simply retries on the next
+         boot instead of marking the changeset permanently done. The creating
+         changeset above stays included: removing it would break a database
+         built from scratch. -->
+    <include file="db/changelog/drop_standings.xml" relativeToChangelogFile="false"/>
+
+    <!-- Waiter ("konobar") code + session tables: read/settle drink bills for
+         one tournament without an account and without any editing rights. -->
+    <include file="db/changelog/tournament_waiter_access.xml" relativeToChangelogFile="false"/>
+
+    <!-- Multiple named waiters per tournament, superseding the single-code
+         table above. -->
+    <include file="db/changelog/tournament_waiter_multi.xml" relativeToChangelogFile="false"/>
+
+    <!-- Head-waiter cjenik permission, and who/when settled a bill. -->
+    <include file="db/changelog/tournament_waiter_cjenik_and_paid_by.xml" relativeToChangelogFile="false"/>
+
+    <!-- Expression index on pairs(lower(trim(name))) backing
+         PairsRepository.findMyParticipations / existsClaimedPairForUserByName.
+         (tournaments.uuid already has a UNIQUE constraint, so no index
+         needed there — see the file for details.) -->
+    <include file="db/changelog/pairs_name_lower_trim_index.xml" relativeToChangelogFile="false"/>
+
+    <!-- Public contact form (/kontakt): the stored copy of every submission,
+         so a message survives a dead or misconfigured mail provider. -->
+    <include file="db/changelog/contact_messages.xml" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

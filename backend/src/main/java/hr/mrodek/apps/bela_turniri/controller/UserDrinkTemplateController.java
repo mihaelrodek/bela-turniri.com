@@ -3,13 +3,14 @@ package hr.mrodek.apps.bela_turniri.controller;
 import hr.mrodek.apps.bela_turniri.dtos.DrinkPriceDto;
 import hr.mrodek.apps.bela_turniri.dtos.SaveDrinkPricesRequest;
 import hr.mrodek.apps.bela_turniri.services.CjenikService;
+import hr.mrodek.apps.bela_turniri.services.CurrentUser;
 import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.util.List;
 
@@ -32,17 +33,18 @@ import java.util.List;
 public class UserDrinkTemplateController {
 
     @Inject CjenikService cjenikService;
-    @Inject JsonWebToken jwt;
+    @Inject CurrentUser currentUser;
+    @Inject hr.mrodek.apps.bela_turniri.services.MessageService messages;
 
     @GET
     public List<String> listMyTemplateNames() {
-        return cjenikService.listTemplateNames(jwt.getSubject());
+        return cjenikService.listTemplateNames(currentUser.requireUid());
     }
 
     @GET
     @Path("/{name}/items")
     public List<DrinkPriceDto> getTemplateItems(@PathParam("name") String name) {
-        return cjenikService.listTemplate(jwt.getSubject(), name);
+        return cjenikService.listTemplate(currentUser.requireUid(), name);
     }
 
     @PUT
@@ -50,13 +52,15 @@ public class UserDrinkTemplateController {
     @Transactional
     public List<DrinkPriceDto> putTemplateItems(
             @PathParam("name") String name,
-            SaveDrinkPricesRequest body
+            @Valid SaveDrinkPricesRequest body
     ) {
-        return cjenikService.replaceTemplate(
-                jwt.getSubject(),
-                name,
-                body == null || body.items() == null ? List.of() : body.items()
-        );
+        // Same rule as the tournament cjenik PUT: an empty items array
+        // clears the template, an absent one is a malformed request. Do not
+        // coerce null into "delete everything you saved".
+        if (body == null) {
+            throw new BadRequestException(messages.t("validation.cjenik.items.required"));
+        }
+        return cjenikService.replaceTemplate(currentUser.requireUid(), name, body.items());
     }
 
     @POST
@@ -64,13 +68,13 @@ public class UserDrinkTemplateController {
     @Transactional
     public Response renameTemplate(
             @PathParam("name") String name,
-            RenameTemplateRequest body
+            @Valid RenameTemplateRequest body
     ) {
         if (body == null || body.newName() == null || body.newName().isBlank()) {
-            throw new BadRequestException("newName required");
+            throw new BadRequestException(messages.t("cjenik.template.newNameRequired"));
         }
         try {
-            cjenikService.renameTemplate(jwt.getSubject(), name, body.newName());
+            cjenikService.renameTemplate(currentUser.requireUid(), name, body.newName());
         } catch (IllegalStateException e) {
             return Response.status(Response.Status.CONFLICT).entity(e.getMessage()).build();
         }
@@ -81,7 +85,7 @@ public class UserDrinkTemplateController {
     @Path("/{name}")
     @Transactional
     public Response deleteTemplate(@PathParam("name") String name) {
-        cjenikService.deleteTemplate(jwt.getSubject(), name);
+        cjenikService.deleteTemplate(currentUser.requireUid(), name);
         return Response.noContent().build();
     }
 

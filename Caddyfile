@@ -5,15 +5,20 @@
 # renews TLS certs from Let's Encrypt on first start.
 #
 # Routing logic, top to bottom:
-#   1. /api/*                       → backend (JSON API)
+#   0. Maintenance mode              → 503 "Nadogradnja u tijeku" (flag file)
+#   0. /api/q/*                      → 404 (SmallRye health/openapi hidden)
+#   1. /api/*                        → backend (JSON API)
+#   1b. /ws/*                        → backend /api/* (realtime websocket)
 #   2. English aliases (English →   → 301 to Croatian canonical
 #      Croatian)                       /tournaments → /turniri,
 #                                      /profile → /profil, etc.
 #   3. /                      +bot  → /api/preview/home              (SEO)
 #   4. /turniri               +bot  → /api/preview/tournaments-list  (SEO)
-#   5. /turniri/<slug>        +bot  → /api/preview/tournaments/<slug>(SEO)
+#   5. /turniri/<slug>[/<section>]
+#                             +bot  → /api/preview/tournaments/<slug>(SEO)
 #   6. /profil/<slug>         +bot  → /api/preview/profiles/<slug>   (SEO)
-#   7. anything else                → SPA (file_server with index.html fallback)
+#   7. /sitemap.xml                  → backend's dynamic sitemap
+#   8. anything else                → SPA (file_server with index.html fallback)
 #
 # Routes 3-6 implement what Google's docs call "dynamic rendering":
 # we serve crawlers an HTML page that already contains the content
@@ -25,13 +30,188 @@
 {
     # Email Let's Encrypt uses for expiry warnings. Update if you switch.
     email mihael.rodek1@gmail.com
+
+    # `rate_limit` is provided by the caddy-ratelimit module (baked into the
+    # custom Caddy binary - see frontend/Dockerfile). It's a non-standard
+    # directive, so it must be ordered explicitly: run it BEFORE reverse_proxy
+    # so a throttled request is rejected (429) before it ever hits the backend.
+    order rate_limit before reverse_proxy
 }
 
 bela-turniri.com, www.bela-turniri.com {
     encode zstd gzip
 
+    # ─── 0. Maintenance mode ──────────────────────────────────────────
+    # When the flag file /maintenance/ENABLED exists, short-circuit EVERY
+    # request with a friendly "Nadogradnja u tijeku" page and HTTP 503 +
+    # Retry-After (Google treats 503 as temporary and does NOT de-index).
+    #
+    # The flag lives on a host bind-mount (see docker-compose.prod.yaml),
+    # so the deploy script toggles it with a plain `touch` / `rm` - no image
+    # rebuild, no Caddy reload (the matcher stat()s the file per request) -
+    # and it survives an edge-container restart mid-deploy.
+    #
+    # This handle is listed first, so it wins over the API / bot / SPA
+    # handlers below whenever the flag is present. The maintenance page is
+    # fully self-contained (inline CSS + SVG), so it needs no other assets
+    # even though those would also return the 503 page during maintenance.
+    @maintenance {
+        file {
+            root /maintenance
+            try_files /ENABLED
+        }
+    }
+    handle @maintenance {
+        root * /srv
+        rewrite * /maintenance.html
+        header Cache-Control "no-store"
+        header Retry-After "120"
+        file_server {
+            status 503
+        }
+    }
+
+    # ─── 0. Block Quarkus non-application endpoints from the public ─────
+    # /api/q/* is the SmallRye health / OpenAPI / metrics namespace. It must
+    # NOT be reachable from the internet (it leaks datasource up/down state and
+    # the internal stack). The docker-compose healthcheck hits the container
+    # directly on the internal network, so nothing legitimate needs this path
+    # through Caddy. Placed BEFORE the /api/* handler so it wins the match.
+    handle /api/q/* {
+        respond 404
+    }
+
+    # ─── 1a. Tight throttle on the SSR preview endpoints ───────────────
+    # /api/preview/* is rendered per-request for crawlers/link-unfurlers
+    # (see routes 3-6 below) - each one is a real DB read plus HTML render,
+    # so it's meaningfully more expensive than a typical JSON endpoint.
+    # Not meant to be hammered by a real client, so give it a much tighter
+    # per-IP cap than the general API zone. (The bare /sitemap.xml route
+    # further down carries the same 120/1m cap under its own zone, since a
+    # request to that literal path never reaches this matcher - see its
+    # comment.)
+    #
+    # MUST come before the general /api/* handler below - `handle` blocks
+    # are mutually exclusive (first match wins), so the broader /api/*
+    # matcher would otherwise swallow /api/preview/* requests first and
+    # this tighter zone would never run.
+    @preview path /api/preview/*
+    handle @preview {
+        rate_limit {
+            zone preview {
+                key    {remote_host}
+                events 120
+                window 1m
+            }
+        }
+        reverse_proxy backend:8085
+    }
+
+    # ─── 1a-bis. Contact form throttle ─────────────────────────────────
+    # POST /api/contact (added by the email/contact feature) sends real
+    # outbound email per request, so it gets its own tight per-IP zone
+    # rather than riding the general 3000/1m @api zone - 5/minute is far
+    # more than a real visitor needs (one submit, maybe a retry) but stops
+    # a script from using the form as a free mail relay.
+    #
+    # Must precede the general /api/* handler below - same ordering rule
+    # as @preview/@render: `handle` blocks are mutually exclusive and the
+    # broader matcher would otherwise swallow this path first.
+    @contact {
+        method POST
+        path /api/contact
+    }
+    handle @contact {
+        rate_limit {
+            zone contact {
+                key    {remote_host}
+                events 5
+                window 1m
+            }
+        }
+        reverse_proxy backend:8085
+    }
+
+    # Rendered PNGs: the tournament QR code and the Open Graph share card.
+    # Both are CPU-bound Java2D renders on a cache miss, both are anonymous,
+    # and both sit on URLs a crawler or a link-preview bot will happily
+    # fetch in bulk. The backend memoises them (Caffeine, 24 h for the QR,
+    # 6 h for the share card), so this zone only has to blunt the miss
+    # storm - same 120/1m per-IP cap as the preview zone.
+    #
+    # Same ordering rule as @preview: this MUST precede the general /api/*
+    # handler, or the broader matcher swallows these paths first.
+    @render path /api/tournaments/*/qr.png /api/tournaments/*/share-image.png
+    handle @render {
+        rate_limit {
+            zone render {
+                key    {remote_host}
+                events 120
+                window 1m
+            }
+        }
+        reverse_proxy backend:8085
+    }
+
     # ─── 1. API — pass through to backend ─────────────────────────────
+    # lb_try_duration makes Caddy keep retrying the backend for a few
+    # seconds when it's briefly unreachable (cold start right after a
+    # deploy, or a container restart) instead of immediately returning 502
+    # to the SPA. Smooths the "first load after deploy fails" window.
+    #
+    # Generous per-IP request cap so a single host can't flood the API and
+    # exhaust the DB pool / CPU. Set high (~50 req/s) so a venue crowd behind
+    # ONE NAT IP never hits it, but far below what a flooding host does.
     handle /api/* {
+        rate_limit {
+            zone api {
+                key    {remote_host}
+                events 3000
+                window 1m
+            }
+        }
+        reverse_proxy backend:8085 {
+            lb_try_duration 10s
+            lb_try_interval 250ms
+        }
+    }
+
+    # ─── 1b. Realtime websocket ───────────────────────────────────────
+    # Open tournament pages hold one socket here and get a tiny "something
+    # changed" ping when a result is entered, so every spectator sees it
+    # without refreshing (the ping carries no data - the client refetches
+    # over /api/*, which is permission-checked as before).
+    #
+    # Path rewrite: clients use the stable public URL /ws/live/{uuid}, but
+    # Quarkus websockets-next registers its routes UNDER
+    # quarkus.http.root-path (=/api), so the backend serves
+    # /api/live/{uuid}. Verified against the packaged app: a handshake to
+    # /live/{uuid} answers 404, /api/live/{uuid} answers 101. The Vite dev
+    # proxy performs the identical rewrite.
+    #
+    # Caddy v2 needs no special directive to proxy a websocket - reverse_proxy
+    # passes the Upgrade through - and nothing above interferes: `encode`
+    # skips 101 responses, and the global header block only adds response
+    # headers a websocket client ignores. The site does carry a
+    # Content-Security-Policy-Report-Only (see the bottom of this file);
+    # its connect-src includes wss: for exactly this handshake.
+    #
+    # Its OWN rate-limit zone, not the /api one: a socket is a single
+    # long-lived request, so it must not eat a viewer's REST budget (nor the
+    # reverse - a reconnect loop shouldn't lock someone out of the API). The
+    # cap is set high enough for a whole venue reconnecting behind one NAT
+    # IP, but still bounds a runaway client.
+    # `handle_path` (not `handle`) strips the matched /ws prefix, leaving
+    # /live/{uuid}; the rewrite then puts it back under the /api root-path.
+    handle_path /ws/* {
+        rate_limit {
+            zone ws {
+                key    {remote_host}
+                events 600
+                window 1m
+            }
+        }
+        rewrite * /api{uri}
         reverse_proxy backend:8085
     }
 
@@ -64,10 +244,18 @@ bela-turniri.com, www.bela-turniri.com {
     redir /find-pair /pronadi-para permanent
     redir /login /prijava permanent
     redir /register /registracija permanent
+    redir /contact /kontakt permanent
+    redir /privacy /privatnost permanent
+    redir /terms /uvjeti permanent
 
     # Slug-bearing redirects use captured path groups so the segment
     # after the route name is preserved. {re.<name>.1} is Caddy's
     # placeholder for the first regex capture.
+    # `(.+)` deliberately spans the whole tail, so a section URL
+    # (/tournaments/{slug}/parovi) is preserved verbatim into
+    # /turniri/{slug}/parovi — a real route since the detail page's
+    # sections moved into the path. Checked when that route was added:
+    # no alias here needs narrowing, the extra segment just rides along.
     @old_tournament_slug {
         path_regexp old_t ^/tournaments/(.+)$
         # Guard against the more-specific /tournaments/new which is
@@ -140,9 +328,26 @@ bela-turniri.com, www.bela-turniri.com {
     # Caddy uses Go's RE2 regex engine, which does NOT support negative
     # lookaheads — that's why `/turniri/novi` is excluded with a
     # separate `not path` matcher rather than `(?!novi$)` inline.
+    #
+    # The optional trailing segment is the SPA's section route
+    # (/turniri/{slug}/detalji|parovi|zdrijeb|cjenik — see App.tsx and
+    # SECTION_SLUG in TournamentDetailsPage). Without it, anchoring the
+    # regex at `$` after one segment meant a shared section link handed a
+    # crawler the empty SPA shell instead of the rendered preview.
+    # The group is NON-capturing so {re.tournament_slug.1} still resolves
+    # to the tournament slug, and every section rewrites to the SAME
+    # preview — the section is a client-side view, and the bare
+    # tournament URL is the canonical one the SPA also advertises via
+    # <link rel="canonical">, so all four must not become four pages.
+    # The slug alternation is spelled out rather than a generic
+    # `[a-z0-9-]+` so a typo'd section can't smuggle a second segment
+    # into the preview lookup.
+    #
+    # `/turniri/novi` (the create form) has to be excluded at both depths
+    # now that a second segment can match: bare and /turniri/novi/*.
     @tournament_for_bot {
-        path_regexp tournament_slug ^/turniri/([a-z0-9][a-z0-9-]*)$
-        not path /turniri/novi
+        path_regexp tournament_slug ^/turniri/([a-z0-9][a-z0-9-]*)(?:/(?:detalji|parovi|zdrijeb|cjenik))?$
+        not path /turniri/novi /turniri/novi/*
         header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot|duckduckbot|yandexbot)
     }
     handle @tournament_for_bot {
@@ -166,6 +371,27 @@ bela-turniri.com, www.bela-turniri.com {
         reverse_proxy backend:8085
     }
 
+    # Bare /sitemap.xml → the backend's dynamic sitemap. robots.txt already
+    # points crawlers at /api/sitemap.xml, but the bare root path is the
+    # convention Search Console users type in, so serve it there too.
+    #
+    # The rewrite to /api/sitemap.xml happens inside THIS handler, so the
+    # @preview matcher above (path /api/preview/*) never sees this request -
+    # a bare-domain request arrives as literal "/sitemap.xml", not
+    # "/api/sitemap.xml". This route therefore gets its own copy of the same
+    # tight 120/1m per-IP cap rather than sharing the "preview" zone's bucket.
+    handle /sitemap.xml {
+        rate_limit {
+            zone sitemap {
+                key    {remote_host}
+                events 120
+                window 1m
+            }
+        }
+        rewrite * /api/sitemap.xml
+        reverse_proxy backend:8085
+    }
+
     # ─── 7. SPA fallback ───────────────────────────────────────────────
     # Static files from /srv (baked in by frontend/Dockerfile). Any
     # unknown path falls back to /index.html so React Router can take over.
@@ -175,9 +401,94 @@ bela-turniri.com, www.bela-turniri.com {
         try_files {path} /index.html
     }
 
+    # ─── Cache policy for static assets ────────────────────────────────
+    # Vite emits content-hashed files under /assets/ (e.g. index-AbC123.js).
+    # The hash changes whenever the content does, so these are safe to cache
+    # forever - the browser never has to re-validate them.
+    @immutable path /assets/*
+    header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+    # Non-hashed static images (logos, PWA icons, favicons). Not immutable -
+    # they keep their filenames across redesigns - but they change rarely, so
+    # a week of caching kills the repeated re-fetches Lighthouse flags
+    # (ttl=0 on /icon-192.png, /favicon.ico). A redesign that must show up
+    # instantly should rename the file instead of relying on cache expiry.
+    @staticimg path *.png *.svg *.ico *.webp *.jpg *.jpeg
+    header @staticimg Cache-Control "public, max-age=604800"
+
+    # The HTML shell, service worker and manifest must NOT be cached, or a
+    # deploy wouldn't take effect until the old copies expire. `no-cache`
+    # means "revalidate every time" (cheap 304 when unchanged), so a fresh
+    # index.html always points at the latest hashed asset bundle.
+    @nostore path / /index.html /sw.js /manifest.webmanifest
+    header @nostore Cache-Control "no-cache"
+
     # ─── Security headers (defense-in-depth) ───────────────────────────
     # The backend has its own SecurityHeadersFilter; setting them here too
     # covers static-asset responses where the backend filter never runs.
+    #
+    # Content-Security-Policy-Report-Only — built from an actual inventory
+    # of what the SPA loads (checked against frontend/index.html,
+    # firebase.ts, AuthContext.tsx, LocationMapPicker.tsx, MapPage.tsx,
+    # LocationAutocomplete.tsx, public/sw.js — see the per-directive notes
+    # below), NOT copy-pasted from another site. It's Report-Only because
+    # nothing here can be exercised at runtime in this session (no browser,
+    # no server) - a hand-built policy WILL have blind spots, and shipping
+    # it enforcing sight-unseen risks breaking Google sign-in or the map for
+    # every visitor. Report-Only sends the same violation reports to the
+    # browser devtools console (Console > look for "Content-Security-
+    # Policy-Report-Only" warnings; no report-uri/report-to is configured
+    # yet, so nothing is collected server-side) without blocking anything.
+    #
+    # To flip to enforcing once it's been driven with real traffic for a
+    # while and the console is clean:
+    #   1. Rename this header to `Content-Security-Policy` (drop
+    #      `-Report-Only`).
+    #   2. Keep both headers side by side for a deploy or two if you want a
+    #      belt-and-braces rollout - the browser enforces the strict one
+    #      and still reports on the (now redundant) report-only one.
+    #
+    # Directive-by-directive:
+    #   default-src 'self'        — deny-by-default baseline.
+    #   script-src                — 'unsafe-inline' for the inline GA4
+    #     bootstrap snippet and the two JSON-LD <script> blocks in
+    #     index.html (no nonce/hash infra exists yet - follow-up: switch to
+    #     a per-response nonce and drop 'unsafe-inline' here);
+    #     googletagmanager.com loads the gtag.js library itself.
+    #   style-src 'unsafe-inline' — Chakra UI v3 (Emotion) and Leaflet both
+    #     inject inline <style>/style attributes at runtime; no external
+    #     stylesheet host is used (no Google Fonts - confirmed no
+    #     fonts.googleapis.com reference anywhere in frontend/).
+    #   img-src                   — data:/blob: for the SW, canvas-drawn
+    #     avatars/QR previews and object URLs; cartocdn.com serves the
+    #     Leaflet raster tiles (LocationMapPicker.tsx, MapPage.tsx) as
+    #     <img> tiles. Uploaded posters/avatars are same-origin - they're
+    #     proxied through /api/resources/{id}/image, never served straight
+    #     from MinIO (MINIO_PUBLIC_BASE_URL is only reachable
+    #     backend-internal in prod), so no extra host is needed here.
+    #   font-src 'self' data:     — no external font host in use; data:
+    #     covers any inlined/base64 icon fonts a dependency might ship.
+    #   connect-src                — wss: for the live-updates socket
+    #     (self origin, wss scheme); identitytoolkit/securetoken.
+    #     googleapis.com are Firebase Auth's REST endpoints hit directly by
+    #     the SDK; nominatim.openstreetmap.org is called straight from the
+    #     browser by LocationAutocomplete.tsx and LocationMapPicker.tsx's
+    #     reverse-geocode (NOT proxied through the backend); cartocdn.com
+    #     again for the tile fetches XHR/fetch may issue; google-analytics.
+    #     com / analytics.google.com for the GA4 collect beacon.
+    #   frame-src                 — accounts.google.com for the Google
+    #     sign-in popup/iframe flow; *.firebaseapp.com for the Firebase
+    #     Auth helper iframe Firebase's SDK loads from the authDomain
+    #     (VITE_FIREBASE_AUTH_DOMAIN) to persist auth state across reloads.
+    #   worker-src 'self'         — the PWA service worker (public/sw.js).
+    #   manifest-src 'self'       — the PWA manifest.
+    #   object-src 'none', base-uri 'self', form-action 'self' — standard
+    #     hardening; nothing in the app needs a plugin embed, a <base>
+    #     rewrite, or a cross-origin form POST.
+    #   frame-ancestors 'none'    — mirrors X-Frame-Options DENY below;
+    #     the site is never meant to be framed by anyone, us included.
+    header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.basemaps.cartocdn.com; font-src 'self' data:; connect-src 'self' wss: https://*.basemaps.cartocdn.com https://nominatim.openstreetmap.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com; frame-src https://accounts.google.com https://*.firebaseapp.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"

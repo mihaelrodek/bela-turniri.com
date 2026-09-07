@@ -11,6 +11,10 @@ export type PairRequest = {
     tournamentStartAt?: string | null
     playerName: string
     phone: string
+    /** Whether a number exists at all. Stamped by the backend BEFORE it nulls
+     *  `phone` for anonymous callers, so a signed-out reader can be told the
+     *  truth instead of the UI guessing from an absent field. */
+    hasPhone?: boolean
     note?: string | null
     status: "OPEN" | "MATCHED"
     createdAt: string

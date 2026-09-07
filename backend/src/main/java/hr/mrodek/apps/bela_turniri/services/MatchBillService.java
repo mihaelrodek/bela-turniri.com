@@ -16,8 +16,6 @@ import jakarta.transaction.Transactional;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.NotFoundException;
-import jakarta.ws.rs.WebApplicationException;
-import jakarta.ws.rs.core.Response;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -39,11 +37,31 @@ public class MatchBillService {
     @Inject MatchesRepository matchesRepo;
     @Inject MatchDrinkRepository drinkRepo;
     @Inject TournamentDrinkPriceRepository priceRepo;
+    @Inject MessageService messages;
 
-    /** Build the full bill view for one match. */
+    @Inject hr.mrodek.apps.bela_turniri.realtime.LiveBroadcaster live;
+
+    /**
+     * Ping the tournament this match belongs to. The tournament comes off the
+     * match we already loaded — no extra query — and the send is deferred
+     * until the caller's transaction commits (see LiveBroadcaster).
+     */
+    private void broadcast(Matches m) {
+        if (m == null || m.getTournament() == null || m.getTournament().getUuid() == null) return;
+        live.notifyTournament(m.getTournament().getUuid().toString(), hr.mrodek.apps.bela_turniri.realtime.LiveBroadcaster.SCOPE_MATCH);
+    }
+
+    /**
+     * Build the full bill view for one match.
+     *
+     * <p>{@code @Transactional} because assembling the DTO walks LAZY
+     * associations (pairs, winner) — the load and every walk have to
+     * share one persistence context.
+     */
+    @Transactional
     public MatchBillDto getBill(Long matchId) {
         Matches m = matchesRepo.findByIdOptional(matchId)
-                .orElseThrow(() -> new NotFoundException("Match not found"));
+                .orElseThrow(() -> new NotFoundException(messages.t("match.notFound")));
         return buildBill(m);
     }
 
@@ -51,12 +69,12 @@ public class MatchBillService {
     public MatchBillDto addDrink(Long matchId, Long priceId, int quantity) {
         if (quantity < 1) quantity = 1;
         Matches m = matchesRepo.findByIdOptional(matchId)
-                .orElseThrow(() -> new NotFoundException("Match not found"));
+                .orElseThrow(() -> new NotFoundException(messages.t("match.notFound")));
         assertBillEditable(m);
         TournamentDrinkPrice p = priceRepo.findByIdOptional(priceId)
-                .orElseThrow(() -> new NotFoundException("Drink not found in cjenik"));
+                .orElseThrow(() -> new NotFoundException(messages.t("cjenik.drink.notFound")));
         if (!Objects.equals(p.getTournament().getId(), m.getTournament().getId())) {
-            throw new BadRequestException("Drink belongs to a different tournament");
+            throw new BadRequestException(messages.t("matchBill.drink.otherTournament"));
         }
 
         MatchDrink d = new MatchDrink();
@@ -66,20 +84,22 @@ public class MatchBillService {
         d.setPriceSnapshot(p.getPrice() != null ? p.getPrice() : BigDecimal.ZERO);
         d.setQuantity(quantity);
         drinkRepo.persist(d);
+        broadcast(m);
         return buildBill(m);
     }
 
     @Transactional
     public MatchBillDto removeDrink(Long matchId, Long drinkId) {
         Matches m = matchesRepo.findByIdOptional(matchId)
-                .orElseThrow(() -> new NotFoundException("Match not found"));
+                .orElseThrow(() -> new NotFoundException(messages.t("match.notFound")));
         assertBillEditable(m);
         MatchDrink d = drinkRepo.findByIdOptional(drinkId)
-                .orElseThrow(() -> new NotFoundException("Drink not found"));
+                .orElseThrow(() -> new NotFoundException(messages.t("matchBill.drink.notFound")));
         if (!Objects.equals(d.getMatch().getId(), m.getId())) {
-            throw new BadRequestException("Drink doesn't belong to this match");
+            throw new BadRequestException(messages.t("matchBill.drink.otherMatch"));
         }
         drinkRepo.delete(d);
+        broadcast(m);
         return buildBill(m);
     }
 
@@ -91,9 +111,10 @@ public class MatchBillService {
      */
     private void assertBillEditable(Matches m) {
         if (m.getPaidAt() != null) {
-            throw new WebApplicationException(
-                    "Bill is already marked paid — unpay first to edit.",
-                    Response.Status.CONFLICT);
+            // IllegalStateException maps to a 409 carrying the ApiError envelope;
+            // WebApplicationException(String, Status) builds a BODYLESS response,
+            // so the message never reached the client.
+            throw new IllegalStateException(messages.t("matchBill.alreadyPaid"));
         }
     }
 
@@ -103,6 +124,7 @@ public class MatchBillService {
      * for access checks — non-participants get a 404 (we intentionally don't
      * differentiate from a missing match: it's a privacy signal).
      */
+    @Transactional
     public boolean isParticipant(Matches m, String uid) {
         if (uid == null || uid.isBlank()) return false;
         return participantOnPair(m.getPair1(), uid) || participantOnPair(m.getPair2(), uid);
@@ -126,24 +148,30 @@ public class MatchBillService {
      * or the match itself) so the user's most recent visits surface at
      * the top of the list.
      */
+    @Transactional
     public java.util.List<hr.mrodek.apps.bela_turniri.dtos.UserInvoiceDto> listInvoicesForUser(String uid) {
         if (uid == null || uid.isBlank()) return java.util.List.of();
         // Find every match where this user was a participant via either
         // pair — as the primary submitter OR as the claimed co-owner.
         // Excludes BYE matches (pair2 is null) — no shared bill to settle.
-        var all = matchesRepo.list(
-                "(pair1.submittedByUid = ?1 or pair1.coSubmittedByUid = ?1 " +
-                " or pair2.submittedByUid = ?1 or pair2.coSubmittedByUid = ?1) " +
-                "and pair2 is not null",
-                uid
-        );
+        // Tournament / round / pairs / winner come back fetched, so the
+        // loop below never triggers a lazy load.
+        var all = matchesRepo.findParticipantMatchesWithDetails(uid);
+        if (all.isEmpty()) return java.util.List.of();
+
+        // All drinks for all of those matches in ONE query, grouped by match.
+        // This used to be a findByMatchId() call per iteration.
+        var matchIds = all.stream().map(Matches::getId).toList();
+        java.util.Map<Long, java.util.List<hr.mrodek.apps.bela_turniri.model.MatchDrink>> drinksByMatch =
+                drinkRepo.findByMatchIds(matchIds).stream()
+                        .collect(java.util.stream.Collectors.groupingBy(d -> d.getMatch().getId()));
 
         var out = new java.util.ArrayList<hr.mrodek.apps.bela_turniri.dtos.UserInvoiceDto>(all.size());
         for (Matches m : all) {
             // Compute total
             BigDecimal total = BigDecimal.ZERO;
             int lineCount = 0;
-            for (var d : drinkRepo.findByMatchId(m.getId())) {
+            for (var d : drinksByMatch.getOrDefault(m.getId(), java.util.List.of())) {
                 total = total.add(d.getPriceSnapshot()
                         .multiply(BigDecimal.valueOf(d.getQuantity())));
                 lineCount++;
@@ -205,23 +233,35 @@ public class MatchBillService {
         return out;
     }
 
+    /**
+     * @param byUid  Firebase uid of the organiser/admin marking this paid,
+     *               or null for a genuine waiter (no account).
+     * @param byName display snapshot shown back on the bill — the
+     *               organiser's display name, or a waiter's invited name.
+     *               Never resolved from {@code byUid} later: see
+     *               {@link Matches#paidByName}.
+     */
     @Transactional
-    public MatchBillDto markPaid(Long matchId, String byUid) {
+    public MatchBillDto markPaid(Long matchId, String byUid, String byName) {
         Matches m = matchesRepo.findByIdOptional(matchId)
-                .orElseThrow(() -> new NotFoundException("Match not found"));
+                .orElseThrow(() -> new NotFoundException(messages.t("match.notFound")));
         m.setPaidAt(OffsetDateTime.now());
         m.setPaidByUid(byUid);
+        m.setPaidByName(byName);
         matchesRepo.persist(m);
+        broadcast(m);
         return buildBill(m);
     }
 
     @Transactional
     public MatchBillDto markUnpaid(Long matchId) {
         Matches m = matchesRepo.findByIdOptional(matchId)
-                .orElseThrow(() -> new NotFoundException("Match not found"));
+                .orElseThrow(() -> new NotFoundException(messages.t("match.notFound")));
         m.setPaidAt(null);
         m.setPaidByUid(null);
+        m.setPaidByName(null);
         matchesRepo.persist(m);
+        broadcast(m);
         return buildBill(m);
     }
 
@@ -268,6 +308,7 @@ public class MatchBillService {
                 total,
                 m.getPaidAt(),
                 m.getPaidByUid(),
+                m.getPaidByName(),
                 loserPairId,
                 loserPairName
         );

@@ -3,6 +3,7 @@ package hr.mrodek.apps.bela_turniri.controller;
 import hr.mrodek.apps.bela_turniri.model.UserPairPreset;
 import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import hr.mrodek.apps.bela_turniri.services.CurrentUser;
 import hr.mrodek.apps.bela_turniri.services.SlugService;
 import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
@@ -10,7 +11,6 @@ import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.time.OffsetDateTime;
 
@@ -39,7 +39,7 @@ public class PresetClaimController {
     @Inject UserProfileRepository userProfileRepo;
     @Inject SlugService slugService;
     @Inject EntityManager em;
-    @Inject JsonWebToken jwt;
+    @Inject CurrentUser currentUser;
 
     @GET
     @Path("/preview")
@@ -88,8 +88,7 @@ public class PresetClaimController {
     @Authenticated
     @Transactional
     public ClaimResultDto claim(@PathParam("token") String token) {
-        String me = jwt.getSubject();
-        if (me == null || me.isBlank()) throw new NotAuthorizedException("Auth required");
+        String me = currentUser.requireUid();
 
         UserPairPreset p = presetRepo.findByClaimToken(token).orElse(null);
         if (p == null) throw new NotFoundException();
@@ -106,14 +105,7 @@ public class PresetClaimController {
 
         // Ensure the claimer's UserProfile + slug exist for downstream
         // enrichment on the primary's pair list.
-        String displayName = null;
-        Object n = jwt.getClaim("name");
-        if (n != null) displayName = n.toString();
-        else {
-            Object email = jwt.getClaim("email");
-            if (email != null) displayName = email.toString();
-        }
-        slugService.ensureProfile(me, displayName);
+        slugService.ensureProfile(me, currentUser.displayName());
 
         // Mark the preset claimed.
         p.setCoOwnerUid(me);

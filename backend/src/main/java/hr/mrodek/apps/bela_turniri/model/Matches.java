@@ -49,7 +49,21 @@ public class Matches {
     @Column(name = "paid_at")
     private java.time.OffsetDateTime paidAt;
 
-    /** Firebase UID of whoever marked the bill paid (today: the owner only). */
+    /**
+     * Firebase UID of whoever marked the bill paid, when that someone was
+     * the organiser (or an admin). Null for a genuine waiter — they have no
+     * account by design; see {@link #paidByName}.
+     */
     @Column(name = "paid_by_uid", length = 64)
     private String paidByUid;
+
+    /**
+     * Display snapshot of whoever marked the bill paid — the organiser's
+     * display name, or a waiter's invited name. A snapshot, not a lookup:
+     * the organiser's name can change later, and a waiter's own row carries
+     * no login to join back to in the first place. {@code null} exactly
+     * when {@link #paidAt} is.
+     */
+    @Column(name = "paid_by_name", length = 120)
+    private String paidByName;
 }

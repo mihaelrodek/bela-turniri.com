@@ -1,25 +1,45 @@
 /*
- * Style overrides for react-datepicker so the input looks like a Chakra v3
- * <Input>. The library ships its own stylesheet (imported in
- * CreateTournamentPage.tsx) which handles the calendar popup; this file
- * only restyles the trigger input + makes the popup respect the app's
- * z-index stacking (it must beat the NavBar and Leaflet).
+ * bela-turniri.com theming for react-datepicker (v7).
+ *
+ * The library ships its own stylesheet (imported next to this one in
+ * CreateTournamentPage and TournamentDetailsPage) whose palette is hardcoded:
+ * a #216ba5 selection, a #f0f0f0 header, #aeaeae borders and white surfaces.
+ * None of that follows the app theme, so the popup stayed generic-blue,
+ * square-cornered and effectively unreadable in dark mode.
+ *
+ * Everything below re-skins BOTH the trigger input and the calendar / time
+ * popup through Chakra CSS variables, so one set of rules tracks light and
+ * dark automatically and inherits the brand blue and the theme's radius
+ * scale. There is no colour literal in this file: every value is a
+ * `--chakra-*` var, which is also why the radii track `src/system.ts` — bump
+ * the scale there and the popup follows.
+ *
+ * Specificity note: several react-datepicker defaults ship with `!important`
+ * (notably the selected time item), so the matching overrides here need it
+ * too — that is deliberate, not sloppiness.
  */
 
+/* ── Trigger input ─────────────────────────────────────────────────────── */
+
+/* The library wraps the <input> in two divs of its own; both have to be
+   stretched or the field renders at the browser's default input width. */
 .bela-datepicker-input-wrap,
 .bela-datepicker-input-wrap > div,
 .react-datepicker-wrapper {
     width: 100%;
 }
 
+/* Matched to Chakra's Input recipe: same height, same padding, and the same
+   `l2` radius token every other field in the app resolves to. */
 .bela-datepicker-input {
     width: 100%;
     height: 40px;
     padding: 0 12px;
-    border-radius: 6px;
+    border-radius: var(--chakra-radii-l2);
     border: 1px solid var(--chakra-colors-border);
     background: var(--chakra-colors-bg);
     color: var(--chakra-colors-fg);
+    font-family: inherit;
     font-size: 14px;
     line-height: 1.4;
     outline: none;
@@ -34,13 +54,334 @@
     border-color: var(--chakra-colors-border-emphasized);
 }
 
+/* Brand focus ring — the same two-part border + 1px shadow Chakra's own
+   fields draw, so a focused date field is indistinguishable from a focused
+   text field next to it. */
 .bela-datepicker-input:focus {
-    border-color: var(--chakra-colors-blue-solid);
-    box-shadow: 0 0 0 1px var(--chakra-colors-blue-solid);
+    border-color: var(--chakra-colors-brand-focus-ring);
+    box-shadow: 0 0 0 1px var(--chakra-colors-brand-focus-ring);
 }
 
-/* Calendar popup must float above NavBar (z-index 1000) and any sticky
-   Card.Root toolbars on the page. */
+.bela-datepicker-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Popup shell ───────────────────────────────────────────────────────── */
+
+/* The popup must float above the NavBar (z-index 1000) and any sticky
+   Card.Root toolbar on the page. */
 .react-datepicker-popper {
     z-index: 1500 !important;
+    padding-top: 6px;
+}
+
+/* Flex instead of the library's float-based layout: the month grid and the
+   time column then share one top edge. With floats the time column dropped
+   below the calendar header whenever the two differed in height.
+
+   `overflow: hidden` is what lets the rounded corner actually clip the header
+   fill and the time column's left border. */
+.react-datepicker {
+    display: flex;
+    font-family: inherit;
+    font-size: 13px;
+    background: var(--chakra-colors-bg-panel);
+    color: var(--chakra-colors-fg-ink);
+    border: 1px solid var(--chakra-colors-border);
+    border-radius: var(--chakra-radii-l3);
+    box-shadow: var(--chakra-shadows-overlay);
+    overflow: hidden;
+}
+
+.react-datepicker__month-container,
+.react-datepicker__time-container {
+    float: none;
+}
+
+.react-datepicker__month {
+    margin: 8px;
+}
+
+/* The library's pointer triangle can't be rounded and reads as a stray dart
+   under a soft-cornered panel. The 6px popper padding above keeps the panel
+   clear of the input without it. */
+.react-datepicker__triangle {
+    display: none !important;
+}
+
+/* ── Header (month title + weekday row) ────────────────────────────────── */
+
+.react-datepicker__header {
+    background: var(--chakra-colors-bg-subtle);
+    border-bottom: 1px solid var(--chakra-colors-border-subtle);
+    padding-top: 12px;
+    padding-bottom: 6px;
+}
+
+/* The calendar header stacks a month title AND a weekday row; the time header
+   only has "Vrijeme", so out of the box it is ~18px shorter and the two tinted
+   bands meet in a visible step across the top of the popup. Matching the
+   height and centring the caption in it makes the header read as one band.
+   The value is the calendar header's measured height, and both are driven by
+   the type sizes set in this same file, so they move together. */
+.react-datepicker__header--time {
+    min-height: 61.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.react-datepicker__header--time .react-datepicker-time__header {
+    padding-bottom: 0;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker-year-header {
+    color: var(--chakra-colors-fg-ink);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    /* Croatian month names arrive lowercase from the `hr` locale. */
+    text-transform: capitalize;
+    padding-bottom: 4px;
+}
+
+/* Uppercase, tracked-out weekday heads — the one place small caps earn their
+   keep, since "pon sri" at 13px reads as noise. */
+.react-datepicker__day-name {
+    color: var(--chakra-colors-fg-muted);
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+/* ── Month-nav chevrons ────────────────────────────────────────────────── */
+
+.react-datepicker__navigation {
+    top: 10px;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--chakra-radii-full);
+    transition: background 120ms ease;
+}
+
+.react-datepicker__navigation:hover {
+    background: var(--chakra-colors-bg-muted);
+}
+
+.react-datepicker__navigation-icon::before {
+    border-color: var(--chakra-colors-fg-muted);
+    border-width: 2px 2px 0 0;
+    width: 7px;
+    height: 7px;
+}
+
+.react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+    border-color: var(--chakra-colors-brand-fg);
+}
+
+.react-datepicker__navigation--previous {
+    left: 8px;
+}
+
+.react-datepicker__navigation--next {
+    right: 8px;
+}
+
+/* The next-month chevron sits left of the time column when one is shown. */
+.react-datepicker__navigation--next--with-time:not(
+        .react-datepicker__navigation--next--with-today-button
+    ) {
+    right: 92px;
+}
+
+/* ── Day cells ─────────────────────────────────────────────────────────── */
+
+.react-datepicker__day,
+.react-datepicker__day-name,
+.react-datepicker__time-name {
+    width: 2rem;
+    line-height: 2rem;
+    margin: 1px;
+}
+
+.react-datepicker__day,
+.react-datepicker__month-text,
+.react-datepicker__quarter-text,
+.react-datepicker__year-text {
+    color: var(--chakra-colors-fg-ink);
+    /* Pill, not a square with the corners knocked off: at a 2rem cell a full
+       radius is what makes the selected day read as a token rather than as a
+       filled table cell. */
+    border-radius: var(--chakra-radii-full);
+    transition: background 120ms ease, color 120ms ease;
+}
+
+.react-datepicker__day:hover,
+.react-datepicker__month-text:hover,
+.react-datepicker__quarter-text:hover,
+.react-datepicker__year-text:hover {
+    background: var(--chakra-colors-bg-muted);
+    border-radius: var(--chakra-radii-full);
+}
+
+/* Today: brand-tinted and bold, but explicitly NOT "selected" — no fill, so
+   the two states stay distinguishable when today is not the chosen day. */
+.react-datepicker__day--today,
+.react-datepicker__month-text--today,
+.react-datepicker__year-text--today {
+    font-weight: 700;
+    color: var(--chakra-colors-brand-fg);
+}
+
+/* Selection. `brand.solid` / `brand.contrast` are the same pair the primary
+   buttons use, so a chosen day and a primary button are the same blue. */
+.react-datepicker__day--selected,
+.react-datepicker__day--in-selecting-range,
+.react-datepicker__day--in-range,
+.react-datepicker__day--keyboard-selected,
+.react-datepicker__month-text--selected,
+.react-datepicker__month-text--keyboard-selected,
+.react-datepicker__quarter-text--selected,
+.react-datepicker__quarter-text--keyboard-selected,
+.react-datepicker__year-text--selected,
+.react-datepicker__year-text--keyboard-selected {
+    background: var(--chakra-colors-brand-solid);
+    color: var(--chakra-colors-brand-contrast);
+    font-weight: 700;
+}
+
+.react-datepicker__day--selected:hover,
+.react-datepicker__day--in-range:hover,
+.react-datepicker__day--keyboard-selected:hover,
+.react-datepicker__month-text--selected:hover,
+.react-datepicker__year-text--selected:hover {
+    background: var(--chakra-colors-brand-600);
+    color: var(--chakra-colors-brand-contrast);
+}
+
+/* Focus ring for keyboard users — the library removes the outline itself. */
+.react-datepicker__day:focus-visible,
+.react-datepicker__time-list-item:focus-visible {
+    outline: 2px solid var(--chakra-colors-brand-focus-ring);
+    outline-offset: 1px;
+}
+
+.react-datepicker__day--outside-month {
+    color: var(--chakra-colors-fg-subtle);
+}
+
+.react-datepicker__day--disabled,
+.react-datepicker__month-text--disabled,
+.react-datepicker__time-list-item--disabled {
+    color: var(--chakra-colors-fg-subtle);
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.react-datepicker__day--disabled:hover {
+    background: transparent;
+}
+
+/* ── Time column ───────────────────────────────────────────────────────── */
+
+.react-datepicker__time-container {
+    border-left: 1px solid var(--chakra-colors-border-subtle);
+    width: 92px;
+}
+
+.react-datepicker__time-container .react-datepicker__time,
+.react-datepicker__time-box {
+    background: var(--chakra-colors-bg-panel);
+}
+
+.react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box {
+    width: 92px;
+    margin: 0;
+}
+
+.react-datepicker__time-list-item {
+    color: var(--chakra-colors-fg-ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Tabular figures so 09:15 and 11:45 don't jitter as the list scrolls. */
+    font-variant-numeric: tabular-nums;
+    border-radius: var(--chakra-radii-l2);
+    margin: 1px 6px;
+    transition: background 120ms ease, color 120ms ease;
+}
+
+.react-datepicker__time-container
+    .react-datepicker__time
+    .react-datepicker__time-box
+    ul.react-datepicker__time-list
+    li.react-datepicker__time-list-item:hover {
+    background: var(--chakra-colors-bg-muted);
+}
+
+/* The library ships this one with `!important`, so we must match it. */
+.react-datepicker__time-container
+    .react-datepicker__time
+    .react-datepicker__time-box
+    ul.react-datepicker__time-list
+    li.react-datepicker__time-list-item--selected {
+    background: var(--chakra-colors-brand-solid) !important;
+    color: var(--chakra-colors-brand-contrast) !important;
+    font-weight: 700;
+}
+
+.react-datepicker__time-container
+    .react-datepicker__time
+    .react-datepicker__time-box
+    ul.react-datepicker__time-list
+    li.react-datepicker__time-list-item--selected:hover {
+    background: var(--chakra-colors-brand-600) !important;
+}
+
+/* Slim, themed scrollbar instead of the chunky default one. */
+.react-datepicker__time-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--chakra-colors-border-emphasized) transparent;
+}
+
+.react-datepicker__time-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.react-datepicker__time-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.react-datepicker__time-list::-webkit-scrollbar-thumb {
+    background: var(--chakra-colors-border-emphasized);
+    border-radius: var(--chakra-radii-full);
+}
+
+/* ── Small screens ─────────────────────────────────────────────────────── */
+
+/* Keep the popup inside the viewport on phones: the calendar shrinks and the
+   time column narrows rather than the whole panel overflowing sideways. */
+@media (max-width: 400px) {
+    .react-datepicker__day,
+    .react-datepicker__day-name {
+        width: 1.7rem;
+        line-height: 1.7rem;
+    }
+
+    .react-datepicker__time-container,
+    .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box {
+        width: 76px;
+    }
+
+    .react-datepicker__navigation--next--with-time:not(
+            .react-datepicker__navigation--next--with-today-button
+        ) {
+        right: 76px;
+    }
 }

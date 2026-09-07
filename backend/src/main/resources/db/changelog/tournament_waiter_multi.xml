@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      Named, multiple waiters per tournament — supersedes tournament_waiter_access.xml.
+
+      The single-code design (one code per tournament) didn't survive contact
+      with the actual ask: a tournament can have several people behind the
+      bar, the organiser wants to hand each of them their OWN code (so one
+      leaving doesn't cut everyone else off), see who is who, and revoke one
+      name without touching the rest.
+
+        * tournament_waiter        — one row per NAMED credential. Several
+          per tournament now, hence a surrogate key instead of the old
+          tournament-id-as-PK. `revoked_at` is a soft withdrawal: the row
+          stays (an organiser revoking-then-re-inviting the same person
+          shouldn't resurrect old sessions under a reused id), a live waiter
+          is simply `revoked_at IS NULL`.
+
+        * tournament_waiter_session gains `waiter_id`, tying each redeemed
+          session to the specific named credential that minted it — so
+          revoking ONE waiter can delete THEIR sessions only, not every
+          device at the tournament. Nullable rather than backfilled: this
+          feature has no production traffic yet, there is nothing to
+          migrate, and a NOT NULL constraint would fail if that ever turns
+          out to be wrong.
+
+      tournament_waiter_access is dropped outright, not migrated — same
+      reasoning: unreleased feature, empty in every environment that
+      matters, nothing to carry forward.
+    -->
+
+    <changeSet id="2026-09-04-tournament-waiter-table" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="tournament_waiter"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="tournament_waiter">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tournament_id" type="bigint">
+                <constraints nullable="false"
+                             foreignKeyName="fk_tw_tournament"
+                             references="tournaments(id)"
+                             deleteCascade="true"/>
+            </column>
+            <!-- The label the organiser typed in when inviting — "Ivan za
+                 šankom", "Konoba Marko" — shown back to them in the waiter
+                 list so they know which code is whose. -->
+            <column name="name" type="varchar(60)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Same alphabet/length as the code this replaces — see
+                 WaiterAccessService.ALPHABET. Uniqueness among this
+                 tournament's ACTIVE waiters is enforced in the service (a
+                 revoked code may legitimately collide with a later one). -->
+            <column name="code" type="varchar(4)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Null while active. Set once, never cleared: revoking is a
+                 one-way door, matching every other "revoke" in this app. -->
+            <column name="revoked_at" type="timestamptz"/>
+        </createTable>
+
+        <!-- Drives both the waiter list (all rows for a tournament) and
+             redemption (tournament_id + code, active rows only). -->
+        <createIndex tableName="tournament_waiter" indexName="idx_tw_tournament">
+            <column name="tournament_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="2026-09-04-tournament-waiter-session-waiter-id" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="tournament_waiter_session"/>
+                <not>
+                    <columnExists tableName="tournament_waiter_session" columnName="waiter_id"/>
+                </not>
+            </and>
+        </preConditions>
+
+        <addColumn tableName="tournament_waiter_session">
+            <column name="waiter_id" type="bigint">
+                <constraints nullable="true"
+                             foreignKeyName="fk_tws_waiter"
+                             references="tournament_waiter(id)"
+                             deleteCascade="true"/>
+            </column>
+        </addColumn>
+
+        <createIndex tableName="tournament_waiter_session" indexName="idx_tws_waiter">
+            <column name="waiter_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="2026-09-04-drop-tournament-waiter-access" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="tournament_waiter_access"/>
+        </preConditions>
+        <dropTable tableName="tournament_waiter_access"/>
+    </changeSet>
+</databaseChangeLog>

@@ -40,7 +40,7 @@ export type InstallPromptState = {
 function detectIos(): boolean {
     if (typeof navigator === "undefined") return false
     const ua = navigator.userAgent
-    const isIPhoneOrPad = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream
+    const isIPhoneOrPad = /iPad|iPhone|iPod/.test(ua) && !(window as Window & { MSStream?: unknown }).MSStream
     // iPadOS 13+ identifies as "Macintosh"; the touch-events check disambiguates.
     const isIPadOS =
         ua.includes("Macintosh") &&
@@ -53,7 +53,7 @@ function detectIos(): boolean {
 function detectStandalone(): boolean {
     if (typeof window === "undefined") return false
     // iOS Safari uses the legacy navigator.standalone flag.
-    const iosStandalone = (window.navigator as any).standalone === true
+    const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone === true
     // Chrome/Edge/etc.
     const matchMediaStandalone =
         window.matchMedia && window.matchMedia("(display-mode: standalone)").matches

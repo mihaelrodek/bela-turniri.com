@@ -2,8 +2,6 @@ package hr.mrodek.apps.bela_turniri.repository;
 
 import hr.mrodek.apps.bela_turniri.enums.TournamentStatus;
 import hr.mrodek.apps.bela_turniri.model.Tournaments;
-import io.quarkus.panache.common.Page;
-import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.OffsetDateTime;
@@ -43,12 +41,47 @@ public class TournamentsRepository implements AppRepository<Tournaments, Long> {
         return count("uuid", uuid) > 0;
     }
 
+    /**
+     * List queries all go through {@code TournamentMapper}, which builds the
+     * poster URL from {@code t.getResource().getId()}. The association is
+     * LAZY, so without this fetch join every card on every listing costs an
+     * extra SELECT. It's a to-one join, so it also stays safe to paginate in
+     * SQL (no in-memory pagination the way a collection fetch would force).
+     */
     public List<Tournaments> findByStartAtBeforeOrderByStartAtDesc(OffsetDateTime now) {
-        return list("startAt < ?1", Sort.by("startAt").descending(), now);
+        return list("""
+                from Tournaments t
+                left join fetch t.resource
+                where t.startAt < ?1
+                order by t.startAt desc
+                """, now);
     }
 
     public List<Tournaments> findByStartAtGreaterThanEqualOrderByStartAtAsc(OffsetDateTime now) {
-        return list("startAt >= ?1", Sort.by("startAt").ascending(), now);
+        return list("""
+                from Tournaments t
+                left join fetch t.resource
+                where t.startAt >= ?1
+                order by t.startAt asc
+                """, now);
+    }
+
+    /**
+     * Ids of tournaments that have a location but no coordinates yet — the
+     * work list for the {@code /geocode-missing} backfill. Returns ids only
+     * so the (slow, sleep-throttled) loop can run without a transaction and
+     * without holding entities across it.
+     */
+    public List<Long> findIdsNeedingGeocode() {
+        return getEntityManager().createQuery("""
+                        select t.id
+                        from Tournaments t
+                        where t.location is not null
+                          and t.location <> ''
+                          and (t.latitude is null or t.longitude is null)
+                        order by t.id asc
+                        """, Long.class)
+                .getResultList();
     }
 
     /**
@@ -59,11 +92,32 @@ public class TournamentsRepository implements AppRepository<Tournaments, Long> {
      * lazy-load older results behind a "Učitaj više" button.
      */
     public List<Tournaments> findFinishedPaged(int offset, int limit) {
-        return find("status = ?1",
-                Sort.by("startAt").descending(),
-                TournamentStatus.FINISHED)
-                .page(Page.of(offset / Math.max(1, limit), Math.max(1, limit)))
+        return find("""
+                from Tournaments t
+                left join fetch t.resource
+                where t.status = ?1
+                order by t.startAt desc
+                """, TournamentStatus.FINISHED)
+                .range(Math.max(0, offset), lastIndex(offset, limit))
                 .list();
+    }
+
+    /**
+     * Inclusive end index for a {@code range(first, last)} window.
+     *
+     * <p>Both paged finders used to say {@code Page.of(offset / limit, limit)},
+     * which can only ever express a window starting on a multiple of the page
+     * size: {@code offset=25, limit=20} floored to page 1 and returned rows
+     * 20-39, so the caller silently re-received five rows it already had and
+     * never saw the last five of the page it asked for. {@code range} takes
+     * the offset literally. Saturating arithmetic because
+     * {@code TournamentController.list} passes {@code Integer.MAX_VALUE} as
+     * the "no limit" sentinel.
+     */
+    private static int lastIndex(int offset, int limit) {
+        long first = Math.max(0, offset);
+        long span = Math.max(1L, (long) limit);
+        return (int) Math.min(first + span - 1L, Integer.MAX_VALUE);
     }
 
     public long countFinished() {
@@ -77,8 +131,48 @@ public class TournamentsRepository implements AppRepository<Tournaments, Long> {
      * scheduled start has passed.
      */
     public List<Tournaments> findNotFinishedOrderByStartAtAsc() {
-        return list("status <> ?1",
-                Sort.by("startAt").ascending(),
-                TournamentStatus.FINISHED);
+        return list("""
+                from Tournaments t
+                left join fetch t.resource
+                where t.status <> ?1
+                order by t.startAt asc
+                """, TournamentStatus.FINISHED);
+    }
+
+    /**
+     * Paged variant of {@link #findByStartAtGreaterThanEqualOrderByStartAtAsc}.
+     * The SEO preview pages only ever render the first 30 upcoming
+     * tournaments, but were loading every future row and then calling
+     * {@code subList(0, 30)} — the DB did all the work and the JVM threw it
+     * away. LIMIT in SQL instead.
+     *
+     * <p>Same {@code left join fetch t.resource} as the other listings so the
+     * poster URL doesn't cost an extra SELECT per row; safe to paginate in SQL
+     * because it is a to-one association.
+     */
+    public List<Tournaments> findUpcomingPaged(OffsetDateTime from, int offset, int limit) {
+        return find("""
+                from Tournaments t
+                left join fetch t.resource
+                where t.startAt >= ?1
+                order by t.startAt asc
+                """, from)
+                .range(Math.max(0, offset), lastIndex(offset, limit))
+                .list();
+    }
+
+    /**
+     * Tournaments the given Firebase UID created — feeds the "Učitaj iz
+     * predloška" picker on the create-tournament wizard, so an organiser can
+     * seed a new tournament from one they ran before instead of retyping
+     * kotizacija/nagrade/kontakt every time.
+     */
+    public List<Tournaments> findByCreatedByUidOrderByStartAtDesc(String uid) {
+        return list("""
+                from Tournaments t
+                left join fetch t.resource
+                where t.createdByUid = ?1
+                order by t.startAt desc
+                """, uid);
     }
 }

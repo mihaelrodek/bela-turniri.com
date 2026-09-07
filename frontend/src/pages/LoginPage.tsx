@@ -13,28 +13,31 @@ import {
 } from "@chakra-ui/react"
 import { FcGoogle } from "react-icons/fc"
 import { sendPasswordResetEmail } from "firebase/auth"
+import { FirebaseError } from "firebase/app"
 import { auth } from "../firebase"
-import { useAuth } from "../auth/AuthContext"
+import { useAuth } from "../auth/authContextValue"
+import { nextFromState, pickSafeNext } from "../utils/safeNextPath"
+import { t, useTranslation } from "../i18n"
 
-/** Translate Firebase auth error codes into Croatian, user-friendly messages. */
-function authErrorMessage(err: any): string {
-    const code: string = err?.code ?? ""
+/** Translate Firebase auth error codes into user-friendly messages. */
+function authErrorMessage(err: unknown): string {
+    const code = err instanceof FirebaseError ? err.code : ""
     switch (code) {
         case "auth/invalid-credential":
         case "auth/wrong-password":
         case "auth/user-not-found":
-            return "Pogrešan email ili lozinka."
+            return t("forms.login.error.invalidCredential")
         case "auth/invalid-email":
-            return "Neispravan format email adrese."
+            return t("forms.auth.invalidEmail")
         case "auth/user-disabled":
-            return "Korisnički račun je deaktiviran."
+            return t("forms.login.error.userDisabled")
         case "auth/too-many-requests":
-            return "Previše pokušaja. Pokušaj ponovno kasnije."
+            return t("forms.login.error.tooManyRequests")
         case "auth/popup-closed-by-user":
         case "auth/cancelled-popup-request":
             return "" // user closed popup — not really an error
         default:
-            return err?.message ?? "Prijava nije uspjela."
+            return err instanceof Error ? err.message : t("forms.login.error.generic")
     }
 }
 
@@ -43,6 +46,7 @@ export default function LoginPage() {
     const location = useLocation()
     const [searchParams] = useSearchParams()
     const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth()
+    const { t } = useTranslation()
 
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
@@ -51,13 +55,16 @@ export default function LoginPage() {
     const [resetMsg, setResetMsg] = useState<string | null>(null)
 
     // Where to send the user after a successful sign-in. Accepts a
-    // ?next=/path query param (used by the claim-name share flow) and
-    // falls back to whatever the navigation state carried (route guard
-    // bumps a "from" hint in there).
-    const redirectTo =
-        searchParams.get("next") ??
-        (location.state as { from?: string } | null)?.from ??
-        "/turniri"
+    // ?next=/path query param (RequireAuth, the axios 401 interceptor and the
+    // claim-name share flow all emit it) and falls back to whatever the
+    // navigation state carried. Both are attacker-controllable inputs, so
+    // pickSafeNext rejects anything that isn't a plain same-origin path —
+    // otherwise ?next=//evil.tld would bounce a freshly-authenticated user
+    // onto a phishing origin.
+    const redirectTo = pickSafeNext(
+        [searchParams.get("next"), nextFromState(location.state)],
+        "/turniri",
+    )
 
     /**
      * If the user is already authenticated, /login has nothing to do —
@@ -75,14 +82,14 @@ export default function LoginPage() {
         setError(null)
         setResetMsg(null)
         if (!email.trim() || !password) {
-            setError("Unesi email i lozinku.")
+            setError(t("forms.login.validation.emailPassword"))
             return
         }
         try {
             setSubmitting(true)
             await signIn(email.trim(), password)
             navigate(redirectTo, { replace: true })
-        } catch (e: any) {
+        } catch (e: unknown) {
             const msg = authErrorMessage(e)
             if (msg) setError(msg)
         } finally {
@@ -96,7 +103,7 @@ export default function LoginPage() {
         try {
             await signInWithGoogle()
             navigate(redirectTo, { replace: true })
-        } catch (e: any) {
+        } catch (e: unknown) {
             const msg = authErrorMessage(e)
             if (msg) setError(msg)
         }
@@ -106,13 +113,13 @@ export default function LoginPage() {
         setError(null)
         setResetMsg(null)
         if (!email.trim()) {
-            setError("Upiši email u polje iznad i ponovi.")
+            setError(t("forms.login.validation.emailForReset"))
             return
         }
         try {
             await sendPasswordResetEmail(auth, email.trim())
-            setResetMsg("Poslali smo ti link za promjenu lozinke. Provjeri email.")
-        } catch (e: any) {
+            setResetMsg(t("forms.login.resetSent"))
+        } catch (e: unknown) {
             setError(authErrorMessage(e))
         }
     }
@@ -122,7 +129,7 @@ export default function LoginPage() {
             <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
                 <Card.Body p={{ base: "5", md: "6" }}>
                     <VStack align="stretch" gap="4">
-                        <Heading size="md">Prijava</Heading>
+                        <Heading size="md">{t("forms.login.heading")}</Heading>
 
                         <Button
                             variant="outline"
@@ -130,19 +137,19 @@ export default function LoginPage() {
                             onClick={onGoogle}
                             disabled={submitting}
                         >
-                            <FcGoogle size={18} /> Nastavi s Googleom
+                            <FcGoogle size={18} /> {t("forms.login.googleButton")}
                         </Button>
 
                         <HStack>
                             <Box flex="1" h="1px" bg="border.subtle" />
-                            <Text fontSize="xs" color="fg.muted">ili</Text>
+                            <Text fontSize="xs" color="fg.muted">{t("forms.auth.orDivider")}</Text>
                             <Box flex="1" h="1px" bg="border.subtle" />
                         </HStack>
 
                         <form onSubmit={onSubmit}>
                             <VStack align="stretch" gap="3">
                                 <Field.Root required>
-                                    <Field.Label>Email</Field.Label>
+                                    <Field.Label>{t("forms.auth.email")}</Field.Label>
                                     <Input
                                         type="email"
                                         autoComplete="email"
@@ -151,7 +158,7 @@ export default function LoginPage() {
                                     />
                                 </Field.Root>
                                 <Field.Root required>
-                                    <Field.Label>Lozinka</Field.Label>
+                                    <Field.Label>{t("forms.auth.password")}</Field.Label>
                                     <Input
                                         type="password"
                                         autoComplete="current-password"
@@ -178,7 +185,7 @@ export default function LoginPage() {
                                     loading={submitting}
                                     disabled={submitting}
                                 >
-                                    Prijavi se
+                                    {t("forms.login.submit")}
                                 </Button>
                             </VStack>
                         </form>
@@ -190,12 +197,12 @@ export default function LoginPage() {
                                 size="xs"
                                 onClick={onResetPassword}
                             >
-                                Zaboravljena lozinka?
+                                {t("forms.login.forgotPassword")}
                             </Button>
                             <Text fontSize="sm" color="fg.muted">
-                                Nemaš račun?{" "}
+                                {t("forms.login.noAccount")}{" "}
                                 <Box as="span" color="blue.fg" fontWeight="medium">
-                                    <RouterLink to="/registracija">Registriraj se</RouterLink>
+                                    <RouterLink to="/registracija">{t("forms.login.registerLink")}</RouterLink>
                                 </Box>
                             </Text>
                         </HStack>

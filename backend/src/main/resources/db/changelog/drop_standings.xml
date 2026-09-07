@@ -1,0 +1,106 @@
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      Drops the never-used `standings` table, in two independently guarded
+      steps.
+
+      Why onFail="CONTINUE" and not MARK_RAN
+      ======================================
+      Production almost certainly HAS rows here: match completion wrote to
+      this table right up until the branch that removed the entity. With
+      MARK_RAN, the very first boot after deploying would see "table is not
+      empty", record the changeset in DATABASECHANGELOG as executed, and
+      never look again — so the table would survive forever, and the
+      changeset could not be fixed afterwards because an applied changeset's
+      checksum is frozen. CONTINUE logs the skip and records nothing, so the
+      precondition is re-evaluated on every boot and the drop happens the
+      first time the table really is empty.
+
+      onError="CONTINUE" as well: this is optional cleanup of a table that is
+      already unreferenced by the application. A precondition that errors
+      (permissions, an unexpected schema shape) must not take the whole
+      startup down with it.
+    -->
+    <changeSet id="2026-09-03-drop-standings" author="mrodek">
+        <preConditions onFail="CONTINUE" onError="CONTINUE"
+                       onFailMessage="standings table missing or non-empty — leaving it in place"
+                       onErrorMessage="could not evaluate the standings drop precondition — skipping">
+            <!-- Order matters: tableExists short-circuits the AND, so the
+                 sqlCheck below never runs against a table that isn't there. -->
+            <tableExists tableName="standings"/>
+            <sqlCheck expectedResult="0">select count(*) from standings</sqlCheck>
+        </preConditions>
+
+        <dropTable tableName="standings"/>
+
+        <rollback>
+            <createTable tableName="standings">
+                <column name="id" type="bigint">
+                    <constraints primaryKey="true" nullable="false"/>
+                </column>
+                <column name="tournament_id" type="bigint">
+                    <constraints nullable="false"/>
+                </column>
+                <column name="pair_id" type="bigint">
+                    <constraints nullable="false"/>
+                </column>
+                <column name="rank" type="int">
+                    <constraints nullable="false"/>
+                </column>
+                <column name="notes" type="text"/>
+                <column name="prize_amount" type="numeric(10,2)"/>
+            </createTable>
+
+            <addForeignKeyConstraint baseTableName="standings" baseColumnNames="tournament_id"
+                                     referencedTableName="tournaments" referencedColumnNames="id" onDelete="CASCADE"
+                                     constraintName="fk_standings_tournament"/>
+            <addForeignKeyConstraint baseTableName="standings" baseColumnNames="pair_id"
+                                     referencedTableName="pairs" referencedColumnNames="id" onDelete="CASCADE"
+                                     constraintName="fk_standings_pair"/>
+
+            <addUniqueConstraint tableName="standings" columnNames="tournament_id,rank"
+                                 constraintName="uq_standings_rank"/>
+            <addUniqueConstraint tableName="standings" columnNames="tournament_id,pair_id"
+                                 constraintName="uq_standings_pair"/>
+        </rollback>
+    </changeSet>
+
+    <!--
+      The sequence is a SEPARATE changeset with its own guard.
+
+      `seq_standings_id` is what db/changelog/standings.xml actually created
+      (an explicit <createSequence>, with a plain `bigint` id column — not a
+      `bigserial`, which would have produced an implicitly-named
+      `standings_id_seq` instead). But any database that was ever built or
+      patched by hand may carry the other name, or no sequence at all: an
+      unguarded dropSequence there fails the changeset, and with
+      migrate-at-start that fails STARTUP. sequenceExists makes the drop a
+      no-op wherever the name doesn't match, and keeping it out of the table
+      changeset means neither step can block the other.
+
+      `not tableExists` orders the two: the sequence only goes once the table
+      is really gone (same run is fine — preconditions are evaluated against
+      the live database at execution time, after the drop above committed).
+    -->
+    <changeSet id="2026-09-03-drop-standings-seq" author="mrodek">
+        <preConditions onFail="CONTINUE" onError="CONTINUE"
+                       onFailMessage="standings table still present or seq_standings_id missing — leaving the sequence"
+                       onErrorMessage="could not evaluate the standings sequence precondition — skipping">
+            <not>
+                <tableExists tableName="standings"/>
+            </not>
+            <sequenceExists sequenceName="seq_standings_id"/>
+        </preConditions>
+
+        <dropSequence sequenceName="seq_standings_id"/>
+
+        <rollback>
+            <createSequence sequenceName="seq_standings_id" incrementBy="1" startValue="1"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

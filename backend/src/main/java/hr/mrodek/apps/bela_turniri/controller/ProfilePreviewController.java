@@ -7,6 +7,9 @@ import hr.mrodek.apps.bela_turniri.model.UserProfile;
 import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import hr.mrodek.apps.bela_turniri.services.PreviewHtml;
+import hr.mrodek.apps.bela_turniri.services.PreviewRenderService;
+import hr.mrodek.apps.bela_turniri.services.PreviewRenderService.PreviewPage;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -16,8 +19,6 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
 
 /**
  * Server-side rendered preview HTML for crawlers (WhatsApp, Slack, Facebook,
@@ -41,26 +42,52 @@ public class ProfilePreviewController {
     @Inject UserProfileRepository profileRepo;
     @Inject UserPairPresetRepository presetRepo;
     @Inject PairsRepository pairRepo;
+    @Inject PreviewRenderService previewCache;
 
     @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.com")
     String publicBaseUrl;
 
-    // Optional<> rather than a defaulted String — Quarkus refuses to register
-    // an empty defaultValue, so a non-Optional String would crash boot when
-    // APP_DEFAULT_OG_IMAGE isn't set in the environment.
-    @ConfigProperty(name = "app.default-og-image")
-    Optional<String> defaultOgImage;
+    // Fallback og:image for a profile with no avatar uploaded — the same
+    // purpose-built 1200x630 card the homepage uses (see HomePreviewController),
+    // not the square bela-turniri-symbol.png the old app.default-og-image
+    // config property pointed at. A square fallback here would crop badly in
+    // WhatsApp/Slack/Facebook, same problem the site-level card fixed.
+    private static final String DEFAULT_OG_IMAGE_FILENAME = PreviewHtml.DEFAULT_OG_IMAGE_FILENAME;
+    private static final int DEFAULT_OG_IMAGE_WIDTH = PreviewHtml.DEFAULT_OG_IMAGE_WIDTH;
+    private static final int DEFAULT_OG_IMAGE_HEIGHT = PreviewHtml.DEFAULT_OG_IMAGE_HEIGHT;
 
     @GET
     @Path("/{slug}")
     @Produces("text/html; charset=UTF-8")
     public Response preview(@PathParam("slug") String slug) {
+        // Memoised per slug. Safe to cache publicly precisely because this
+        // page is caller-independent by design: no phone numbers, no hidden
+        // participations, nothing that varies with who is looking (see the
+        // class javadoc). The stats it shows only change when a tournament
+        // finishes, so a 10-minute TTL is invisible to users.
+        // A not-found render escapes as a NotFoundSignal so it is NOT memoised
+        // — a profile whose slug appears seconds later is visible immediately.
+        PreviewPage page;
+        try {
+            page = previewCache.profile(slug, () -> render(slug));
+        } catch (RuntimeException e) {
+            PreviewPage missed = PreviewRenderService.notFoundPageOf(e);
+            if (missed == null) throw e;
+            page = missed;
+        }
+        return Response.status(page.status())
+                .entity(page.body())
+                .type("text/html; charset=UTF-8")
+                // Never let a CDN hold a 404 for 5-10 minutes.
+                .header("Cache-Control", page.status() == 200 ? PreviewHtml.PREVIEW_CACHE_CONTROL : "no-store")
+                .build();
+    }
+
+    /** Fetch + render, called only on a cache miss. */
+    private PreviewPage render(String slug) {
         UserProfile profile = profileRepo.findBySlug(slug).orElse(null);
         if (profile == null) {
-            return Response.status(Response.Status.NOT_FOUND)
-                    .type("text/html; charset=UTF-8")
-                    .entity(notFoundHtml())
-                    .build();
+            return PreviewPage.notFound(notFoundHtml());
         }
 
         String displayName = (profile.getDisplayName() != null && !profile.getDisplayName().isBlank())
@@ -97,13 +124,16 @@ public class ProfilePreviewController {
         // previews and gives Google a unique image for the Person rich
         // result.
         String image;
+        boolean defaultImage;
         if (profile.getAvatar() != null && profile.getAvatar().getId() != null) {
             image = base + "/api/resources/" + profile.getAvatar().getId() + "/image";
+            defaultImage = false;
         } else {
-            image = defaultOgImage.filter(s -> !s.isBlank()).orElse(null);
+            image = base + "/" + DEFAULT_OG_IMAGE_FILENAME;
+            defaultImage = true;
         }
 
-        return Response.ok(renderHtml(displayName, slug, description, image, spaUrl, total, wins)).build();
+        return PreviewPage.ok(renderHtml(displayName, slug, description, image, defaultImage, spaUrl, total, wins));
     }
 
     /* ───────────────────── helpers ───────────────────── */
@@ -122,12 +152,16 @@ public class ProfilePreviewController {
                 + " na bela-turniri.com";
     }
 
-    /** Croatian plural rule for "turnir": 1=turnir, 2-4=turnira, 5+=turnira (genitive plural). */
+    /**
+     * Croatian plural rule for "turnir": 1=turnir, everything else (2-4,
+     * 5+, and the 11-14 exception) is "turnira" — genitive plural covers
+     * both the paucal and the plain plural form for this noun, so there is
+     * only one branch to distinguish from the nominative singular.
+     */
     private static String plurariseTurnir(int n) {
         int mod10 = n % 10;
         int mod100 = n % 100;
         if (mod10 == 1 && mod100 != 11) return "turnir";
-        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "turnira";
         return "turnira";
     }
 
@@ -140,7 +174,7 @@ public class ProfilePreviewController {
         return "pobjeda";
     }
 
-    private String renderHtml(String name, String slug, String description, String image, String spaUrl, int totalTournaments, int wins) {
+    private String renderHtml(String name, String slug, String description, String image, boolean defaultImage, String spaUrl, int totalTournaments, int wins) {
         StringBuilder sb = new StringBuilder(2048);
         sb.append("<!doctype html>\n");
         sb.append("<html lang=\"hr\">\n<head>\n");
@@ -149,6 +183,7 @@ public class ProfilePreviewController {
         sb.append("<title>").append(escapeHtml(name)).append(" — bela-turniri.com</title>\n");
         sb.append("<meta name=\"description\" content=\"").append(escapeAttr(description)).append("\">\n");
         sb.append("<link rel=\"canonical\" href=\"").append(escapeAttr(spaUrl)).append("\">\n");
+        appendIconLinks(sb);
 
         sb.append("<meta property=\"og:type\" content=\"profile\">\n");
         sb.append("<meta property=\"og:locale\" content=\"hr_HR\">\n");
@@ -159,8 +194,14 @@ public class ProfilePreviewController {
         sb.append("<meta property=\"profile:username\" content=\"")
                 .append(escapeAttr(spaUrl.substring(spaUrl.lastIndexOf('/') + 1))).append("\">\n");
         if (image != null && !image.isBlank()) {
-            sb.append("<meta property=\"og:image\" content=\"").append(escapeAttr(image)).append("\">\n");
-            sb.append("<meta property=\"og:image:alt\" content=\"").append(escapeAttr(name)).append("\">\n");
+            // Only the fallback card's dimensions are known ahead of time —
+            // an uploaded avatar can be any aspect ratio (StorageService only
+            // caps the longest edge), so declaring a fixed width/height for
+            // it would be actively wrong.
+            PreviewHtml.appendOgImageMeta(sb, image,
+                    defaultImage ? DEFAULT_OG_IMAGE_WIDTH : null,
+                    defaultImage ? DEFAULT_OG_IMAGE_HEIGHT : null,
+                    name);
         }
 
         sb.append("<meta name=\"twitter:card\" content=\"")
@@ -228,6 +269,17 @@ public class ProfilePreviewController {
         sb.append("</article>\n");
     }
 
+    /**
+     * Absolute favicon / touch-icon links — same rationale as
+     * {@code TournamentPreviewController#appendIconLinks}: chat clients and
+     * Google's favicon crawler resolve icon links against the document URL
+     * they were handed, so relative hrefs are unreliable here. File names
+     * match what is shipped in {@code frontend/public/}.
+     */
+    private void appendIconLinks(StringBuilder sb) {
+        PreviewHtml.appendIconLinks(sb, publicBaseUrl.replaceAll("/+$", ""));
+    }
+
     private String notFoundHtml() {
         return """
                 <!doctype html>
@@ -289,50 +341,14 @@ public class ProfilePreviewController {
      * embedded in an HTML {@code <script>} tag.
      */
     private static String jsonEscape(String s) {
-        if (s == null) return "";
-        StringBuilder out = new StringBuilder(s.length() + 8);
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"'  -> out.append("\\\"");
-                case '\\' -> out.append("\\\\");
-                case '\n' -> out.append("\\n");
-                case '\r' -> out.append("\\r");
-                case '\t' -> out.append("\\t");
-                case '\b' -> out.append("\\b");
-                case '\f' -> out.append("\\f");
-                case '/'  -> {
-                    if (i > 0 && s.charAt(i - 1) == '<') out.append("\\/");
-                    else out.append('/');
-                }
-                default -> {
-                    if (c < 0x20) {
-                        out.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        out.append(c);
-                    }
-                }
-            }
-        }
-        return out.toString();
+        return PreviewHtml.jsonEscape(s);
     }
 
     private static String escapeHtml(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        return PreviewHtml.escapeHtml(s);
     }
 
     private static String escapeAttr(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#39;");
-    }
-
-    @SuppressWarnings("unused")
-    private static String safeLowerCase(String s) {
-        return s == null ? null : s.toLowerCase(Locale.ROOT);
+        return PreviewHtml.escapeAttr(s);
     }
 }

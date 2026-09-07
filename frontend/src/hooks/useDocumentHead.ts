@@ -1,4 +1,20 @@
 import { useEffect } from "react"
+import { t } from "../i18n"
+
+/**
+ * Allowlist for the og:image URL. The value often comes from backend data
+ * (a tournament poster, a player avatar), so it must never be able to inject
+ * a `javascript:` / `data:` URI into a meta tag, and a protocol-relative
+ * `//host/x.png` would silently point link previews at a foreign origin.
+ * Only same-origin absolute paths and explicit http(s) URLs pass.
+ */
+function isSafeImageUrl(raw: string): boolean {
+    if (!raw || typeof raw !== "string") return false
+    const trimmed = raw.trim()
+    if (!trimmed) return false
+    if (trimmed.startsWith("/")) return !trimmed.startsWith("//")
+    return /^https?:\/\//i.test(trimmed)
+}
 
 /**
  * Per-route document.title + <meta> updater.
@@ -60,8 +76,6 @@ export type DocumentHead = {
 // per-page <meta> + og:title below, which is what actually drives search
 // snippets and WhatsApp/Slack link previews.
 const STATIC_TITLE = "Bela turniri"
-const DEFAULT_DESCRIPTION =
-    "Bela turniri — organiziraj i prati Bela turnire. Pretraži nadolazeće turnire, pridruži se paru i prati rezultate."
 
 export function useDocumentHead(head: DocumentHead) {
     useEffect(() => {
@@ -74,7 +88,9 @@ export function useDocumentHead(head: DocumentHead) {
         if (head.description) setMeta("name", "description", head.description)
         if (head.ogTitle) setMeta("property", "og:title", head.ogTitle)
         if (head.ogDescription) setMeta("property", "og:description", head.ogDescription)
-        if (head.ogImage) setMeta("property", "og:image", head.ogImage)
+        if (head.ogImage && isSafeImageUrl(head.ogImage)) {
+            setMeta("property", "og:image", head.ogImage)
+        }
         if (head.ogType) setMeta("property", "og:type", head.ogType)
         if (head.canonical) setCanonical(head.canonical)
         // og:url defaults to the canonical when not explicitly set —
@@ -157,7 +173,7 @@ function restoreMeta(snap: MetaSnapshot) {
             // than removing/recreating, and the next route that mounts the hook
             // will overwrite it anyway. For the description tag we restore the
             // app-level default so it doesn't leak across routes.
-            if (key === "description") setMeta(attr, key, DEFAULT_DESCRIPTION)
+            if (key === "description") setMeta(attr, key, t("common.meta.defaultDescription"))
             continue
         }
         setMeta(attr, key, previousValue)

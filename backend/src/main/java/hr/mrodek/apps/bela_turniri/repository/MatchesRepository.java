@@ -54,6 +54,47 @@ public class MatchesRepository implements AppRepository<Matches, Long> {
         return list("tournament.id", tournamentId);
     }
 
+    /**
+     * Every match of a tournament, with round and both pairs already
+     * fetched, ordered by round then table. Replaces the
+     * "one findByRound() per round, then let the mapper walk the LAZY
+     * pairs" pattern in {@code RoundService.listByTournamentUuid} — that
+     * was 1 + rounds + (2 × matches) queries for a page that renders in
+     * one. Callers group by round id in Java.
+     */
+    public List<Matches> findByTournament_IdWithRoundAndPairs(Long tournamentId) {
+        if (tournamentId == null) return List.of();
+        return list("""
+                from Matches m
+                join fetch m.round r
+                left join fetch m.pair1
+                left join fetch m.pair2
+                where m.tournament.id = :tid
+                order by r.number asc, m.tableNo asc nulls last, m.id asc
+                """, Parameters.with("tid", tournamentId));
+    }
+
+    /**
+     * Every non-BYE match the user played, on either side of either pair,
+     * as primary submitter or claimed co-owner. Fetches everything the
+     * invoice list dereferences (tournament, round, both pairs, winner) so
+     * building the list doesn't fire a query per row per association.
+     */
+    public List<Matches> findParticipantMatchesWithDetails(String uid) {
+        if (uid == null || uid.isBlank()) return List.of();
+        return list("""
+                from Matches m
+                join fetch m.tournament
+                left join fetch m.round
+                left join fetch m.pair1 p1
+                left join fetch m.pair2 p2
+                left join fetch m.winnerPair
+                where (p1.submittedByUid = :uid or p1.coSubmittedByUid = :uid
+                    or p2.submittedByUid = :uid or p2.coSubmittedByUid = :uid)
+                  and m.pair2 is not null
+                """, Parameters.with("uid", uid));
+    }
+
     public List<Matches> findByRound_Id(Long roundId) {
         return list("round.id", roundId);
     }

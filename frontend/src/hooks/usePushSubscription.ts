@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react"
-import { useAuth } from "../auth/AuthContext"
+import { useAuth } from "../auth/authContextValue"
 import {
     fetchPushPublicKey,
     registerPushSubscription,
@@ -57,17 +57,19 @@ export function usePushSubscription() {
 
         const runSubscribeFlow = async () => {
             try {
-                // Wait for the SW to be ready (it registers in main.tsx
-                // after `load`). If it never registers — e.g. in dev
-                // mode where the SW is intentionally not shipped — we
-                // bail without warning.
-                const reg = await navigator.serviceWorker.ready
-                if (cancelled) return
-
-                // Ask for permission only if not already decided. On
-                // iOS this MUST be called from inside a user gesture
-                // (see the listener wiring further down) — by the time
-                // we get here, we're already inside that gesture.
+                // Ask for permission FIRST, before any `await` — this must be
+                // the very first thing that happens in this function. On iOS,
+                // Notification.requestPermission() only counts as "called
+                // inside the user gesture" if it's invoked synchronously off
+                // the gesture handler's call stack; even one prior `await`
+                // (e.g. the old order, which awaited serviceWorker.ready
+                // first) loses that attribution and iOS silently resolves to
+                // "default" forever without ever showing the native prompt.
+                //
+                // Ask for permission only if not already decided. On iOS this
+                // MUST be called from inside a user gesture (see the listener
+                // wiring further down) — by the time we get here, we're
+                // already inside that gesture.
                 if (Notification.permission === "default") {
                     const result = await Notification.requestPermission()
                     if (cancelled) return
@@ -78,6 +80,15 @@ export function usePushSubscription() {
                 } else if (Notification.permission !== "granted") {
                     return
                 }
+
+                // Now safe to await — permission is already decided, so
+                // whatever gesture attribution was needed has already been
+                // spent. Wait for the SW to be ready (it registers in
+                // SwUpdateToast.tsx after `load`). If it never registers —
+                // e.g. in dev mode where the SW is intentionally not shipped
+                // — we bail without warning.
+                const reg = await navigator.serviceWorker.ready
+                if (cancelled) return
 
                 // Already subscribed? Re-send to the backend in case
                 // the server-side row got deleted (rare but possible

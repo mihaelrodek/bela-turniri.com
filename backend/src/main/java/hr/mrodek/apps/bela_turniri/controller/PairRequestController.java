@@ -6,16 +6,15 @@ import hr.mrodek.apps.bela_turniri.enums.PairRequestStatus;
 import hr.mrodek.apps.bela_turniri.mappers.PairRequestMapper;
 import hr.mrodek.apps.bela_turniri.model.PairRequest;
 import hr.mrodek.apps.bela_turniri.repository.PairRequestRepository;
-import hr.mrodek.apps.bela_turniri.repository.TournamentsRepository;
+import hr.mrodek.apps.bela_turniri.services.CurrentUser;
+import hr.mrodek.apps.bela_turniri.services.TournamentAccess;
 import io.quarkus.security.Authenticated;
-import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -38,28 +37,24 @@ import java.util.UUID;
 public class PairRequestController {
 
     @Inject PairRequestRepository repo;
-    @Inject TournamentsRepository tournamentsRepo;
+    @Inject TournamentAccess access;
     @Inject PairRequestMapper mapper;
-    @Inject SecurityIdentity identity;
-    @Inject JsonWebToken jwt;
+    @Inject CurrentUser currentUser;
+    @Inject hr.mrodek.apps.bela_turniri.services.MessageService messages;
 
     /** Throws 403 if the current user neither posted the request nor is an admin. */
     private void assertCanManage(PairRequest r) {
-        boolean admin = identity != null && identity.hasRole("admin");
-        if (admin) return;
-        String me = jwt != null ? jwt.getSubject() : null;
+        if (currentUser.isAdmin()) return;
+        String me = currentUser.uidOrNull();
         if (me == null || !me.equals(r.getCreatedByUid())) {
-            throw new ForbiddenException("Only the poster or an admin can modify this request.");
+            throw new ForbiddenException(messages.t("pairRequest.forbidden.edit"));
         }
     }
 
-    /**
-     * True when no Firebase ID token was presented (or it didn't verify).
-     * SecurityIdentity is always injected; for anonymous traffic it's marked
-     * anonymous because Quarkus OIDC is in lazy mode (proactive=false).
-     */
-    private boolean isAnonymous() {
-        return identity == null || identity.isAnonymous();
+    /** Load a pair-finding request by uuid or 404. */
+    private PairRequest load(UUID requestUuid) {
+        return repo.findByUuid(requestUuid)
+                .orElseThrow(() -> new NotFoundException(messages.t("pairRequest.notFound")));
     }
 
     /**
@@ -70,7 +65,17 @@ public class PairRequestController {
      * one-click PII scraper. Logged-in users get the full payload.
      */
     private List<PairRequestDto> redactForAnonymous(List<PairRequestDto> dtos) {
-        if (!isAnonymous()) return dtos;
+        // hasPhone is stamped for EVERY caller, not just anonymous ones: the
+        // field has to mean the same thing in both payloads, or the client
+        // would need two code paths to read one flag.
+        for (PairRequestDto d : dtos) d.setHasPhone(d.getPhone() != null && !d.getPhone().isBlank());
+        // "Anonymous" must be decided from the JWT subject, never from
+        // SecurityIdentity: these two list endpoints carry no
+        // @Authenticated, and under quarkus.http.auth.proactive=false the
+        // identity then stays anonymous even for a caller holding a
+        // perfectly valid bearer token — so every signed-in user got the
+        // redacted payload. Same trap documented on PublicProfileController.
+        if (!currentUser.isAnonymous()) return dtos;
         for (PairRequestDto d : dtos) d.setPhone(null);
         return dtos;
     }
@@ -84,9 +89,8 @@ public class PairRequestController {
             @Valid CreatePairRequestRequest body
     ) {
         // The path segment can be either a UUID (legacy clients) or the new
-        // tournament slug — both resolve via findByUuidOrSlug.
-        var t = tournamentsRepo.findByUuidOrSlug(tournamentIdOrSlug).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
+        // tournament slug — TournamentAccess.load resolves both.
+        var t = access.load(tournamentIdOrSlug);
 
         var r = new PairRequest();
         r.setTournament(t);
@@ -94,7 +98,7 @@ public class PairRequestController {
         r.setPhone(body.phone() == null || body.phone().isBlank() ? null : body.phone().trim());
         r.setNote(body.note() == null || body.note().isBlank() ? null : body.note().trim());
         r.setStatus(PairRequestStatus.OPEN);
-        r.setCreatedByUid(jwt.getSubject());
+        r.setCreatedByUid(currentUser.requireUid());
 
         repo.save(r);
         return Response.status(Response.Status.CREATED).entity(mapper.toDto(r)).build();
@@ -115,10 +119,9 @@ public class PairRequestController {
 
     @GET
     @Path("/by-tournament/{tournamentUuid}")
-    public Response listForTournament(@PathParam("tournamentUuid") String tournamentIdOrSlug) {
-        var t = tournamentsRepo.findByUuidOrSlug(tournamentIdOrSlug).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        return Response.ok(redactForAnonymous(mapper.toDtoList(repo.findByTournament_Id(t.getId())))).build();
+    public List<PairRequestDto> listForTournament(@PathParam("tournamentUuid") String tournamentIdOrSlug) {
+        var t = access.load(tournamentIdOrSlug);
+        return redactForAnonymous(mapper.toDtoList(repo.findByTournament_Id(t.getId())));
     }
 
     /**
@@ -134,8 +137,7 @@ public class PairRequestController {
             @PathParam("requestUuid") UUID requestUuid,
             @Valid CreatePairRequestRequest body
     ) {
-        var r = repo.findByUuid(requestUuid).orElse(null);
-        if (r == null) return Response.status(Response.Status.NOT_FOUND).build();
+        var r = load(requestUuid);
         assertCanManage(r);
 
         r.setPlayerName(body.playerName().trim());
@@ -150,8 +152,7 @@ public class PairRequestController {
     @Authenticated
     @Transactional
     public Response match(@PathParam("requestUuid") UUID requestUuid) {
-        var r = repo.findByUuid(requestUuid).orElse(null);
-        if (r == null) return Response.status(Response.Status.NOT_FOUND).build();
+        var r = load(requestUuid);
         assertCanManage(r);
 
         if (r.getStatus() != PairRequestStatus.MATCHED) {
@@ -166,8 +167,7 @@ public class PairRequestController {
     @Authenticated
     @Transactional
     public Response delete(@PathParam("requestUuid") UUID requestUuid) {
-        var r = repo.findByUuid(requestUuid).orElse(null);
-        if (r == null) return Response.status(Response.Status.NOT_FOUND).build();
+        var r = load(requestUuid);
         assertCanManage(r);
         repo.delete(r);
         return Response.noContent().build();

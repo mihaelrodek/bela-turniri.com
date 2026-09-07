@@ -2,12 +2,42 @@
 <html lang="hr">
   <head>
     <meta charset="UTF-8" />
+    <!-- /favicon.ico FIRST and as a real file. Google (and every crawler that
+         gives up on parsing HTML) probes the root path blind; without this
+         file that request falls through to the SPA and returns index.html
+         with 200 text/html, which reads as "there is a favicon here and it
+         is broken". Multi-size ICO: 16, 32 and 48 px. -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/bela-turniri-symbol.svg" />
     <!-- Apple touch icon — 180x180 PNG with white padding so iOS doesn't
          clip the suits when it rounds the corners on the home screen. -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#3182ce" />
+    <!-- Two OS-preference-conditioned tags for the FIRST paint, before any
+         JS runs (React hasn't mounted yet, so it can't pick one). Once
+         ColorModeProvider mounts it appends a third, unconditional
+         `theme-color` meta (src/color-mode.tsx, `ThemeColorSync`) that
+         tracks the app's OWN live mode — which can differ from the OS
+         preference, since light is forced by default and the user can
+         toggle independently — and browsers use the LAST matching tag in
+         document order, so that one takes over from mount onward. The dark
+         value here (#111111) is `bg.canvas`'s dark value in src/system.ts
+         (Chakra's gray.950); light (#ffffff) matches
+         manifest.webmanifest's background_color. -->
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)" />
+
+    <!-- Warm up the connections the app reaches for early: map tiles on
+         /karta (CARTO Voyager basemap) and the location picker used when
+         creating a tournament (OpenStreetMap tile server), plus Firebase
+         Auth's token endpoints (login/register). Saves the DNS + TLS
+         handshake when the user first hits those features. -->
+    <link rel="preconnect" href="https://basemaps.cartocdn.com" crossorigin />
+    <link rel="dns-prefetch" href="https://basemaps.cartocdn.com" />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+    <link rel="dns-prefetch" href="https://tile.openstreetmap.org" />
+    <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin />
 
     <!-- ── PWA / Add to Home Screen ─────────────────────────────────────
          Installable web app metadata. With the manifest below, Chrome
@@ -29,10 +59,17 @@
 
     <!-- Open Graph / link previews. og:image must be a raster format
          (PNG/JPEG) — WhatsApp and Facebook crawlers silently drop SVG
-         and the share renders without a thumbnail. The 1200x1200 PNG
-         is rendered from bela-turniri-symbol.svg at build time and
-         checked into public/. og:image:secure_url and the explicit
-         dimensions help platforms cache and lay out the card correctly.
+         and the share renders without a thumbnail. bela-turniri-og-card.png
+         is a purpose-built 1200x630 PNG (the 1.91:1 ratio Facebook/
+         WhatsApp/Slack expect for a link-preview card) generated from the
+         same brand mark + gradient used by the per-tournament share cards
+         (see ShareImageRenderer) and checked into public/. The square
+         bela-turniri-symbol.png stays reserved for contexts that want a
+         1:1 logo (favicon fallback, Organization JSON-LD "logo" below,
+         PWA icons) — a square og:image gets cropped badly by these
+         crawlers, which is the gap this file fixes. og:image:secure_url
+         and the explicit dimensions help platforms cache and lay out the
+         card correctly.
 
          Per-page overrides (poster art on tournament detail, avatar on
          profile) are set client-side via useDocumentHead and take
@@ -47,12 +84,12 @@
          (tournament/profile pages) for JS-aware crawlers; the
          /api/preview/* SSR fallback emits a route-specific og:url too. -->
     <meta property="og:url" content="https://bela-turniri.com/" />
-    <meta property="og:image" content="https://bela-turniri.com/bela-turniri-symbol.png" />
-    <meta property="og:image:secure_url" content="https://bela-turniri.com/bela-turniri-symbol.png" />
+    <meta property="og:image" content="https://bela-turniri.com/bela-turniri-og-card.png" />
+    <meta property="og:image:secure_url" content="https://bela-turniri.com/bela-turniri-og-card.png" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="1200" />
-    <meta property="og:image:alt" content="Bela turniri logo — četiri belotska adutska znaka" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Bela turniri — organiziraj i prati Bela turnire u Hrvatskoj" />
     <meta property="og:locale" content="hr_HR" />
     <!-- fb:app_id is "recommended" by Facebook but not strictly required
          — its absence triggers a warning in the FB sharing debugger but
@@ -61,8 +98,8 @@
          and replace YOUR_APP_ID below (then uncomment the line). An
          empty Facebook App with just a name + contact email is enough.
          <meta property="fb:app_id" content="YOUR_APP_ID" /> -->
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:image" content="https://bela-turniri.com/bela-turniri-symbol.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://bela-turniri.com/bela-turniri-og-card.png" />
 
     <title>Bela turniri</title>
 
@@ -129,6 +166,20 @@
         window.dataLayer = window.dataLayer || [];
         function gtag() { dataLayer.push(arguments); }
         window.gtag = gtag;
+        // GDPR: default every consent signal to denied BEFORE the config
+        // call below queues any hit. GA4 respects Consent Mode — with
+        // analytics_storage denied it still pings a cookieless "consent
+        // ping" for basic modelling, but sets no cookies and attaches no
+        // identifiers. CookieConsent (src/components/CookieConsent.tsx)
+        // calls gtag('consent','update', {analytics_storage:'granted'})
+        // once the visitor accepts; until then (or if they decline) this
+        // default stands for the session.
+        gtag("consent", "default", {
+            analytics_storage: "denied",
+            ad_storage: "denied",
+            ad_user_data: "denied",
+            ad_personalization: "denied",
+        });
         gtag("js", new Date());
         gtag("config", GA_ID);
       })();

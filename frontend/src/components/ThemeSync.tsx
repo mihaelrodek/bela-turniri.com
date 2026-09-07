@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
-import { useAuth } from "../auth/AuthContext"
-import { useColorMode } from "../color-mode"
-import { getProfile } from "../api/userMe"
+import { useAuth } from "../auth/authContextValue"
+import { useColorMode } from "../color-mode-hooks"
+import { useMyProfile } from "../hooks/useMyProfile"
 
 /**
  * Mounted once at the app root. Pulls the user's saved colorMode from
@@ -16,47 +16,39 @@ import { getProfile } from "../api/userMe"
  *
  * Writes (when the user toggles the theme in Postavke) go in the other
  * direction — see updateColorMode in api/userMe.ts. ThemeSync is read-only.
+ *
+ * The profile itself comes from the shared `qk.profile` query (useMyProfile),
+ * so mounting this component costs no extra request — NavBar and the pages
+ * read the same cache entry.
  */
 export default function ThemeSync() {
     const { user, loading } = useAuth()
     const { colorMode, setColorMode } = useColorMode()
-    // Don't re-sync on every render — only once per signed-in UID.
-    // Otherwise we'd fight the user's own toggle (their PUT updates the
-    // server, then a refetch races back with the old value).
-    const lastSyncedUidRef = useRef<string | null>(null)
+    const { data: profile } = useMyProfile()
+    // Apply the server value at most once per signed-in UID. Otherwise a
+    // refetch (e.g. after an avatar upload invalidates the profile) would
+    // fight the user's own toggle and snap the theme back.
+    const lastAppliedUidRef = useRef<string | null>(null)
 
     useEffect(() => {
         if (loading) return
         const uid = user?.uid ?? null
         if (!uid) {
-            lastSyncedUidRef.current = null
+            lastAppliedUidRef.current = null
             return
         }
-        if (lastSyncedUidRef.current === uid) return
-        lastSyncedUidRef.current = uid
+        if (!profile) return
+        if (lastAppliedUidRef.current === uid) return
+        lastAppliedUidRef.current = uid
 
-        let cancelled = false
-        ;(async () => {
-            try {
-                const profile = await getProfile()
-                if (cancelled) return
-                const serverMode = profile.colorMode
-                if (serverMode && (serverMode === "light" || serverMode === "dark")) {
-                    if (serverMode !== colorMode) {
-                        setColorMode(serverMode)
-                    }
-                }
-            } catch {
-                // Network failure → leave local value alone; user can toggle.
-            }
-        })()
-        return () => {
-            cancelled = true
+        const serverMode = profile.colorMode
+        if (serverMode === "light" || serverMode === "dark") {
+            if (serverMode !== colorMode) setColorMode(serverMode)
         }
         // colorMode/setColorMode intentionally omitted — we don't want
         // this effect to re-fire when the user toggles locally.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.uid, loading])
+    }, [user?.uid, loading, profile])
 
     return null
 }

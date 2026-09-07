@@ -3,13 +3,13 @@ package hr.mrodek.apps.bela_turniri.controller;
 import hr.mrodek.apps.bela_turniri.model.Pairs;
 import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import hr.mrodek.apps.bela_turniri.services.CurrentUser;
 import hr.mrodek.apps.bela_turniri.services.SlugService;
 import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.time.OffsetDateTime;
 
@@ -38,7 +38,7 @@ public class PairClaimController {
     @Inject PairsRepository pairRepo;
     @Inject UserProfileRepository userProfileRepo;
     @Inject SlugService slugService;
-    @Inject JsonWebToken jwt;
+    @Inject CurrentUser currentUser;
 
     /**
      * Public read used by the claim landing page. Returns the minimum
@@ -94,8 +94,7 @@ public class PairClaimController {
     @Authenticated
     @Transactional
     public ClaimResultDto claim(@PathParam("token") String token) {
-        String me = jwt.getSubject();
-        if (me == null || me.isBlank()) throw new NotAuthorizedException("Auth required");
+        String me = currentUser.requireUid();
 
         Pairs p = pairRepo.findByClaimToken(token).orElse(null);
         if (p == null) throw new NotFoundException();
@@ -114,16 +113,7 @@ public class PairClaimController {
         // Make sure the claimer's UserProfile + slug exist so they show
         // up on subsequent pair-list enrichments. Mirrors the same
         // ensureProfile call used in self-register.
-        String displayName = null;
-        if (jwt != null && jwt.getRawToken() != null) {
-            Object n = jwt.getClaim("name");
-            if (n != null) displayName = n.toString();
-            else {
-                Object email = jwt.getClaim("email");
-                if (email != null) displayName = email.toString();
-            }
-        }
-        slugService.ensureProfile(me, displayName);
+        slugService.ensureProfile(me, currentUser.displayName());
 
         p.setCoSubmittedByUid(me);
         p.setUpdatedAt(OffsetDateTime.now());

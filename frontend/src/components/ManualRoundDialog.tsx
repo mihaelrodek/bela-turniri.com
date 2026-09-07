@@ -14,6 +14,7 @@ import {
 } from "@chakra-ui/react"
 import { FiPlus, FiTrash2 } from "react-icons/fi"
 import { drawManualRound, type ManualMatchInput } from "../api/round"
+import { useTranslation } from "../i18n"
 
 export type ManualRoundPair = {
     id: number
@@ -51,6 +52,8 @@ export default function ManualRoundDialog({
      *  parent re-fetches rounds and closes the dialog. */
     onCreated: () => void
 }) {
+    const { t } = useTranslation()
+
     type Row = { pair1Id: number | null; pair2Id: number | "BYE" | null; tableNo: number }
 
     // Seed with one empty row when the dialog opens. Resets every time
@@ -150,20 +153,20 @@ export default function ManualRoundDialog({
                     <Dialog.Content maxW={{ base: "94%", md: "640px" }}>
                         <Dialog.Header>
                             <Dialog.Title>
-                                Ručna generacija kola{nextRoundNumber != null ? ` ${nextRoundNumber}` : ""}
+                                {nextRoundNumber != null
+                                    ? t("common.manualRound.titleNumbered", { round: nextRoundNumber })
+                                    : t("common.manualRound.title")}
                             </Dialog.Title>
                         </Dialog.Header>
                         <Dialog.Body>
                             <Stack gap="3">
                                 <Text fontSize="sm" color="fg.muted">
-                                    Odaberi par-protiv-para za svaki stol. Možeš dodati ili
-                                    ukloniti redove po potrebi. Ako je broj aktivnih parova
-                                    neparan, postavi jedan par na "Slobodan stol (bye)".
+                                    {t("common.manualRound.description")}
                                 </Text>
 
                                 {rows.length === 0 ? (
                                     <Text fontSize="sm" color="fg.muted">
-                                        Nema mečeva. Dodaj prvi mečom ispod.
+                                        {t("common.manualRound.noMatches")}
                                     </Text>
                                 ) : (
                                     <VStack align="stretch" gap="2">
@@ -188,7 +191,7 @@ export default function ManualRoundDialog({
                                                     <Stack gap="2">
                                                         <HStack gap="2" wrap="wrap">
                                                             <Text fontSize="xs" color="fg.muted" minW="56px">
-                                                                Stol
+                                                                {t("common.manualRound.table")}
                                                             </Text>
                                                             <Input
                                                                 size="sm"
@@ -204,7 +207,7 @@ export default function ManualRoundDialog({
                                                             />
                                                             <Box flex="1" />
                                                             <IconButton
-                                                                aria-label="Ukloni meč"
+                                                                aria-label={t("common.manualRound.removeMatch")}
                                                                 size="xs"
                                                                 variant="ghost"
                                                                 colorPalette="red"
@@ -224,7 +227,7 @@ export default function ManualRoundDialog({
                                                                         })
                                                                     }
                                                                 >
-                                                                    <option value="">— odaberi par —</option>
+                                                                    <option value="">{t("common.manualRound.selectPair")}</option>
                                                                     {availFor1.map((p) => (
                                                                         <option key={p.id} value={p.id}>{p.name}</option>
                                                                     ))}
@@ -232,7 +235,7 @@ export default function ManualRoundDialog({
                                                                 <NativeSelect.Indicator />
                                                             </NativeSelect.Root>
 
-                                                            <Text fontWeight="semibold" color="fg.muted">vs</Text>
+                                                            <Text fontWeight="semibold" color="fg.muted">{t("common.manualRound.vs")}</Text>
 
                                                             <NativeSelect.Root size="sm" flex="1">
                                                                 <NativeSelect.Field
@@ -250,8 +253,8 @@ export default function ManualRoundDialog({
                                                                         else setRow(idx, { pair2Id: Number(v) })
                                                                     }}
                                                                 >
-                                                                    <option value="">— odaberi par —</option>
-                                                                    <option value="BYE">Slobodan stol (bye)</option>
+                                                                    <option value="">{t("common.manualRound.selectPair")}</option>
+                                                                    <option value="BYE">{t("common.manualRound.byeOption")}</option>
                                                                     {availFor2.map((p) => (
                                                                         <option key={p.id} value={p.id}>{p.name}</option>
                                                                     ))}
@@ -272,21 +275,21 @@ export default function ManualRoundDialog({
                                         variant="outline"
                                         onClick={addRow}
                                     >
-                                        <FiPlus /> Dodaj meč
+                                        <FiPlus /> {t("common.manualRound.addMatch")}
                                     </Button>
                                 </HStack>
                             </Stack>
                         </Dialog.Body>
                         <Dialog.Footer>
                             <HStack gap="2">
-                                <Button variant="ghost" onClick={onClose}>Odustani</Button>
+                                <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
                                 <Button
                                     colorPalette="blue"
                                     onClick={handleSubmit}
                                     disabled={!canSubmit}
                                     loading={submitting}
                                 >
-                                    Generiraj
+                                    {t("common.manualRound.generate")}
                                 </Button>
                             </HStack>
                         </Dialog.Footer>

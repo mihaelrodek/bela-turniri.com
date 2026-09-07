@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      Two independent additions riding together because they landed in the
+      same request:
+
+        * tournament_waiter.can_edit_cjenik — a "head waiter" flag. Most
+          waiters only ever read and settle bills; one invited with this set
+          can also replace the tournament's drink price list, the one other
+          write venue staff plausibly need (a supplier ran out of something,
+          a price changed mid-evening). Everything else an organiser can do
+          stays organiser-only.
+
+        * matches.paid_by_name — who marked a bill paid, as a snapshot
+          string, not a foreign key. paid_by_uid already exists but only
+          ever holds a Firebase uid, which a waiter (by design, see
+          WaiterAccessService) does not have — there was previously no way
+          to show "who" for a waiter-settled bill at all. A snapshot avoids
+          two more problems a FK would create: the organiser's display name
+          can change after the fact, and a waiter can be revoked (or their
+          row could — hypothetically — later be deleted) without erasing
+          the historical record of who collected the money.
+    -->
+
+    <changeSet id="2026-09-04-tournament-waiter-can-edit-cjenik" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="tournament_waiter"/>
+                <not>
+                    <columnExists tableName="tournament_waiter" columnName="can_edit_cjenik"/>
+                </not>
+            </and>
+        </preConditions>
+
+        <addColumn tableName="tournament_waiter">
+            <column name="can_edit_cjenik" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="2026-09-04-matches-paid-by-name" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="matches"/>
+                <not>
+                    <columnExists tableName="matches" columnName="paid_by_name"/>
+                </not>
+            </and>
+        </preConditions>
+
+        <addColumn tableName="matches">
+            <column name="paid_by_name" type="varchar(120)"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

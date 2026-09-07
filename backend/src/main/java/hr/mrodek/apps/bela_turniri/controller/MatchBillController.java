@@ -5,14 +5,17 @@ import hr.mrodek.apps.bela_turniri.dtos.MatchBillDto;
 import hr.mrodek.apps.bela_turniri.model.Matches;
 import hr.mrodek.apps.bela_turniri.model.Tournaments;
 import hr.mrodek.apps.bela_turniri.repository.MatchesRepository;
-import hr.mrodek.apps.bela_turniri.repository.TournamentsRepository;
+import hr.mrodek.apps.bela_turniri.services.CurrentUser;
+import hr.mrodek.apps.bela_turniri.services.IdempotencyService;
 import hr.mrodek.apps.bela_turniri.services.MatchBillService;
+import hr.mrodek.apps.bela_turniri.services.TournamentAccess;
 import io.quarkus.security.Authenticated;
-import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
-import org.eclipse.microprofile.jwt.JsonWebToken;
+import jakarta.ws.rs.core.Response;
 
 import java.util.Objects;
 
@@ -30,6 +33,13 @@ import java.util.Objects;
  *
  * Edit lock: once a bill is paid the bartender can't add/remove drinks
  * without first hitting unpay. Enforced in MatchBillService.
+ *
+ * Transactions: every mutating endpoint is {@code @Transactional} so the
+ * ownership check in {@link #assertOwner} and the write that follows run
+ * in ONE transaction against ONE persistence context. Without it the
+ * service opened its own transaction after the check had already
+ * committed-and-closed, leaving a window where ownership could change
+ * between the two and re-loading the same match twice per request.
  */
 @Path("/tournaments/{uuid}/matches/{matchId}")
 @Authenticated
@@ -39,9 +49,10 @@ public class MatchBillController {
 
     @Inject MatchBillService billService;
     @Inject MatchesRepository matchesRepo;
-    @Inject TournamentsRepository tournamentsRepo;
-    @Inject SecurityIdentity identity;
-    @Inject JsonWebToken jwt;
+    @Inject TournamentAccess access;
+    @Inject CurrentUser currentUser;
+    @Inject IdempotencyService idempotency;
+    @Inject hr.mrodek.apps.bela_turniri.services.MessageService messages;
 
     @GET
     @Path("/bill")
@@ -50,68 +61,98 @@ public class MatchBillController {
             @PathParam("matchId") Long matchId
     ) {
         Matches m = loadMatch(uuid, matchId);
-        // Owner or a participant only. Anyone else: 404 (don't leak existence).
-        if (!isOwnerOrAdmin(m.getTournament()) && !billService.isParticipant(m, currentUid())) {
-            throw new NotFoundException();
+        // Owner or a participant only. Anyone else: 404, not 403 — a 403
+        // would confirm to any signed-in stranger that this match has a bill.
+        if (!billService.isParticipant(m, currentUid())) {
+            access.assertCanEditOrHide(m.getTournament());
         }
         return billService.getBill(matchId);
     }
 
+    /*
+     * The four mutating bill endpoints below all accept an optional
+     * X-Client-Op-Id. The bartender adds drinks on a phone at the table,
+     * which is exactly where the Wi-Fi gives out; the SPA queues those
+     * writes and replays them on reconnect, and the header is what stops a
+     * replay from adding the same rakija twice or un-doing a pay/unpay
+     * pair. Absent header = unchanged behaviour.
+     *
+     * assertOwner stays outside the idempotent block: a replay must be
+     * re-authorised, never served from the marker alone.
+     */
+
     @POST
     @Path("/drinks")
-    public MatchBillDto addDrink(
+    @Transactional
+    public Response addDrink(
             @PathParam("uuid") String uuid,
             @PathParam("matchId") Long matchId,
-            AddMatchDrinkRequest body
+            @HeaderParam("X-Client-Op-Id") String clientOpId,
+            @Valid AddMatchDrinkRequest body
     ) {
         assertOwner(uuid, matchId);
-        if (body == null || body.priceId() == null) {
-            throw new BadRequestException("priceId is required");
+        // priceId/quantity shape is enforced by the DTO's constraints; only
+        // an entirely absent body still has to be caught by hand.
+        if (body == null) {
+            throw new BadRequestException(messages.t("matchBill.priceIdRequired"));
         }
-        int qty = body.quantity() == null ? 1 : Math.max(1, body.quantity());
-        return billService.addDrink(matchId, body.priceId(), qty);
+        int qty = body.quantity() == null ? 1 : body.quantity();
+        return idempotency.execute(clientOpId, currentUid(),
+                "POST /tournaments/{uuid}/matches/{matchId}/drinks",
+                () -> Response.ok(billService.addDrink(matchId, body.priceId(), qty)).build());
     }
 
     @DELETE
     @Path("/drinks/{drinkId}")
-    public MatchBillDto removeDrink(
+    @Transactional
+    public Response removeDrink(
             @PathParam("uuid") String uuid,
             @PathParam("matchId") Long matchId,
-            @PathParam("drinkId") Long drinkId
+            @PathParam("drinkId") Long drinkId,
+            @HeaderParam("X-Client-Op-Id") String clientOpId
     ) {
         assertOwner(uuid, matchId);
-        return billService.removeDrink(matchId, drinkId);
+        return idempotency.execute(clientOpId, currentUid(),
+                "DELETE /tournaments/{uuid}/matches/{matchId}/drinks/{drinkId}",
+                () -> Response.ok(billService.removeDrink(matchId, drinkId)).build());
     }
 
     @POST
     @Path("/pay")
-    public MatchBillDto markPaid(
+    @Transactional
+    public Response markPaid(
             @PathParam("uuid") String uuid,
-            @PathParam("matchId") Long matchId
+            @PathParam("matchId") Long matchId,
+            @HeaderParam("X-Client-Op-Id") String clientOpId
     ) {
         assertOwner(uuid, matchId);
-        return billService.markPaid(matchId, currentUid());
+        return idempotency.execute(clientOpId, currentUid(),
+                "POST /tournaments/{uuid}/matches/{matchId}/pay",
+                () -> Response.ok(billService.markPaid(matchId, currentUid(), currentUser.displayName())).build());
     }
 
     @POST
     @Path("/unpay")
-    public MatchBillDto markUnpaid(
+    @Transactional
+    public Response markUnpaid(
             @PathParam("uuid") String uuid,
-            @PathParam("matchId") Long matchId
+            @PathParam("matchId") Long matchId,
+            @HeaderParam("X-Client-Op-Id") String clientOpId
     ) {
         assertOwner(uuid, matchId);
-        return billService.markUnpaid(matchId);
+        return idempotency.execute(clientOpId, currentUid(),
+                "POST /tournaments/{uuid}/matches/{matchId}/unpay",
+                () -> Response.ok(billService.markUnpaid(matchId)).build());
     }
 
     /* ===================== helpers ===================== */
 
     private String currentUid() {
-        return jwt != null ? jwt.getSubject() : null;
+        return currentUser.uidOrNull();
     }
 
     private Matches loadMatch(String uuidOrSlug, Long matchId) {
-        Tournaments t = tournamentsRepo.findByUuidOrSlug(uuidOrSlug).orElse(null);
-        if (t == null) throw new NotFoundException();
+        Tournaments t = access.load(uuidOrSlug);
         Matches m = matchesRepo.findByIdOptional(matchId).orElse(null);
         if (m == null || m.getTournament() == null
                 || !Objects.equals(m.getTournament().getId(), t.getId())) {
@@ -120,17 +161,7 @@ public class MatchBillController {
         return m;
     }
 
-    private boolean isOwnerOrAdmin(Tournaments t) {
-        boolean admin = identity != null && identity.hasRole("admin");
-        if (admin) return true;
-        String me = currentUid();
-        return me != null && Objects.equals(me, t.getCreatedByUid());
-    }
-
     private void assertOwner(String uuidOrSlug, Long matchId) {
-        Matches m = loadMatch(uuidOrSlug, matchId);
-        if (!isOwnerOrAdmin(m.getTournament())) {
-            throw new ForbiddenException("Only the tournament creator can edit the bill.");
-        }
+        access.assertCanEdit(loadMatch(uuidOrSlug, matchId).getTournament());
     }
 }

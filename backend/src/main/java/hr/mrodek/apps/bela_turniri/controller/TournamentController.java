@@ -3,42 +3,62 @@ package hr.mrodek.apps.bela_turniri.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import hr.mrodek.apps.bela_turniri.dtos.*;
 import hr.mrodek.apps.bela_turniri.dtos.SelfRegisterPairRequest;
-import hr.mrodek.apps.bela_turniri.enums.TournamentStatus;
-import hr.mrodek.apps.bela_turniri.mappers.PairMapper;
 import hr.mrodek.apps.bela_turniri.mappers.TournamentMapper;
-import hr.mrodek.apps.bela_turniri.model.Pairs;
 import hr.mrodek.apps.bela_turniri.model.Resources;
 import hr.mrodek.apps.bela_turniri.model.Tournaments;
-import hr.mrodek.apps.bela_turniri.repository.MatchesRepository;
 import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
-import hr.mrodek.apps.bela_turniri.repository.RoundsRepository;
 import hr.mrodek.apps.bela_turniri.repository.TournamentsRepository;
-import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
-import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import hr.mrodek.apps.bela_turniri.services.CurrentUser;
 import hr.mrodek.apps.bela_turniri.services.GeocodeService;
-import hr.mrodek.apps.bela_turniri.services.PushService;
+import hr.mrodek.apps.bela_turniri.services.IdempotencyService;
+import hr.mrodek.apps.bela_turniri.services.QrCodeRenderer;
 import hr.mrodek.apps.bela_turniri.services.RepassageService;
-import hr.mrodek.apps.bela_turniri.services.SlugService;
+import hr.mrodek.apps.bela_turniri.services.SelfRegistrationService;
 import hr.mrodek.apps.bela_turniri.services.StorageService;
+import hr.mrodek.apps.bela_turniri.services.TournamentAccess;
+import hr.mrodek.apps.bela_turniri.services.TournamentLifecycleService;
+import hr.mrodek.apps.bela_turniri.services.TournamentPairService;
 import hr.mrodek.apps.bela_turniri.services.TournamentSlugService;
 import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.RolesAllowed;
-import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import org.eclipse.microprofile.jwt.JsonWebToken;
+import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
+import jakarta.validation.Validator;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Tournament CRUD, lifecycle and pair roster.
+ *
+ * <p>Every mutating endpoint follows the same three beats: resolve the
+ * tournament and assert access through {@link TournamentAccess}, delegate
+ * the domain rules to a service, map the result to a DTO. The ownership
+ * checks, the pair-diff algorithm, the self-registration rules and the
+ * DRAFT→STARTED→FINISHED guards all used to live inline here.
+ *
+ * <p>{@code @Transactional} stays on the resource methods rather than
+ * moving down into the services. The access check loads the managed
+ * {@link Tournaments} and the service then mutates that same instance; if
+ * the service opened its own transaction the entity would already be
+ * detached and its writes would vanish at commit.
+ */
 @Path("/tournaments")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
@@ -46,63 +66,44 @@ public class TournamentController {
 
     @Inject RepassageService repassageService;
     @Inject TournamentMapper tournamentMapper;
-    @Inject PairMapper pairMapper;
     @Inject ObjectMapper objectMapper;
     @Inject StorageService storageService;
     @Inject GeocodeService geocodeService;
-    @Inject SlugService slugService;
     @Inject TournamentSlugService tournamentSlugService;
-    @Inject PushService pushService;
+
+    @Inject TournamentAccess access;
+    @Inject CurrentUser currentUser;
+    @Inject IdempotencyService idempotency;
+    @Inject TournamentPairService pairService;
+    @Inject SelfRegistrationService selfRegistrationService;
+    @Inject TournamentLifecycleService lifecycleService;
 
     @Inject TournamentsRepository tournamentsRepo;
     @Inject PairsRepository pairRepo;
-    @Inject RoundsRepository roundsRepo;
-    @Inject MatchesRepository matchesRepo;
-    @Inject UserProfileRepository userProfileRepo;
-    @Inject UserPairPresetRepository userPairPresetRepo;
 
-    @Inject SecurityIdentity identity;
-    @Inject JsonWebToken jwt;
+    @Inject QrCodeRenderer qrCodeRenderer;
+    @Inject hr.mrodek.apps.bela_turniri.services.MessageService messages;
 
     /**
-     * Best-effort display name from the verified ID token. Prefers the
-     * Firebase {@code name} claim, falls back to {@code email}, otherwise
-     * null. Shared between {@link #stampCreator} and the lazy profile
-     * upsert in self-register.
+     * Used only by {@link #createMultipart}, whose request body is a JSON
+     * string inside a form part and therefore never passes through JAX-RS
+     * bean validation on its own.
      */
-    private String displayNameFromJwt() {
-        if (jwt == null || jwt.getRawToken() == null) return null;
-        Object name = jwt.getClaim("name");
-        if (name != null) return name.toString();
-        Object email = jwt.getClaim("email");
-        return email != null ? email.toString() : null;
-    }
+    @Inject Validator validator;
+
+    @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.com")
+    String publicBaseUrl;
 
     /**
      * Stamp the current Firebase user as the creator of a tournament.
-     * Reads the verified ID-token claims for UID and display name.
-     * Falls back to email when no `name` is set (e.g. email/password signup
-     * without a profile name).
+     * Falls back to the email claim when no {@code name} is set (e.g. an
+     * email/password signup that never filled in a profile name).
      */
     private void stampCreator(Tournaments t) {
-        if (jwt == null || jwt.getRawToken() == null) return;
-        t.setCreatedByUid(jwt.getSubject());
-        t.setCreatedByName(displayNameFromJwt());
-    }
-
-    /**
-     * Throw 403 if the current user is neither the tournament's creator nor
-     * an admin. Legacy tournaments without a creator can only be edited by
-     * admins, since we have no original owner to defer to.
-     */
-    private void assertCanEdit(Tournaments t) {
-        boolean admin = identity != null && identity.hasRole("admin");
-        if (admin) return;
-        String me = jwt != null ? jwt.getSubject() : null;
-        boolean owner = me != null && me.equals(t.getCreatedByUid());
-        if (!owner) {
-            throw new jakarta.ws.rs.ForbiddenException("Only the creator or an admin can modify this tournament.");
-        }
+        currentUser.uid().ifPresent(uid -> {
+            t.setCreatedByUid(uid);
+            t.setCreatedByName(currentUser.displayName());
+        });
     }
 
     /** Resolve location → lat/lng on create / update. Failure is non-fatal. */
@@ -114,17 +115,16 @@ public class TournamentController {
             t.setGeocodedAt(null);
             return;
         }
-        geocodeService.geocode(loc).ifPresentOrElse(
-                ll -> {
-                    t.setLatitude(ll.latitude());
-                    t.setLongitude(ll.longitude());
-                    t.setGeocodedAt(OffsetDateTime.now());
-                },
-                () -> {
-                    // keep any previous coords if lookup failed; but stamp the attempt
-                    t.setGeocodedAt(OffsetDateTime.now());
-                }
-        );
+        geocodeService.geocode(loc).ifPresent(ll -> {
+            t.setLatitude(ll.latitude());
+            t.setLongitude(ll.longitude());
+            t.setGeocodedAt(OffsetDateTime.now());
+        });
+        // On failure we deliberately leave latitude/longitude AND geocodedAt
+        // untouched: stamping the attempt would mark the row as "handled"
+        // even though it has no coordinates, and a transient Nominatim
+        // hiccup would silently cost the tournament its map pin forever.
+        // Leaving it unstamped keeps /geocode-missing able to retry.
     }
 
     /* ===================== Create ===================== */
@@ -136,11 +136,13 @@ public class TournamentController {
      * Allows a 5-minute slack so clock skew between client and server
      * doesn't reject borderline-valid creates.
      */
-    private static void assertStartInFuture(OffsetDateTime startAt) {
+    // Not static: the rejection text is looked up in the caller's language
+    // through the injected MessageService.
+    private void assertStartInFuture(OffsetDateTime startAt) {
         if (startAt == null) return; // null is handled by other validation
         OffsetDateTime cutoff = OffsetDateTime.now().minusMinutes(5);
         if (startAt.isBefore(cutoff)) {
-            throw new BadRequestException("Datum i vrijeme turnira ne mogu biti u prošlosti.");
+            throw new BadRequestException(messages.t("tournament.startAt.past"));
         }
     }
 
@@ -172,22 +174,27 @@ public class TournamentController {
             @RestForm("poster") FileUpload poster   // optional image file
     ) {
         if (data == null || data.isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Missing 'data' part").build();
+            throw new BadRequestException(messages.t("tournament.create.missingDataPart"));
         }
 
         final CreateTournamentRequest req;
         try {
             req = objectMapper.readValue(data, CreateTournamentRequest.class);
         } catch (Exception ex) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Invalid JSON in 'data' part").build();
+            throw new BadRequestException(messages.t("tournament.create.invalidDataPart"));
         }
 
-        if (req.name() == null || req.name().trim().isEmpty()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("name is required").build();
-        }
+        // The JSON body of POST /tournaments is validated by @Valid; this
+        // twin arrives as a string inside a multipart part, so JAX-RS has
+        // nothing to cascade into and every CreateTournamentRequest
+        // constraint — name length, non-negative prices, maxPairs >= 2 — was
+        // simply not enforced on the path the SPA actually uses when a
+        // poster is attached. Validate by hand and rethrow as the same
+        // exception the automatic path raises, so errors/
+        // ConstraintViolationExceptionMapper produces one identical
+        // per-field 400 envelope either way.
+        var violations = validator.validate(req);
+        if (!violations.isEmpty()) throw new ConstraintViolationException(violations);
         assertStartInFuture(req.startAt());
 
         Tournaments t = tournamentMapper.toEntity(req);
@@ -224,12 +231,9 @@ public class TournamentController {
             @PathParam("uuid") String uuid,
             @RestForm("poster") FileUpload poster
     ) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
+        Tournaments t = access.loadForEdit(uuid);
         if (poster == null || poster.size() == 0) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Missing 'poster' file part").build();
+            throw new BadRequestException(messages.t("tournament.poster.missingFilePart"));
         }
         Resources r = storageService.uploadPoster(poster);
         t.setResource(r);
@@ -243,9 +247,7 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response deletePoster(@PathParam("uuid") String uuid) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
+        Tournaments t = access.loadForEdit(uuid);
         t.setResource(null);
         t.setUpdatedAt(OffsetDateTime.now());
         return Response.ok(tournamentMapper.toDetails(t)).build();
@@ -258,9 +260,7 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response update(@PathParam("uuid") String uuid, @Valid CreateTournamentRequest req) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
+        Tournaments t = access.loadForEdit(uuid);
         // Block moving the date into the past on edit too. Editing a
         // currently-running or finished tournament's date isn't sensible.
         assertStartInFuture(req.startAt());
@@ -275,15 +275,15 @@ public class TournamentController {
         t.setUpdatedAt(OffsetDateTime.now());
 
         // Re-geocode only when the location actually changed — saves Nominatim hits.
-        if (!java.util.Objects.equals(previousLocation, t.getLocation())) {
+        if (!Objects.equals(previousLocation, t.getLocation())) {
             applyGeocoding(t);
         }
 
         // Regenerate the slug if the name or start date changed — those are the
         // only inputs that go into the slug. We pass the current id so the row's
         // existing slug doesn't trip the uniqueness check against itself.
-        boolean nameChanged = !java.util.Objects.equals(previousName, t.getName());
-        boolean dateChanged = !java.util.Objects.equals(previousStartAt, t.getStartAt());
+        boolean nameChanged = !Objects.equals(previousName, t.getName());
+        boolean dateChanged = !Objects.equals(previousStartAt, t.getStartAt());
         if (nameChanged || dateChanged || t.getSlug() == null || t.getSlug().isBlank()) {
             t.setSlug(tournamentSlugService.generateUnique(t, t.getId()));
         }
@@ -300,30 +300,42 @@ public class TournamentController {
      * for several minutes per call (1s sleep × N tournaments) and burn the shared
      * Nominatim usage budget. The {@code role: "admin"} custom claim is set via
      * {@code scripts/set-admin.mjs}.
+     *
+     * <p>NOT {@code @Transactional}: the loop sleeps ~1s per row, and holding
+     * a pooled DB connection (plus write locks on every row it touched) for
+     * the whole run would be far worse than the run itself. Instead we pick
+     * the candidate ids up front in one short read, then let
+     * {@link GeocodeService#geocodeOne(Long)} open and commit a transaction
+     * per row. Each row is durable as soon as it resolves, so an aborted run
+     * keeps whatever it already managed.
      */
     @POST
     @Path("/geocode-missing")
     @RolesAllowed("admin")
-    @Transactional
     public Response geocodeMissing() {
-        var all = tournamentsRepo.listAll();
-        int attempted = 0, resolved = 0, skipped = 0;
-        for (var t : all) {
-            if (t.getLocation() == null || t.getLocation().isBlank()) { skipped++; continue; }
-            if (t.getLatitude() != null && t.getLongitude() != null) { skipped++; continue; }
-            applyGeocoding(t);
-            attempted++;
-            if (t.getLatitude() != null) resolved++;
-            try { Thread.sleep(1100); } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-                break;
+        long total = tournamentsRepo.count();
+        List<Long> candidates = tournamentsRepo.findIdsNeedingGeocode();
+
+        int attempted = 0, resolved = 0;
+        for (Long id : candidates) {
+            if (attempted > 0) {
+                // Nominatim policy: max 1 req/s. Sleep OUTSIDE any transaction.
+                try {
+                    Thread.sleep(1100);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
+            attempted++;
+            if (geocodeService.geocodeOne(id)) resolved++;
         }
-        return Response.ok(java.util.Map.of(
-                "total", all.size(),
+
+        return Response.ok(Map.of(
+                "total", total,
                 "attempted", attempted,
                 "resolved", resolved,
-                "skipped", skipped
+                "skipped", total - candidates.size()
         )).build();
     }
 
@@ -334,34 +346,7 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response startTournament(@PathParam("uuid") String uuid) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
-
-        if (t.getStatus() == TournamentStatus.FINISHED) {
-            return Response.status(Response.Status.CONFLICT).entity("ALREADY_FINISHED").build();
-        }
-
-        // A tournament needs at least two pairs that have actually paid.
-        // Pending self-registered pairs are excluded from the count — the
-        // organizer must approve them first (otherwise self-registrations
-        // could let anyone start a tournament with bogus pairs).
-        long paidApprovedCount = pairRepo.findByTournament_Id(t.getId()).stream()
-                .filter(p -> p.isPaid() && !p.isPendingApproval())
-                .count();
-        if (paidApprovedCount < 2) {
-            return Response.status(Response.Status.CONFLICT).entity("INSUFFICIENT_PAIRS").build();
-        }
-
-        // Block if at least one approved pair hasn't paid
-        if (pairRepo.existsByTournament_IdAndPaidFalse(t.getId())) {
-            return Response.status(Response.Status.CONFLICT).entity("UNPAID_REQUIRED").build();
-        }
-
-        if (t.getStatus() != TournamentStatus.STARTED) {
-            t.setStatus(TournamentStatus.STARTED);
-            t.setUpdatedAt(OffsetDateTime.now());
-        }
+        Tournaments t = lifecycleService.start(access.loadForEdit(uuid));
         return Response.ok(tournamentMapper.toDetails(t)).build();
     }
 
@@ -370,120 +355,22 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response finishTournament(@PathParam("uuid") String uuid) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
-
-        if (t.getStatus() == TournamentStatus.FINISHED) {
-            return Response.ok(tournamentMapper.toDetails(t)).build();
-        }
-
-        var active = pairRepo.findByTournament_Id(t.getId())
-                .stream()
-                .filter(p -> !p.isEliminated())
-                .toList();
-
-        if (active.size() != 1) {
-            return Response.status(Response.Status.CONFLICT)
-                    .entity("EXACTLY_ONE_ACTIVE_PAIR_REQUIRED").build();
-        }
-
-        var winner = active.get(0);
-
-        // Ensure elimination flags reflect the final state
-        var allPairs = pairRepo.findByTournament_Id(t.getId());
-        for (var p : allPairs) {
-            boolean shouldBeEliminated = !Objects.equals(p.getId(), winner.getId());
-            if (p.isEliminated() != shouldBeEliminated) {
-                p.setEliminated(shouldBeEliminated);
-            }
-        }
-
-        t.setStatus(TournamentStatus.FINISHED);
-        t.setWinnerName(winner.getName());
-        t.setUpdatedAt(OffsetDateTime.now());
-
+        Tournaments t = lifecycleService.finish(access.loadForEdit(uuid));
         return Response.ok(tournamentMapper.toDetails(t)).build();
     }
 
     /**
-     * Set the 2nd + 3rd place pair names after the tournament finishes.
-     * Owner or admin only. Both body fields are nullable — a null/blank
-     * value clears that column, letting the organiser remove a wrongly-set
-     * podium position.
-     *
-     * <p>Each non-blank name is matched (case-insensitive, trimmed)
-     * against the tournament's own pair names. Unknown names return
-     * 400 — better than silently persisting garbage that the SPA can't
-     * highlight on the Parovi tab.
-     *
-     * <p>Doesn't gate on tournament status. Most organisers will fill
-     * the podium right after FINISH, but allowing edits while STARTED
-     * (or even on a DRAFT) doesn't hurt and lets the organiser pre-fill
-     * if they want.
+     * Set the 2nd + 3rd place pair names. Owner or admin only; the
+     * validation rules live in {@link TournamentLifecycleService#setPodium}.
      */
     @PATCH
     @Path("/{uuid}/podium")
     @Authenticated
     @Transactional
     public Response setPodium(@PathParam("uuid") String uuid,
-                              PodiumRequest req) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
-
-        if (req == null) req = new PodiumRequest(null, null);
-
-        // Build the set of valid pair names once (case-insensitive,
-        // trimmed) so we can validate both inputs against the same
-        // dataset without doing two queries.
-        var pairNames = pairRepo.findByTournament_Id(t.getId()).stream()
-                .map(p -> p.getName() == null ? null : p.getName().trim().toLowerCase(java.util.Locale.ROOT))
-                .filter(s -> s != null && !s.isEmpty())
-                .collect(java.util.stream.Collectors.toSet());
-
-        String second = normalisePodiumName(req.secondPlaceName());
-        String third  = normalisePodiumName(req.thirdPlaceName());
-
-        if (second != null && !pairNames.contains(second.toLowerCase(java.util.Locale.ROOT))) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("SECOND_PLACE_PAIR_NOT_FOUND").build();
-        }
-        if (third != null && !pairNames.contains(third.toLowerCase(java.util.Locale.ROOT))) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("THIRD_PLACE_PAIR_NOT_FOUND").build();
-        }
-        if (second != null && third != null
-                && second.equalsIgnoreCase(third)) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("SAME_PAIR_FOR_SECOND_AND_THIRD").build();
-        }
-        // Don't allow podium to overlap with the gold winner — a single
-        // pair can't simultaneously be 1st AND (2nd|3rd).
-        if (t.getWinnerName() != null) {
-            String winner = t.getWinnerName().trim();
-            if (second != null && winner.equalsIgnoreCase(second)) {
-                return Response.status(Response.Status.BAD_REQUEST)
-                        .entity("SECOND_PLACE_EQUALS_WINNER").build();
-            }
-            if (third != null && winner.equalsIgnoreCase(third)) {
-                return Response.status(Response.Status.BAD_REQUEST)
-                        .entity("THIRD_PLACE_EQUALS_WINNER").build();
-            }
-        }
-
-        t.setSecondPlaceName(second);
-        t.setThirdPlaceName(third);
-        t.setUpdatedAt(OffsetDateTime.now());
-
+                              @Valid PodiumRequest req) {
+        Tournaments t = lifecycleService.setPodium(access.loadForEdit(uuid), req);
         return Response.ok(tournamentMapper.toDetails(t)).build();
-    }
-
-    /** Trim + null-out empty strings so the DB stores a clean null. */
-    private static String normalisePodiumName(String s) {
-        if (s == null) return null;
-        String trimmed = s.trim();
-        return trimmed.isEmpty() ? null : trimmed;
     }
 
     @POST
@@ -491,27 +378,7 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response resetTournament(@PathParam("uuid") String uuid) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
-
-        // 1) Delete all matches first (avoid FK issues), then rounds
-        matchesRepo.deleteByTournament(t);
-        roundsRepo.deleteByTournament(t);
-
-        // 2) Zero out pair stats and un-eliminate everyone (keeps extraLife as-is)
-        var pairs = pairRepo.findByTournament_Id(t.getId());
-        for (var p : pairs) {
-            p.setWins(0);
-            p.setLosses(0);
-            p.setEliminated(false);
-        }
-
-        // 3) Reset tournament status and winner
-        t.setStatus(TournamentStatus.DRAFT);
-        t.setWinnerName(null);
-        t.setUpdatedAt(OffsetDateTime.now());
-
+        Tournaments t = lifecycleService.reset(access.loadForEdit(uuid));
         return Response.ok(tournamentMapper.toDetails(t)).build();
     }
 
@@ -523,13 +390,9 @@ public class TournamentController {
             @PathParam("uuid") String uuid,
             @Valid PreserveMatchmakingRequest body
     ) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
-
+        Tournaments t = access.loadForEdit(uuid);
         t.setPreserveMatchmaking(body.preserveMatchmaking());
         t.setUpdatedAt(OffsetDateTime.now());
-
         return Response.ok(tournamentMapper.toDetails(t)).build();
     }
 
@@ -546,6 +409,11 @@ public class TournamentController {
         // covers DRAFT + STARTED, sorted by startAt ascending so the soonest
         // event is first. Pagination is opt-in via offset/limit: pass
         // limit=0 (default) to get everything, or a positive limit to page.
+        // Negative values are a client bug, never a request for "all" —
+        // say so instead of quietly clamping them to something else.
+        if (offset < 0 || limit < 0) {
+            throw new BadRequestException(messages.t("tournament.list.negativePaging"));
+        }
         final List<Tournaments> items;
         if ("finished".equalsIgnoreCase(status)) {
             if (limit > 0) {
@@ -576,157 +444,123 @@ public class TournamentController {
      */
     @GET
     @Path("/count")
-    public java.util.Map<String, Long> count(
+    public Map<String, Long> count(
             @QueryParam("status") @DefaultValue("finished") String status) {
         if ("finished".equalsIgnoreCase(status)) {
-            return java.util.Map.of("total", tournamentsRepo.countFinished());
+            return Map.of("total", tournamentsRepo.countFinished());
         }
         // Other buckets aren't paged today so they don't need a count.
-        return java.util.Map.of("total", 0L);
+        return Map.of("total", 0L);
+    }
+
+    /**
+     * Tournaments the signed-in user created, newest start first — feeds the
+     * "Učitaj iz predloška" picker on the create-tournament wizard. Declared
+     * before {@code /{uuid}} so "mine" is never swallowed by the path param.
+     */
+    @GET
+    @Path("/mine")
+    @Authenticated
+    public List<TournamentCardDto> mine() {
+        String uid = currentUser.requireUid();
+        List<Tournaments> items = tournamentsRepo.findByCreatedByUidOrderByStartAtDesc(uid);
+        if (items.isEmpty()) return List.of();
+
+        List<Long> ids = items.stream().map(Tournaments::getId).toList();
+        Map<Long, Long> counts = pairRepo.countByTournamentIds(ids).stream()
+                .collect(Collectors.toMap(
+                        r -> (Long) r[0],
+                        r -> (Long) r[1]
+                ));
+
+        return tournamentMapper.toCardList(items, counts);
     }
 
     @GET
     @Path("/{uuid}")
-    public Response getById(@PathParam("uuid") String idOrSlug) {
+    public TournamentDetailsResponse getById(@PathParam("uuid") String idOrSlug) {
         // Accepts either a UUID (legacy / shared URLs from before slugs landed)
         // or the new pretty slug, so existing bookmarks keep working.
-        return tournamentsRepo.findByUuidOrSlug(idOrSlug)
-                .map(tournamentMapper::toDetails)
-                .map(dto -> Response.ok(dto).build())
-                .orElseGet(() -> Response.status(Response.Status.NOT_FOUND).build());
+        return tournamentMapper.toDetails(access.load(idOrSlug));
+    }
+
+    /* ===================== QR code ===================== */
+
+    /**
+     * Branded PNG QR code that opens the tournament's public page when
+     * scanned — meant for an organiser to display on a screen or print at
+     * the venue. Generated on the fly (nothing is persisted) and memoised
+     * for a day via {@link QrCodeRenderer#renderCached}, since the image
+     * only changes if the tournament's slug changes. Anonymous, like the
+     * tournament page itself.
+     */
+    @GET
+    @Path("/{uuid}/qr.png")
+    @Produces("image/png")
+    public Response qrCode(
+            @PathParam("uuid") String idOrSlug,
+            @QueryParam("size") Integer size,
+            @HeaderParam("If-None-Match") String ifNoneMatch
+    ) {
+        Tournaments t = access.load(idOrSlug);
+        String base = publicBaseUrl.replaceAll("/+$", "");
+        String ref = (t.getSlug() != null && !t.getSlug().isBlank())
+                ? t.getSlug() : t.getUuid().toString();
+        String url = base + "/turniri/" + ref;
+        int px = QrCodeRenderer.clampSize(size);
+
+        String etag = "\"" + qrEtag(url, px) + "\"";
+        if (ifNoneMatch != null && etagMatches(ifNoneMatch, etag)) {
+            return Response.status(Response.Status.NOT_MODIFIED)
+                    .header("Cache-Control", "public, max-age=86400, s-maxage=86400")
+                    .header("ETag", etag)
+                    .build();
+        }
+
+        byte[] png = qrCodeRenderer.renderCached(url, px);
+        return Response.ok(png)
+                .header("Cache-Control", "public, max-age=86400, s-maxage=86400")
+                .header("ETag", etag)
+                .build();
+    }
+
+    /** Strong ETag derived from the encoded URL + size — both fully determine the PNG bytes. */
+    private static String qrEtag(String url, int size) {
+        try {
+            MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+            byte[] digest = sha256.digest((url + "|" + size).getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest, 0, 16); // 32 hex chars is plenty for a cache key
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e); // SHA-256 is always available on the JVMs we run
+        }
+    }
+
+    /** Same minimal If-None-Match handling as {@code ResourceController} — exact match or "*". */
+    private static boolean etagMatches(String ifNoneMatch, String quotedEtag) {
+        if ("*".equals(ifNoneMatch.trim())) return true;
+        for (String candidate : ifNoneMatch.split(",")) {
+            if (candidate.trim().equals(quotedEtag)) return true;
+        }
+        return false;
     }
 
     /* ===================== Pairs ===================== */
 
     @GET
     @Path("/{uuid}/pairs")
-    public Response listPairs(@PathParam("uuid") String uuid) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        var pairs = pairRepo.findByTournament_Id(t.getId());
-        // Emit claim tokens only to the primary submitter of each pair
-        // (so they can copy the share link) or to organizer/admin.
-        // Other viewers don't see tokens — the share link is for the
-        // primary to hand out, not for the whole tournament to see.
-        String viewerUid = (jwt != null) ? jwt.getSubject() : null;
-        boolean viewerIsOrganizerOrAdmin =
-                (identity != null && identity.hasRole("admin"))
-                || (viewerUid != null && viewerUid.equals(t.getCreatedByUid()));
-        return Response.ok(
-                pairMapper.toDtoListEnrichedForViewer(
-                        pairs,
-                        fetchSubmitterProfiles(pairs),
-                        viewerUid,
-                        viewerIsOrganizerOrAdmin
-                )
-        ).build();
-    }
-
-    /**
-     * Build a random opaque token for the pair-sharing URL. 24 bytes of
-     * SecureRandom encoded base64-url-no-padding = 32 chars — short
-     * enough to fit in a clipboard-friendly URL, long enough that
-     * brute-forcing is infeasible.
-     */
-    private static String generateClaimToken() {
-        byte[] buf = new byte[24];
-        new java.security.SecureRandom().nextBytes(buf);
-        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
-    }
-
-    /**
-     * Bulk-load UserProfile rows for every distinct submitter UID across
-     * the given pairs — both primary submitters AND co-owners that
-     * claimed the pair via the share link. Same map serves both
-     * enrichment lookups in PairMapper.toDtoEnriched.
-     */
-    private java.util.Map<String, hr.mrodek.apps.bela_turniri.model.UserProfile> fetchSubmitterProfiles(List<Pairs> pairs) {
-        java.util.Set<String> uids = new java.util.HashSet<>();
-        for (var p : pairs) {
-            if (p.getSubmittedByUid() != null) uids.add(p.getSubmittedByUid());
-            if (p.getCoSubmittedByUid() != null) uids.add(p.getCoSubmittedByUid());
-        }
-        return userProfileRepo.findByUids(uids);
+    public List<PairDto> listPairs(@PathParam("uuid") String uuid) {
+        return pairService.listForViewer(access.load(uuid));
     }
 
     @PUT
     @Path("/{uuid}/pairs")
     @Authenticated
     @Transactional
-    public Response replacePairs(
+    public List<PairDto> replacePairs(
             @PathParam("uuid") String uuid,
             @Valid List<@Valid PairDto> payload
     ) {
-        var tournament = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (tournament == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(tournament);
-
-        if (payload == null) {
-            return Response.status(Response.Status.BAD_REQUEST).entity("Body required").build();
-        }
-        if (payload.stream().anyMatch(p -> p.name() == null || p.name().trim().isEmpty())) {
-            return Response.status(Response.Status.BAD_REQUEST).entity("Each pair needs a name").build();
-        }
-
-        // Managed rows for this tx
-        var existing = pairRepo.findByTournament_Id(tournament.getId());
-        Map<Long, Pairs> byId = existing.stream()
-                .filter(p -> p.getId() != null)
-                .collect(Collectors.toMap(Pairs::getId, p -> p));
-
-        Set<Long> payloadIds = payload.stream()
-                .map(PairDto::id)
-                .filter(Objects::nonNull)
-                .map(Integer::longValue)
-                .collect(Collectors.toSet());
-
-        // 1) delete removed rows first
-        for (var e : existing) {
-            if (e.getId() != null && !payloadIds.contains(e.getId())) {
-                pairRepo.delete(e);
-            }
-        }
-
-        // 2) update managed rows, collect new rows to insert
-        List<Pairs> toInsert = new ArrayList<>();
-        for (var in : payload) {
-            Long pid = (in.id() == null) ? null : in.id().longValue();
-
-            if (pid != null && byId.containsKey(pid)) {
-                var entity = byId.get(pid);
-                pairMapper.updateEntity(entity, in);
-                if (entity.getWins() < 0) entity.setWins(0);
-                if (entity.getLosses() < 0) entity.setLosses(0);
-            } else {
-                var entity = new Pairs();
-                entity.setTournament(tournament);
-                pairMapper.updateEntity(entity, in);
-                if (entity.getWins() < 0) entity.setWins(0);
-                if (entity.getLosses() < 0) entity.setLosses(0);
-                toInsert.add(entity);
-            }
-        }
-
-        if (!toInsert.isEmpty()) {
-            pairRepo.saveAll(toInsert);
-        }
-
-        var all = pairRepo.findByTournament_Id(tournament.getId());
-        // Same viewer-aware emission as listPairs — primary submitter
-        // of each row sees their own claim token; everyone else gets
-        // null in that field.
-        String viewerUid = (jwt != null) ? jwt.getSubject() : null;
-        boolean viewerIsOrganizerOrAdmin =
-                (identity != null && identity.hasRole("admin"))
-                || (viewerUid != null && viewerUid.equals(tournament.getCreatedByUid()));
-        return Response.ok(
-                pairMapper.toDtoListEnrichedForViewer(
-                        all,
-                        fetchSubmitterProfiles(all),
-                        viewerUid,
-                        viewerIsOrganizerOrAdmin
-                )
-        ).build();
+        return pairService.replacePairs(access.loadForEdit(uuid), payload);
     }
 
     @POST
@@ -737,18 +571,19 @@ public class TournamentController {
             @PathParam("uuid") String uuid,
             @PathParam("pairId") Long pairId
     ) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
-        // Pass the resolved canonical UUID into the service so the inner
-        // lookup doesn't have to also handle slugs.
-        return Response.ok(repassageService.buyExtraLife(t.getUuid().toString(), pairId)).build();
+        // Hand the service the managed entity the access check already
+        // loaded, not its uuid: re-resolving it there cost a second SELECT
+        // and — worse — the "load, check, reload" shape is exactly how an
+        // ownership check ends up applying to a different row than the write.
+        Tournaments t = access.loadForEdit(uuid);
+        return Response.ok(repassageService.buyExtraLife(t, pairId)).build();
     }
 
     /**
      * Any logged-in user can self-register a pair against a tournament that
-     * hasn't started yet. The pair is created with `pendingApproval=true` and
-     * `submittedByUid=current user` so the organizer can confirm or reject it.
+     * hasn't started yet. The pair is created with {@code pendingApproval=true}
+     * and {@code submittedByUid=current user} so the organizer can confirm
+     * or reject it.
      */
     @POST
     @Path("/{uuid}/pairs/self-register")
@@ -758,141 +593,28 @@ public class TournamentController {
             @PathParam("uuid") String uuid,
             @Valid SelfRegisterPairRequest body
     ) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-
-        if (t.getStatus() == TournamentStatus.STARTED || t.getStatus() == TournamentStatus.FINISHED) {
-            return Response.status(Response.Status.CONFLICT).entity("TOURNAMENT_ALREADY_STARTED").build();
-        }
-
-        // Reject duplicate name from the same self-registering user — prevents
-        // the same person from accidentally re-registering the same pair.
-        String myUid = jwt.getSubject();
-        String trimmedName = body.name().trim();
-        boolean alreadyRegistered = pairRepo.findByTournament_Id(t.getId()).stream()
-                .anyMatch(existing ->
-                        myUid != null && myUid.equals(existing.getSubmittedByUid())
-                                && existing.getName() != null
-                                && existing.getName().equalsIgnoreCase(trimmedName));
-        if (alreadyRegistered) {
-            return Response.status(Response.Status.CONFLICT).entity("ALREADY_REGISTERED").build();
-        }
-
-        // Make sure the user has a UserProfile row + slug *before* we persist
-        // the pair. Without this, pair-list enrichment would render the row
-        // without "Prijavio: …" any time the front-end /user/me/sync hadn't
-        // landed yet (race between sign-in and the first self-register).
-        slugService.ensureProfile(myUid, displayNameFromJwt());
-
-        // Capacity is intentionally not enforced here — the organizer can review
-        // the pending list and approve/reject to fit their tournament size.
-
-        Pairs p = new Pairs();
-        p.setTournament(t);
-        p.setName(body.name().trim());
-        p.setEliminated(false);
-        p.setExtraLife(false);
-        p.setWins(0);
-        p.setLosses(0);
-        p.setPaid(false);
-        p.setSubmittedByUid(jwt.getSubject());
-        p.setPendingApproval(true);
-        // Generate a pair-level claim token (legacy — sharing now happens
-        // at the preset level, but the column is kept for back-compat
-        // with already-claimed pairs).
-        p.setClaimToken(generateClaimToken());
-
-        // Auto-inherit co-owner from the user's matching preset. If the
-        // user has already shared the name "Marko & Pero" and the
-        // partner has claimed, every new Pair self-registered under
-        // that name should also surface on the partner's profile +
-        // notifications. The preset is the source of truth.
-        if (myUid != null) {
-            userPairPresetRepo.findByUserUidAndNameIgnoreCase(myUid, trimmedName)
-                    .ifPresent(preset -> {
-                        if (preset.getCoOwnerUid() != null && !preset.getCoOwnerUid().isBlank()) {
-                            p.setCoSubmittedByUid(preset.getCoOwnerUid());
-                        }
-                    });
-        }
-
-        pairRepo.save(p);
-
-        // Auto-save the typed name into the user's pair-name address book so
-        // they don't have to type it again next time. Skipped when the same
-        // name (case-insensitive) is already saved.
-        if (myUid != null) {
-            var alreadySaved = userPairPresetRepo
-                    .findByUserUidAndNameIgnoreCase(myUid, trimmedName)
-                    .isPresent();
-            if (!alreadySaved) {
-                var preset = new hr.mrodek.apps.bela_turniri.model.UserPairPreset();
-                preset.setUserUid(myUid);
-                preset.setName(trimmedName);
-                userPairPresetRepo.save(preset);
-            }
-        }
-
-        return Response.status(Response.Status.CREATED)
-                .entity(pairMapper.toDtoEnriched(p, fetchSubmitterProfiles(List.of(p))))
-                .build();
+        PairDto created = selfRegistrationService.selfRegister(access.load(uuid), body);
+        return Response.status(Response.Status.CREATED).entity(created).build();
     }
 
-    /**
-     * Organizer approves a pending self-registered pair. Owner-or-admin only.
-     */
+    /** Organizer approves a pending self-registered pair. Owner-or-admin only. */
     @POST
     @Path("/{uuid}/pairs/{pairId}/approve")
     @Authenticated
     @Transactional
-    public Response approvePair(
+    public PairDto approvePair(
             @PathParam("uuid") String uuid,
             @PathParam("pairId") Long pairId
     ) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
-
-        var pairOpt = pairRepo.findByIdOptional(pairId);
-        if (pairOpt.isEmpty()) return Response.status(Response.Status.NOT_FOUND).build();
-
-        var pair = pairOpt.get();
-        if (pair.getTournament() == null || !Objects.equals(pair.getTournament().getId(), t.getId())) {
-            return Response.status(Response.Status.FORBIDDEN).build();
-        }
-        boolean wasPending = pair.isPendingApproval();
-        pair.setPendingApproval(false);
-
-        // Notify the player(s) whose pair just got approved. Only push when
-        // the row was actually pending — re-approving an already-approved
-        // pair would be a confusing duplicate notification. Both the
-        // primary submitter and the share-link co-owner get the push.
-        if (wasPending) {
-            String tournamentRef = t.getSlug() != null && !t.getSlug().isBlank()
-                    ? t.getSlug()
-                    : (t.getUuid() != null ? t.getUuid().toString() : "");
-            java.util.List<String> uids = new java.util.ArrayList<>(2);
-            if (pair.getSubmittedByUid() != null && !pair.getSubmittedByUid().isBlank()) {
-                uids.add(pair.getSubmittedByUid());
-            }
-            if (pair.getCoSubmittedByUid() != null && !pair.getCoSubmittedByUid().isBlank()) {
-                uids.add(pair.getCoSubmittedByUid());
-            }
-            for (String uid : uids) {
-                pushService.sendToUser(
-                        uid,
-                        new PushService.PushPayload(
-                                "Prijava odobrena",
-                                "Tvoj par \"" + pair.getName() + "\" je prihvaćen na turniru " + t.getName() + ".",
-                                "/turniri/" + tournamentRef
-                        )
-                );
-            }
-        }
-
-        return Response.ok(pairMapper.toDtoEnriched(pair, fetchSubmitterProfiles(List.of(pair)))).build();
+        return pairService.approve(access.loadForEdit(uuid), pairId);
     }
 
+    /**
+     * Kotizacija toggle. Typed at the table alongside the scores, so it is
+     * one of the three writes the SPA queues while offline and replays on
+     * reconnect — hence the optional {@code X-Client-Op-Id}. Still answers
+     * 204 with an empty body, replay or not.
+     */
     @PATCH
     @Path("/{uuid}/pairs/{pairId}/paid")
     @Authenticated
@@ -900,24 +622,18 @@ public class TournamentController {
     public Response setPairPaid(
             @PathParam("uuid") String uuid,
             @PathParam("pairId") Long pairId,
+            @HeaderParam("X-Client-Op-Id") String clientOpId,
             @Valid PaidRequest body
     ) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
-
-        var pairOpt = pairRepo.findByIdOptional(pairId);
-        if (pairOpt.isEmpty()) return Response.status(Response.Status.NOT_FOUND).build();
-
-        var pair = pairOpt.get();
-        if (pair.getTournament() == null || !Objects.equals(pair.getTournament().getId(), t.getId())) {
-            return Response.status(Response.Status.FORBIDDEN).build();
-        }
-
-        pair.setPaid(Boolean.TRUE.equals(body.paid()));
-        // @UpdateTimestamp on Pairs.updatedAt handles the touch automatically
-
-        return Response.noContent().build();
+        // Access check outside the idempotent block: a replayed op id must
+        // never bypass ownership.
+        Tournaments t = access.loadForEdit(uuid);
+        return idempotency.execute(clientOpId, currentUser.uidOrNull(),
+                "PATCH /tournaments/{uuid}/pairs/{pairId}/paid",
+                () -> {
+                    pairService.setPaid(t, pairId, Boolean.TRUE.equals(body.paid()));
+                    return Response.noContent().build();
+                });
     }
 
     /**
@@ -934,23 +650,7 @@ public class TournamentController {
             @PathParam("uuid") String uuid,
             @PathParam("pairId") Long pairId
     ) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        assertCanEdit(t);
-
-        if (t.getStatus() == TournamentStatus.STARTED || t.getStatus() == TournamentStatus.FINISHED) {
-            return Response.status(Response.Status.CONFLICT).entity("TOURNAMENT_ALREADY_STARTED").build();
-        }
-
-        var pairOpt = pairRepo.findByIdOptional(pairId);
-        if (pairOpt.isEmpty()) return Response.status(Response.Status.NOT_FOUND).build();
-
-        var pair = pairOpt.get();
-        if (pair.getTournament() == null || !Objects.equals(pair.getTournament().getId(), t.getId())) {
-            return Response.status(Response.Status.FORBIDDEN).build();
-        }
-
-        pairRepo.delete(pair);
+        pairService.deletePair(access.loadForEdit(uuid), pairId);
         return Response.noContent().build();
     }
 
@@ -960,7 +660,7 @@ public class TournamentController {
      * other user's history view, which is a heavier action than editing.
      *
      * Sets {@code is_deleted = true} on the row. The class-level
-     * {@code @Where(clause = "is_deleted = false")} on Tournaments makes the
+     * {@code @SQLRestriction("is_deleted = false")} on Tournaments makes the
      * row disappear from every read path; nothing else needs to change.
      */
     @DELETE
@@ -968,14 +668,16 @@ public class TournamentController {
     @Authenticated
     @Transactional
     public Response softDeleteTournament(@PathParam("uuid") String uuid) {
-        boolean admin = identity != null && identity.hasRole("admin");
-        if (!admin) {
-            return Response.status(Response.Status.FORBIDDEN)
-                    .entity("Samo administrator može obrisati turnir.").build();
+        // Throw rather than hand-build the response, so this 403 behaves like
+        // every other one in the app (TournamentAccess.assertCanEdit): it goes
+        // through GenericExceptionMapper's pass-through branch and lands in
+        // the AUTHZ WARN audit log. A hand-built Response never did — which is
+        // precisely the probe you want a trace of, since this endpoint is the
+        // only place a non-admin can try to delete someone else's tournament.
+        if (!currentUser.isAdmin()) {
+            throw new ForbiddenException(messages.t("tournament.delete.adminOnly"));
         }
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) return Response.status(Response.Status.NOT_FOUND).build();
-        t.setDeleted(true);
+        access.load(uuid).setDeleted(true);
         return Response.noContent().build();
     }
 }

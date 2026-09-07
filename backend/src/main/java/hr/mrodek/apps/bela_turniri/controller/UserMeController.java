@@ -11,6 +11,8 @@ import hr.mrodek.apps.bela_turniri.model.UserProfile;
 import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import hr.mrodek.apps.bela_turniri.services.CurrentUser;
+import hr.mrodek.apps.bela_turniri.services.MessageService;
 import hr.mrodek.apps.bela_turniri.services.SlugService;
 import hr.mrodek.apps.bela_turniri.services.StorageService;
 import io.quarkus.security.Authenticated;
@@ -21,12 +23,12 @@ import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
@@ -48,12 +50,13 @@ public class UserMeController {
     @Inject UserProfileRepository profileRepo;
     @Inject SlugService slugService;
     @Inject StorageService storageService;
-    @Inject JsonWebToken jwt;
+    @Inject MessageService messages;
+    @Inject CurrentUser currentUser;
 
     @GET
     @Path("/tournaments")
     public List<MyTournamentParticipationDto> myTournaments() {
-        String uid = jwt.getSubject();
+        String uid = currentUser.requireUid();
         // Pass the user's saved pair-name presets so we also catch tournaments
         // where the pair was added via the organizer flow with a known name.
         var presetNames = presetRepo.findByUserUid(uid).stream()
@@ -75,7 +78,7 @@ public class UserMeController {
     @Path("/pairs")
     @Transactional
     public List<hr.mrodek.apps.bela_turniri.dtos.MyPairDto> myPairs() {
-        String uid = jwt.getSubject();
+        String uid = currentUser.requireUid();
         // Reuse findMyParticipations to capture both primary + co-owned
         // pairs. Preset-name fallback is left empty here: the share-link
         // flow only makes sense for actually-persisted Pairs rows where
@@ -127,7 +130,7 @@ public class UserMeController {
     @Path("/profile")
     @Transactional   // touch the lazy avatar relation
     public UserProfileDto getProfile() {
-        var p = profileRepo.findByUid(jwt.getSubject()).orElse(null);
+        var p = profileRepo.findByUid(currentUser.requireUid()).orElse(null);
         if (p == null) return new UserProfileDto(null, null, null, null, null);
         return toDto(p);
     }
@@ -136,7 +139,7 @@ public class UserMeController {
     @Path("/profile")
     @Transactional
     public UserProfileDto updateProfile(@Valid UserProfileDto body) {
-        String uid = jwt.getSubject();
+        String uid = currentUser.requireUid();
         var existing = profileRepo.findByUid(uid).orElse(null);
         if (existing == null) {
             existing = new UserProfile();
@@ -154,6 +157,51 @@ public class UserMeController {
                 existing.setColorMode(cm);
             }
         }
+        // Language: same shape as the theme above — accept a supported tag,
+        // silently ignore anything else. The dedicated PATCH below is what the
+        // SPA's language switcher actually calls; this branch exists so a full
+        // profile PUT does not silently drop the field.
+        if (body.locale() != null) {
+            String loc = body.locale().trim().toLowerCase();
+            if (MessageService.isSupported(loc)) {
+                existing.setLocale(loc);
+            }
+        }
+        profileRepo.persist(existing);
+        return toDto(existing);
+    }
+
+    /**
+     * Persist the user's language choice, so it follows the account across
+     * devices instead of living only in that browser's localStorage. Called
+     * (fire-and-forget, silently) by {@code LocaleSync} whenever the navbar
+     * language picker changes while signed in.
+     *
+     * <p>PATCH rather than PUT because it touches exactly one field: a PUT of
+     * the whole profile from a client that only knows about the language would
+     * null out the contact details.
+     *
+     * <p>Only {@link MessageService#SUPPORTED_LANGUAGES} are accepted — the
+     * value is echoed back to every device on the next login and used to pick
+     * the bundle for this user's push notifications, so an arbitrary string
+     * must never reach the column.
+     */
+    @PATCH
+    @Path("/profile/locale")
+    @Transactional
+    public UserProfileDto updateLocale(@Valid UserProfileDto body) {
+        String raw = body == null ? null : body.locale();
+        String loc = raw == null ? null : raw.trim().toLowerCase();
+        if (!MessageService.isSupported(loc)) {
+            throw new BadRequestException(messages.t("user.locale.unsupported", raw));
+        }
+        String uid = currentUser.requireUid();
+        var existing = profileRepo.findByUid(uid).orElse(null);
+        if (existing == null) {
+            existing = new UserProfile();
+            existing.setUserUid(uid);
+        }
+        existing.setLocale(loc);
         profileRepo.persist(existing);
         return toDto(existing);
     }
@@ -172,7 +220,7 @@ public class UserMeController {
     @Path("/sync")
     @Transactional
     public UserProfileDto syncProfile(@Valid SyncProfileRequest body) {
-        String uid = jwt.getSubject();
+        String uid = currentUser.requireUid();
         String displayName = body == null ? null : blank(body.displayName());
         var profile = slugService.ensureProfile(uid, displayName);
         // ensureProfile returns the persisted entity with the slug guaranteed.
@@ -182,8 +230,9 @@ public class UserMeController {
     /**
      * Upload (or replace) the current user's avatar. Multipart form with a
      * single {@code avatar} part. The previous avatar's resource row is
-     * unlinked but not deleted from MinIO — a future cleanup job can sweep
-     * orphans by querying for resources with no FK referrers.
+     * unlinked, and — best-effort, after the profile update succeeds — its
+     * MinIO object and Resources row are cleaned up if nothing else still
+     * references it (see {@link StorageService#releaseIfOrphaned(Resources)}).
      */
     @POST
     @Path("/avatar")
@@ -191,18 +240,23 @@ public class UserMeController {
     @Transactional
     public UserProfileDto uploadAvatar(@RestForm("avatar") FileUpload avatar) {
         if (avatar == null || avatar.size() == 0) {
-            throw new BadRequestException("Missing 'avatar' part");
+            throw new BadRequestException(messages.t("user.avatar.missingPart"));
         }
-        String uid = jwt.getSubject();
+        String uid = currentUser.requireUid();
         var profile = profileRepo.findByUid(uid).orElse(null);
         if (profile == null) {
             // First-time uploaders may not have an entity yet — make one.
             profile = new UserProfile();
             profile.setUserUid(uid);
         }
+        Resources oldAvatar = profile.getAvatar();
         Resources newResource = storageService.uploadAvatar(avatar);
         profile.setAvatar(newResource);
         profileRepo.persist(profile);
+        if (oldAvatar != null && oldAvatar.getId() != null
+                && !oldAvatar.getId().equals(newResource.getId())) {
+            storageService.releaseIfOrphaned(oldAvatar);
+        }
         return toDto(profile);
     }
 
@@ -211,7 +265,7 @@ public class UserMeController {
     @Path("/avatar")
     @Transactional
     public UserProfileDto deleteAvatar() {
-        String uid = jwt.getSubject();
+        String uid = currentUser.requireUid();
         var profile = profileRepo.findByUid(uid).orElse(null);
         if (profile == null) return new UserProfileDto(null, null, null, null, null);
         profile.setAvatar(null);
@@ -241,7 +295,8 @@ public class UserMeController {
                 p.getDisplayName(),
                 p.getSlug(),
                 avatarUrl,
-                p.getColorMode());
+                p.getColorMode(),
+                p.getLocale());
     }
 
     private MyTournamentParticipationDto toDto(Pairs p) {

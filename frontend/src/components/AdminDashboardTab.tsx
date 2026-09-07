@@ -27,6 +27,9 @@ import {
     type TournamentStatusValue,
 } from "../api/admin"
 import { resetTournament } from "../api/tournaments"
+import ConfirmDialog from "./ConfirmDialog"
+import { useTranslation, usePlural } from "../i18n"
+import { formatDateCompact } from "../utils/format"
 
 /**
  * Admin-only "Dashboard" tab on the profile page. Two parallel flows
@@ -59,6 +62,9 @@ import { resetTournament } from "../api/tournaments"
  * doesn't share state with anything else.
  */
 export default function AdminDashboardTab() {
+    const { t } = useTranslation()
+    const plural = usePlural()
+
     /* ─────────────── Tournament list + selection ─────────────── */
 
     const [tournaments, setTournaments] = useState<AdminTournamentDto[] | null>(null)
@@ -275,10 +281,11 @@ export default function AdminDashboardTab() {
             // Drop the pair from the unclaimed list — it's now claimed.
             setPairs((prev) => prev.filter((p) => p.id !== attachTargetPair.id))
             closeAttachDialog()
-        } catch (err: any) {
+        } catch (err) {
             // 409 ALREADY_CLAIMED is silenced by the http interceptor;
             // refresh the list so the now-claimed pair disappears.
-            if (err?.response?.status === 409 && selectedTournamentId != null) {
+            const status = (err as { response?: { status?: number } } | null)?.response?.status
+            if (status === 409 && selectedTournamentId != null) {
                 adminListUnclaimedPairs(selectedTournamentId)
                     .then(setPairs)
                     .catch(() => {})
@@ -296,12 +303,9 @@ export default function AdminDashboardTab() {
                 <Card.Body p={{ base: "4", md: "6" }}>
                     <Stack gap="3">
                         <Box>
-                            <Text fontSize="lg" fontWeight="semibold">Dashboard — pridruživanje parova</Text>
+                            <Text fontSize="lg" fontWeight="semibold">{t("admin.dashboard.heading")}</Text>
                             <Text fontSize="sm" color="fg.muted">
-                                Odaberi turnir, zatim klikni "Pridruži korisniku" pored para da bi
-                                ga vezao za registriranog igrača. Nakon pridruživanja par se
-                                pojavljuje na profilu odabranog korisnika i automatski se kreira
-                                Predlošci-zapis s tim imenom para.
+                                {t("admin.dashboard.description")}
                             </Text>
                         </Box>
 
@@ -309,7 +313,7 @@ export default function AdminDashboardTab() {
                             list of matches — works for tens-to-hundreds of
                             tournaments without needing a heavier combobox. */}
                         <Box>
-                            <Text fontSize="sm" fontWeight="medium" mb="2">Turnir</Text>
+                            <Text fontSize="sm" fontWeight="medium" mb="2">{t("admin.dashboard.tournament.label")}</Text>
                             <HStack mb="2" gap="2">
                                 <Box position="relative" flex="1">
                                     <Box position="absolute" left="3" top="50%" transform="translateY(-50%)"
@@ -318,7 +322,7 @@ export default function AdminDashboardTab() {
                                     </Box>
                                     <Input
                                         pl="9"
-                                        placeholder="Pretraži turnire po imenu, lokaciji ili slug-u…"
+                                        placeholder={t("admin.dashboard.tournament.placeholder")}
                                         value={tournamentSearch}
                                         onChange={(e) => setTournamentSearch(e.target.value)}
                                     />
@@ -336,14 +340,14 @@ export default function AdminDashboardTab() {
                                 >
                                     {filteredTournaments.length === 0 ? (
                                         <Text p="3" fontSize="sm" color="fg.muted">
-                                            Nema rezultata.
+                                            {t("admin.dashboard.tournament.noResults")}
                                         </Text>
                                     ) : (
-                                        filteredTournaments.map((t) => {
-                                            const active = t.id === selectedTournamentId
+                                        filteredTournaments.map((tour) => {
+                                            const active = tour.id === selectedTournamentId
                                             return (
                                                 <Box
-                                                    key={t.id}
+                                                    key={tour.id}
                                                     px="3"
                                                     py="2"
                                                     cursor="pointer"
@@ -351,24 +355,27 @@ export default function AdminDashboardTab() {
                                                     _hover={{ bg: active ? "blue.subtle" : "bg.muted" }}
                                                     borderBottomWidth="1px"
                                                     borderColor="border.subtle"
-                                                    onClick={() => setSelectedTournamentId(t.id)}
+                                                    onClick={() => setSelectedTournamentId(tour.id)}
                                                 >
                                                     <HStack justify="space-between" gap="2">
                                                         <Box minW="0" flex="1">
                                                             <Text fontSize="sm" fontWeight={active ? "semibold" : "medium"} truncate>
-                                                                {t.name}
+                                                                {tour.name}
                                                             </Text>
                                                             <Text fontSize="xs" color="fg.muted" truncate>
-                                                                {[t.location, formatDate(t.startAt)].filter(Boolean).join(" • ")}
+                                                                {/* Fallback is the raw ISO, not "": an unparseable
+                                                                    startAt still tells the admin something, whereas
+                                                                    an empty string silently drops the date. */}
+                                                                {[tour.location, formatDateCompact(tour.startAt, tour.startAt ?? "")].filter(Boolean).join(" • ")}
                                                             </Text>
                                                             <Text fontSize="xs" color="fg.muted" truncate>
-                                                                Vlasnik: {t.createdByName || (t.createdByUid ? "(bez imena)" : "— (legacy)")}
+                                                                {t("admin.dashboard.tournament.owner", { owner: tour.createdByName || (tour.createdByUid ? t("admin.dashboard.tournament.ownerNameFallback") : t("admin.dashboard.tournament.ownerLegacy")) })}
                                                             </Text>
                                                         </Box>
-                                                        {t.status && (
+                                                        {tour.status && (
                                                             <Badge size="sm" variant="subtle"
-                                                                   colorPalette={statusPalette(t.status)}>
-                                                                {t.status}
+                                                                   colorPalette={statusPalette(tour.status)}>
+                                                                {tour.status}
                                                             </Badge>
                                                         )}
                                                     </HStack>
@@ -389,11 +396,10 @@ export default function AdminDashboardTab() {
                         <Stack gap="3">
                             <Box>
                                 <Text fontSize="md" fontWeight="semibold">
-                                    Nepridruženi parovi · {selectedTournament.name}
+                                    {t("admin.dashboard.pairs.heading", { tournamentName: selectedTournament.name })}
                                 </Text>
                                 <Text fontSize="sm" color="fg.muted">
-                                    Prikazani su samo parovi koji još nisu vezani za nijednog
-                                    registriranog korisnika.
+                                    {t("admin.dashboard.pairs.description")}
                                 </Text>
                             </Box>
 
@@ -401,7 +407,7 @@ export default function AdminDashboardTab() {
                                 <HStack py="4" justify="center"><Spinner size="sm" /></HStack>
                             ) : pairs.length === 0 ? (
                                 <Text fontSize="sm" color="fg.muted">
-                                    Nema nepridruženih parova u ovom turniru.
+                                    {t("admin.dashboard.pairs.empty")}
                                 </Text>
                             ) : (
                                 <Stack gap="2">
@@ -419,8 +425,7 @@ export default function AdminDashboardTab() {
                                             <Box minW="0" flex="1">
                                                 <Text fontSize="sm" fontWeight="medium" truncate>{p.name}</Text>
                                                 <Text fontSize="xs" color="fg.muted">
-                                                    {p.wins} pobjeda · {p.losses} poraza
-                                                    {p.eliminated ? " · ispao" : ""}
+                                                    {t("admin.dashboard.pairs.record", { wins: plural("admin.dashboard.pairs.wins", p.wins), losses: plural("admin.dashboard.pairs.losses", p.losses), eliminated: p.eliminated ? t("admin.dashboard.pairs.record.eliminated") : "" })}
                                                 </Text>
                                             </Box>
                                             <Button
@@ -429,7 +434,7 @@ export default function AdminDashboardTab() {
                                                 colorPalette="blue"
                                                 onClick={() => openAttachDialog(p)}
                                             >
-                                                <FiUserPlus /> Pridruži korisniku
+                                                <FiUserPlus /> {t("admin.dashboard.pairs.attachButton")}
                                             </Button>
                                         </HStack>
                                     ))}
@@ -446,12 +451,10 @@ export default function AdminDashboardTab() {
                         <Stack gap="3">
                             <Box>
                                 <Text fontSize="md" fontWeight="semibold">
-                                    Vlasništvo turnira
+                                    {t("admin.dashboard.ownership.heading")}
                                 </Text>
                                 <Text fontSize="sm" color="fg.muted">
-                                    Prenesi turnir drugom registriranom korisniku — postaje vlasnik
-                                    i može uređivati detalje, upravljati parovima, generirati kola,
-                                    postavljati pobjednike itd.
+                                    {t("admin.dashboard.ownership.description")}
                                 </Text>
                             </Box>
 
@@ -462,16 +465,16 @@ export default function AdminDashboardTab() {
                                 borderWidth="1px"
                                 borderColor="border.subtle"
                             >
-                                <Text fontSize="xs" color="fg.muted">TRENUTNI VLASNIK</Text>
+                                <Text fontSize="xs" color="fg.muted">{t("admin.dashboard.ownership.currentLabel")}</Text>
                                 <Text fontSize="sm" fontWeight="medium">
                                     {selectedTournament.createdByName
                                         || (selectedTournament.createdByUid
-                                            ? "(bez imena)"
-                                            : "— (legacy / nema vlasnika)")}
+                                            ? t("admin.dashboard.ownership.currentFallback")
+                                            : t("admin.dashboard.ownership.currentLegacy"))}
                                 </Text>
                                 {selectedTournament.createdByUid && (
                                     <Text fontSize="xs" color="fg.muted" mt="1">
-                                        UID: {selectedTournament.createdByUid}
+                                        {t("admin.dashboard.ownership.uid", { uid: selectedTournament.createdByUid })}
                                     </Text>
                                 )}
                             </Box>
@@ -483,7 +486,7 @@ export default function AdminDashboardTab() {
                                     colorPalette="blue"
                                     onClick={openTransferDialog}
                                 >
-                                    <FiRepeat /> Prenesi vlasništvo
+                                    <FiRepeat /> {t("admin.dashboard.ownership.transferButton")}
                                 </Button>
                             </HStack>
                         </Stack>
@@ -497,15 +500,10 @@ export default function AdminDashboardTab() {
                         <Stack gap="3">
                             <Box>
                                 <Text fontSize="md" fontWeight="semibold">
-                                    Status turnira (override)
+                                    {t("admin.dashboard.status.heading")}
                                 </Text>
                                 <Text fontSize="sm" color="fg.muted">
-                                    Ručno postavi status turnira. Koristi se za ispravak
-                                    pogrešnih klikova (npr. slučajno "Završi turnir") ili za
-                                    backfill turnira koji su završili izvan aplikacije
-                                    (DRAFT → FINISHED). Status se mijenja bez provjere
-                                    parova / kola. Vraćanje iz FINISHED briše pobjednika
-                                    i podij — ne brišu se rundi/mečevi.
+                                    {t("admin.dashboard.status.description")}
                                 </Text>
                             </Box>
 
@@ -516,7 +514,7 @@ export default function AdminDashboardTab() {
                                 borderWidth="1px"
                                 borderColor="border.subtle"
                             >
-                                <Text fontSize="xs" color="fg.muted">TRENUTNI STATUS</Text>
+                                <Text fontSize="xs" color="fg.muted">{t("admin.dashboard.status.currentLabel")}</Text>
                                 <HStack mt="1" gap="2" align="center">
                                     {selectedTournament.status ? (
                                         <Badge
@@ -527,7 +525,7 @@ export default function AdminDashboardTab() {
                                             {selectedTournament.status}
                                         </Badge>
                                     ) : (
-                                        <Text fontSize="sm" color="fg.muted">— (nepoznato)</Text>
+                                        <Text fontSize="sm" color="fg.muted">{t("admin.dashboard.status.unknown")}</Text>
                                     )}
                                 </HStack>
                             </Box>
@@ -543,7 +541,7 @@ export default function AdminDashboardTab() {
                                             colorPalette={statusPalette(s)}
                                             disabled={isCurrent}
                                             onClick={() => setPendingStatus(s)}
-                                            title={isCurrent ? "Već u tom statusu" : `Postavi status na ${s}`}
+                                            title={isCurrent ? t("admin.dashboard.status.buttonTitle.current") : t("admin.dashboard.status.buttonTitle", { status: s })}
                                         >
                                             {s}
                                         </Button>
@@ -568,14 +566,10 @@ export default function AdminDashboardTab() {
                         <Stack gap="3">
                             <Box>
                                 <Text fontSize="md" fontWeight="semibold">
-                                    Resetiraj turnir
+                                    {t("admin.dashboard.reset.heading")}
                                 </Text>
                                 <Text fontSize="sm" color="fg.muted">
-                                    Vraća turnir u stanje «nacrt» (DRAFT), briše sve runde
-                                    i mečeve, ali zadržava parove (pobjede / porazi se
-                                    nuliraju, ne briše se status «ima život»). Organizator
-                                    može odmah dodavati / mijenjati parove i ponovno
-                                    pokrenuti turnir. Pobjednik i podij se brišu.
+                                    {t("admin.dashboard.reset.description")}
                                 </Text>
                             </Box>
 
@@ -587,10 +581,10 @@ export default function AdminDashboardTab() {
                                     onClick={() => setResetDialogOpen(true)}
                                     disabled={!selectedTournament.uuid}
                                     title={!selectedTournament.uuid
-                                        ? "Legacy turnir bez UUID-a — reset nije moguć"
-                                        : "Resetiraj turnir u DRAFT i obriši runde"}
+                                        ? t("admin.dashboard.reset.button.disabled")
+                                        : t("admin.dashboard.reset.button.title")}
                                 >
-                                    <FiRefreshCw /> Resetiraj turnir
+                                    <FiRefreshCw /> {t("admin.dashboard.reset.button")}
                                 </Button>
                             </HStack>
                         </Stack>
@@ -598,229 +592,193 @@ export default function AdminDashboardTab() {
                 </Card.Root>
             )}
 
-            {/* Reset confirmation dialog — spells out exactly what gets
-                wiped vs. kept so the admin doesn't accidentally nuke a
-                running tournament thinking it'll only clear status. */}
-            <Dialog.Root
+            {/* Reset confirmation — spells out exactly what gets wiped vs.
+                kept so the admin doesn't accidentally nuke a running
+                tournament thinking it'll only clear status.
+
+                Both confirmations below are the shared ConfirmDialog rather
+                than a private Dialog.Root, so they share the app's dialog
+                shell, its busy handling and — new here — its
+                `role="alertdialog"`. Only the body is bespoke; that is what
+                the ReactNode `description` slot is for. */}
+            <ConfirmDialog
                 open={resetDialogOpen}
-                onOpenChange={(e) => { if (!e.open) setResetDialogOpen(false) }}
-                placement="center"
-                motionPreset="slide-in-bottom"
-            >
-                <Portal>
-                    <Dialog.Backdrop />
-                    <Dialog.Positioner>
-                        <Dialog.Content maxW={{ base: "92%", md: "md" }}>
-                            <Dialog.Header>
-                                <Dialog.Title>
-                                    <HStack gap="2" align="center">
-                                        <Box color="red.fg"><FiAlertTriangle /></Box>
-                                        Resetiraj turnir?
-                                    </HStack>
-                                </Dialog.Title>
-                            </Dialog.Header>
-                            <Dialog.Body>
-                                <Stack gap="3">
-                                    {selectedTournament && (
-                                        <Box
-                                            p="3"
-                                            bg="bg.muted"
-                                            rounded="md"
-                                            borderWidth="1px"
-                                            borderColor="border.subtle"
+                wide
+                destructive
+                busy={resetting}
+                onCancel={() => setResetDialogOpen(false)}
+                onConfirm={handleConfirmReset}
+                cancelLabel={t("admin.confirm.resetTournament.cancelButton")}
+                confirmLabel={t("admin.confirm.resetTournament.confirmButton")}
+                title={
+                    <HStack gap="2" align="center">
+                        <Box color="red.fg"><FiAlertTriangle /></Box>
+                        {t("admin.confirm.resetTournament.title")}
+                    </HStack>
+                }
+                description={
+                    <Stack gap="3">
+                        {selectedTournament && (
+                            <Box
+                                p="3"
+                                bg="bg.muted"
+                                rounded="md"
+                                borderWidth="1px"
+                                borderColor="border.subtle"
+                            >
+                                <Text fontSize="xs" color="fg.muted">{t("admin.confirm.resetTournament.tournamentLabel")}</Text>
+                                <Text fontSize="sm" fontWeight="medium">
+                                    {selectedTournament.name}
+                                </Text>
+                                {selectedTournament.status && (
+                                    <HStack mt="2" gap="2" align="center">
+                                        <Badge
+                                            size="sm"
+                                            variant="subtle"
+                                            colorPalette={statusPalette(selectedTournament.status)}
                                         >
-                                            <Text fontSize="xs" color="fg.muted">TURNIR</Text>
-                                            <Text fontSize="sm" fontWeight="medium">
-                                                {selectedTournament.name}
-                                            </Text>
-                                            {selectedTournament.status && (
-                                                <HStack mt="2" gap="2" align="center">
-                                                    <Badge
-                                                        size="sm"
-                                                        variant="subtle"
-                                                        colorPalette={statusPalette(selectedTournament.status)}
-                                                    >
-                                                        {selectedTournament.status}
-                                                    </Badge>
-                                                    <Text fontSize="sm" color="fg.muted">→</Text>
-                                                    <Badge size="sm" variant="subtle" colorPalette="blue">
-                                                        DRAFT
-                                                    </Badge>
-                                                </HStack>
-                                            )}
-                                        </Box>
-                                    )}
-
-                                    <Box
-                                        p="3"
-                                        bg="red.subtle"
-                                        rounded="md"
-                                        borderWidth="1px"
-                                        borderColor="red.muted"
-                                    >
-                                        <Text fontSize="sm" color="red.fg" fontWeight="medium" mb="1">
-                                            Briše se:
-                                        </Text>
-                                        <Text fontSize="xs" color="fg.muted">
-                                            • sve runde i mečevi<br />
-                                            • pobjednik (winnerName) i podij (2./3. mjesto)<br />
-                                            • pobjede / porazi parova (vraćaju se na 0)<br />
-                                            • status eliminacije parova (svi ponovo aktivni)
-                                        </Text>
-                                    </Box>
-
-                                    <Box
-                                        p="3"
-                                        bg="green.subtle"
-                                        rounded="md"
-                                        borderWidth="1px"
-                                        borderColor="green.muted"
-                                    >
-                                        <Text fontSize="sm" color="green.fg" fontWeight="medium" mb="1">
-                                            Zadržava se:
-                                        </Text>
-                                        <Text fontSize="xs" color="fg.muted">
-                                            • parovi (imena, kotizacija, «ima život» flag)<br />
-                                            • postavke turnira (cijene, lokacija, kontakt, plakat)
-                                        </Text>
-                                    </Box>
-                                </Stack>
-                            </Dialog.Body>
-                            <Dialog.Footer>
-                                <Button variant="ghost" onClick={() => setResetDialogOpen(false)} disabled={resetting}>
-                                    Odustani
-                                </Button>
-                                <Button
-                                    variant="solid"
-                                    colorPalette="red"
-                                    loading={resetting}
-                                    onClick={handleConfirmReset}
-                                >
-                                    Resetiraj
-                                </Button>
-                            </Dialog.Footer>
-                        </Dialog.Content>
-                    </Dialog.Positioner>
-                </Portal>
-            </Dialog.Root>
-
-            {/* Status-change confirmation dialog. Always renders the
-                consequences of the chosen transition (clearing
-                winner/podium when leaving FINISHED) so the admin
-                isn't surprised after the click. */}
-            <Dialog.Root
-                open={pendingStatus != null}
-                onOpenChange={(e) => { if (!e.open) setPendingStatus(null) }}
-                placement="center"
-                motionPreset="slide-in-bottom"
-            >
-                <Portal>
-                    <Dialog.Backdrop />
-                    <Dialog.Positioner>
-                        <Dialog.Content maxW={{ base: "92%", md: "md" }}>
-                            <Dialog.Header>
-                                <Dialog.Title>
-                                    <HStack gap="2" align="center">
-                                        <Box color="orange.fg"><FiAlertTriangle /></Box>
-                                        Promjena statusa turnira
+                                            {selectedTournament.status}
+                                        </Badge>
+                                        <Text fontSize="sm" color="fg.muted">→</Text>
+                                        <Badge size="sm" variant="subtle" colorPalette="blue">
+                                            DRAFT
+                                        </Badge>
                                     </HStack>
-                                </Dialog.Title>
-                            </Dialog.Header>
-                            <Dialog.Body>
-                                <Stack gap="3">
-                                    {selectedTournament && pendingStatus && (
-                                        <>
-                                            <Box
-                                                p="3"
-                                                bg="bg.muted"
-                                                rounded="md"
-                                                borderWidth="1px"
-                                                borderColor="border.subtle"
-                                            >
-                                                <Text fontSize="xs" color="fg.muted">TURNIR</Text>
-                                                <Text fontSize="sm" fontWeight="medium">
-                                                    {selectedTournament.name}
-                                                </Text>
-                                                <HStack mt="2" gap="2" align="center">
-                                                    {selectedTournament.status && (
-                                                        <Badge
-                                                            size="sm"
-                                                            variant="subtle"
-                                                            colorPalette={statusPalette(selectedTournament.status)}
-                                                        >
-                                                            {selectedTournament.status}
-                                                        </Badge>
-                                                    )}
-                                                    <Text fontSize="sm" color="fg.muted">→</Text>
-                                                    <Badge
-                                                        size="sm"
-                                                        variant="subtle"
-                                                        colorPalette={statusPalette(pendingStatus)}
-                                                    >
-                                                        {pendingStatus}
-                                                    </Badge>
-                                                </HStack>
-                                            </Box>
+                                )}
+                            </Box>
+                        )}
 
-                                            {selectedTournament.status === "FINISHED" && pendingStatus !== "FINISHED" && (
-                                                <Box
-                                                    p="3"
-                                                    bg="orange.subtle"
-                                                    rounded="md"
-                                                    borderWidth="1px"
-                                                    borderColor="orange.muted"
-                                                >
-                                                    <Text fontSize="sm" color="orange.fg" fontWeight="medium">
-                                                        Vraćanje iz FINISHED
-                                                    </Text>
-                                                    <Text fontSize="xs" color="fg.muted" mt="1">
-                                                        Briše se pobjednik (winnerName) i podij
-                                                        (2./3. mjesto). Rundi i mečevi ostaju
-                                                        netaknuti — za potpuni reset koristi
-                                                        "Resetiraj turnir" na stranici turnira.
-                                                    </Text>
-                                                </Box>
-                                            )}
+                        <Box
+                            p="3"
+                            bg="red.subtle"
+                            rounded="md"
+                            borderWidth="1px"
+                            borderColor="red.muted"
+                        >
+                            <Text fontSize="sm" color="red.fg" fontWeight="medium" mb="1">
+                                {t("admin.confirm.resetTournament.delete.heading")}
+                            </Text>
+                            <Text fontSize="xs" color="fg.muted" whiteSpace="pre-line">
+                                {t("admin.confirm.resetTournament.delete.items")}
+                            </Text>
+                        </Box>
 
-                                            {pendingStatus === "FINISHED" && selectedTournament.status !== "FINISHED" && (
-                                                <Box
-                                                    p="3"
-                                                    bg="blue.subtle"
-                                                    rounded="md"
-                                                    borderWidth="1px"
-                                                    borderColor="blue.muted"
-                                                >
-                                                    <Text fontSize="sm" color="blue.fg" fontWeight="medium">
-                                                        Postavljanje na FINISHED
-                                                    </Text>
-                                                    <Text fontSize="xs" color="fg.muted" mt="1">
-                                                        Pobjednik se ne postavlja automatski.
-                                                        Otvori stranicu turnira pa postavi
-                                                        winnerName + podij ako su potrebni.
-                                                    </Text>
-                                                </Box>
-                                            )}
-                                        </>
-                                    )}
-                                </Stack>
-                            </Dialog.Body>
-                            <Dialog.Footer>
-                                <Button variant="ghost" onClick={() => setPendingStatus(null)} disabled={savingStatus}>
-                                    Odustani
-                                </Button>
-                                <Button
-                                    variant="solid"
-                                    colorPalette={pendingStatus ? statusPalette(pendingStatus) : "blue"}
-                                    loading={savingStatus}
-                                    onClick={handleConfirmStatusChange}
+                        <Box
+                            p="3"
+                            bg="green.subtle"
+                            rounded="md"
+                            borderWidth="1px"
+                            borderColor="green.muted"
+                        >
+                            <Text fontSize="sm" color="green.fg" fontWeight="medium" mb="1">
+                                {t("admin.confirm.resetTournament.keep.heading")}
+                            </Text>
+                            <Text fontSize="xs" color="fg.muted" whiteSpace="pre-line">
+                                {t("admin.confirm.resetTournament.keep.items")}
+                            </Text>
+                        </Box>
+                    </Stack>
+                }
+            />
+
+            {/* Status-change confirmation. Always renders the consequences of
+                the chosen transition (clearing winner/podium when leaving
+                FINISHED) so the admin isn't surprised after the click.
+
+                The confirm button is the standard brand one. It used to be
+                painted with `statusPalette(pendingStatus)`, i.e. a different
+                colour per target status — which meant this was the only
+                confirm button in the app whose colour was not "brand, or red
+                when destructive". The status badges inside the body already
+                carry that information, and more legibly. */}
+            <ConfirmDialog
+                open={pendingStatus != null}
+                wide
+                busy={savingStatus}
+                onCancel={() => setPendingStatus(null)}
+                onConfirm={handleConfirmStatusChange}
+                cancelLabel={t("admin.confirm.statusChange.cancelButton")}
+                confirmLabel={t("admin.confirm.statusChange.confirmButton")}
+                title={
+                    <HStack gap="2" align="center">
+                        <Box color="orange.fg"><FiAlertTriangle /></Box>
+                        {t("admin.confirm.statusChange.title")}
+                    </HStack>
+                }
+                description={
+                    <Stack gap="3">
+                        {selectedTournament && pendingStatus && (
+                            <>
+                                <Box
+                                    p="3"
+                                    bg="bg.muted"
+                                    rounded="md"
+                                    borderWidth="1px"
+                                    borderColor="border.subtle"
                                 >
-                                    Potvrdi
-                                </Button>
-                            </Dialog.Footer>
-                        </Dialog.Content>
-                    </Dialog.Positioner>
-                </Portal>
-            </Dialog.Root>
+                                    <Text fontSize="xs" color="fg.muted">{t("admin.confirm.statusChange.tournamentLabel")}</Text>
+                                    <Text fontSize="sm" fontWeight="medium">
+                                        {selectedTournament.name}
+                                    </Text>
+                                    <HStack mt="2" gap="2" align="center">
+                                        {selectedTournament.status && (
+                                            <Badge
+                                                size="sm"
+                                                variant="subtle"
+                                                colorPalette={statusPalette(selectedTournament.status)}
+                                            >
+                                                {selectedTournament.status}
+                                            </Badge>
+                                        )}
+                                        <Text fontSize="sm" color="fg.muted">→</Text>
+                                        <Badge
+                                            size="sm"
+                                            variant="subtle"
+                                            colorPalette={statusPalette(pendingStatus)}
+                                        >
+                                            {pendingStatus}
+                                        </Badge>
+                                    </HStack>
+                                </Box>
+
+                                {selectedTournament.status === "FINISHED" && pendingStatus !== "FINISHED" && (
+                                    <Box
+                                        p="3"
+                                        bg="orange.subtle"
+                                        rounded="md"
+                                        borderWidth="1px"
+                                        borderColor="orange.muted"
+                                    >
+                                        <Text fontSize="sm" color="orange.fg" fontWeight="medium">
+                                            {t("admin.confirm.statusChange.fromFinished.heading")}
+                                        </Text>
+                                        <Text fontSize="xs" color="fg.muted" mt="1">
+                                            {t("admin.confirm.statusChange.fromFinished.message")}
+                                        </Text>
+                                    </Box>
+                                )}
+
+                                {pendingStatus === "FINISHED" && selectedTournament.status !== "FINISHED" && (
+                                    <Box
+                                        p="3"
+                                        bg="blue.subtle"
+                                        rounded="md"
+                                        borderWidth="1px"
+                                        borderColor="blue.muted"
+                                    >
+                                        <Text fontSize="sm" color="blue.fg" fontWeight="medium">
+                                            {t("admin.confirm.statusChange.toFinished.heading")}
+                                        </Text>
+                                        <Text fontSize="xs" color="fg.muted" mt="1">
+                                            {t("admin.confirm.statusChange.toFinished.message")}
+                                        </Text>
+                                    </Box>
+                                )}
+                            </>
+                        )}
+                    </Stack>
+                }
+            />
 
             {/* User-picker dialog. Only rendered when a pair is selected. */}
             <Dialog.Root
@@ -835,7 +793,7 @@ export default function AdminDashboardTab() {
                         <Dialog.Content maxW={{ base: "92%", md: "md" }}>
                             <Dialog.Header>
                                 <Dialog.Title>
-                                    Pridruži par korisniku
+                                    {t("admin.dialog.attachPair.title")}
                                 </Dialog.Title>
                             </Dialog.Header>
                             <Dialog.Body>
@@ -848,7 +806,7 @@ export default function AdminDashboardTab() {
                                             borderWidth="1px"
                                             borderColor="border.subtle"
                                         >
-                                            <Text fontSize="xs" color="fg.muted">PAR</Text>
+                                            <Text fontSize="xs" color="fg.muted">{t("admin.dialog.attachPair.pairLabel")}</Text>
                                             <Text fontSize="sm" fontWeight="medium">
                                                 {attachTargetPair.name}
                                             </Text>
@@ -862,10 +820,11 @@ export default function AdminDashboardTab() {
                                         </Box>
                                         <Input
                                             pl="9"
-                                            placeholder="Pretraži po imenu i prezimenu…"
+                                            placeholder={t("admin.dialog.attachPair.userSearch.placeholder")}
                                             value={userSearch}
                                             onChange={(e) => setUserSearch(e.target.value)}
                                             autoFocus
+                                            aria-label={t("admin.dialog.attachPair.userSearch.placeholder")}
                                         />
                                     </Box>
 
@@ -880,7 +839,7 @@ export default function AdminDashboardTab() {
                                             <HStack py="4" justify="center"><Spinner size="sm" /></HStack>
                                         ) : users.length === 0 ? (
                                             <Text p="3" fontSize="sm" color="fg.muted">
-                                                Nema rezultata.
+                                                {t("admin.dashboard.tournament.noResults")}
                                             </Text>
                                         ) : (
                                             users.map((u) => (
@@ -896,11 +855,11 @@ export default function AdminDashboardTab() {
                                                 >
                                                     <Box minW="0" flex="1">
                                                         <Text fontSize="sm" fontWeight="medium" truncate>
-                                                            {u.displayName || "(bez imena)"}
+                                                            {u.displayName || t("admin.dialog.attachPair.userFallback")}
                                                         </Text>
                                                         {u.slug && (
                                                             <Text fontSize="xs" color="fg.muted" truncate>
-                                                                /profil/{u.slug}
+                                                                {t("admin.dialog.attachPair.userProfile", { slug: u.slug })}
                                                             </Text>
                                                         )}
                                                     </Box>
@@ -911,7 +870,7 @@ export default function AdminDashboardTab() {
                                                         loading={attaching === u.userUid}
                                                         onClick={() => handleAttach(u)}
                                                     >
-                                                        Pridruži
+                                                        {t("admin.dialog.attachPair.attachButton")}
                                                     </Button>
                                                 </HStack>
                                             ))
@@ -920,7 +879,7 @@ export default function AdminDashboardTab() {
                                 </Stack>
                             </Dialog.Body>
                             <Dialog.Footer>
-                                <Button variant="ghost" onClick={closeAttachDialog}>Zatvori</Button>
+                                <Button variant="ghost" onClick={closeAttachDialog}>{t("admin.dialog.attachPair.closeButton")}</Button>
                             </Dialog.Footer>
                         </Dialog.Content>
                     </Dialog.Positioner>
@@ -942,7 +901,7 @@ export default function AdminDashboardTab() {
                         <Dialog.Content maxW={{ base: "92%", md: "md" }}>
                             <Dialog.Header>
                                 <Dialog.Title>
-                                    Prenesi vlasništvo turnira
+                                    {t("admin.dialog.transferTournament.title")}
                                 </Dialog.Title>
                             </Dialog.Header>
                             <Dialog.Body>
@@ -955,16 +914,17 @@ export default function AdminDashboardTab() {
                                             borderWidth="1px"
                                             borderColor="border.subtle"
                                         >
-                                            <Text fontSize="xs" color="fg.muted">TURNIR</Text>
+                                            <Text fontSize="xs" color="fg.muted">{t("admin.dialog.transferTournament.tournamentLabel")}</Text>
                                             <Text fontSize="sm" fontWeight="medium">
                                                 {selectedTournament.name}
                                             </Text>
                                             <Text fontSize="xs" color="fg.muted" mt="1">
-                                                Trenutni vlasnik:{" "}
-                                                {selectedTournament.createdByName
-                                                    || (selectedTournament.createdByUid
-                                                        ? "(bez imena)"
-                                                        : "— (legacy)")}
+                                                {t("admin.dialog.transferTournament.currentOwner", {
+                                                    owner: selectedTournament.createdByName
+                                                        || (selectedTournament.createdByUid
+                                                            ? t("admin.dialog.transferTournament.userFallback")
+                                                            : t("admin.dashboard.tournament.ownerLegacy")),
+                                                })}
                                             </Text>
                                         </Box>
                                     )}
@@ -976,10 +936,11 @@ export default function AdminDashboardTab() {
                                         </Box>
                                         <Input
                                             pl="9"
-                                            placeholder="Pretraži po imenu i prezimenu…"
+                                            placeholder={t("admin.dialog.transferTournament.userSearch.placeholder")}
                                             value={transferUserSearch}
                                             onChange={(e) => setTransferUserSearch(e.target.value)}
                                             autoFocus
+                                            aria-label={t("admin.dialog.transferTournament.userSearch.placeholder")}
                                         />
                                     </Box>
 
@@ -994,7 +955,7 @@ export default function AdminDashboardTab() {
                                             <HStack py="4" justify="center"><Spinner size="sm" /></HStack>
                                         ) : transferUsers.length === 0 ? (
                                             <Text p="3" fontSize="sm" color="fg.muted">
-                                                Nema rezultata.
+                                                {t("admin.dashboard.tournament.noResults")}
                                             </Text>
                                         ) : (
                                             transferUsers.map((u) => {
@@ -1015,17 +976,17 @@ export default function AdminDashboardTab() {
                                                         <Box minW="0" flex="1">
                                                             <HStack gap="2">
                                                                 <Text fontSize="sm" fontWeight="medium" truncate>
-                                                                    {u.displayName || "(bez imena)"}
+                                                                    {u.displayName || t("admin.dialog.transferTournament.userFallback")}
                                                                 </Text>
                                                                 {isCurrentOwner && (
                                                                     <Badge size="xs" variant="subtle" colorPalette="gray">
-                                                                        vlasnik
+                                                                        {t("admin.dialog.transferTournament.ownerBadge")}
                                                                     </Badge>
                                                                 )}
                                                             </HStack>
                                                             {u.slug && (
                                                                 <Text fontSize="xs" color="fg.muted" truncate>
-                                                                    /profil/{u.slug}
+                                                                    {t("admin.dialog.transferTournament.userProfile", { slug: u.slug })}
                                                                 </Text>
                                                             )}
                                                         </Box>
@@ -1037,7 +998,9 @@ export default function AdminDashboardTab() {
                                                             disabled={isCurrentOwner}
                                                             onClick={() => handleTransfer(u)}
                                                         >
-                                                            {isCurrentOwner ? "Već vlasnik" : "Prenesi"}
+                                                            {isCurrentOwner
+                                                                ? t("admin.dialog.transferTournament.transferButton.current")
+                                                                : t("admin.dialog.transferTournament.transferButton")}
                                                         </Button>
                                                     </HStack>
                                                 )
@@ -1047,7 +1010,7 @@ export default function AdminDashboardTab() {
                                 </Stack>
                             </Dialog.Body>
                             <Dialog.Footer>
-                                <Button variant="ghost" onClick={closeTransferDialog}>Zatvori</Button>
+                                <Button variant="ghost" onClick={closeTransferDialog}>{t("admin.dialog.transferTournament.closeButton")}</Button>
                             </Dialog.Footer>
                         </Dialog.Content>
                     </Dialog.Positioner>
@@ -1068,16 +1031,3 @@ function statusPalette(status: string): "gray" | "blue" | "green" {
     return "blue" // DRAFT (default)
 }
 
-/** Human-friendly HR date label for tournament rows. */
-function formatDate(iso: string | null): string | null {
-    if (!iso) return null
-    try {
-        return new Intl.DateTimeFormat("hr-HR", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-        }).format(new Date(iso))
-    } catch {
-        return iso
-    }
-}

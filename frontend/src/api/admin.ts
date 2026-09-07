@@ -1,4 +1,5 @@
 import { http } from "./http"
+import { t } from "../i18n"
 
 /**
  * Admin-only API surface for the "Dashboard" tab on the profile page.
@@ -104,9 +105,9 @@ export async function adminAttachPair(
         `/admin/pairs/${pairId}/attach`,
         { userUid },
         {
-            successMessage: "Par pridružen korisniku.",
+            successMessage: t("common.toast.pairAttached"),
             silentErrorStatuses: [409],
-        } as any,
+        },
     )
     return data
 }
@@ -142,8 +143,8 @@ export async function adminTransferTournament(
         `/admin/tournaments/${tournamentId}/transfer`,
         { userUid },
         {
-            successMessage: "Turnir prenesen novom vlasniku.",
-        } as any,
+            successMessage: t("common.toast.tournamentTransferred"),
+        },
     )
     return data
 }
@@ -180,8 +181,48 @@ export async function adminSetTournamentStatus(
         `/admin/tournaments/${tournamentId}/status`,
         { status },
         {
-            successMessage: "Status turnira ažuriran.",
-        } as any,
+            successMessage: t("common.toast.tournamentStatusUpdated"),
+        },
+    )
+    return data
+}
+
+/** One row of the admin "Poruke" (contact form) triage inbox. */
+export type ContactMessageDto = {
+    id: number
+    createdAt: string | null
+    name: string
+    email: string
+    subject: string | null
+    message: string
+    /** Firebase UID of the sender when signed in; informational only. */
+    userUid: string | null
+    ip: string | null
+    locale: string | null
+    handled: boolean
+}
+
+/** Newest-first, capped at 100 server-side — the whole triage inbox in one call. */
+export async function listContactMessages(): Promise<ContactMessageDto[]> {
+    const { data } = await http.get<ContactMessageDto[]>("/admin/contact-messages")
+    return data
+}
+
+/**
+ * Flip the triage flag on one message. `handled` defaults to `true` — the
+ * common "mark as answered" action; pass `false` to put a message back in
+ * the open queue.
+ */
+export async function markContactMessageHandled(
+    id: number,
+    handled = true,
+): Promise<ContactMessageDto> {
+    const { data } = await http.patch<ContactMessageDto>(
+        `/admin/contact-messages/${id}/handled`,
+        { handled },
+        {
+            successMessage: t("admin.contactMessages.toast.handled"),
+        },
     )
     return data
 }

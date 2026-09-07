@@ -20,6 +20,7 @@ import java.text.Normalizer;
 public class SlugService {
 
     @Inject UserProfileRepository profileRepo;
+    @Inject MessageService messages;
 
     /** Hard fallback when displayName / email are both empty. */
     private static final String DEFAULT_BASE = "igrac";
@@ -76,7 +77,7 @@ public class SlugService {
             n++;
             if (n > 9999) {
                 // Defensive — shouldn't ever happen.
-                throw new IllegalStateException("Unable to allocate slug for: " + displayName);
+                throw new IllegalStateException(messages.t("profile.slug.exhausted", displayName));
             }
         }
         return candidate;

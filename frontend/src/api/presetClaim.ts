@@ -1,4 +1,5 @@
 import { http } from "./http"
+import { t } from "../i18n"
 
 /** Preview of a shareable preset, returned by GET /pairs-name/claim/{token}/preview. */
 export type PresetClaimPreviewDto = {
@@ -21,7 +22,7 @@ export async function fetchPresetClaimPreview(
 ): Promise<PresetClaimPreviewDto> {
     const { data } = await http.get<PresetClaimPreviewDto>(
         `/pairs-name/claim/${encodeURIComponent(token)}/preview`,
-        { silent: true } as any,
+        { silent: true },
     )
     return data
 }
@@ -37,9 +38,9 @@ export async function claimPreset(token: string): Promise<PresetClaimResultDto> 
         `/pairs-name/claim/${encodeURIComponent(token)}`,
         null,
         {
-            successMessage: "Par preuzet — pojavit će se na tvojem profilu.",
+            successMessage: t("common.toast.pairClaimed"),
             silentErrorStatuses: [409],
-        } as any,
+        },
     )
     return data
 }

@@ -1,4 +1,5 @@
 import { http } from "./http"
+import { t } from "../i18n"
 
 /**
  * Viewer-aware preset row. Both owners (the primary creator and the
@@ -50,9 +51,9 @@ export async function setPresetVisibility(
         { hidden },
         {
             successMessage: hidden
-                ? "Par sakriven od drugih"
-                : "Par vidljiv svima",
-        } as any,
+                ? t("common.toast.pairHidden")
+                : t("common.toast.pairVisible"),
+        },
     )
     return data
 }
@@ -65,7 +66,7 @@ export async function setPresetVisibility(
 export async function deletePreset(uuid: string): Promise<void> {
     await http.delete(`/user/pair-presets/${uuid}`, {
         silentErrorStatuses: [409],
-    } as any)
+    })
 }
 
 /* =========================================================
@@ -77,7 +78,7 @@ export async function requestPresetArchive(uuid: string): Promise<UserPairPreset
     const { data } = await http.post<UserPairPreset>(
         `/user/pair-presets/${uuid}/archive-request`,
         null,
-        { successMessage: "Zahtjev poslan — čeka se odgovor partnera." } as any,
+        { successMessage: t("common.toast.archiveRequestSent") },
     )
     return data
 }
@@ -87,7 +88,7 @@ export async function confirmPresetArchive(uuid: string): Promise<void> {
     await http.post(
         `/user/pair-presets/${uuid}/archive-confirm`,
         null,
-        { successMessage: "Par obrisan." } as any,
+        { successMessage: t("common.toast.presetArchived") },
     )
 }
 
@@ -99,6 +100,6 @@ export async function confirmPresetArchive(uuid: string): Promise<void> {
 export async function cancelPresetArchive(uuid: string): Promise<void> {
     await http.delete(
         `/user/pair-presets/${uuid}/archive-request`,
-        { successMessage: "Zahtjev otkazan." } as any,
+        { successMessage: t("common.toast.archiveCancelled") },
     )
 }

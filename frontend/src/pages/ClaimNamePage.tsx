@@ -16,7 +16,8 @@ import {
     fetchPresetClaimPreview,
     claimPreset,
 } from "../api/presetClaim"
-import { useAuth } from "../auth/AuthContext"
+import { useAuth } from "../auth/authContextValue"
+import { useTranslation } from "../i18n"
 
 /**
  * Landing page for the preset share URL: /claim-name/{token}.
@@ -31,6 +32,7 @@ export default function ClaimNamePage() {
     const { token = "" } = useParams<{ token: string }>()
     const navigate = useNavigate()
     const { user, loading: authLoading } = useAuth()
+    const { t } = useTranslation()
 
     const [preview, setPreview] = useState<PresetClaimPreviewDto | null>(null)
     const [loading, setLoading] = useState(true)
@@ -66,25 +68,28 @@ export default function ClaimNamePage() {
         setMessage(null)
         try {
             await claimPreset(token)
-            setMessage({ kind: "ok", text: "Par je dodan na tvoj profil." })
+            setMessage({ kind: "ok", text: t("forms.claim.success") })
             setTimeout(() => navigate("/profil", { replace: true }), 1200)
-        } catch (err: any) {
-            const status = err?.response?.status
-            const body = err?.response?.data
+        } catch (err) {
+            // Narrow through a minimal axios-error shape instead of `any` — the
+            // 409 bodies below are the contract this page keys its copy off.
+            const res = (err as { response?: { status?: number; data?: unknown } } | null)?.response
+            const status = res?.status
+            const body = res?.data
             if (status === 409 && body === "OWNER_SAME") {
                 setMessage({
                     kind: "err",
-                    text: "Već si vlasnik ovog para — ne možeš preuzeti vlastiti par.",
+                    text: t("forms.claim.error.ownerSame"),
                 })
             } else if (status === 409 && body === "ALREADY_CLAIMED") {
                 setMessage({
                     kind: "err",
-                    text: "Ovaj par je već preuzeo netko drugi.",
+                    text: t("forms.claim.error.alreadyClaimed"),
                 })
             } else if (status === 401) {
-                setMessage({ kind: "err", text: "Prijavi se da preuzmeš par." })
+                setMessage({ kind: "err", text: t("forms.claim.error.loginRequired") })
             } else {
-                setMessage({ kind: "err", text: "Preuzimanje nije uspjelo." })
+                setMessage({ kind: "err", text: t("forms.claim.error.generic") })
             }
         } finally {
             setClaiming(false)
@@ -95,7 +100,7 @@ export default function ClaimNamePage() {
         return (
             <VStack py="16" gap="3">
                 <Spinner />
-                <Text color="fg.muted" fontSize="sm">Učitavanje…</Text>
+                <Text color="fg.muted" fontSize="sm">{t("common.loading")}</Text>
             </VStack>
         )
     }
@@ -105,12 +110,12 @@ export default function ClaimNamePage() {
             <Card.Root maxW="md" mx="auto" mt="6" variant="outline" rounded="xl">
                 <Card.Body p="6">
                     <VStack gap="3" align="stretch">
-                        <Heading size="md">Veza nije pronađena</Heading>
+                        <Heading size="md">{t("forms.claim.notFoundHeading")}</Heading>
                         <Text fontSize="sm" color="fg.muted">
-                            Poveznica za preuzimanje para nije valjana. Pitaj suigrača da ti pošalje novu vezu.
+                            {t("forms.claimName.notFoundMessage")}
                         </Text>
                         <Button asChild variant="outline" size="sm" mt="2">
-                            <RouterLink to="/turniri">Natrag na turnire</RouterLink>
+                            <RouterLink to="/turniri">{t("forms.shared.backToTournaments")}</RouterLink>
                         </Button>
                     </VStack>
                 </Card.Body>
@@ -123,13 +128,13 @@ export default function ClaimNamePage() {
             <Card.Body p="6">
                 <VStack gap="4" align="stretch">
                     <Box>
-                        <Text fontSize="xs" color="fg.muted">PREUZMI PAR</Text>
+                        <Text fontSize="xs" color="fg.muted">{t("forms.claim.label")}</Text>
                         <Heading size="lg" mt="1">{preview.name}</Heading>
                     </Box>
 
                     {preview.primaryName && (
                         <Box>
-                            <Text fontSize="sm" color="fg.muted">Dijeli:</Text>
+                            <Text fontSize="sm" color="fg.muted">{t("forms.claimName.sharedByLabel")}</Text>
                             <Text fontWeight="medium">
                                 {preview.primarySlug ? (
                                     <RouterLink
@@ -149,18 +154,18 @@ export default function ClaimNamePage() {
                         <Box
                             p="3"
                             rounded="md"
-                            bg="orange.50"
+                            bg="orange.subtle"
                             borderWidth="1px"
-                            borderColor="orange.200"
+                            borderColor="orange.muted"
                         >
                             <HStack gap="2">
-                                <Badge colorPalette="orange" variant="subtle">Već preuzet</Badge>
+                                <Badge colorPalette="orange" variant="subtle">{t("forms.claim.alreadyClaimedBadge")}</Badge>
                                 {preview.coOwnerName && (
                                     <Text fontSize="sm">{preview.coOwnerName}</Text>
                                 )}
                             </HStack>
                             <Text fontSize="xs" color="fg.muted" mt="2">
-                                Par je već preuzeo netko drugi i ne može se ponovno preuzeti.
+                                {t("forms.claim.alreadyClaimedMessage")}
                             </Text>
                         </Box>
                     )}
@@ -169,9 +174,9 @@ export default function ClaimNamePage() {
                         <Box
                             p="3"
                             rounded="md"
-                            bg={message.kind === "ok" ? "green.50" : "red.50"}
+                            bg={message.kind === "ok" ? "green.subtle" : "red.subtle"}
                             borderWidth="1px"
-                            borderColor={message.kind === "ok" ? "green.200" : "red.200"}
+                            borderColor={message.kind === "ok" ? "green.muted" : "red.muted"}
                         >
                             <Text fontSize="sm">{message.text}</Text>
                         </Box>
@@ -180,7 +185,7 @@ export default function ClaimNamePage() {
                     {!user?.uid ? (
                         <Button asChild colorPalette="blue" variant="solid" size="md">
                             <RouterLink to={`/prijava?next=${encodeURIComponent(`/preuzmi-ime/${token}`)}`}>
-                                Prijavi se da preuzmeš
+                                {t("forms.claim.loginCta")}
                             </RouterLink>
                         </Button>
                     ) : (
@@ -192,7 +197,7 @@ export default function ClaimNamePage() {
                             disabled={claiming || preview.alreadyClaimed || message?.kind === "ok"}
                             onClick={handleClaim}
                         >
-                            Preuzmi par
+                            {t("forms.claim.submit")}
                         </Button>
                     )}
                 </VStack>

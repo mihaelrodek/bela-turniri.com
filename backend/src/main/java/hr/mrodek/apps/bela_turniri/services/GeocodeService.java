@@ -2,8 +2,11 @@ package hr.mrodek.apps.bela_turniri.services;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import hr.mrodek.apps.bela_turniri.model.Tournaments;
+import hr.mrodek.apps.bela_turniri.repository.TournamentsRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
@@ -14,6 +17,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 
 /**
@@ -46,6 +50,9 @@ public class GeocodeService {
     @Inject
     ObjectMapper json;
 
+    @Inject
+    TournamentsRepository tournamentsRepo;
+
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
@@ -66,7 +73,10 @@ public class GeocodeService {
                 + "&q=" + URLEncoder.encode(location.trim(), StandardCharsets.UTF_8);
 
         HttpRequest req = HttpRequest.newBuilder(URI.create(url))
-                .timeout(Duration.ofSeconds(10))
+                // 5s ceiling: a geocode is never on a hot path, but it IS on a
+                // request thread (tournament create/update), so it must not be
+                // able to pin one for long when Nominatim is slow.
+                .timeout(Duration.ofSeconds(5))
                 .header("User-Agent", userAgent)
                 .header("Accept", "application/json")
                 .header("Accept-Language", "hr,en")
@@ -92,5 +102,38 @@ public class GeocodeService {
             LOG.warnf(e, "Geocoding failed for '%s'", location);
             return Optional.empty();
         }
+    }
+
+    /**
+     * Geocode exactly one tournament and commit, in its own short
+     * transaction.
+     *
+     * <p>The backfill loop lives in the controller and must sleep ~1s
+     * between rows (Nominatim policy). Sleeping inside a transaction would
+     * hold a pooled DB connection for the whole run, so the loop stays
+     * transaction-free and calls in here once per row instead — the
+     * transaction lives only as long as this single lookup.
+     *
+     * <p>A failed lookup leaves the row untouched (no {@code geocodedAt}
+     * stamp), so the next backfill picks it up again.
+     *
+     * @return true when coordinates were found and stored
+     */
+    @Transactional
+    public boolean geocodeOne(Long tournamentId) {
+        if (tournamentId == null) return false;
+        Tournaments t = tournamentsRepo.findByIdOptional(tournamentId).orElse(null);
+        if (t == null) return false;
+        String loc = t.getLocation();
+        if (loc == null || loc.isBlank()) return false;
+
+        var found = geocode(loc);
+        if (found.isEmpty()) return false;
+
+        t.setLatitude(found.get().latitude());
+        t.setLongitude(found.get().longitude());
+        t.setGeocodedAt(OffsetDateTime.now());
+        tournamentsRepo.persist(t);
+        return true;
     }
 }

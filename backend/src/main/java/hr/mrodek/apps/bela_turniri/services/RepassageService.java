@@ -12,47 +12,66 @@ import jakarta.transaction.Transactional;
 import java.time.OffsetDateTime;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.UUID;
 
 @ApplicationScoped
 public class RepassageService {
 
-    @Inject TournamentsRepository tournamentsRepo;
     @Inject PairsRepository pairsRepo;
     @Inject RoundsRepository roundsRepo;
     @Inject MatchesRepository matchesRepo;
     @Inject RepassagePurchaseRepository repassageRepo;
     @Inject UserProfileRepository userProfileRepo;
     @Inject PairMapper pairMapper;
+    @Inject MessageService messages;
 
+    @Inject hr.mrodek.apps.bela_turniri.realtime.LiveBroadcaster live;
+
+    /**
+     * Ping every open tournament page that something changed. The send is
+     * deferred until the caller's transaction commits (see LiveBroadcaster).
+     */
+    private void broadcast(Tournaments t, String scope) {
+        if (t == null || t.getUuid() == null) return;
+        live.notifyTournament(t.getUuid().toString(), scope);
+    }
+
+    /**
+     * Buy the eliminated pair a second life (repasaž).
+     *
+     * <p>Takes the {@link Tournaments} entity, not an id: the only caller is
+     * {@code TournamentController.buyExtraLife}, which has already resolved
+     * and ownership-checked the tournament through {@code TournamentAccess}
+     * inside this very transaction. Re-resolving it here bought a duplicate
+     * SELECT and a second, unchecked handle on the row.
+     */
     @Transactional
-    public PairDto buyExtraLife(String uuid, Long pairId) {
-        // Caller may pass a UUID or a slug — both resolve via the same helper.
-        Tournaments t = tournamentsRepo.findByUuidOrSlug(uuid)
-                .orElseThrow(() -> new NoSuchElementException("Tournament not found"));
+    public PairDto buyExtraLife(Tournaments t, Long pairId) {
+        if (t == null) {
+            throw new NoSuchElementException(messages.t("tournament.notFound"));
+        }
 
         Pairs p = pairsRepo.findByIdOptional(pairId)
                 .filter(x -> Objects.equals(x.getTournament().getId(), t.getId()))
-                .orElseThrow(() -> new NoSuchElementException("Pair not found"));
+                .orElseThrow(() -> new NoSuchElementException(messages.t("pair.notFound")));
 
         if (Boolean.TRUE.equals(p.isExtraLife())) {
-            throw new IllegalStateException("Extra life already purchased.");
+            throw new IllegalStateException(messages.t("repassage.alreadyPurchased"));
         }
         if (p.getLosses() != 1) {
-            throw new IllegalStateException("Extra life allowed only after first loss.");
+            throw new IllegalStateException(messages.t("repassage.onlyAfterFirstLoss"));
         }
 
         // Determine the round in which the pair last lost
         Integer lossRound = matchesRepo.findLastLossRoundNumber(t, p);
         if (lossRound == null) {
-            throw new IllegalStateException("Cannot determine loss round for pair.");
+            throw new IllegalStateException(messages.t("repassage.lossRoundUnknown"));
         }
 
         // If any round with number > lossRound exists, next round has started → block purchase
         int maxRound = roundsRepo.findTopByTournamentOrderByNumberDesc(t)
                 .map(Rounds::getNumber).orElse(0);
         if (maxRound > lossRound) {
-            throw new IllegalStateException("Next round already started; cannot buy extra life.");
+            throw new IllegalStateException(messages.t("repassage.nextRoundStarted"));
         }
 
         // Persist purchase record with the loss round number
@@ -67,6 +86,8 @@ public class RepassageService {
         p.setExtraLife(true);
         p.setEliminated(false);
         pairsRepo.save(p);
+
+        broadcast(t, hr.mrodek.apps.bela_turniri.realtime.LiveBroadcaster.SCOPE_PAIRS);
 
         // Enrich with submitter display info so the frontend can render the
         // "Prijavio: …" link without an extra round-trip.

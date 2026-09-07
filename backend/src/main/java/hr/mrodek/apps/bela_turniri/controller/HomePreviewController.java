@@ -2,11 +2,15 @@ package hr.mrodek.apps.bela_turniri.controller;
 
 import hr.mrodek.apps.bela_turniri.model.Tournaments;
 import hr.mrodek.apps.bela_turniri.repository.TournamentsRepository;
+import hr.mrodek.apps.bela_turniri.services.PreviewHtml;
+import hr.mrodek.apps.bela_turniri.services.PreviewRenderService;
+import hr.mrodek.apps.bela_turniri.services.PreviewRenderService.PreviewPage;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -47,6 +51,12 @@ public class HomePreviewController {
     @Inject
     TournamentsRepository tournamentsRepo;
 
+    @Inject
+    PreviewRenderService previewCache;
+
+    @ConfigProperty(name = "app.public-base-url", defaultValue = "https://bela-turniri.com")
+    String publicBaseUrl;
+
     /** Croatian-localised long format for tournament dates in the list. */
     private static final DateTimeFormatter HR_DATE =
             DateTimeFormatter.ofPattern("EEEE, d. MMMM yyyy. 'u' HH:mm",
@@ -61,30 +71,68 @@ public class HomePreviewController {
     private static final int UPCOMING_LIMIT = 30;
     private static final int FINISHED_LIMIT = 30;
 
+    /**
+     * The site-level {@code og:image}: {@code frontend/public/bela-turniri-og-card.png},
+     * a purpose-built 1200x630 PNG (1.91:1 — the ratio Facebook/WhatsApp/
+     * Slack lay a link-preview card out for). Deliberately NOT the square
+     * {@code bela-turniri-symbol.png} used elsewhere for the favicon/PWA
+     * icons/Organization logo — a 1200x1200 square gets cropped badly by
+     * these crawlers instead of showing the whole mark. A static checked-in
+     * asset (same pattern as the icon files below) rather than a config
+     * property: it always exists, so there is no "unset" fallback branch to
+     * maintain, and it's a fixed size we can declare exactly here.
+     *
+     * <p>Shared with {@link hr.mrodek.apps.bela_turniri.controller.ProfilePreviewController}'s
+     * no-avatar fallback — see {@link PreviewHtml#DEFAULT_OG_IMAGE_FILENAME}.
+     */
+    private static final String OG_IMAGE_FILENAME = PreviewHtml.DEFAULT_OG_IMAGE_FILENAME;
+    private static final int OG_IMAGE_WIDTH = PreviewHtml.DEFAULT_OG_IMAGE_WIDTH;
+    private static final int OG_IMAGE_HEIGHT = PreviewHtml.DEFAULT_OG_IMAGE_HEIGHT;
+
+    /**
+     * Twitter renders {@code summary_large_image} only when the image is at
+     * least 300x157 and it recommends >=600px on the short edge; below that
+     * the card silently degrades to a broken-looking crop, so we downgrade to
+     * the small {@code summary} card ourselves.
+     */
+    private static final String TWITTER_CARD =
+            OG_IMAGE_WIDTH >= 600 ? "summary_large_image" : "summary";
+
     @GET
     @Path("/home")
     @Produces("text/html; charset=UTF-8")
     public Response home() {
-        List<Tournaments> upcoming = tournamentsRepo
-                .findByStartAtGreaterThanEqualOrderByStartAtAsc(OffsetDateTime.now());
-        // Cap the list — see UPCOMING_LIMIT comment.
-        if (upcoming.size() > UPCOMING_LIMIT) {
-            upcoming = upcoming.subList(0, UPCOMING_LIMIT);
-        }
-        return Response.ok(renderHome(upcoming)).build();
+        // The whole fetch+render runs inside the memoised supplier so a cache
+        // hit costs zero queries, not just zero string building.
+        PreviewPage page = previewCache.home("home", () -> {
+            List<Tournaments> upcoming = tournamentsRepo
+                    .findUpcomingPaged(OffsetDateTime.now(), 0, UPCOMING_LIMIT);
+            return PreviewPage.ok(renderHome(upcoming));
+        });
+        return preview(page);
     }
 
     @GET
     @Path("/tournaments-list")
     @Produces("text/html; charset=UTF-8")
     public Response tournamentsList() {
-        List<Tournaments> upcoming = tournamentsRepo
-                .findByStartAtGreaterThanEqualOrderByStartAtAsc(OffsetDateTime.now());
-        if (upcoming.size() > UPCOMING_LIMIT) {
-            upcoming = upcoming.subList(0, UPCOMING_LIMIT);
-        }
-        List<Tournaments> finished = tournamentsRepo.findFinishedPaged(0, FINISHED_LIMIT);
-        return Response.ok(renderTournamentsList(upcoming, finished)).build();
+        PreviewPage page = previewCache.home("tournaments-list", () -> {
+            List<Tournaments> upcoming = tournamentsRepo
+                    .findUpcomingPaged(OffsetDateTime.now(), 0, UPCOMING_LIMIT);
+            List<Tournaments> finished = tournamentsRepo.findFinishedPaged(0, FINISHED_LIMIT);
+            return PreviewPage.ok(renderTournamentsList(upcoming, finished));
+        });
+        return preview(page);
+    }
+
+    /** Wrap a memoised page in a fresh Response — see PreviewRenderService for why it is never the Response that gets cached. */
+    private static Response preview(PreviewPage page) {
+        return Response.status(page.status())
+                .entity(page.body())
+                // Both pages here always render 200; the guard is here so a
+                // future non-200 variant is never held by a CDN for minutes.
+                .header("Cache-Control", page.status() == 200 ? PreviewHtml.PREVIEW_CACHE_CONTROL : "no-store")
+                .build();
     }
 
     /* ───────────────────── rendering ───────────────────── */
@@ -107,9 +155,15 @@ public class HomePreviewController {
                 "Bela turniri u Hrvatskoj i regiji. Pretraži nadolazeće turnire, "
                         + "pridruži se paru, prati rezultate i statistike.",
                 "https://bela-turniri.com/");
-        // Site-wide WebSite + Organization JSON-LD is already in the static
-        // index.html; we don't duplicate it here. The homepage doesn't need
-        // a per-page JSON-LD object beyond what the global ones provide.
+        // Site-wide WebSite + Organization JSON-LD, mirrored from the static
+        // index.html. NOT actually redundant with it: Caddy's bot UA rewrite
+        // (see @home_for_bot in Caddyfile) sends every crawler this list
+        // matches — including Googlebot itself — to THIS endpoint instead of
+        // index.html for path "/". So Googlebot never sees index.html's copy
+        // for the homepage; without emitting it here too, the WebSite
+        // SearchAction (the prerequisite for a sitelinks search box) and the
+        // Organization record would never reach the crawler they're for.
+        appendSiteJsonLd(sb);
         sb.append("</head>\n<body>\n<article>\n");
         sb.append("<h1>Bela turniri u Hrvatskoj</h1>\n");
         sb.append("<p>bela-turniri.com je platforma za organizaciju i praćenje "
@@ -136,13 +190,14 @@ public class HomePreviewController {
 
         // Site-wide nav so Googlebot can crawl secondary pages from here.
         // All URLs use Croatian slugs — they're the canonical paths now.
+        String base = baseUrl();
         sb.append("<section>\n<h2>Istraži</h2>\n<ul>\n");
-        sb.append("<li><a href=\"https://bela-turniri.com/turniri\">Svi turniri</a></li>\n");
-        sb.append("<li><a href=\"https://bela-turniri.com/kalendar\">Kalendar turnira</a></li>\n");
-        sb.append("<li><a href=\"https://bela-turniri.com/karta\">Karta turnira</a></li>\n");
+        sb.append("<li><a href=\"").append(escapeAttr(base)).append("/turniri\">Svi turniri</a></li>\n");
+        sb.append("<li><a href=\"").append(escapeAttr(base)).append("/kalendar\">Kalendar turnira</a></li>\n");
+        sb.append("<li><a href=\"").append(escapeAttr(base)).append("/karta\">Karta turnira</a></li>\n");
         sb.append("</ul>\n</section>\n");
 
-        sb.append("<hr>\n<p><a href=\"https://bela-turniri.com/\">"
+        sb.append("<hr>\n<p><a href=\"").append(escapeAttr(base)).append("/\">"
                 + "Otvori aplikaciju bela-turniri.com</a></p>\n");
         sb.append("</article>\n</body>\n</html>\n");
         return sb.toString();
@@ -179,7 +234,7 @@ public class HomePreviewController {
             sb.append("</ul>\n</section>\n");
         }
 
-        sb.append("<hr>\n<p><a href=\"https://bela-turniri.com/turniri\">"
+        sb.append("<hr>\n<p><a href=\"").append(escapeAttr(baseUrl())).append("/turniri\">"
                 + "Otvori popis turnira u aplikaciji</a></p>\n");
         sb.append("</article>\n</body>\n</html>\n");
         return sb.toString();
@@ -191,7 +246,7 @@ public class HomePreviewController {
      * the sitemap.
      */
     private void appendTournamentListItem(StringBuilder sb, Tournaments t) {
-        String href = "https://bela-turniri.com/turniri/"
+        String href = baseUrl() + "/turniri/"
                 + (t.getSlug() != null && !t.getSlug().isBlank()
                         ? t.getSlug() : t.getUuid().toString());
         sb.append("<li><a href=\"").append(escapeAttr(href)).append("\">");
@@ -237,19 +292,97 @@ public class HomePreviewController {
                 .append(escapeAttr(description)).append("\">\n");
         sb.append("<meta property=\"og:url\" content=\"")
                 .append(escapeAttr(canonical)).append("\">\n");
+        appendIconLinks(sb);
+        appendOgImage(sb);
+    }
+
+    /**
+     * Absolute favicon / touch-icon links.
+     *
+     * <p>Crawlers fetch this HTML at {@code /api/preview/*} (Caddy rewrites
+     * the pretty URL), so a relative {@code href="/icon-192.png"} would still
+     * resolve — but Google's favicon crawler and several chat clients resolve
+     * icon links against the *document* URL they were handed, which for a
+     * shared link may be a proxied or AMP-style URL. Absolute URLs built from
+     * {@code app.public-base-url} remove the ambiguity, and are why the site
+     * shows a card logo in SERPs instead of the generic globe.
+     *
+     * <p>File names are the ones actually shipped in {@code frontend/public/}:
+     * {@code favicon.ico} for the crawlers that only look there, the SVG
+     * symbol as the primary icon (what {@code index.html} links) and
+     * {@code icon-192.png} as the PWA raster fallback for clients that
+     * don't do SVG favicons.
+     */
+    private void appendIconLinks(StringBuilder sb) {
+        PreviewHtml.appendIconLinks(sb, baseUrl());
+    }
+
+    /**
+     * {@code og:image} + Twitter card tags. The tournament and profile
+     * previews already emit these (they have a poster / avatar to show); the
+     * homepage had none, so every share of {@code bela-turniri.com} itself
+     * unfurled as a bare text link.
+     */
+    private void appendOgImage(StringBuilder sb) {
+        String image = baseUrl() + "/" + OG_IMAGE_FILENAME;
+        PreviewHtml.appendOgImageMeta(sb, image, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, "bela-turniri.com");
+        sb.append("<meta name=\"twitter:card\" content=\"").append(TWITTER_CARD).append("\">\n");
+        sb.append("<meta name=\"twitter:image\" content=\"").append(escapeAttr(image)).append("\">\n");
+    }
+
+    /**
+     * Site-level {@code WebSite} + {@code Organization} JSON-LD, one
+     * {@code <script>} block each — same shape and content as the pair baked
+     * into {@code index.html} (keep the two in sync if either changes).
+     *
+     * <ul>
+     *   <li>{@code WebSite.potentialAction=SearchAction} is the documented
+     *       prerequisite for Google's sitelinks search box on branded
+     *       queries; it targets the tournament list's query param.</li>
+     *   <li>{@code Organization} gives Google's knowledge graph a canonical
+     *       name/logo/homepage triple for the brand chip next to results.</li>
+     * </ul>
+     */
+    private void appendSiteJsonLd(StringBuilder sb) {
+        String base = baseUrl();
+        sb.append("<script type=\"application/ld+json\">")
+                .append("{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",")
+                .append("\"name\":\"Bela turniri\",\"alternateName\":\"bela-turniri.com\",")
+                .append("\"url\":\"").append(jsonEscape(base + "/")).append("\",")
+                .append("\"inLanguage\":\"hr\",")
+                .append("\"potentialAction\":{\"@type\":\"SearchAction\",")
+                .append("\"target\":{\"@type\":\"EntryPoint\",\"urlTemplate\":\"")
+                .append(jsonEscape(base + "/turniri?q={search_term_string}")).append("\"},")
+                .append("\"query-input\":\"required name=search_term_string\"}}")
+                .append("</script>\n");
+        sb.append("<script type=\"application/ld+json\">")
+                .append("{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",")
+                .append("\"name\":\"Bela turniri\",\"alternateName\":\"bela-turniri.com\",")
+                .append("\"url\":\"").append(jsonEscape(base + "/")).append("\",")
+                .append("\"logo\":\"").append(jsonEscape(base + "/bela-turniri-symbol.png")).append("\",")
+                .append("\"sameAs\":[]}")
+                .append("</script>\n");
+    }
+
+    /**
+     * JSON string escaping per RFC 8259, also escaping {@code /} after
+     * {@code <} so {@code </script>} can't prematurely close the embedding
+     * {@code <script>} tag. Same routine as the sibling preview controllers.
+     */
+    private static String jsonEscape(String s) {
+        return PreviewHtml.jsonEscape(s);
+    }
+
+    /** {@code app.public-base-url} without a trailing slash, so callers can concatenate a path directly. */
+    private String baseUrl() {
+        return publicBaseUrl.replaceAll("/+$", "");
     }
 
     private static String escapeHtml(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        return PreviewHtml.escapeHtml(s);
     }
 
     private static String escapeAttr(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#39;");
+        return PreviewHtml.escapeAttr(s);
     }
 }

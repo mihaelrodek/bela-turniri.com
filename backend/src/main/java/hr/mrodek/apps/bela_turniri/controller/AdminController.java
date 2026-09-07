@@ -1,26 +1,21 @@
 package hr.mrodek.apps.bela_turniri.controller;
 
-import hr.mrodek.apps.bela_turniri.enums.TournamentStatus;
-import hr.mrodek.apps.bela_turniri.model.Pairs;
-import hr.mrodek.apps.bela_turniri.model.Tournaments;
-import hr.mrodek.apps.bela_turniri.model.UserPairPreset;
-import hr.mrodek.apps.bela_turniri.model.UserProfile;
+import hr.mrodek.apps.bela_turniri.errors.ApiCodes;
 import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.TournamentsRepository;
-import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import hr.mrodek.apps.bela_turniri.services.AdminService;
 import io.quarkus.panache.common.Sort;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-import java.security.SecureRandom;
 import java.time.OffsetDateTime;
-import java.util.Base64;
 import java.util.List;
 
 /**
@@ -50,7 +45,7 @@ public class AdminController {
     @Inject TournamentsRepository tournamentsRepo;
     @Inject PairsRepository pairsRepo;
     @Inject UserProfileRepository profileRepo;
-    @Inject UserPairPresetRepository presetRepo;
+    @Inject AdminService adminService;
 
     /** Cap on user-search results — see UserProfileRepository.searchByDisplayName. */
     private static final int USER_SEARCH_LIMIT = 25;
@@ -164,54 +159,16 @@ public class AdminController {
     @Path("/pairs/{pairId}/attach")
     @Transactional
     public Response attachPair(@PathParam("pairId") Long pairId,
-                               AttachPairRequest body) {
-        if (body == null || body.userUid() == null || body.userUid().isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("USER_UID_REQUIRED").build();
+                               @Valid AttachPairRequest body) {
+        // A blank userUid is now rejected by @NotBlank before we get here;
+        // an entirely absent body still isn't, so that case stays manual.
+        if (body == null) {
+            throw ApiCodes.badRequest("USER_UID_REQUIRED");
         }
-        Pairs pair = pairsRepo.findById(pairId);
-        if (pair == null) return Response.status(Response.Status.NOT_FOUND).build();
-
-        // Defensive — the UI hides claimed pairs but a parallel admin
-        // attaching at the same time would otherwise silently overwrite.
-        if (pair.getSubmittedByUid() != null || pair.getCoSubmittedByUid() != null) {
-            return Response.status(Response.Status.CONFLICT)
-                    .entity("ALREADY_CLAIMED").build();
-        }
-
-        UserProfile target = profileRepo.findByUid(body.userUid()).orElse(null);
-        if (target == null) {
-            return Response.status(Response.Status.NOT_FOUND)
-                    .entity("USER_NOT_FOUND").build();
-        }
-
-        // 1. Direct ownership flag.
-        pair.setSubmittedByUid(target.getUserUid());
-        pairsRepo.persist(pair);
-
-        // 2. Auto-create a matching preset so future tournaments with
-        //    the same pair name auto-link to this user. Skip if one
-        //    already exists (case-insensitive name match).
-        String pairName = pair.getName() != null ? pair.getName().trim() : null;
-        boolean createdPreset = false;
-        if (pairName != null && !pairName.isEmpty()) {
-            var existing = presetRepo.findByUserUidAndNameIgnoreCase(
-                    target.getUserUid(), pairName);
-            if (existing.isEmpty()) {
-                UserPairPreset preset = new UserPairPreset();
-                preset.setUserUid(target.getUserUid());
-                preset.setName(pairName);
-                preset.setHidden(false);
-                preset.setClaimToken(generateClaimToken());
-                preset.setArchived(false);
-                presetRepo.persist(preset);
-                createdPreset = true;
-            }
-        }
-
+        var result = adminService.attachPair(pairId, body.userUid());
         return Response.ok(new AttachPairResponse(
-                pair.getId(), target.getUserUid(),
-                target.getDisplayName(), createdPreset)).build();
+                result.pairId(), result.userUid(),
+                result.displayName(), result.createdPreset())).build();
     }
 
     /** ──────────────────────────────────────────────────────────────────
@@ -242,31 +199,15 @@ public class AdminController {
     @Path("/tournaments/{tournamentId}/transfer")
     @Transactional
     public Response transferTournament(@PathParam("tournamentId") Long tournamentId,
-                                       TransferTournamentRequest body) {
-        if (body == null || body.userUid() == null || body.userUid().isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("USER_UID_REQUIRED").build();
+                                       @Valid TransferTournamentRequest body) {
+        if (body == null) {
+            throw ApiCodes.badRequest("USER_UID_REQUIRED");
         }
-        Tournaments tournament = tournamentsRepo.findById(tournamentId);
-        if (tournament == null) {
-            return Response.status(Response.Status.NOT_FOUND)
-                    .entity("TOURNAMENT_NOT_FOUND").build();
-        }
-
-        UserProfile target = profileRepo.findByUid(body.userUid()).orElse(null);
-        if (target == null) {
-            return Response.status(Response.Status.NOT_FOUND)
-                    .entity("USER_NOT_FOUND").build();
-        }
-
-        tournament.setCreatedByUid(target.getUserUid());
-        tournament.setCreatedByName(target.getDisplayName());
-        tournamentsRepo.persist(tournament);
-
+        var result = adminService.transferTournament(tournamentId, body.userUid());
         return Response.ok(new TransferTournamentResponse(
-                tournament.getId(),
-                target.getUserUid(),
-                target.getDisplayName())).build();
+                result.tournamentId(),
+                result.userUid(),
+                result.displayName())).build();
     }
 
     /** ──────────────────────────────────────────────────────────────────
@@ -305,64 +246,16 @@ public class AdminController {
     @Path("/tournaments/{tournamentId}/status")
     @Transactional
     public Response overrideTournamentStatus(@PathParam("tournamentId") Long tournamentId,
-                                             SetStatusRequest body) {
-        if (body == null || body.status() == null || body.status().isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("STATUS_REQUIRED").build();
+                                             @Valid SetStatusRequest body) {
+        if (body == null) {
+            throw ApiCodes.badRequest("STATUS_REQUIRED");
         }
-        TournamentStatus next;
-        try {
-            next = TournamentStatus.valueOf(body.status().trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("INVALID_STATUS").build();
-        }
-
-        Tournaments tournament = tournamentsRepo.findById(tournamentId);
-        if (tournament == null) {
-            return Response.status(Response.Status.NOT_FOUND)
-                    .entity("TOURNAMENT_NOT_FOUND").build();
-        }
-
-        TournamentStatus prev = tournament.getStatus();
-        if (prev == next) {
-            // Idempotent — no-op when the status is already what we'd set.
-            return Response.ok(new SetStatusResponse(
-                    tournament.getId(), next.name(), prev != null ? prev.name() : null)).build();
-        }
-
-        // Reverting OUT OF FINISHED clears the champion + podium so a
-        // stale winner doesn't show on a tournament that's now back in
-        // progress or draft. The organiser can re-set them via the
-        // normal finish + podium flow afterwards.
-        if (prev == TournamentStatus.FINISHED && next != TournamentStatus.FINISHED) {
-            tournament.setWinnerName(null);
-            tournament.setSecondPlaceName(null);
-            tournament.setThirdPlaceName(null);
-        }
-
-        tournament.setStatus(next);
-        tournament.setUpdatedAt(OffsetDateTime.now());
-        tournamentsRepo.persist(tournament);
-
+        var result = adminService.overrideStatus(tournamentId, body.status());
         return Response.ok(new SetStatusResponse(
-                tournament.getId(), next.name(), prev != null ? prev.name() : null)).build();
+                result.tournamentId(), result.status(), result.previousStatus())).build();
     }
 
     /* ─────────────────── helpers + DTOs ─────────────────── */
-
-    /**
-     * 32-byte URL-safe random token. Matches the format used elsewhere
-     * (UserPairPresetController, pair self-register) so claim links
-     * generated through the admin path are indistinguishable from
-     * organic ones.
-     */
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-    private static String generateClaimToken() {
-        byte[] buf = new byte[24];
-        SECURE_RANDOM.nextBytes(buf);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
-    }
 
     public record AdminTournamentDto(Long id, String uuid, String slug,
                                      String name, String location,

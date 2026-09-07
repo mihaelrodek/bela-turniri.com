@@ -1,561 +1,90 @@
-import React, {useEffect, useMemo, useState} from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
-    Badge,
     Box,
     Button,
-    Card,
-    chakra,
-    Field,
-    Heading,
+    Flex,
     HStack,
-    Icon,
-    IconButton,
-    Image,
-    Input,
-    NativeSelect,
-    RadioGroup,
-    Spinner,
+    Skeleton,
+    SkeletonText,
     Text,
-    Textarea,
+    useBreakpointValue,
     VStack,
-    Switch,
-    Dialog,
 } from "@chakra-ui/react"
-import DatePicker, { registerLocale } from "react-datepicker"
-import { hr } from "date-fns/locale"
-import "react-datepicker/dist/react-datepicker.css"
-import "../datepicker.css"
-import {Link as RouterLink, useLocation, useNavigate, useParams, useSearchParams} from "react-router-dom"
-import {
-    FiAward,
-    FiCalendar,
-    FiCheck,
-    FiCheckCircle,
-    FiChevronDown,
-    FiChevronRight,
-    FiChevronUp,
-    FiClock,
-    FiDollarSign,
-    FiEdit2,
-    FiExternalLink,
-    FiFlag,
-    FiGift,
-    FiHeart,
-    FiImage,
-    FiInfo,
-    FiLayers,
-    FiMapPin,
-    FiMaximize2,
-    FiPhone,
-    FiPlay,
-    FiPlus,
-    FiRefreshCw,
-    FiRotateCcw,
-    FiShare2,
-    FiShuffle,
-    FiX,
-    FiTrash2,
-    FiUser,
-    FiUserPlus,
-} from "react-icons/fi"
-import { FaMedal, FaTrophy } from "react-icons/fa"
+import { Link as RouterLink, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { FiCreditCard, FiDollarSign, FiInfo, FiShuffle, FiUsers } from "react-icons/fi"
 
-import type {TournamentDetails, RewardType, RepassageUntil, CreateTournamentPayload} from "../types/tournaments"
-import type {PairShort} from "../types/pairs"
-import type {RoundDto, MatchDto} from "../types/round"
-
-import {
-    fetchTournamentDetails,
-    fetchTournamentPairs,
-    replacePairs,
-    finishTournament,
-    startTournament,
-    setAllowRepeats as apiSetAllowRepeats,
-    resetTournament as apiResetTournament,
-    updateTournament,
-    uploadTournamentPoster,
-    deleteTournamentPoster,
-} from "../api/tournaments"
-import {
-    fetchRounds,
-    drawRound,
-    updateMatchScore,
-    hardResetRound,
-    finishRound,
-    overrideMatchScore,
-} from "../api/round"
-import { approvePair, buyExtraLife, deletePair, deleteTournament, selfRegisterPair, setPairPaid } from "../api/tournaments"
-import { listPresets, type UserPairPreset } from "../api/userPairPresets"
-import { listPairRequestsForTournament, type PairRequest } from "../api/pairRequests"
-import { useAuth } from "../auth/AuthContext"
-import { useDocumentHead } from "../hooks/useDocumentHead"
+import { deleteTournament } from "../api/tournaments"
+import { useAuth } from "../auth/authContextValue"
 import CjenikTab from "../components/CjenikTab"
-import MatchBillButton from "../components/MatchBillButton"
-import { LocationAutocomplete } from "../components/LocationAutocomplete"
-import ManualRoundDialog from "../components/ManualRoundDialog"
-import PodiumEditor from "../components/PodiumEditor"
-import LocationMapPicker from "../components/LocationMapPicker"
-import PageTour from "../components/PageTour"
+import RacuniSection from "../components/RacuniSection"
+import TournamentResultsCard from "../components/TournamentResultsCard"
+import WaiterCodeGate from "../components/WaiterCodeGate"
+import type { TournamentSectionDef } from "../components/TournamentSidebar"
 import {
-    TURNIR_DETAIL_TOUR_STEPS,
-    TOUR_RESUME_DETAIL_KEY,
     DETAIL_TOUR_TAB_BY_INDEX,
+    TOUR_RESUME_DETAIL_KEY,
+    TURNIR_DETAIL_TOUR_STEPS,
 } from "../components/tourSteps"
+import { useCanManageTournament } from "../hooks/useCanManageTournament"
+import { useTournamentData } from "../hooks/useTournamentData"
+import { useTournamentEditForm } from "../hooks/useTournamentEditForm"
+import { useTournamentHead } from "../hooks/useTournamentHead"
+import { useTournamentPairsEditor } from "../hooks/useTournamentPairsEditor"
+import { useTournamentRounds } from "../hooks/useTournamentRounds"
+import { useWaiterSession } from "../hooks/useWaiterSession"
+import { useTranslation } from "../i18n"
+import lazyWithReload from "../utils/lazyWithReload"
+import { norm } from "../utils/tournamentMatch"
+import { type SectionKey, sectionFromSlug, sectionPath } from "../utils/tournamentSection"
+import { invalidateTournamentLists } from "./tournament/cache"
+import { TournamentSideNav, TournamentTopBar } from "./tournament/TournamentChrome"
+import PairInfoDialog from "./tournament/dialogs/PairInfoDialog"
+import TournamentPageDialogs from "./tournament/dialogs/TournamentPageDialogs"
+import BracketSection from "./tournament/sections/BracketSection"
+import DetailsSection from "./tournament/sections/DetailsSection"
+import PairsSectionContainer from "./tournament/sections/PairsSectionContainer"
+import type { PairShort } from "../types/pairs"
 
-// Register the Croatian locale once for the calendar UI (month/day names,
-// week-starts-Monday, etc.). The format itself is forced via the
-// dateFormat prop on each DatePicker. Matches CreateTournamentPage so
-// both forms share the same calendar behavior.
-registerLocale("hr", hr)
+/* ──────────────────────────────────────────────────────────────────────────
+   The tournament page is a SHELL: route params, the section nav, the layout
+   and the dialogs that have to work from any section. Every section body is
+   its own module under `pages/tournament/`, and everything with state behind
+   it is a hook under `hooks/useTournament*`.
 
-/** Calling-code options for the phone country selector. Mirrors CreateTournamentPage. */
-const PHONE_COUNTRIES: Array<{ value: string; label: string }> = [
-    { value: "+385", label: "🇭🇷 +385" },
-    { value: "+386", label: "🇸🇮 +386" },
-    { value: "+43",  label: "🇦🇹 +43" },
-    { value: "+49",  label: "🇩🇪 +49" },
-    { value: "+387", label: "🇧🇦 +387" },
-    { value: "+381", label: "🇷🇸 +381" },
-]
+   Four of those modules load lazily, because none of them is on the path a
+   spectator takes. The edit form alone drags react-datepicker, its
+   stylesheet, the date-fns locale data and Leaflet — a chunk that only an
+   organiser who taps "Uredi" has any use for.
+   ────────────────────────────────────────────────────────────────────── */
 
-/**
- * Strip everything except digits + spaces from a phone string. We keep
- * spaces so users can type "91 234 5678" for readability; the country
- * code is held in a separate select so a leading "+" or country digits
- * aren't expected here.
- */
-function sanitizePhone(raw: string): string {
-    return raw.replace(/[^\d\s]/g, "")
-}
+const DetailsEditForm = lazyWithReload(() => import("./tournament/sections/DetailsEditForm"))
+const ManualRoundDialog = lazyWithReload(() => import("../components/ManualRoundDialog"))
+const TournamentQrDialog = lazyWithReload(() => import("../components/TournamentQrDialog"))
+/* react-joyride is only pulled in when the user actually replays the guided
+   tour, so the detail page's own chunk stays free of it. */
+const PageTour = lazy(() => import("../components/PageTour"))
 
-/**
- * Split a stored "{country} {rest}" phone (e.g. "+385 91 234 5678") into
- * country + rest. If the stored value doesn't start with a known code
- * we leave the rest verbatim and default the country to +385 so the
- * select doesn't show an empty option.
- */
-function parsePhone(stored: string | null | undefined): { country: string; rest: string } {
-    const s = (stored ?? "").trim()
-    if (!s) return { country: "+385", rest: "" }
-    for (const c of PHONE_COUNTRIES) {
-        if (s.startsWith(c.value)) {
-            return {
-                country: c.value,
-                rest: s.slice(c.value.length).trim(),
-            }
-        }
-    }
-    return { country: "+385", rest: s }
-}
-
-/* ---------- Local UI types ---------- */
-type MatchLocal = MatchDto & {
-    _score1?: string;
-    _score2?: string;
-    _dirty?: boolean;
-    _editing?: boolean; // <--- added to support "Uredi" mode
-};
-
-type RoundLocal = Omit<RoundDto, "matches"> & {
-    matches: MatchLocal[];
-};
-
-/* ---------- Small helpers ---------- */
-function formatDate(iso?: string | null) {
-    if (!iso) return "—"
-    const d = new Date(iso)
-    return new Intl.DateTimeFormat("hr-HR", {
-        weekday: "short",
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-    }).format(d)
-}
-
-function formatTime(iso?: string | null) {
-    if (!iso) return "—"
-    const d = new Date(iso)
-    return new Intl.DateTimeFormat("hr-HR", {hour: "2-digit", minute: "2-digit"}).format(d)
-}
-
-function fmtMoney(n?: number | null) {
-    if (typeof n !== "number" || !isFinite(n)) return "—"
-    const s = n.toFixed(2)
-    return (s.endsWith(".00") ? s.slice(0, -3) : s) + "€"
-}
-
-/** Bordered, titled section card. Mirrors CreateTournamentPage. */
-function SectionCard({
-    icon,
-    title,
-    description,
-    action,
-    children,
-}: {
-    icon?: React.ReactNode
-    title: string
-    description?: string
-    action?: React.ReactNode
-    children: React.ReactNode
-}) {
-    return (
-        <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
-            <Card.Header pb="2" pt="4" px={{ base: "4", md: "5" }}>
-                <HStack justify="space-between" align="start" gap="2">
-                    <Box>
-                        <HStack gap="2.5" align="center">
-                            {icon && <Box color="blue.500" display="flex" alignItems="center">{icon}</Box>}
-                            <Card.Title fontSize="md">{title}</Card.Title>
-                        </HStack>
-                        {description && (
-                            <Card.Description fontSize="sm" color="fg.muted" mt="1">
-                                {description}
-                            </Card.Description>
-                        )}
-                    </Box>
-                    {action}
-                </HStack>
-            </Card.Header>
-            <Card.Body pt="3" pb="4" px={{ base: "4", md: "5" }}>
-                {children}
-            </Card.Body>
-        </Card.Root>
-    )
-}
-
-/**
- * Compact bordered "tile" for a single piece of tournament info.
- * Tiny uppercase muted label on top, prominent value below — designed
- * to fit several per row in a responsive grid.
- */
-function DetailTile({
-    icon,
-    label,
-    value,
-    span,
-}: {
-    icon?: React.ReactNode
-    label: string
-    value: React.ReactNode
-    /** Responsive grid column span (e.g. {{ md: "span 2", lg: "span 3" }}). */
-    span?: any
-}) {
-    return (
-        <Box
-            borderWidth="1px"
-            borderColor="border.emphasized"
-            rounded="lg"
-            shadow="sm"
-            px="3"
-            py="2.5"
-            bg="bg"
-            gridColumn={span}
-            minW="0"
-        >
-            <HStack mb="1.5" gap="1.5">
-                {icon && (
-                    <Box color="fg.muted" display="flex" alignItems="center">
-                        {icon}
-                    </Box>
-                )}
-                <Text
-                    fontSize="2xs"
-                    fontWeight="semibold"
-                    color="fg.muted"
-                    letterSpacing="wider"
-                    textTransform="uppercase"
-                >
-                    {label}
-                </Text>
-            </HStack>
-            <Box fontSize="md" fontWeight="medium">
-                {value}
-            </Box>
-        </Box>
-    )
-}
-
-/**
- * Share button — uses the native Web Share sheet (mobile gets the OS's
- * full app picker: WhatsApp, Viber, Messages, AirDrop, etc.). On desktop
- * browsers without `navigator.share`, falls back to copying the link to
- * clipboard and briefly showing "Kopirano!".
- */
-function ShareButton({ url, title }: { url: string; title: string }) {
-    const [copied, setCopied] = React.useState(false)
-
-    async function onShare() {
-        if (typeof navigator !== "undefined" && (navigator as any).share) {
-            try {
-                await (navigator as any).share({ title, url })
-            } catch {
-                /* user cancelled — no-op */
-            }
-            return
-        }
-        try {
-            await navigator.clipboard.writeText(url)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 2000)
-        } catch {
-            window.prompt("Kopiraj link:", url)
-        }
-    }
-
-    return (
-        <Button size="xs" variant="outline" colorPalette="blue" onClick={onShare}>
-            {copied ? <FiCheck /> : <FiShare2 />}
-            {copied ? "Kopirano!" : "Podijeli"}
-        </Button>
-    )
-}
-
-/** Avatar with initials, used in pair cards. */
-function PairAvatar({ name, eliminated }: { name: string; eliminated?: boolean }) {
-    const initials = (name || "?")
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((s) => s[0]?.toUpperCase())
-        .join("") || "?"
-    return (
-        <Box
-            w="34px"
-            h="34px"
-            rounded="full"
-            bg={eliminated ? "gray.muted" : "blue.subtle"}
-            color={eliminated ? "fg.muted" : "blue.fg"}
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            fontWeight="semibold"
-            fontSize="xs"
-            flexShrink={0}
-        >
-            {initials}
-        </Box>
-    )
-}
-
-/* ---------- Edit-mode helpers (shared with CreateTournamentPage form logic) ---------- */
-const pad2 = (n: number) => String(n).padStart(2, "0")
-
-function isoToDate(iso?: string | null): string {
-    if (!iso) return ""
-    const d = new Date(iso)
-    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-}
-function isoToTime(iso?: string | null): string {
-    if (!iso) return ""
-    const d = new Date(iso)
-    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
-}
-function toLocalOffsetIso(dateStr: string, timeStr: string): string | null {
-    if (!dateStr || !timeStr) return null
-    const [y, m, d] = dateStr.split("-").map(Number)
-    const [hh, mm] = timeStr.split(":").map(Number)
-    const dt = new Date(y, (m ?? 1) - 1, d ?? 1, hh ?? 0, mm ?? 0, 0, 0)
-    const tz = -dt.getTimezoneOffset()
-    const sign = tz >= 0 ? "+" : "-"
-    const hhOff = String(Math.floor(Math.abs(tz) / 60)).padStart(2, "0")
-    const mmOff = String(Math.abs(tz) % 60).padStart(2, "0")
-    return (
-        `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}` +
-        `T${pad2(dt.getHours())}:${pad2(dt.getMinutes())}:00${sign}${hhOff}:${mmOff}`
-    )
-}
-function sanitizeMoney(raw: string): string {
-    let s = raw.replace(/-/g, "").replace(/[^\d.,]/g, "").replace(",", ".")
-    if (s.startsWith(".")) s = "0" + s
-    const parts = s.split(".")
-    if (parts.length > 2) s = parts[0] + "." + parts.slice(1).join("")
-    return s
-}
-function sanitizeInt(raw: string): string {
-    return raw.replace(/[^\d]/g, "")
-}
-function moneyToNumber(s?: string): number | null {
-    if (!s) return null
-    const n = parseFloat(s.replace(",", "."))
-    return Number.isFinite(n) ? n : null
-}
-function numberToMoneyStr(n?: number | null): string {
-    if (typeof n !== "number" || !isFinite(n)) return ""
-    const s = n.toFixed(2)
-    return s.endsWith(".00") ? s.slice(0, -3) : s
-}
-
-type EditForm = {
-    name: string
-    location: string
-    details: string
-    startDate: string
-    startTime: string
-    maxPairs: string
-    entryPrice: string
-    repassagePrice: string
-    // Empty string = not set (same convention as CreateTournamentPage).
-    // Conversion to backend null happens in editFormToPayload.
-    repassageSecondPrice: string
-    repassageUntil: "FINALS" | "SEMIFINALS" | "FIRST_ROUND"
-    contactName: string
-    contactPhoneCountry: string
-    contactPhone: string
-    rewardType: "FIXED" | "PERCENTAGE"
-    rewardFirst: string
-    rewardSecond: string
-    rewardThird: string
-}
-
-function buildEditForm(t: TournamentDetails): EditForm {
-    const phone = parsePhone(t.contactPhone)
-    return {
-        name: t.name ?? "",
-        location: t.location ?? "",
-        details: t.details ?? "",
-        startDate: isoToDate(t.startAt),
-        startTime: isoToTime(t.startAt),
-        // Empty string when there's no cap — keeps the edit field blank
-        // so "Neodređeno" round-trips instead of silently becoming 16.
-        maxPairs: typeof t.maxPairs === "number" ? String(t.maxPairs) : "",
-        entryPrice: numberToMoneyStr(t.entryPrice),
-        repassagePrice: numberToMoneyStr(t.repassagePrice),
-        repassageSecondPrice:
-            typeof t.repassageSecondPrice === "number"
-                ? numberToMoneyStr(t.repassageSecondPrice)
-                : "",
-        repassageUntil: (t.repassageUntil as RepassageUntil) ?? "FINALS",
-        contactName: t.contactName ?? "",
-        contactPhoneCountry: phone.country,
-        contactPhone: phone.rest,
-        rewardType: (t.rewardType as RewardType) ?? "FIXED",
-        rewardFirst: numberToMoneyStr(t.rewardFirst),
-        rewardSecond: numberToMoneyStr(t.rewardSecond),
-        rewardThird: numberToMoneyStr(t.rewardThird),
-    }
-}
-
-function editFormToPayload(f: EditForm): CreateTournamentPayload {
-    // Max pairs is optional. Empty field → null ("no cap"); a filled
-    // field is clamped to the minimum of 2.
-    const maxPairsRaw = f.maxPairs.trim()
-    let maxPairsSafe: number | null = null
-    if (maxPairsRaw !== "") {
-        const parsed = parseInt(maxPairsRaw, 10)
-        maxPairsSafe = Number.isFinite(parsed) && parsed >= 2 ? parsed : 2
-    }
-    const entry = moneyToNumber(f.entryPrice) ?? 0
-    const rep = moneyToNumber(f.repassagePrice) ?? 0
-    // Empty string = not set → send null to wipe the second repassage server-side.
-    const rep2 = !f.repassageSecondPrice || !f.repassageSecondPrice.trim()
-        ? null
-        : moneyToNumber(f.repassageSecondPrice)
-
-    return {
-        name: f.name.trim(),
-        location: f.location.trim() || null,
-        details: f.details.trim() || null,
-        startAt: toLocalOffsetIso(f.startDate, f.startTime),
-        maxPairs: maxPairsSafe,
-        entryPrice: entry,
-        repassagePrice: rep,
-        repassageSecondPrice: rep2,
-        repassageUntil: f.repassageUntil,
-        contactName: f.contactName.trim() || null,
-        contactPhone: f.contactPhone.trim()
-            ? `${f.contactPhoneCountry} ${f.contactPhone.trim()}`
-            : null,
-        rewardType: f.rewardType,
-        rewardFirst: moneyToNumber(f.rewardFirst),
-        rewardSecond: moneyToNumber(f.rewardSecond),
-        rewardThird: moneyToNumber(f.rewardThird),
-    } as CreateTournamentPayload
-}
-
-/** Input with a fixed unit suffix shown inside the input on the right. */
-function SuffixInput({
-    value,
-    onChange,
-    placeholder,
-    suffix,
-    inputMode = "decimal",
-    disabled,
-}: {
-    value: string
-    onChange: (v: string) => void
-    placeholder?: string
-    suffix: string
-    inputMode?: "decimal" | "numeric" | "text"
-    disabled?: boolean
-}) {
-    return (
-        <Box position="relative" w="full">
-            <Input
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                placeholder={placeholder}
-                inputMode={inputMode}
-                pr="9"
-                disabled={disabled}
-            />
-            <Box
-                position="absolute"
-                right="3"
-                top="50%"
-                style={{ transform: "translateY(-50%)" }}
-                color="fg.muted"
-                fontSize="sm"
-                pointerEvents="none"
-            >
-                {suffix}
-            </Box>
-        </Box>
-    )
-}
-
-/**
- * Two-line "€/par → €/igrač" helper shown under price inputs on the
- * edit form. Mirrors PerPairHint in CreateTournamentPage. Renders
- * nothing if the input doesn't parse to a finite number.
- */
-function EditPerPairHint({ value }: { value: string }) {
-    const n = (() => {
-        const cleaned = (value ?? "").replace(/[ €]/g, "").replace(",", ".")
-        const x = parseFloat(cleaned)
-        return Number.isFinite(x) ? x : NaN
-    })()
-    if (!Number.isFinite(n)) return null
-    const fmt = (x: number) => {
-        const f = x.toFixed(2)
-        return f.endsWith(".00") ? f.slice(0, -3) : f
-    }
-    return (
-        <Field.HelperText>
-            {fmt(n)}€<chakra.span color="fg.muted">/par</chakra.span>{" "}
-            • {fmt(n / 2)}€<chakra.span color="fg.muted">/igrač</chakra.span>
-        </Field.HelperText>
-    )
-}
-
-/* ---------- Page ---------- */
 export default function TournamentDetailsPage() {
-    const {uuid} = useParams<{ uuid: string }>() // /tournaments/:uuid
+    // /turniri/:uuid/:section? — `section` is optional and purely
+    // presentational; only `uuid` ever drives a fetch.
+    const { uuid, section } = useParams<{ uuid: string; section?: string }>()
     const navigate = useNavigate()
     const location = useLocation()
     const [searchParams, setSearchParams] = useSearchParams()
-    const { user, isAdmin, loading: authLoading } = useAuth()
+    const { user } = useAuth()
+    // `tr`, not `t` — `t` below is the loaded tournament.
+    const { t: tr } = useTranslation()
 
     // Deep-link from push notifications. Two flavours:
     //   ?bill={matchId}  — loser push: switch to Ždrijeb, expand round,
     //                       scroll AND auto-open the bill modal.
-    //   ?match={matchId} — round-draw push: same but no modal — just
-    //                       surface the match so the player can see
-    //                       which table to head to.
+    //   ?match={matchId} — round-draw push: same but no modal — just surface
+    //                       the match so the player can see which table to
+    //                       head to.
     //
-    // We capture the params into state ONCE on mount and immediately
-    // strip them from the URL so:
-    //  - a page refresh or back-navigation doesn't re-trigger
-    //  - the prop value stays stable across re-renders even after URL changes
+    // Captured into state ONCE on mount and immediately stripped from the URL
+    // so a refresh or back-navigation doesn't re-trigger, and so the prop
+    // value stays stable across re-renders.
     const [billMatchIdFromUrl] = useState<number | null>(() => {
         const raw = new URLSearchParams(window.location.search).get("bill")
         if (!raw) return null
@@ -581,28 +110,108 @@ export default function TournamentDetailsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
-    const [t, setT] = useState<TournamentDetails | null>(null)
-    const [unpaidOpen, setUnpaidOpen] = useState(false)
-    // Confirmation state for the pair delete dialog. null = closed, otherwise
-    // holds the pair the user is about to delete.
-    const [pendingDeletePair, setPendingDeletePair] = useState<PairShort | null>(null)
-    const [deletingPair, setDeletingPair] = useState(false)
-    // Tournament-level admin-only soft-delete confirmation.
-    const [deleteTournamentOpen, setDeleteTournamentOpen] = useState(false)
-    const [deletingTournament, setDeletingTournament] = useState(false)
-    // pairs (editable)
-    const [pairs, setPairs] = useState<PairShort[]>([])
+    /* ---------- Data ---------- */
+    const data = useTournamentData(uuid)
+    const {
+        t, setT,
+        pairs, setPairs,
+        rounds, setRounds,
+        pairRequests,
+        collapsedRounds, setCollapsedRounds,
+        allowRepeats, setAllowRepeats,
+        loading, error,
+        refreshAll,
+        pendingPairPaid, pendingOpsRef, enqueueOp,
+        cancelInFlight, anySaveInFlightRef, dirtyPairIdsRef, pendingPaidRef,
+    } = data
 
-    const [tab, setTab] = useState<"details" | "pairs" | "bracket" | "cjenik">("details");
+    const { canEditTournament, showEditAction, showDeleteAction, requireOnlineFor } =
+        useCanManageTournament(t)
 
-    // Tour state. Two triggers run the tour:
-    //   - sessionStorage flag set by the list-page tour when the user
-    //     completes that tour → here we read it once on mount and
-    //     auto-launch the detail tour as a continuation,
-    //   - NavBar "Pokaži kako" replay button → dispatches a window event
-    //     that bumps tourReplayKey, which we feed into forceRun.
+    useTournamentHead(t, uuid)
+
+    /* ---------- Mutations ---------- */
+    const editor = useTournamentEditForm(uuid, t, setT)
+    const pairsEd = useTournamentPairsEditor({
+        uuid, pairs, setPairs, dirtyPairIdsRef, pendingPaidRef, cancelInFlight,
+        requireOnlineFor, enqueueOp,
+    })
+    const roundsCtl = useTournamentRounds({
+        uuid, t, setT, rounds, setRounds, setPairs, setCollapsedRounds,
+        allowRepeats, setAllowRepeats, cancelInFlight, pendingOpsRef,
+        requireOnlineFor, enqueueOp, refreshAll,
+    })
+
+    /**
+     * Every in-flight write, ORed. `refreshLive` reads this through the ref: a
+     * poll response landing mid-save would overwrite the optimistic local
+     * state the save is about to confirm. Assigned during render, exactly as
+     * the pre-split page did — the ref is only ever READ from a callback.
+     */
+    const anySaveInFlight =
+        pairsEd.savingPairs
+        || roundsCtl.creatingRound
+        || editor.savingDetails
+        || roundsCtl.resettingTournament
+        || roundsCtl.hardResettingRound
+        || roundsCtl.savingPM
+        || pairsEd.selfRegSubmitting
+        || roundsCtl.startingTournament
+        || roundsCtl.finishingTournament
+        || roundsCtl.finishingRoundId != null
+        || roundsCtl.savingMatchId != null
+        || pairsEd.approvingPairId != null
+        || pairsEd.buyingLifePairId != null
+    anySaveInFlightRef.current = anySaveInFlight
+
+    /* ---------- Section ↔ URL ----------
+       The open section is READ from the URL, never stored, so the address bar
+       and the screen can never disagree. */
+    const tab: SectionKey = sectionFromSlug(section)
+    /* `replace`, not `push`: hopping between Detalji/Parovi/Ždrijeb/Cjenik is
+       a view change inside one page, so Back should leave the tournament
+       rather than walk back through every section the user glanced at.
+
+       uuid / location / navigate are read through refs so this callback is
+       stable for the lifetime of the page: effects that call it keep their
+       existing dependency arrays, and none of them re-runs just because the
+       URL changed. `navigate`'s own identity changes on every location
+       change — that is exactly what the ref is here to absorb. Query params
+       ride along untouched so a `?bill=` deep link survives the jump. */
+    const uuidRef = useRef(uuid)
+    uuidRef.current = uuid
+    const locationRef = useRef(location)
+    locationRef.current = location
+    const navigateRef = useRef(navigate)
+    navigateRef.current = navigate
+    const setTab = useCallback((key: SectionKey) => {
+        const id = uuidRef.current
+        if (!id) return
+        const path = sectionPath(id, key)
+        // Already there — don't churn the history entry. Re-selecting the
+        // current section is common (the guided tour re-asserts its section on
+        // every step, "Uredi" jumps to Detalji from Detalji).
+        if (path === locationRef.current.pathname) return
+        navigateRef.current(`${path}${locationRef.current.search}`, { replace: true })
+    }, [])
+
+    /* The section nav exists twice — a sidebar on lg+, a pinned band below it —
+       and only one is visible at a time. The guided tour resolves its anchors
+       with `document.querySelector`, which would happily spotlight the hidden
+       copy, so the `data-tour` attributes are handed to whichever shell the
+       current breakpoint actually shows. `ssr: false` matches NavBar's usage:
+       this app never server-renders, so there is no hydration mismatch to
+       guard against, only a first paint at `base` before the query resolves —
+       and the tour launches on a timer well after that. */
+    const isDesktopShell = useBreakpointValue({ base: false, lg: true }, { ssr: false }) ?? false
+
+    /* ---------- Guided tour ----------
+       Two triggers run it:
+         - a sessionStorage flag set by the list-page tour when the user
+           completes it → read once on mount and auto-launched as a
+           continuation,
+         - the NavBar "Pokaži kako" replay button → a window event that bumps
+           tourReplayKey, which is fed into forceRun. */
     const [tourReplayKey, setTourReplayKey] = useState(0)
     const [tourForceRun, setTourForceRun] = useState<boolean | undefined>(() => {
         if (typeof window === "undefined") return undefined
@@ -623,307 +232,52 @@ export default function TournamentDetailsPage() {
         return () => window.removeEventListener("bela:tour-replay", onReplay)
     }, [])
 
-    // details edit mode
-    const [editingDetails, setEditingDetails] = useState(false)
-    const [editForm, setEditForm] = useState<EditForm | null>(null)
-
-    // Same purpose as `pickedCoords` on CreateTournamentPage — drives the
-    // map picker's marker in edit mode. Not sent to the backend; server
-    // re-geocodes editForm.location on save. Reset to null whenever edit
-    // mode opens (we don't seed from t.latitude/t.longitude because the
-    // current TournamentDetails DTO doesn't surface coordinates).
-    const [editPickedCoords, setEditPickedCoords] = useState<{ lat: number; lng: number } | null>(null)
-    const [savingDetails, setSavingDetails] = useState(false)
-
-    // Poster edit state. Mirrors CreateTournamentPage's poster picker.
-    //   posterFile          — newly chosen File (replaces server-side image on save)
-    //   posterPreviewUrl    — object URL for the picked File (cleaned up on unmount/replace)
-    //   posterRemove        — flag set when user clears the current poster but
-    //                         hasn't picked a replacement — Spremi sends a DELETE.
-    //   posterUploadErr     — non-fatal validation message (size/type) shown inline.
-    const [posterFile, setPosterFile] = useState<File | null>(null)
-    const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null)
-    const [posterRemove, setPosterRemove] = useState(false)
-    const [posterUploadErr, setPosterUploadErr] = useState<string | null>(null)
-
-    // Same validation thresholds as CreateTournamentPage so the UX is identical.
-    const POSTER_MAX_MB = 5
-    const POSTER_ACCEPT = ["image/jpeg", "image/png", "image/webp"] as const
-
-    function handlePosterPick(file: File) {
-        setPosterUploadErr(null)
-        if (!POSTER_ACCEPT.includes(file.type as any)) {
-            setPosterUploadErr("Dozvoljeno: JPG, PNG ili WEBP.")
-            return
-        }
-        if (file.size > POSTER_MAX_MB * 1024 * 1024) {
-            setPosterUploadErr(`Maksimalna veličina je ${POSTER_MAX_MB} MB.`)
-            return
-        }
-        if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl)
-        setPosterFile(file)
-        setPosterPreviewUrl(URL.createObjectURL(file))
-        // Picking a replacement implicitly cancels a pending removal.
-        setPosterRemove(false)
-    }
-
-    function clearPosterPick() {
-        if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl)
-        setPosterFile(null)
-        setPosterPreviewUrl(null)
-        setPosterUploadErr(null)
-    }
-
-    function markPosterForRemoval() {
-        // Clears any locally-picked replacement AND signals to Spremi that
-        // the server-side poster should be deleted.
-        clearPosterPick()
-        setPosterRemove(true)
-    }
-
-    // Clean up object URLs on unmount so we don't leak blob memory.
-    useEffect(() => {
-        return () => {
-            if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl)
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
-
-    // Required-field summary used by the sticky save bar. Mirrors
-    // CreateTournamentPage exactly so the edit + create UX match:
-    // name, location, date, time, and all three reward slots required.
-    const editMissingRequired = useMemo(() => {
-        if (!editForm) return []
-        const missing: string[] = []
-        if (!editForm.name.trim()) missing.push("Ime")
-        if (!editForm.location.trim()) missing.push("Lokacija")
-        if (!editForm.startDate) missing.push("Datum")
-        if (!editForm.startTime) missing.push("Vrijeme")
-        if (
-            !editForm.rewardFirst.trim() ||
-            !editForm.rewardSecond.trim() ||
-            !editForm.rewardThird.trim()
-        ) {
-            missing.push("Nagrade")
-        }
-        return missing
-    }, [
-        editForm?.name,
-        editForm?.location,
-        editForm?.startDate,
-        editForm?.startTime,
-        editForm?.rewardFirst,
-        editForm?.rewardSecond,
-        editForm?.rewardThird,
-    ])
-
-    /**
-     * True iff the chosen start moment is in the past. Same idea as the
-     * minDate on the picker — re-evaluated on every render so a slow
-     * form-fill can't slip behind "now". Submit is blocked when true.
-     */
-    const editStartInPast = useMemo(() => {
-        if (!editForm?.startDate || !editForm?.startTime) return false
-        const iso = toLocalOffsetIso(editForm.startDate, editForm.startTime)
-        if (!iso) return false
-        return new Date(iso).getTime() < Date.now()
-    }, [editForm?.startDate, editForm?.startTime])
-
-    // pair info dialog (match history)
+    /* ---------- Page-level dialog state ---------- */
+    // Branded QR code of this tournament, opened from the chrome's icon row.
+    const [qrOpen, setQrOpen] = useState(false)
+    // Tournament-level admin-only soft-delete confirmation.
+    const [deleteTournamentOpen, setDeleteTournamentOpen] = useState(false)
+    const [deletingTournament, setDeletingTournament] = useState(false)
+    // Pair info dialog (match history). null = closed.
     const [infoPairId, setInfoPairId] = useState<number | null>(null)
 
-    // Per-route SEO meta. Title falls back to a generic label until the
-    // tournament loads, then upgrades in place. Description prefers the
-    // organizer's `details` text, trimmed to ~160 characters.
-    const headTitle = t?.name
-        ? `${t.name}${t.location ? `, ${t.location}` : ""} — bela-turniri.com`
-        : "Turnir — bela-turniri.com"
-    const headDesc = (() => {
-        const raw = t?.details?.trim()
-        const start = t?.startAt ? new Date(t.startAt).toLocaleDateString("hr-HR") : null
-        if (raw) return raw.length > 160 ? raw.slice(0, 157) + "…" : raw
-        if (t?.name) {
-            const parts: string[] = [`Bela turnir ${t.name}`]
-            if (t.location) parts.push(`u ${t.location}`)
-            if (start) parts.push(`— ${start}`)
-            return parts.join(" ")
-        }
-        return undefined
-    })()
-    const canonicalUrl = t?.slug
-        ? `https://bela-turniri.com/turniri/${t.slug}`
-        : uuid
-            ? `https://bela-turniri.com/turniri/${uuid}`
-            : undefined
-
-    // Build the Event + BreadcrumbList JSON-LD for Googlebot. Matches the
-    // schema the backend SSR preview controller emits for non-JS crawlers,
-    // so Search Console doesn't see conflicting structured data between
-    // the rendered and unrendered variants of the same URL.
-    const jsonLd = useMemo(() => {
-        if (!t || !canonicalUrl) return undefined
-        const items: object[] = []
-
-        const event: Record<string, unknown> = {
-            "@context": "https://schema.org",
-            "@type": "Event",
-            name: t.name,
-            url: canonicalUrl,
-            inLanguage: "hr",
-            eventStatus: "https://schema.org/EventScheduled",
-            eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
-        }
-        if (headDesc) event.description = headDesc
-        if (t.startAt) {
-            event.startDate = t.startAt
-            // +6h end-date default — see backend controller comment for
-            // rationale (Google's event eligibility wants both start+end).
-            const end = new Date(new Date(t.startAt).getTime() + 6 * 60 * 60 * 1000)
-            event.endDate = end.toISOString()
-        }
-        if (t.location) {
-            event.location = {
-                "@type": "Place",
-                name: t.location,
-                address: {
-                    "@type": "PostalAddress",
-                    addressLocality: t.location,
-                    addressCountry: "HR",
-                },
-            }
-        } else {
-            event.location = {
-                "@type": "Place",
-                name: "Hrvatska",
-                address: { "@type": "PostalAddress", addressCountry: "HR" },
-            }
-        }
-        if (t.bannerUrl) event.image = [t.bannerUrl]
-        if (t.createdByName) {
-            event.organizer = { "@type": "Person", name: t.createdByName }
-        }
-        const entryPrice = t.entryPrice ?? 0
-        const startInFuture = !t.startAt || new Date(t.startAt).getTime() > Date.now()
-        if (startInFuture && entryPrice > 0) {
-            event.offers = {
-                "@type": "Offer",
-                url: canonicalUrl,
-                price: String(entryPrice),
-                priceCurrency: "EUR",
-                availability: "https://schema.org/InStock",
-                validFrom: new Date().toISOString(),
-            }
-        }
-        items.push(event)
-
-        // BreadcrumbList — "Turniri › {tournament}". Helps Google render
-        // the breadcrumb chip above the result instead of the bare URL.
-        items.push({
-            "@context": "https://schema.org",
-            "@type": "BreadcrumbList",
-            itemListElement: [
-                {
-                    "@type": "ListItem",
-                    position: 1,
-                    name: "Turniri",
-                    item: "https://bela-turniri.com/turniri",
-                },
-                {
-                    "@type": "ListItem",
-                    position: 2,
-                    name: t.name,
-                    item: canonicalUrl,
-                },
-            ],
-        })
-
-        return items
-    }, [t, canonicalUrl, headDesc])
-
-    useDocumentHead({
-        title: headTitle,
-        description: headDesc,
-        ogTitle: t?.name ?? undefined,
-        ogDescription: headDesc,
-        ogImage: t?.bannerUrl ?? undefined,
-        ogType: "article",
-        // Prefer the canonical pretty slug returned by the backend so search
-        // engines and social previews don't see a UUID variant — fall back to
-        // whatever route segment we have (uuid, or the slug if the visitor
-        // already came in via a slug URL).
-        canonical: canonicalUrl,
-        jsonLd,
-    })
-
-    function enterDetailsEdit() {
-        if (!t) return
-        setEditForm(buildEditForm(t))
-        setEditPickedCoords(null)
-        setEditingDetails(true)
-    }
-    function cancelDetailsEdit() {
-        setEditForm(null)
-        setEditPickedCoords(null)
-        setEditingDetails(false)
-        // Drop any pending poster changes so the next edit opens clean.
-        clearPosterPick()
-        setPosterRemove(false)
-        setPosterUploadErr(null)
-    }
-    async function saveDetailsEdit() {
-        if (!uuid || !editForm) return
-        // Same gating as the create form: block if any required field is
-        // empty, or if the picked start moment has slipped into the past.
-        if (editMissingRequired.length > 0) {
-            alert(`Nedostaje: ${editMissingRequired.join(", ")}.`)
-            return
-        }
-        if (editStartInPast) {
-            alert("Datum i vrijeme turnira ne mogu biti u prošlosti.")
-            return
-        }
+    async function confirmDeleteTournament() {
+        if (!uuid) return
         try {
-            setSavingDetails(true)
-            // 1) Save the JSON payload first (text fields). The poster
-            //    is on a separate endpoint so we don't block details
-            //    saves if a poster upload fails mid-flight.
-            let updated = await updateTournament(uuid, editFormToPayload(editForm))
-            // 2) Apply the poster change, if any.
-            if (posterFile) {
-                updated = await uploadTournamentPoster(uuid, posterFile)
-            } else if (posterRemove) {
-                updated = await deleteTournamentPoster(uuid)
-            }
-            setT(updated)
-            setEditingDetails(false)
-            setEditForm(null)
-            clearPosterPick()
-            setPosterRemove(false)
-        } catch (e: any) {
-            alert(e?.response?.data ?? e?.message ?? "Neuspješno spremanje izmjena.")
+            setDeletingTournament(true)
+            await deleteTournament(uuid)
+            // The list, the count, the calendar and the map are all persisted
+            // to localStorage — without this the deleted tournament renders
+            // from disk on the next cold load and 404s when tapped.
+            invalidateTournamentLists()
+            navigate("/turniri", { replace: true })
+        } catch (err) {
+            // Stay on the page; interceptor toasted why.
+            console.warn("Brisanje turnira nije uspjelo", err)
         } finally {
-            setSavingDetails(false)
+            setDeletingTournament(false)
+            setDeleteTournamentOpen(false)
         }
     }
-    function patchEdit<K extends keyof EditForm>(key: K, value: EditForm[K]) {
-        setEditForm((f) => (f ? { ...f, [key]: value } : f))
-    }
 
-    // rounds
-    const [rounds, setRounds] = useState<RoundLocal[]>([])
-    const [collapsedRounds, setCollapsedRounds] = useState<Record<number, boolean>>({})
+    /* ---------- Push deep link ----------
+       Runs whenever a target match id is present AND the rounds list is
+       populated: switch to Ždrijeb, expand the matching round, scroll the row
+       into view. The bill-modal auto-open (only when the user arrived via
+       ?bill=) is handled inside MatchBillButton via autoOpenBillId.
 
-    // Effect: handle deep-link from push notification. Runs whenever a
-    // target match id is present AND the rounds list is populated. We
-    // switch to the Ždrijeb tab, expand the matching round, and scroll
-    // the row into view. The bill-modal auto-open (only when the user
-    // arrived via ?bill=) is handled inside MatchBillButton via the
-    // autoOpenBillId prop further down.
+       Latch: `rounds` is a new array on every poll tick and after every score
+       keystroke, so without this the deep link would re-run forever — yanking
+       the organiser back to Ždrijeb, re-expanding a round they just collapsed
+       and scrolling the page away mid-typing. */
+    const deepLinkHandledRef = useRef<number | null>(null)
     useEffect(() => {
         if (targetMatchId == null) return
+        if (deepLinkHandledRef.current === targetMatchId) return
         if (rounds.length === 0) return
         const r = rounds.find((rr) => rr.matches.some((mx) => mx.id === targetMatchId))
         if (!r) return
+        deepLinkHandledRef.current = targetMatchId
         setTab("bracket")
         setCollapsedRounds((cr) => ({ ...cr, [r.id]: false }))
         // requestAnimationFrame so the layout is committed before scroll.
@@ -932,172 +286,49 @@ export default function TournamentDetailsPage() {
             if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
         })
         return () => window.cancelAnimationFrame(id)
-        // We intentionally don't depend on setTab/setCollapsedRounds/setSearchParams
-        // (stable references from React/router) to avoid re-running on tab changes.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [targetMatchId, rounds])
-    const [fullscreenRound, setFullscreenRound] = useState<number | null>(null)
-    const [allowRepeats, setAllowRepeats] = useState<boolean>(false)
-    const [savingPM, setSavingPM] = useState<boolean>(false)
+    }, [targetMatchId, rounds, setTab, setCollapsedRounds])
 
-    // Pair-finding requests for this tournament (shown in Parovi tab)
-    const [pairRequests, setPairRequests] = useState<PairRequest[]>([])
-    const [pairRequestsCollapsed, setPairRequestsCollapsed] = useState(false)
+    /* ---------- Derivations that need pairs AND rounds ---------- */
 
-    // Self-register pair dialog
-    const [selfRegOpen, setSelfRegOpen] = useState(false)
-    const [presets, setPresets] = useState<UserPairPreset[]>([])
-    const [selfRegName, setSelfRegName] = useState("")
-    const [selfRegSubmitting, setSelfRegSubmitting] = useState(false)
-    const [selfRegError, setSelfRegError] = useState<string | null>(null)
-
-    // Load presets when the dialog opens (only for the current user)
-    useEffect(() => {
-        if (!selfRegOpen || !user) return
-        listPresets()
-            .then((list) => setPresets(list))
-            .catch(() => setPresets([]))
-    }, [selfRegOpen, user])
-
-    async function submitSelfRegister() {
-        if (!uuid) return
-        const name = selfRegName.trim()
-        if (!name) {
-            setSelfRegError("Unesi ime para.")
-            return
-        }
-        try {
-            setSelfRegSubmitting(true)
-            setSelfRegError(null)
-            const created = await selfRegisterPair(uuid, name)
-            setPairs((ps) => [...ps, created])
-            setSelfRegOpen(false)
-            setSelfRegName("")
-        } catch (e: any) {
-            const data = e?.response?.data
-            const code = typeof data === "string" ? data : ""
-            if (code === "TOURNAMENT_ALREADY_STARTED") {
-                setSelfRegError("Turnir je već započeo.")
-            } else if (code === "ALREADY_REGISTERED") {
-                setSelfRegError("Već si prijavio par s tim imenom.")
-            } else {
-                setSelfRegError(data ?? e?.message ?? "Greška pri prijavi.")
-            }
-        } finally {
-            setSelfRegSubmitting(false)
-        }
-    }
-
-    async function refreshAll() {
-        if (!uuid) return
-        const [details, pairList, roundList, prList] = await Promise.all([
-            fetchTournamentDetails(uuid),
-            fetchTournamentPairs(uuid),
-            fetchRounds(uuid),
-            listPairRequestsForTournament(uuid).catch(() => [] as PairRequest[]),
-        ])
-        setT(details)
-        const preserve = (details as any)?.preserveMatchmaking
-        setAllowRepeats(!(preserve ?? true))
-
-        setPairs(pairList)
-        setPairRequests(prList)
-        setRounds(
-            roundList.map((r) => ({
-                ...r,
-                matches: r.matches.map((m) => ({
-                    ...m,
-                    _score1: m.score1 != null ? String(m.score1) : "",
-                    _score2: m.score2 != null ? String(m.score2) : "",
-                    _dirty: false,
-                    _editing: false, // <--- init
-                })),
-            }))
+    /**
+     * Bucketing + podium derivation for the Parovi section. This used to live
+     * inside the tab's render IIFE, where it re-ran three full scans of
+     * `pairs` plus three name lookups on EVERY render — i.e. on every
+     * keystroke in a pair-name input.
+     */
+    const pairsView = useMemo(() => {
+        const activePairs = pairs.filter((p) => !p.isEliminated)
+        const eliminatedPairs = pairs.filter((p) => p.isEliminated)
+        const finished = t?.status === "FINISHED"
+        const secondName = t?.secondPlaceName ?? null
+        const thirdName = t?.thirdPlaceName ?? null
+        const findByName = (n: string | null) =>
+            n ? pairs.find((p) => norm(p.name) === norm(n)) ?? null : null
+        const winnerPair = finished ? findByName(t?.winnerName ?? null) : null
+        const secondPair = finished ? findByName(secondName) : null
+        const thirdPair = finished ? findByName(thirdName) : null
+        const podiumIds = new Set<number>(
+            [winnerPair, secondPair, thirdPair]
+                .filter((p): p is PairShort => !!p && typeof p.id === "number")
+                .map((p) => p.id),
         )
-        // Collapse all rounds by default so the page opens compact — users
-        // explicitly expand the round they want to look at. Preserves any
-        // existing collapse state on subsequent refreshes (don't reset what
-        // the user already toggled), but seeds new round ids to collapsed.
-        setCollapsedRounds((prev) => {
-            const next: Record<number, boolean> = { ...prev }
-            for (const r of roundList) {
-                if (next[r.id] === undefined) next[r.id] = true
-            }
-            return next
-        })
-    }
-
-    // Why this depends on `authLoading` + `user?.uid` as well as `uuid`:
-    //
-    // The backend redacts the organiser's contact phone for anonymous
-    // viewers (the "Prijavi se da vidiš broj" affordance is driven by
-    // that redaction). If this effect runs before Firebase has restored
-    // the persisted session, the request goes anonymous and the response
-    // comes back without a phone — even for a user who IS logged in on
-    // this device. That stale response then sticks in state for the
-    // rest of the session because there's nothing to invalidate it.
-    //
-    // Fix: skip the fetch while `authLoading` is true, and re-fetch
-    // whenever `user?.uid` flips (login/logout while the page is open).
-    // Once auth settles, the next fetch carries the Bearer token and
-    // the backend sends the real phone.
-    useEffect(() => {
-        if (authLoading) return
-        let cancelled = false
-        ;(async () => {
-            try {
-                setLoading(true)
-                setError(null)
-                if (!uuid) throw new Error("Missing tournament id")
-                await refreshAll()
-            } catch (e: any) {
-                if (!cancelled) setError(e?.message ?? "Failed to load tournament")
-            } finally {
-                if (!cancelled) setLoading(false)
-            }
-        })()
-        return () => {
-            cancelled = true
+        // Render order: gold → silver → bronze → remaining active. For an
+        // in-progress tournament this collapses to just `activePairs`.
+        const displayActivePairs: PairShort[] = [
+            ...(winnerPair ? [winnerPair] : []),
+            ...(secondPair && secondPair.id !== winnerPair?.id ? [secondPair] : []),
+            ...(thirdPair && thirdPair.id !== winnerPair?.id && thirdPair.id !== secondPair?.id ? [thirdPair] : []),
+            ...activePairs.filter((p) => !podiumIds.has(p.id)),
+        ]
+        return {
+            activePairs,
+            displayActivePairs,
+            displayEliminatedPairs: eliminatedPairs.filter((p) => !podiumIds.has(p.id)),
+            paidCount: pairs.filter((p) => !!p.paid).length,
+            secondName,
+            thirdName,
         }
-    }, [uuid, authLoading, user?.uid])
-
-    function enterEdit(roundId: number, matchId: number) {
-        setRounds(rs =>
-            rs.map(r =>
-                r.id !== roundId ? r : {
-                    ...r,
-                    matches: r.matches.map(m =>
-                        m.id !== matchId ? m : {
-                            ...m,
-                            _editing: true,
-                            _score1: m.score1 != null ? String(m.score1) : "",
-                            _score2: m.score2 != null ? String(m.score2) : "",
-                            _dirty: true,
-                        }
-                    )
-                }
-            )
-        )
-    }
-
-    function cancelEdit(roundId: number, matchId: number) {
-        setRounds(rs =>
-            rs.map(r =>
-                r.id !== roundId ? r : {
-                    ...r,
-                    matches: r.matches.map(m =>
-                        m.id !== matchId ? m : {
-                            ...m,
-                            _editing: false,
-                            _score1: m.score1 != null ? String(m.score1) : "",
-                            _score2: m.score2 != null ? String(m.score2) : "",
-                            _dirty: false,
-                        }
-                    )
-                }
-            )
-        )
-    }
+    }, [pairs, t])
 
     const pairById = useMemo(() => {
         const m = new Map<number, PairShort>()
@@ -1106,3641 +337,528 @@ export default function TournamentDetailsPage() {
     }, [pairs])
 
     const lastLossRoundByPair = useMemo(() => {
-        const map = new Map<number, number>();
+        const map = new Map<number, number>()
         for (const r of rounds) {
             for (const m of r.matches) {
-                if (m.status !== "FINISHED") continue;
-                if (!m.pair1Id || !m.pair2Id || !m.winnerPairId) continue;
+                if (m.status !== "FINISHED") continue
+                if (!m.pair1Id || !m.pair2Id || !m.winnerPairId) continue
 
-                const loserId = m.winnerPairId === m.pair1Id ? m.pair2Id : m.pair1Id;
-                const prev = map.get(loserId) ?? 0;
-                if (r.number > prev) map.set(loserId, r.number);
+                const loserId = m.winnerPairId === m.pair1Id ? m.pair2Id : m.pair1Id
+                const prev = map.get(loserId) ?? 0
+                if (r.number > prev) map.set(loserId, r.number)
             }
         }
-        return map;
-    }, [rounds]);
+        return map
+    }, [rounds])
 
-    const activeCount = pairs.filter((p) => !p.isEliminated).length
-    const hasOngoingRound = rounds.some((r) => r.status !== "COMPLETED")
-    const canCreateRound = !hasOngoingRound && activeCount >= 2
-    const tournamentStarted = (t?.status === "STARTED") || rounds.length > 0
+    const activeCount = pairsView.activePairs.length
+    const canCreateRound = !roundsCtl.hasOngoingRound && activeCount >= 2
 
-    const nextRoundAlreadyStarted = (pairId: number) => {
-        const lossRound = lastLossRoundByPair.get(pairId);
-        if (!lossRound) return false; // no recorded loss yet -> this rule doesn't block
-        return rounds.some(r => r.number > lossRound); // if any higher-number round exists, it's started
-    };
+    const nextRoundAlreadyStarted = useCallback((pairId: number) => {
+        const lossRound = lastLossRoundByPair.get(pairId)
+        if (!lossRound) return false // no recorded loss yet → this rule doesn't block
+        // Any higher-numbered round existing means the next one has started.
+        return rounds.some((r) => r.number > lossRound)
+    }, [lastLossRoundByPair, rounds])
 
-    const showResetTournament =
-        (t?.status === "STARTED" && rounds.length === 0) ||
-        (rounds.length === 1 && rounds[0].number === 1 && rounds[0].status !== "COMPLETED")
-
-    /* ---------- Pairs: local editing ---------- */
-    function addPair() {
-        const tempId = -Date.now()
-        setPairs((ps) => [
-            ...ps,
-            {id: tempId, name: "", isEliminated: false, extraLife: false, wins: 0, losses: 0, paid: false} as PairShort,
-        ])
-    }
-
-    function changePairName(id: number, name: string) {
-        setPairs((ps) => ps.map((p) => (p.id === id ? {...p, name} : p)))
-    }
-
-    function removePair(id: number) {
-        setPairs((ps) => ps.filter((p) => p.id !== id))
-    }
+    /** May this pair still buy a life? Needs a server id, exactly one loss,
+     *  no life already bought, and the next round not yet drawn. */
+    const isLifeEligible = useCallback((p: PairShort) =>
+        typeof p.id === "number"
+        && p.id > 0
+        && p.losses === 1
+        && !p.extraLife
+        && !nextRoundAlreadyStarted(p.id), [nextRoundAlreadyStarted])
 
     /**
-     * Single-flight guard for the pair-list bulk save. Without it the
-     * name-input onBlur and the Plati click race each other when the user
-     * types a name then immediately taps Plati — both would call
-     * replacePairs back-to-back with the same temp pair, and the second
-     * call would create a duplicate row server-side.
-     */
-    const savingPairsRef = React.useRef(false)
-
-    /**
-     * Pending paid-flag overrides captured BEFORE state has flushed —
-     * Plati's onMouseDown stamps the desired value here, so the blur save
-     * that fires immediately afterwards (mousedown → blur → click in DOM
-     * event order) can include the right paid value in its payload.
-     *
-     * Without this ref, the user-types-then-clicks-Plati flow would race:
-     * blur would save the pair with paid=false (the React state hasn't
-     * re-rendered yet from the click), and the click handler would then
-     * see `savingPairsRef=true` and skip its own save. The pair ends up
-     * persisted but unpaid. The ref bypasses that race entirely.
-     */
-    const pendingPaidRef = React.useRef<Map<number, boolean>>(new Map())
-
-    /**
-     * Build the bulk-save payload from the current pair list. Optional
-     * `paidOverride` lets the caller flip a single pair's `paid` flag
-     * atomically with the save — used by Plati on a not-yet-persisted
-     * (temp-id) pair so name + paid commit in a single round trip.
-     *
-     * In addition to the explicit override, this also consults
-     * pendingPaidRef so a click that arrived AFTER blur (via the
-     * mousedown-pre-blur path) still wins.
-     */
-    function buildPairsPayload(paidOverride?: { pairId: number; paid: boolean }) {
-        return pairs.map((p) => {
-            const pendingPaid = pendingPaidRef.current.get(p.id)
-            const paid =
-                paidOverride && paidOverride.pairId === p.id
-                    ? paidOverride.paid
-                    : pendingPaid !== undefined
-                        ? pendingPaid
-                        : !!p.paid
-            return {
-                id: p.id > 0 ? p.id : undefined,
-                name: p.name,
-                isEliminated: !!p.isEliminated,
-                extraLife: !!p.extraLife,
-                wins: p.wins ?? 0,
-                losses: p.losses ?? 0,
-                paid,
-            }
-        })
-    }
-
-    async function savePairsAll() {
-        if (!uuid) return
-        if (savingPairsRef.current) return
-        if (pairs.some((p) => !p.name || p.name.trim() === "")) {
-            alert("Pair name cannot be empty.")
-            return
-        }
-        savingPairsRef.current = true
-        try {
-            const saved = await replacePairs(uuid, buildPairsPayload())
-            setPairs(saved)
-            // Temp ids that we were tracking have been replaced by real ids
-            // — drop the now-meaningless overrides.
-            pendingPaidRef.current.clear()
-        } finally {
-            savingPairsRef.current = false
-        }
-    }
-
-    /**
-     * Auto-save handler fired by the pair-name input's blur event. Behaviour:
-     *   - Temp pair (negative id) with empty name → silently drop the row
-     *     locally. The user clearly didn't intend to add a pair.
-     *   - Temp pair with a real name → bulk-save so the pair gets a server
-     *     id immediately. Skips when a save is already in flight to avoid
-     *     duplicate rows from racing with the Plati click handler.
-     *   - Server-saved pair → no-op. Rename of existing pairs still flows
-     *     through the explicit "Spremi promjene" button to keep the bulk
-     *     editor mental model intact.
-     */
-    function onPairNameBlur(p: PairShort) {
-        if (p.id > 0) return
-        if (!p.name.trim()) {
-            removePair(p.id)
-            return
-        }
-        if (savingPairsRef.current) return
-        if (!uuid) return
-        if (pairs.some((q) => !q.name || q.name.trim() === "")) {
-            // Don't auto-save while another row is still blank — the bulk
-            // endpoint rejects it anyway and the toast would be noisy.
-            return
-        }
-        savingPairsRef.current = true
-        ;(async () => {
-            try {
-                const saved = await replacePairs(uuid, buildPairsPayload())
-                setPairs(saved)
-                pendingPaidRef.current.clear()
-            } catch {
-                /* error toast already surfaced by axios interceptor */
-            } finally {
-                savingPairsRef.current = false
-            }
-        })()
-    }
-
-    /**
-     * "Plati" click handler for a not-yet-persisted pair. Saves the whole
-     * list with the paid flag flipped for the target pair, so a single
-     * round-trip both persists the row AND records the kotizacija status.
-     * No more "pair not found" 404s from the legacy split flow where the
-     * user had to hit Spremi promjene before Plati would work.
-     */
-    async function saveTempPairWithPaid(pairId: number, nextPaid: boolean) {
-        if (!uuid) return
-        const target = pairs.find((p) => p.id === pairId)
-        if (!target || !target.name.trim()) {
-            alert("Unesite ime para prije plaćanja.")
-            return
-        }
-        if (savingPairsRef.current) return
-        savingPairsRef.current = true
-        try {
-            const saved = await replacePairs(uuid, buildPairsPayload({ pairId, paid: nextPaid }))
-            setPairs(saved)
-            pendingPaidRef.current.clear()
-        } catch (e: any) {
-            alert(e?.response?.data ?? e?.message ?? "Neuspjelo spremanje.")
-        } finally {
-            savingPairsRef.current = false
-        }
-    }
-
-    async function saveEditedMatch(roundId: number, m: MatchLocal) {
-        if (!uuid) return
-        const n1 = m._score1 && m._score1.trim() !== "" ? Number(m._score1) : null
-        const n2 = m._score2 && m._score2.trim() !== "" ? Number(m._score2) : null
-
-        if (m.pair1Id && m.pair2Id) {
-            if (n1 == null || n2 == null || !Number.isFinite(n1) || !Number.isFinite(n2) || n1 === n2) {
-                alert("Unesite ispravne rezultate za oba para (različiti brojevi).")
-                return
-            }
-        }
-
-        const updatedRound = await overrideMatchScore(uuid, roundId, m.id, { score1: n1, score2: n2 })
-
-        setRounds(rs =>
-            rs.map(r =>
-                r.id !== updatedRound.id ? r : {
-                    ...updatedRound,
-                    matches: updatedRound.matches.map(mx => ({
-                        ...mx,
-                        _score1: mx.score1 != null ? String(mx.score1) : "",
-                        _score2: mx.score2 != null ? String(mx.score2) : "",
-                        _dirty: false,
-                        _editing: false,
-                    }))
-                }
-            )
-        )
-
-        const [pairList, details] = await Promise.all([
-            fetchTournamentPairs(uuid),
-            fetchTournamentDetails(uuid),
-        ])
-        setPairs(pairList)
-        setT(details)
-    }
-
-    /* ---------- Rounds & matches ---------- */
-    async function onCreateRound() {
-        if (!uuid) return
-        const created = await drawRound(uuid) // persisted on server
-        appendRoundLocally(created)
-    }
-
-    /**
-     * Append a server-returned RoundDto to our local rounds state with
-     * the extra editor fields the UI tracks per-match. Extracted so the
-     * manual-round flow doesn't duplicate the mapping.
-     */
-    function appendRoundLocally(created: { id: number; number: number; status: string; matches: any[] }) {
-        setRounds((rs) => [
-            ...rs,
-            {
-                ...(created as any),
-                matches: (created.matches ?? []).map((m: any) => ({
-                    ...m,
-                    _score1: m.score1 != null ? String(m.score1) : "",
-                    _score2: m.score2 != null ? String(m.score2) : "",
-                    _dirty: false,
-                    _editing: false,
-                })),
-            },
-        ])
-    }
-
-    /* Manual round generation — for the late-bracket stage. */
-    const [manualRoundOpen, setManualRoundOpen] = useState(false)
-    const [manualConfirmOpen, setManualConfirmOpen] = useState(false)
-
-    /** Active (non-eliminated) pairs as the dialog's pool. Re-derived on
-     *  each render so the dialog always sees the latest state. */
-    const activePairsForManual = useMemo(
-        () => pairs.filter((p) => !p.isEliminated).map((p) => ({ id: p.id, name: p.name })),
-        [pairs],
-    )
-
-    /** Show the manual-round button when we have a small number of active
-     *  pairs (≤ 4 — typical when the bracket is reaching its end and the
-     *  random auto-draw would produce awkward pairings).
-     *
-     *  NB: `canEditTournament` is only declared inside the Parovi tab's
-     *  IIFE; here at the top of the component we re-derive the same
-     *  predicate from auth state + the tournament's creator UID. Keeping
-     *  one source of truth here is overkill for two call-sites that don't
-     *  cross trust boundaries. */
-    const ownerOrAdminEditable =
-        !!t && (isAdmin || (!!user?.uid && user.uid === t.createdByUid))
-    const showManualRoundButton =
-        tournamentStarted &&
-        t?.status !== "FINISHED" &&
-        ownerOrAdminEditable &&
-        canCreateRound &&
-        activeCount > 1 &&
-        activeCount <= 4
-
-    function onClickManualRound() {
-        // Confirmation step — the user said they want to be sure before
-        // opening the bigger form, since this skips the random draw and
-        // they're committing to a specific bracket layout.
-        setManualConfirmOpen(true)
-    }
-    function onConfirmManualRound() {
-        setManualConfirmOpen(false)
-        setManualRoundOpen(true)
-    }
-    function onManualRoundCreated() {
-        // Re-fetch the canonical rounds list rather than trying to derive
-        // it from a single dialog response. Keeps display state honest
-        // when the dialog ran multiple persistence steps.
-        if (!uuid) return
-        fetchTournamentDetails(uuid).then(setT).catch(() => {})
-        // Same shape as auto-draw — just reload rounds list.
-        ;(async () => {
-            try {
-                const fresh = await import("../api/round").then((m) => m.fetchRounds(uuid))
-                setRounds(
-                    fresh.map((r) => ({
-                        ...r,
-                        matches: r.matches.map((m) => ({
-                            ...m,
-                            _score1: m.score1 != null ? String(m.score1) : "",
-                            _score2: m.score2 != null ? String(m.score2) : "",
-                            _dirty: false,
-                            _editing: false,
-                        })),
-                    })),
-                )
-            } catch { /* toaster handles it */ }
-        })()
-    }
-
-    /**
-     * Završi turnir is only offered when:
+     * "Završi turnir" is only offered when:
      *   - the viewer is the creator (or an admin)
      *   - the tournament isn't already FINISHED
      *   - at least one round has been played to completion
      *   - no round is currently in progress
-     *   - fewer than 2 pairs are still active (typical end-state: a single winner;
-     *     edge case: zero remaining if every pair was eliminated in the same round)
+     *   - fewer than 2 pairs are still active (typical end-state: a single
+     *     winner; edge case: zero, if every pair went out in the same round)
      */
     const canFinishTournament = useMemo(() => {
-        const isOwnerOrAdmin = isAdmin || (!!user?.uid && user.uid === t?.createdByUid)
-        if (!isOwnerOrAdmin) return false
+        if (!canEditTournament) return false
         if (t?.status === "FINISHED") return false
         if (activeCount >= 2) return false
-        if (hasOngoingRound) return false
+        if (roundsCtl.hasOngoingRound) return false
         return rounds.some((r) => r.status === "COMPLETED")
-    }, [isAdmin, user, t, activeCount, hasOngoingRound, rounds])
+    }, [canEditTournament, t?.status, activeCount, roundsCtl.hasOngoingRound, rounds])
 
-    async function onFinishTournament() {
-        if (!uuid) return
-        try {
-            const updated = await finishTournament(uuid)
-            setT(updated)
+    /** Show the manual-round button when few active pairs remain (≤ 4 —
+     *  typical when the bracket is reaching its end and the random auto-draw
+     *  would produce awkward pairings). */
+    const showManualRoundButton =
+        roundsCtl.tournamentStarted &&
+        t?.status !== "FINISHED" &&
+        !!t && canEditTournament &&
+        canCreateRound &&
+        activeCount > 1 &&
+        activeCount <= 4
 
-            setCollapsedRounds(() => {
-                const next: Record<number, boolean> = {}
-                rounds.forEach(r => {
-                    next[r.id] = true
-                })
-                return next
-            })
-        } catch (err: any) {
-            const msg = err?.response?.data ?? err?.message ?? "Failed to finish tournament."
-            alert(String(msg))
-        }
-    }
+    /** Active (non-eliminated) pairs as the manual dialog's pool. */
+    const activePairsForManual = useMemo(
+        () => pairsView.activePairs.map((p) => ({ id: p.id, name: p.name })),
+        [pairsView.activePairs],
+    )
 
-    async function onStartTournament() {
-        if (!uuid) return
-        try {
-            const updated = await startTournament(uuid)
-            setT(updated)
-        } catch (err: any) {
-            // Block start if at least one pair hasn’t paid
-            if (err?.response?.status === 409 && err?.response?.data === "UNPAID_REQUIRED") {
-                setUnpaidOpen(true) // open modal
-                return
-            }
-            if (err?.response?.status === 409 && err?.response?.data === "INSUFFICIENT_PAIRS") {
-                alert("Treba najmanje 2 plaćena para da bi se turnir mogao pokrenuti.")
-                return
-            }
-            if (err?.response?.status === 409 && err?.response?.data === "ALREADY_FINISHED") {
-                alert("Turnir je već završen.")
-                return
-            }
-            const msg = err?.response?.data ?? err?.message ?? "Failed to start tournament."
-            alert(String(msg))
-        }
-    }
+    /* Pairs that have paid AND are approved — only these count toward the
+       start-tournament minimum of 2. Was recomputed inside the bracket tab's
+       render IIFE on every render, including every score keystroke. */
+    const paidApprovedCount = useMemo(
+        () => pairs.filter((p) => !!p.paid && !p.pendingApproval).length,
+        [pairs],
+    )
+    const canStart = canEditTournament && paidApprovedCount >= 2
 
-    // NEW: reset tournament (delete all rounds, set to DRAFT)
-    async function onResetTournament() {
-        if (!uuid) return
-        if (!confirm("Resetirati turnir? Sve runde i mečevi će biti obrisani, a turnir vraćen u nacrt.")) return
-        try {
-            const updated = await apiResetTournament(uuid)
-            await refreshAll();
-            setT(updated)
-            setRounds([])
-            setCollapsedRounds({})
-        } catch (e: any) {
-            alert(e?.response?.data ?? e?.message ?? "Neuspješan reset turnira.")
-        }
-    }
+    /* "The tournament is under way" — pair editing is locked. STARTED is
+       checked explicitly: a tournament can be started before the first round
+       is drawn, and a bare `rounds.length > 0` test left that window wide open
+       for adding/renaming pairs. */
+    const tournamentAlready =
+        rounds.length > 0 || t?.status === "STARTED" || t?.status === "FINISHED"
 
-    function setLocalMatchScore(roundId: number, matchId: number, which: "A" | "B", raw: string) {
-        const v = raw.replace(/[^\d]/g, "")
-        setRounds((rs): RoundLocal[] =>
-            rs.map((r) =>
-                r.id !== roundId
-                    ? r
-                    : {
-                        ...r,
-                        matches: r.matches.map((m): MatchLocal =>
-                            m.id !== matchId
-                                ? m
-                                : {
-                                    ...m,
-                                    _score1: which === "A" ? v : m._score1,
-                                    _score2: which === "B" ? v : m._score2,
-                                    _dirty: true,
-                                }
-                        ),
-                    }
-            )
-        )
-    }
+    /**
+     * Does this device hold a waiter token for THIS tournament? It is the
+     * second half of the Računi gate: the organiser always has the section,
+     * and anyone who has redeemed a code here has it too. Everyone else must
+     * not even see that it exists, which is the whole point of the feature.
+     *
+     * Read here rather than inside RacuniSection deliberately: the nav lives
+     * at this level, and the hook's module-level store means the code gate's
+     * successful redeem repaints this component in the same commit — no
+     * reload, no re-navigation.
+     */
+    const {
+        hasSession: hasWaiterSession,
+        token: waiterToken,
+        canEditCjenik: waiterCanEditCjenik,
+    } = useWaiterSession(t?.uuid)
 
-    async function saveMatch(roundId: number, m: MatchLocal) {
-        if (!uuid) return
-        const n1 = m._score1 && m._score1.trim() !== "" ? Number(m._score1) : undefined
-        const n2 = m._score2 && m._score2.trim() !== "" ? Number(m._score2) : undefined
-        if (n1 !== undefined && !Number.isFinite(n1)) return
-        if (n2 !== undefined && !Number.isFinite(n2)) return
-
-        await updateMatchScore(uuid, roundId, m.id, {score1: n1 ?? null, score2: n2 ?? null})
-
-        setRounds((rs): RoundLocal[] =>
-            rs.map((r) =>
-                r.id !== roundId
-                    ? r
-                    : {
-                        ...r,
-                        matches: r.matches.map((mx) =>
-                            mx.id !== m.id ? mx : {...mx, score1: n1, score2: n2, _dirty: false}
-                        ),
-                    }
-            )
-        )
-
-        const refreshedPairs = await fetchTournamentPairs(uuid)
-        setPairs(refreshedPairs)
-        const refreshedRounds = await fetchRounds(uuid)
-        setRounds(refreshedRounds.map((r) => ({
-            ...r,
-            matches: r.matches.map((mx) => ({
-                ...mx,
-                _score1: mx.score1 != null ? String(mx.score1) : "",
-                _score2: mx.score2 != null ? String(mx.score2) : "",
-                _dirty: false,
-                _editing: false,
-            }))
-        })))
-    }
-
-    async function hardReset(roundId: number) {
-        if (!uuid) return
-        const round = rounds.find(r => r.id === roundId)
-        if (round?.status === "COMPLETED") {
-            return
-        }
-        if (!confirm("Hard reset this round? All matches will be deleted and stats rolled back.")) return
-        await hardResetRound(uuid, roundId)
-        await refreshAll()
-    }
-
-    function winnerOf(m: MatchLocal): number | null {
-        if (!m.pair1Id || !m.pair2Id) return null
-        const a = m._score1 && m._score1 !== "" ? Number(m._score1) : m.score1 ?? null
-        const b = m._score2 && m._score2 !== "" ? Number(m._score2) : m.score2 ?? null
-        if (a == null || b == null || !Number.isFinite(a) || !Number.isFinite(b) || a === b) return null
-        return a > b ? m.pair1Id : m.pair2Id
-    }
-
-    function canFinish(r: RoundLocal): boolean {
-        if (r.matches.length === 0) return false
-        return r.matches.every((m) => {
-            if (!m.pair1Id || !m.pair2Id) return true
-            return winnerOf(m) !== null
+    /* ---------- Nav ----------
+       Both chromes render THIS list, so a section can never exist on one
+       breakpoint and not the other. Rebuilt every render because `tr()` output
+       changes with the active locale. */
+    const sections: TournamentSectionDef[] = [
+        { key: "details", label: tr("tournament.tab.details"), icon: <FiInfo size={15} />, tour: "detail-tab-details" },
+        { key: "pairs", label: tr("tournament.tab.pairs"), icon: <FiUsers size={15} />, tour: "detail-tab-pairs" },
+        { key: "bracket", label: tr("tournament.tab.bracket"), icon: <FiShuffle size={15} />, tour: "detail-tab-bracket" },
+        { key: "cjenik", label: tr("tournament.tab.cjenik"), icon: <FiDollarSign size={15} />, tour: "detail-tab-cjenik" },
+    ]
+    /* Računi is the one CONDITIONAL section: a random visitor and a pair
+       member must not learn that the venue's bill board exists, so the item is
+       pushed only for the organiser and for a device already carrying a waiter
+       session. FiCreditCard rather than Cjenik's FiDollarSign — two money
+       sections one above the other need to be told apart at a glance. No
+       `tour` anchor: the guided tour walks the four public sections and must
+       not stop at an item most readers will never have. */
+    if (canEditTournament || hasWaiterSession) {
+        sections.push({
+            key: "racuni",
+            label: tr("tournament.waiter.tab"),
+            icon: <FiCreditCard size={15} />,
         })
     }
+    /* Both chromes hand back a plain string key (see TournamentSectionDef);
+       the cast is safe because `sections` above is the only source of keys. */
+    const selectSection = (key: string) => setTab(key as SectionKey)
 
-    async function finishWholeRound(r: RoundLocal) {
-        if (!uuid) return
-
-        for (const m of r.matches) {
-            if (!m.pair1Id || !m.pair2Id) continue
-            if (m._dirty) {
-                const score1 = m._score1 && m._score1 !== "" ? Number(m._score1) : null
-                const score2 = m._score2 && m._score2 !== "" ? Number(m._score2) : null
-                await updateMatchScore(uuid, r.id, m.id, {score1, score2})
-            }
-        }
-
-        const updated = await finishRound(uuid, r.id)
-
-        setRounds(rs =>
-            rs.map(x =>
-                x.id === r.id
-                    ? {
-                        ...updated,
-                        matches: updated.matches.map(m => ({
-                            ...m,
-                            _score1: m.score1 != null ? String(m.score1) : "",
-                            _score2: m.score2 != null ? String(m.score2) : "",
-                            _dirty: false,
-                            _editing: false,
-                        })),
-                    }
-                    : x
-            )
-        )
-
-        const refreshedPairs = await fetchTournamentPairs(uuid)
-        setPairs(refreshedPairs)
+    const startDetailsEdit = () => {
+        // The edit form lives in the Detalji view — jump there first.
+        setTab("details")
+        editor.enterDetailsEdit()
     }
 
-    const toggleRoundCollapsed = (id: number) =>
-        setCollapsedRounds((cr) => ({...cr, [id]: !cr[id]}))
-
-    // NEW: send toggle immediately
-    async function onToggleAllowRepeats(next: boolean) {
-        if (!uuid) return
-        const prev = allowRepeats
-        setAllowRepeats(next)
-        setSavingPM(true)
-
-        try {
-            const res = await apiSetAllowRepeats(uuid!, next)
-            setT(res)
-        } catch (e: any) {
-            setAllowRepeats(prev)
-            alert(e?.response?.data ?? e?.message ?? "Neuspjelo spremanje postavke.")
-        } finally {
-            setSavingPM(false)
-        }
+    const chromeProps = {
+        sections,
+        active: tab,
+        onSelect: selectSection,
+        canEditTournament,
+        showEditAction,
+        showDeleteAction,
+        shareUrl: typeof window !== "undefined" ? window.location.href : "",
+        uuid,
+        onEdit: startDetailsEdit,
+        onDelete: () => setDeleteTournamentOpen(true),
+        onOpenQr: () => setQrOpen(true),
+        onBackToList: () => navigate("/turniri"),
     }
 
-    async function onTogglePaid(pairId: number, nextPaid: boolean) {
-        if (!uuid) return
-        // Pair not yet saved server-side — route through the temp-pair
-        // path so name + paid are persisted in one bulk call. Without this
-        // the legacy setPairPaid hits /pairs/{id} which 404s because the
-        // negative id never reached the database.
-        if (pairId < 0) {
-            await saveTempPairWithPaid(pairId, nextPaid)
-            return
-        }
-        // optimistic
-        setPairs(ps => ps.map(x => x.id === pairId ? ({ ...(x as any), paid: nextPaid }) : x))
-        try {
-            const updated = await setPairPaid(uuid, pairId, nextPaid)
-            // keep in sync with server response if it returns the pair
-            if (updated && typeof updated === "object") {
-                setPairs(ps => ps.map(x => x.id === pairId ? (updated as any) : x))
-            }
-        } catch (e: any) {
-            // revert
-            setPairs(ps => ps.map(x => x.id === pairId ? ({ ...(x as any), paid: !(nextPaid) }) : x))
-            alert(e?.response?.data ?? e?.message ?? "Neuspjelo ažuriranje kotizacije.")
-        }
-    }
-
-    /* ---------- UI ---------- */
     return (
         <>
-            {/* Header */}
-            <HStack justify="space-between" mb="3" wrap="wrap" gap="2">
-                <Heading size="lg">
-                    {t?.name ?? "Tournament"}{" "}
-                </Heading>
-                <Button asChild variant="ghost" size="sm">
-                    <RouterLink to="/turniri">Natrag na popis</RouterLink>
-                </Button>
-            </HStack>
-
-            {/* Tabs */}
-            <HStack mb="4" gap="2">
-                <Button
-                    size="sm"
-                    variant={tab === "details" ? "solid" : "ghost"}
-                    colorPalette="blue"
-                    onClick={() => setTab("details")}
-                    data-tour="detail-tab-details"
-                >
-                    Detalji
-                </Button>
-                <Button
-                    size="sm"
-                    variant={tab === "pairs" ? "solid" : "ghost"}
-                    onClick={() => setTab("pairs")}
-                    data-tour="detail-tab-pairs"
-                >
-                    Parovi
-                </Button>
-                <Button
-                    size="sm"
-                    variant={tab === "bracket" ? "solid" : "ghost"}
-                    onClick={() => setTab("bracket")}
-                    data-tour="detail-tab-bracket"
-                >
-                    Ždrijeb
-                </Button>
-                <Button
-                    size="sm"
-                    variant={tab === "cjenik" ? "solid" : "ghost"}
-                    onClick={() => setTab("cjenik")}
-                    data-tour="detail-tab-cjenik"
-                >
-                    Cjenik
-                </Button>
-            </HStack>
-
-            {loading ? (
-                <HStack justify="center" py="16">
-                    <Spinner/>
-                    <Text>Učivanje…</Text>
-                </HStack>
-            ) : !t ? (
-                <VStack py="10">
-                    <Text color="red.600">{error ?? "Tournament not found."}</Text>
-                    <Button asChild size="sm">
-                        <RouterLink to="/turniri">Back</RouterLink>
-                    </Button>
-                </VStack>
-            ) : tab === "details" ? (
-                <>
-                    {/* ===== DETAILS — read mode + inline edit mode ===== */}
-                    {!editingDetails || !editForm ? (
-                        <Box
-                            // Used to host data-tour="detail-content-details"
-                            // for the guided tour, but that anchor was huge
-                            // (the entire 2-column grid) and made the tooltip
-                            // pop far from the spotlight. The "Detalji" tab
-                            // step now points at the tab BUTTON and folds
-                            // the content description into its body, so this
-                            // wrapper no longer needs a tour anchor.
-                            display="grid"
-                            gridTemplateColumns={{ base: "1fr", lg: "1fr 320px" }}
-                            gap={{ base: "4", lg: "5" }}
-                            alignItems="start"
-                        >
-                            {/* Tile grid + small toolbar with Uredi + Podijeli */}
-                            <VStack align="stretch" gap="3">
-                                {/* Toolbar */}
-                                <HStack justify="flex-end" gap="2">
-                                    <ShareButton
-                                        url={typeof window !== "undefined" ? window.location.href : ""}
-                                        title={t.name}
-                                    />
-                                    {/* Uredi only when the viewer is the creator
-                                        or an admin, and the tournament isn't done. */}
-                                    {t.status !== "FINISHED" &&
-                                        (isAdmin || (user?.uid && user.uid === t.createdByUid)) && (
-                                            <Button
-                                                size="xs"
-                                                variant="outline"
-                                                onClick={enterDetailsEdit}
-                                            >
-                                                <FiEdit2 /> Uredi
-                                            </Button>
-                                        )}
-                                    {/* Admin-only soft delete. Owners can edit but can't
-                                        nuke a tournament — see backend gating. */}
-                                    {isAdmin && (
-                                        <Button
-                                            size="xs"
-                                            variant="outline"
-                                            colorPalette="red"
-                                            onClick={() => setDeleteTournamentOpen(true)}
-                                        >
-                                            <FiTrash2 /> Obriši
-                                        </Button>
-                                    )}
-                                </HStack>
-
-                                <Box
-                                    display="grid"
-                                    gridTemplateColumns={{
-                                        base: "1fr",
-                                        md: "1fr 1fr",
-                                        lg: "1fr 1fr 1fr",
-                                    }}
-                                    gap="3"
-                                >
-                                    {/* === Creator (top) === */}
-                                    {t.createdByName && (
-                                        <DetailTile
-                                            icon={<FiUser size={13} />}
-                                            label="Kreirao"
-                                            value={t.createdByName}
-                                            span={{ md: "span 2", lg: "span 3" }}
-                                        />
-                                    )}
-
-                                    {/* === Schedule + capacity === */}
-                                    <DetailTile
-                                        icon={<FiCalendar size={13} />}
-                                        label="Datum"
-                                        value={formatDate(t.startAt)}
-                                    />
-                                    <DetailTile
-                                        icon={<FiClock size={13} />}
-                                        label="Vrijeme početka"
-                                        value={formatTime(t.startAt)}
-                                    />
-                                    <DetailTile
-                                        icon={<FiUser size={13} />}
-                                        label="Max parova"
-                                        value={typeof t.maxPairs === "number" ? t.maxPairs : "Neodređeno"}
-                                    />
-
-                                    {t.location && (
-                                        <DetailTile
-                                            icon={<FiMapPin size={13} />}
-                                            label="Lokacija"
-                                            value={
-                                                <HStack justify="space-between" gap="2" wrap="wrap">
-                                                    <Text fontWeight="medium">{t.location}</Text>
-                                                    <Button
-                                                        as="a"
-                                                        size="xs"
-                                                        variant="outline"
-                                                        colorPalette="blue"
-                                                        // @ts-expect-error chakra Button polymorphic + anchor props
-                                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.location)}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        title="Otvori u Google Maps"
-                                                    >
-                                                        <FiExternalLink /> Otvori u kartama
-                                                    </Button>
-                                                </HStack>
-                                            }
-                                            span={{ md: "span 2", lg: "span 3" }}
-                                        />
-                                    )}
-
-                                    {t.details && (
-                                        <DetailTile
-                                            icon={<FiInfo size={13} />}
-                                            label="Detalji"
-                                            value={
-                                                <Text whiteSpace="pre-wrap" fontSize="sm" fontWeight="normal">
-                                                    {t.details}
-                                                </Text>
-                                            }
-                                            span={{ md: "span 2", lg: "span 3" }}
-                                        />
-                                    )}
-
-                                    {/* === Pricing === */}
-                                    {typeof t.entryPrice === "number" && (
-                                        <DetailTile
-                                            icon={<FiDollarSign size={13} />}
-                                            label="Kotizacija"
-                                            value={fmtMoney(t.entryPrice)}
-                                        />
-                                    )}
-                                    {typeof t.repassagePrice === "number" && (
-                                        <DetailTile
-                                            icon={<FiDollarSign size={13} />}
-                                            label="Repasaž"
-                                            value={fmtMoney(t.repassagePrice)}
-                                        />
-                                    )}
-                                    {typeof t.repassageSecondPrice === "number" && (
-                                        <DetailTile
-                                            icon={<FiDollarSign size={13} />}
-                                            label="Drugi repasaž"
-                                            value={fmtMoney(t.repassageSecondPrice)}
-                                        />
-                                    )}
-                                    <DetailTile
-                                        label="Repasaž do"
-                                        value={
-                                            <Badge
-                                                variant="subtle"
-                                                colorPalette="blue"
-                                                size="sm"
-                                            >
-                                                {t.repassageUntil === "FINALS"
-                                                    ? "Finala"
-                                                    : t.repassageUntil === "SEMIFINALS"
-                                                        ? "Polufinala"
-                                                        : t.repassageUntil === "FIRST_ROUND"
-                                                            ? "Prvog kruga"
-                                                            : "—"}
-                                            </Badge>
-                                        }
-                                    />
-
-                                    {/* === Rewards (combined: type + 1./2./3. with trophies) === */}
-                                    {t.rewardType && (() => {
-                                        const isPercent = t.rewardType === "PERCENTAGE"
-                                        const fmt = (n: number | null | undefined) =>
-                                            isPercent ? `${n ?? 0}%` : fmtMoney(n)
-                                        const places: Array<{
-                                            place: string
-                                            color: string
-                                            value: string
-                                        }> = [
-                                            { place: "1. mjesto", color: "#F5C518", value: fmt(t.rewardFirst) },
-                                            { place: "2. mjesto", color: "#9CA3AF", value: fmt(t.rewardSecond) },
-                                            { place: "3. mjesto", color: "#CD7F32", value: fmt(t.rewardThird) },
-                                        ]
-                                        return (
-                                            <DetailTile
-                                                icon={<FiGift size={13} />}
-                                                label="Nagrade"
-                                                span={{ md: "span 2", lg: "span 3" }}
-                                                value={
-                                                    <VStack align="stretch" gap="2.5">
-                                                        <HStack>
-                                                            <Badge variant="subtle" colorPalette="purple" size="sm">
-                                                                {isPercent ? "Postotak fonda" : "Fiksne"}
-                                                            </Badge>
-                                                        </HStack>
-                                                        <Box
-                                                            display="grid"
-                                                            gridTemplateColumns={{ base: "1fr", sm: "1fr 1fr 1fr" }}
-                                                            gap="3"
-                                                        >
-                                                            {places.map((p) => (
-                                                                <HStack
-                                                                    key={p.place}
-                                                                    gap="2"
-                                                                    p="2"
-                                                                    rounded="md"
-                                                                    bg="bg.muted"
-                                                                >
-                                                                    <Box color={p.color} flexShrink={0} display="flex" alignItems="center">
-                                                                        <FaTrophy size={20} />
-                                                                    </Box>
-                                                                    <Box minW="0">
-                                                                        <Text fontSize="2xs" color="fg.muted" letterSpacing="wide" textTransform="uppercase">
-                                                                            {p.place}
-                                                                        </Text>
-                                                                        <Text fontWeight="semibold" lineHeight="short">
-                                                                            {p.value}
-                                                                        </Text>
-                                                                    </Box>
-                                                                </HStack>
-                                                            ))}
-                                                        </Box>
-                                                    </VStack>
-                                                }
-                                            />
-                                        )
-                                    })()}
-
-                                    {/* === Contact === */}
-                                    {t.contactName && (
-                                        <DetailTile
-                                            icon={<FiUser size={13} />}
-                                            label="Kontakt ime"
-                                            value={t.contactName}
-                                        />
-                                    )}
-                                    {t.contactPhone && (
-                                        <DetailTile
-                                            icon={<FiPhone size={13} />}
-                                            label="Telefon"
-                                            value={
-                                                <chakra.a
-                                                    href={`tel:${t.contactPhone.replace(/\s+/g, "")}`}
-                                                    color="blue.fg"
-                                                    fontWeight="medium"
-                                                    _hover={{ textDecoration: "underline" }}
-                                                >
-                                                    {t.contactPhone}
-                                                </chakra.a>
-                                            }
-                                        />
-                                    )}
-
-                                    {/* === Extras === */}
-                                    {t.additionalOptions && t.additionalOptions.length > 0 && (
-                                        <DetailTile
-                                            icon={<FiAward size={13} />}
-                                            label="Dodatne opcije"
-                                            value={
-                                                <HStack wrap="wrap" gap="2">
-                                                    {t.additionalOptions.map((opt) => (
-                                                        <Badge key={opt} variant="solid" colorPalette="blue">
-                                                            {opt}
-                                                        </Badge>
-                                                    ))}
-                                                </HStack>
-                                            }
-                                            span={{ md: "span 2", lg: "span 3" }}
-                                        />
-                                    )}
-                                </Box>
-                            </VStack>
-
-                            {/* Poster column — sticky on desktop */}
-                            <Box
-                                position={{ base: "static", lg: "sticky" }}
-                                top={{ lg: "4" }}
-                                alignSelf="start"
-                            >
-                                <Card.Root variant="outline" rounded="xl" overflow="hidden" borderColor="border.emphasized" shadow="sm">
-                                    {/* Poster frame. On mobile we let the poster's
-                                        natural aspect ratio decide the height (capped
-                                        by maxH so a freakishly tall poster doesn't
-                                        eat the screen) and use objectFit="contain" so
-                                        the whole image is visible — no edges clipped
-                                        off the way "cover" was doing on portrait
-                                        posters. The neutral bg fills any letterbox
-                                        bars cleanly. Desktop keeps a fixed sticky
-                                        height because the side-by-side layout needs
-                                        a predictable row. */}
-                                    <Box
-                                        bg="bg.muted"
-                                        h={{ base: "auto", md: "320px", lg: "380px" }}
-                                        maxH={{ base: "70vh", md: "320px", lg: "380px" }}
-                                        overflow="hidden"
-                                        display="flex"
-                                        alignItems="center"
-                                        justifyContent="center"
-                                    >
-                                        {t.bannerUrl ? (
-                                            <Image
-                                                src={t.bannerUrl}
-                                                alt={t.name}
-                                                w="100%"
-                                                h={{ base: "auto", md: "100%" }}
-                                                maxH={{ base: "70vh", md: "100%" }}
-                                                objectFit={{ base: "contain", md: "cover" }}
-                                                draggable={false}
-                                            />
-                                        ) : (
-                                            <Box
-                                                w="100%"
-                                                h="240px"
-                                                display="flex"
-                                                alignItems="center"
-                                                justifyContent="center"
-                                                color="fg.muted"
-                                                fontSize="sm"
-                                            >
-                                                Nema plakata
-                                            </Box>
-                                        )}
-                                    </Box>
-                                </Card.Root>
-                            </Box>
-                        </Box>
-                    ) : (
-                        /* ===== EDIT MODE ===== */
-                        <VStack align="stretch" gap="4">
-                            <SectionCard icon={<FiInfo />} title="Osnovno">
-                                <VStack align="stretch" gap="4">
-                                    {/* Row 1 — name + datetime + maxPairs (same
-                                        3-column layout as CreateTournamentPage's
-                                        Osnovne informacije, for consistency). */}
-                                    <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "2fr 2fr 1fr" }} gap="4">
-                                        <Field.Root required>
-                                            <Field.Label>Ime turnira <Field.RequiredIndicator /></Field.Label>
-                                            <Input
-                                                value={editForm.name}
-                                                onChange={(e) => patchEdit("name", e.target.value)}
-                                            />
-                                        </Field.Root>
-                                        <Field.Root required>
-                                            <Field.Label>
-                                                Datum i vrijeme <Field.RequiredIndicator />
-                                            </Field.Label>
-                                            {/* Same react-datepicker config as
-                                                CreateTournamentPage: HR locale,
-                                                forced dd/MM/yyyy + 24h, minDate
-                                                blocks past picks. State still
-                                                stores ISO date + HH:mm so the
-                                                backend payload shape is unchanged. */}
-                                            <Box className="bela-datepicker-wrap" w="full">
-                                                <DatePicker
-                                                    selected={
-                                                        editForm.startDate && editForm.startTime
-                                                            ? new Date(`${editForm.startDate}T${editForm.startTime}:00`)
-                                                            : null
-                                                    }
-                                                    onChange={(d) => {
-                                                        if (!d) {
-                                                            patchEdit("startDate", "")
-                                                            patchEdit("startTime", "")
-                                                            return
-                                                        }
-                                                        const pad = (n: number) => String(n).padStart(2, "0")
-                                                        const yyyy = d.getFullYear()
-                                                        const mm = pad(d.getMonth() + 1)
-                                                        const dd = pad(d.getDate())
-                                                        const hh = pad(d.getHours())
-                                                        const mi = pad(d.getMinutes())
-                                                        patchEdit("startDate", `${yyyy}-${mm}-${dd}`)
-                                                        patchEdit("startTime", `${hh}:${mi}`)
-                                                    }}
-                                                    showTimeSelect
-                                                    timeIntervals={15}
-                                                    timeFormat="HH:mm"
-                                                    timeCaption="Vrijeme"
-                                                    dateFormat="dd/MM/yyyy HH:mm"
-                                                    locale="hr"
-                                                    minDate={new Date()}
-                                                    placeholderText="DD/MM/GGGG HH:MM"
-                                                    wrapperClassName="bela-datepicker-input-wrap"
-                                                    className="bela-datepicker-input"
-                                                    popperPlacement="bottom-start"
-                                                />
-                                            </Box>
-                                        </Field.Root>
-                                        <Field.Root>
-                                            <Field.Label>Max parova</Field.Label>
-                                            <Input
-                                                type="number"
-                                                inputMode="numeric"
-                                                min={2}
-                                                placeholder="Neodređeno"
-                                                value={editForm.maxPairs}
-                                                onChange={(e) => patchEdit("maxPairs", sanitizeInt(e.target.value))}
-                                                onBlur={() => {
-                                                    // Optional field — empty stays empty
-                                                    // ("Neodređeno"). A filled value below
-                                                    // the minimum snaps up to 2.
-                                                    const raw = editForm.maxPairs.trim()
-                                                    if (raw === "") return
-                                                    const n = parseInt(raw, 10)
-                                                    if (!Number.isFinite(n) || n < 2) {
-                                                        patchEdit("maxPairs", "2")
-                                                    }
-                                                }}
-                                            />
-                                            <Field.HelperText>
-                                                Ostavi prazno za neograničen broj parova.
-                                            </Field.HelperText>
-                                        </Field.Root>
-                                    </Box>
-
-                                    {/* Row 2 — same layout as the create form:
-                                        location autocomplete + details textarea
-                                        stack on the left, map fills the right
-                                        column on desktop. On mobile everything
-                                        collapses to one column (Lokacija →
-                                        Map → Detalji). */}
-                                    <Box
-                                        display="grid"
-                                        gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }}
-                                        gap="4"
-                                    >
-                                        <Field.Root required>
-                                            <Field.Label>Lokacija <Field.RequiredIndicator /></Field.Label>
-                                            <LocationAutocomplete
-                                                value={editForm.location}
-                                                onChange={(v) => patchEdit("location", v)}
-                                                onPickSuggestion={(s) => {
-                                                    setEditPickedCoords({ lat: s.latitude, lng: s.longitude })
-                                                }}
-                                                placeholder="npr. Caffe bar Belot, Zagreb"
-                                            />
-                                        </Field.Root>
-
-                                        <Box
-                                            gridRow={{ base: "auto", md: "span 2" }}
-                                            gridColumn={{ base: "auto", md: "2" }}
-                                        >
-                                            <LocationMapPicker
-                                                value={editPickedCoords}
-                                                onPick={(p) => {
-                                                    patchEdit("location", p.displayName)
-                                                    setEditPickedCoords({ lat: p.lat, lng: p.lng })
-                                                }}
-                                                height={{ base: "220px", md: "100%" }}
-                                                minH="220px"
-                                            />
-                                        </Box>
-
-                                        <Field.Root>
-                                            <Field.Label>Detalji</Field.Label>
-                                            <Textarea
-                                                rows={3}
-                                                value={editForm.details}
-                                                onChange={(e) => patchEdit("details", e.target.value)}
-                                            />
-                                        </Field.Root>
-                                    </Box>
-
-                                    {/* Poster picker. Same layout/validation
-                                        as CreateTournamentPage. When a new
-                                        file is picked, the existing
-                                        bannerUrl is hidden behind the local
-                                        preview; clicking the × either
-                                        cancels the pick (if file was just
-                                        picked) or marks the server-side
-                                        poster for deletion on Spremi. */}
-                                    <Box>
-                                        <HStack gap="2" mb="2" fontSize="sm" fontWeight="medium">
-                                            <FiImage />
-                                            <Text>
-                                                Plakat <chakra.span color="fg.muted" fontWeight="normal">(opcionalno)</chakra.span>
-                                            </Text>
-                                        </HStack>
-
-                                        {/* Same alignment treatment as
-                                            CreateTournamentPage: vertically
-                                            centred on desktop, horizontally
-                                            centred on mobile when the
-                                            preview + VStack wrap. */}
-                                        <HStack
-                                            align="center"
-                                            gap="3"
-                                            wrap="wrap"
-                                            justify={{ base: "center", md: "flex-start" }}
-                                        >
-                                            {(() => {
-                                                const showLocalPreview = !!posterPreviewUrl
-                                                const showServerPoster =
-                                                    !showLocalPreview && !posterRemove && !!t?.bannerUrl
-                                                if (showLocalPreview || showServerPoster) {
-                                                    const src = showLocalPreview
-                                                        ? posterPreviewUrl!
-                                                        : t!.bannerUrl!
-                                                    return (
-                                                        <Box
-                                                            position="relative"
-                                                            borderWidth="1px"
-                                                            rounded="md"
-                                                            overflow="hidden"
-                                                            w="120px"
-                                                            h="120px"
-                                                        >
-                                                            <img
-                                                                src={src}
-                                                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                                            />
-                                                            <IconButton
-                                                                type="button"
-                                                                aria-label="Ukloni plakat"
-                                                                size="2xs"
-                                                                variant="solid"
-                                                                colorPalette="red"
-                                                                position="absolute"
-                                                                top="1"
-                                                                right="1"
-                                                                onClick={() => {
-                                                                    if (showLocalPreview) {
-                                                                        // Local pick — just discard
-                                                                        clearPosterPick()
-                                                                    } else {
-                                                                        // Persisted poster — mark for removal on save
-                                                                        markPosterForRemoval()
-                                                                    }
-                                                                }}
-                                                            >
-                                                                <FiX />
-                                                            </IconButton>
-                                                        </Box>
-                                                    )
-                                                }
-                                                return (
-                                                    <Box
-                                                        w="120px"
-                                                        h="120px"
-                                                        borderWidth="1px"
-                                                        borderStyle="dashed"
-                                                        borderColor="border.subtle"
-                                                        rounded="md"
-                                                        display="flex"
-                                                        alignItems="center"
-                                                        justifyContent="center"
-                                                        color="fg.muted"
-                                                    >
-                                                        <FiImage size={28} />
-                                                    </Box>
-                                                )
-                                            })()}
-
-                                            <VStack
-                                                align={{ base: "center", md: "start" }}
-                                                gap="1"
-                                                flex="1"
-                                                minW="200px"
-                                            >
-                                                <Button
-                                                    as="label"
-                                                    variant="outline"
-                                                    colorPalette="blue"
-                                                    size="sm"
-                                                    cursor="pointer"
-                                                >
-                                                    {posterFile
-                                                        ? "Promijeni sliku"
-                                                        : t?.bannerUrl && !posterRemove
-                                                            ? "Zamijeni plakat"
-                                                            : "Odaberi sliku"}
-                                                    <input
-                                                        type="file"
-                                                        accept={POSTER_ACCEPT.join(",")}
-                                                        style={{ display: "none" }}
-                                                        onChange={(e) => {
-                                                            const f = e.target.files?.[0]
-                                                            if (f) handlePosterPick(f)
-                                                            // Reset so picking the same file again still fires onChange.
-                                                            e.target.value = ""
-                                                        }}
-                                                    />
-                                                </Button>
-                                                {posterUploadErr ? (
-                                                    <Text color="red.600" fontSize="xs">{posterUploadErr}</Text>
-                                                ) : posterRemove ? (
-                                                    <Text color="orange.fg" fontSize="xs">
-                                                        Plakat će biti uklonjen pri spremanju.
-                                                    </Text>
-                                                ) : (
-                                                    <Text color="fg.muted" fontSize="xs">
-                                                        PNG, JPG ili WEBP, do {POSTER_MAX_MB} MB.
-                                                    </Text>
-                                                )}
-                                            </VStack>
-                                        </HStack>
-                                    </Box>
-                                </VStack>
-                            </SectionCard>
-
-                            <SectionCard icon={<FiDollarSign />} title="Kotizacija i repasaž">
-                                {/* Single row matches CreateTournamentPage:
-                                    Kotizacija + Repasaž + Drugi repasaž (opc.)
-                                    + Repasaž moguć do, all inline. */}
-                                <Box
-                                    display="grid"
-                                    gridTemplateColumns={{ base: "1fr", md: "140px 140px 140px 1fr" }}
-                                    gap="4"
-                                    alignItems="start"
-                                >
-                                    <Field.Root>
-                                        <Field.Label>Kotizacija</Field.Label>
-                                        <SuffixInput
-                                            value={editForm.entryPrice}
-                                            onChange={(v) => patchEdit("entryPrice", sanitizeMoney(v))}
-                                            suffix="€"
-                                        />
-                                        <EditPerPairHint value={editForm.entryPrice} />
-                                    </Field.Root>
-                                    <Field.Root>
-                                        <Field.Label>Repasaž</Field.Label>
-                                        <SuffixInput
-                                            value={editForm.repassagePrice}
-                                            onChange={(v) => patchEdit("repassagePrice", sanitizeMoney(v))}
-                                            suffix="€"
-                                        />
-                                        <EditPerPairHint value={editForm.repassagePrice} />
-                                    </Field.Root>
-                                    {/* Drugi repasaž — always visible, empty = not set.
-                                        Matches Create exactly. */}
-                                    <Field.Root>
-                                        <Field.Label color="fg.muted">
-                                            Drugi repasaž <chakra.span fontSize="xs">(opc.)</chakra.span>
-                                        </Field.Label>
-                                        <SuffixInput
-                                            value={editForm.repassageSecondPrice}
-                                            onChange={(v) => patchEdit("repassageSecondPrice", sanitizeMoney(v))}
-                                            placeholder="—"
-                                            suffix="€"
-                                        />
-                                        <EditPerPairHint value={editForm.repassageSecondPrice} />
-                                    </Field.Root>
-                                    <Field.Root>
-                                        <Field.Label>Repasaž moguć do</Field.Label>
-                                        <RadioGroup.Root
-                                            value={editForm.repassageUntil}
-                                            onValueChange={(v) =>
-                                                patchEdit(
-                                                    "repassageUntil",
-                                                    (typeof v === "string" ? v : (v as any)?.value) as "FINALS" | "SEMIFINALS" | "FIRST_ROUND"
-                                                )
-                                            }
-                                        >
-                                            <HStack gap="5" wrap="wrap" rowGap="2" pt="2">
-                                                <RadioGroup.Item value="FINALS">
-                                                    <RadioGroup.ItemHiddenInput />
-                                                    <RadioGroup.ItemIndicator />
-                                                    <RadioGroup.ItemText>Finala</RadioGroup.ItemText>
-                                                </RadioGroup.Item>
-                                                <RadioGroup.Item value="SEMIFINALS">
-                                                    <RadioGroup.ItemHiddenInput />
-                                                    <RadioGroup.ItemIndicator />
-                                                    <RadioGroup.ItemText>Polufinala</RadioGroup.ItemText>
-                                                </RadioGroup.Item>
-                                                <RadioGroup.Item value="FIRST_ROUND">
-                                                    <RadioGroup.ItemHiddenInput />
-                                                    <RadioGroup.ItemIndicator />
-                                                    <RadioGroup.ItemText>Prvog kruga</RadioGroup.ItemText>
-                                                </RadioGroup.Item>
-                                            </HStack>
-                                        </RadioGroup.Root>
-                                        <Field.HelperText>
-                                            Zadnja runda prije koje je moguće kupiti dodatni život.
-                                        </Field.HelperText>
-                                    </Field.Root>
-                                </Box>
-                            </SectionCard>
-
-                            <SectionCard icon={<FiGift />} title="Nagrade">
-                                <VStack align="stretch" gap="4">
-                                    <RadioGroup.Root
-                                        value={editForm.rewardType}
-                                        onValueChange={(v) =>
-                                            patchEdit(
-                                                "rewardType",
-                                                (typeof v === "string" ? v : (v as any)?.value) as "FIXED" | "PERCENTAGE"
-                                            )
-                                        }
-                                    >
-                                        <HStack gap="6" wrap="wrap" rowGap="2">
-                                            <RadioGroup.Item value="FIXED">
-                                                <RadioGroup.ItemHiddenInput />
-                                                <RadioGroup.ItemIndicator />
-                                                <RadioGroup.ItemText>Fiksne (€)</RadioGroup.ItemText>
-                                            </RadioGroup.Item>
-                                            <RadioGroup.Item value="PERCENTAGE">
-                                                <RadioGroup.ItemHiddenInput />
-                                                <RadioGroup.ItemIndicator />
-                                                <RadioGroup.ItemText>Postotak fonda (%)</RadioGroup.ItemText>
-                                            </RadioGroup.Item>
-                                        </HStack>
-                                    </RadioGroup.Root>
-                                    <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "1fr 1fr 1fr" }} gap="4">
-                                        <Field.Root required>
-                                            <Field.Label>1. mjesto <Field.RequiredIndicator /></Field.Label>
-                                            <SuffixInput
-                                                value={editForm.rewardFirst}
-                                                onChange={(v) => patchEdit("rewardFirst", sanitizeMoney(v))}
-                                                suffix={editForm.rewardType === "FIXED" ? "€" : "%"}
-                                            />
-                                        </Field.Root>
-                                        <Field.Root required>
-                                            <Field.Label>2. mjesto <Field.RequiredIndicator /></Field.Label>
-                                            <SuffixInput
-                                                value={editForm.rewardSecond}
-                                                onChange={(v) => patchEdit("rewardSecond", sanitizeMoney(v))}
-                                                suffix={editForm.rewardType === "FIXED" ? "€" : "%"}
-                                            />
-                                        </Field.Root>
-                                        <Field.Root required>
-                                            <Field.Label>3. mjesto <Field.RequiredIndicator /></Field.Label>
-                                            <SuffixInput
-                                                value={editForm.rewardThird}
-                                                onChange={(v) => patchEdit("rewardThird", sanitizeMoney(v))}
-                                                suffix={editForm.rewardType === "FIXED" ? "€" : "%"}
-                                            />
-                                        </Field.Root>
-                                    </Box>
-                                </VStack>
-                            </SectionCard>
-
-                            <SectionCard icon={<FiPhone />} title="Kontakt organizatora">
-                                <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="4">
-                                    <Field.Root>
-                                        <Field.Label>Ime</Field.Label>
-                                        <Input
-                                            placeholder="Ime organizatora"
-                                            value={editForm.contactName}
-                                            onChange={(e) => patchEdit("contactName", e.target.value)}
-                                        />
-                                    </Field.Root>
-                                    <Field.Root>
-                                        <Field.Label>Broj telefona</Field.Label>
-                                        <HStack gap="2">
-                                            <NativeSelect.Root size="md" w="120px" flexShrink={0}>
-                                                <NativeSelect.Field
-                                                    value={editForm.contactPhoneCountry}
-                                                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                                                        patchEdit("contactPhoneCountry", e.target.value)
-                                                    }
-                                                >
-                                                    {PHONE_COUNTRIES.map((c) => (
-                                                        <option key={c.value} value={c.value}>
-                                                            {c.label}
-                                                        </option>
-                                                    ))}
-                                                </NativeSelect.Field>
-                                            </NativeSelect.Root>
-                                            <Input
-                                                flex="1"
-                                                inputMode="numeric"
-                                                pattern="[0-9 ]*"
-                                                placeholder="91 234 5678"
-                                                value={editForm.contactPhone}
-                                                onChange={(e) =>
-                                                    patchEdit("contactPhone", sanitizePhone(e.target.value))
-                                                }
-                                            />
-                                        </HStack>
-                                    </Field.Root>
-                                </Box>
-                            </SectionCard>
-
-                            {/* Sticky save bar */}
-                            <Box
-                                position="sticky"
-                                bottom="0"
-                                bg="bg"
-                                borderTopWidth="1px"
-                                borderColor="border.subtle"
-                                py="3"
-                                mt="2"
-                            >
-                                <HStack justify="space-between" gap="3" wrap="wrap">
-                                    <Text fontSize="sm" color="fg.muted">
-                                        {editMissingRequired.length === 0 && !editStartInPast ? (
-                                            <chakra.span color="green.fg">Spremno za spremanje.</chakra.span>
-                                        ) : editStartInPast ? (
-                                            <chakra.span color="red.500">
-                                                Datum i vrijeme ne mogu biti u prošlosti.
-                                            </chakra.span>
-                                        ) : (
-                                            <chakra.span color="red.500">
-                                                Nedostaje: {editMissingRequired.join(", ")}
-                                            </chakra.span>
-                                        )}
-                                    </Text>
-                                    <HStack gap="2">
-                                        <Button variant="ghost" onClick={cancelDetailsEdit} disabled={savingDetails}>
-                                            Odustani
-                                        </Button>
-                                        <Button
-                                            variant="solid"
-                                            colorPalette="blue"
-                                            onClick={saveDetailsEdit}
-                                            loading={savingDetails}
-                                            disabled={
-                                                editMissingRequired.length > 0 ||
-                                                editStartInPast ||
-                                                savingDetails
-                                            }
-                                        >
-                                            Spremi izmjene
-                                        </Button>
-                                    </HStack>
-                                </HStack>
-                            </Box>
-                        </VStack>
-                    )}
-                </>
-            ) : tab === "pairs" ? (
-                <>
-                    {/* ===== PAIRS (editable) ===== */}
-                    {(() => {
-                        const tournamentAlready =
-                            rounds.length > 0 ||
-                            (t?.status as string) === "IN_PROGRESS" ||
-                            t?.status === "FINISHED"
-                        const tournamentLocked = t?.status === "FINISHED"
-                        const activePairs = pairs.filter((p) => !p.isEliminated)
-                        const eliminatedPairs = pairs.filter((p) => p.isEliminated)
-
-                        // ─── Podium derivation (FINISHED tournaments only) ───
-                        // Winner is already in activePairs (only non-eliminated
-                        // pair after finish). Silver + bronze pairs technically
-                        // live in eliminatedPairs but we re-pin them to the top
-                        // of the "Aktivni" section with medal styling so the
-                        // result is read-at-a-glance.
-                        const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase()
-                        const winnerName = t?.winnerName ?? null
-                        const secondName = t?.secondPlaceName ?? null
-                        const thirdName  = t?.thirdPlaceName  ?? null
-                        const findByName = (n: string | null) =>
-                            n ? pairs.find((p) => norm(p.name) === norm(n)) ?? null : null
-                        const winnerPair = t?.status === "FINISHED" ? findByName(winnerName) : null
-                        const secondPair = t?.status === "FINISHED" ? findByName(secondName) : null
-                        const thirdPair  = t?.status === "FINISHED" ? findByName(thirdName)  : null
-                        const podiumIds = new Set<number>(
-                            [winnerPair, secondPair, thirdPair]
-                                .filter((p): p is PairShort => !!p && typeof p.id === "number")
-                                .map((p) => p.id as number),
-                        )
-                        // Render order: gold → silver → bronze → remaining active.
-                        // For an in-progress tournament this collapses to just
-                        // `activePairs` since none of the podium pairs are set.
-                        const displayActivePairs: PairShort[] = [
-                            ...(winnerPair ? [winnerPair] : []),
-                            ...(secondPair && secondPair.id !== winnerPair?.id ? [secondPair] : []),
-                            ...(thirdPair  && thirdPair.id  !== winnerPair?.id && thirdPair.id !== secondPair?.id ? [thirdPair] : []),
-                            ...activePairs.filter((p) => !podiumIds.has(p.id as number)),
-                        ]
-                        const displayEliminatedPairs: PairShort[] = eliminatedPairs
-                            .filter((p) => !podiumIds.has(p.id as number))
-                        const paidCount = pairs.filter((p) => !!(p as any).paid).length
-                        const capacity = typeof t.maxPairs === "number" ? t.maxPairs : null
-                        const atCapacity = capacity != null && pairs.length >= capacity
-                        const canEditTournament =
-                            isAdmin || (!!user?.uid && user.uid === t.createdByUid)
-                        // True when the current user already has at least one pair
-                        // (pending or approved) in this tournament. We DON'T use this
-                        // to hide the button anymore — multiple registrations are
-                        // legitimate (e.g. a captain entering several teams). It's
-                        // only used to relabel the button so a user who already has a
-                        // pair sees "Prijavi još jedan par" instead of the default.
-                        const userAlreadyRegistered =
-                            !!user?.uid &&
-                            pairs.some((p) => p.submittedByUid === user.uid)
-                        // Self-registration is offered to everyone until the tournament
-                        // starts EXCEPT the organiser / admins. Owners already have a
-                        // "Dodaj par" affordance below, and showing both "Prijavi par za
-                        // turnir" + "Dodaj par" to the same person was misleading —
-                        // they're functionally close enough that organisers hesitated
-                        // over which to click. Hiding the self-register button for
-                        // owners + admins keeps "Dodaj par" as the single canonical
-                        // path; everyone else (anonymous + non-organiser logged-in
-                        // users) still sees the self-register flow.
-                        const showSelfRegisterButton = !tournamentAlready && !canEditTournament
-
-                        const renderPair = (p: PairShort, _idx: number, eliminated: boolean) => {
-                            const hasServerId = typeof p.id === "number" && p.id > 0
-                            const eligible =
-                                hasServerId &&
-                                p.losses === 1 &&
-                                !p.extraLife &&
-                                !nextRoundAlreadyStarted(p.id)
-                            const paid = !!(p as any).paid
-                            const extraBtnDisabled = p.extraLife || !eligible || !hasServerId
-
-                            const isPending = !!p.pendingApproval
-                            // Winner detection — case-insensitive trim match against
-                            // tournament.winnerName, only meaningful once the
-                            // tournament is finished. The badge + gold styling
-                            // identifies the champion at a glance on the pairs grid.
-                            const isWinnerPair =
-                                t?.status === "FINISHED"
-                                && !!t?.winnerName
-                                && !!p.name
-                                && t.winnerName.trim().toLowerCase() === p.name.trim().toLowerCase()
-                            // Silver + bronze podium positions. Same name-match
-                            // rule as gold, scoped to FINISHED tournaments. A
-                            // pair that's both 1st AND 2nd (shouldn't happen —
-                            // backend rejects the overlap) keeps gold styling.
-                            const isSecondPlacePair =
-                                !isWinnerPair
-                                && t?.status === "FINISHED"
-                                && !!secondName
-                                && !!p.name
-                                && norm(p.name) === norm(secondName)
-                            const isThirdPlacePair =
-                                !isWinnerPair && !isSecondPlacePair
-                                && t?.status === "FINISHED"
-                                && !!thirdName
-                                && !!p.name
-                                && norm(p.name) === norm(thirdName)
-                            const isPodiumPair = isWinnerPair || isSecondPlacePair || isThirdPlacePair
-                            return (
-                                <Box
-                                    key={p.id}
-                                    borderWidth={isPodiumPair || isPending ? "2px" : "1px"}
-                                    borderColor={
-                                        isWinnerPair       ? "yellow.solid"
-                                        : isSecondPlacePair ? "gray.solid"
-                                        : isThirdPlacePair  ? "orange.solid"
-                                        : isPending ? "yellow.solid"
-                                        : eliminated ? "border.emphasized"
-                                        : paid && !tournamentAlready ? "green.muted"
-                                        : "border.emphasized"
-                                    }
-                                    rounded="lg"
-                                    p="3"
-                                    bg={
-                                        isWinnerPair       ? "yellow.subtle"
-                                        : isSecondPlacePair ? "gray.subtle"
-                                        : isThirdPlacePair  ? "orange.subtle"
-                                        : isPending ? "yellow.subtle"
-                                        : eliminated ? "bg.subtle"
-                                        : "bg"
-                                    }
-                                    // Podium pairs each get a soft coloured glow so
-                                    // they pop against the regular grid (gold,
-                                    // silver, bronze in order).
-                                    boxShadow={
-                                        isWinnerPair       ? "0 0 0 3px var(--chakra-colors-yellow-muted)"
-                                        : isSecondPlacePair ? "0 0 0 3px var(--chakra-colors-gray-muted)"
-                                        : isThirdPlacePair  ? "0 0 0 3px var(--chakra-colors-orange-muted)"
-                                        : undefined
-                                    }
-                                    // Podium pairs are always full opacity even if
-                                    // technically "eliminated" by the data model
-                                    // (2nd + 3rd both lost their last match) —
-                                    // they earned their spot. Other eliminated
-                                    // pairs fade out as before.
-                                    opacity={!isPodiumPair && eliminated ? 0.85 : 1}
-                                    display="flex"
-                                    flexDirection="column"
-                                    gap="2"
-                                >
-                                    {/* Top row: avatar + name input + info button */}
-                                    <HStack gap="2" align="center">
-                                        <PairAvatar name={p.name} eliminated={eliminated && !isPodiumPair} />
-                                        {/* Podium icon in front of the name. Gold
-                                            trophy for the winner, silver/bronze
-                                            medals for 2nd + 3rd. All gated on
-                                            FINISHED status so they never mis-fire
-                                            on still-in-progress events. */}
-                                        {isWinnerPair && (
-                                            <Box color="yellow.fg" flexShrink={0} title="1. mjesto">
-                                                <FaTrophy size={20} />
-                                            </Box>
-                                        )}
-                                        {isSecondPlacePair && (
-                                            <Box color="gray.fg" flexShrink={0} title="2. mjesto">
-                                                <FaMedal size={20} />
-                                            </Box>
-                                        )}
-                                        {isThirdPlacePair && (
-                                            <Box color="orange.fg" flexShrink={0} title="3. mjesto">
-                                                <FaMedal size={20} />
-                                            </Box>
-                                        )}
-                                        <Box flex="1" minW="0">
-                                            <Input
-                                                size="sm"
-                                                variant="flushed"
-                                                value={p.name}
-                                                onChange={(e) => changePairName(p.id, e.target.value)}
-                                                onBlur={() => onPairNameBlur(p)}
-                                                placeholder="Ime para"
-                                                disabled={tournamentAlready || tournamentLocked}
-                                                fontWeight={isPodiumPair ? "bold" : "medium"}
-                                                color={
-                                                    isWinnerPair       ? "yellow.fg"
-                                                    : isSecondPlacePair ? "gray.fg"
-                                                    : isThirdPlacePair  ? "orange.fg"
-                                                    : undefined
-                                                }
-                                            />
-                                        </Box>
-                                        <IconButton
-                                            aria-label="Povijest mečeva"
-                                            size="xs"
-                                            variant="ghost"
-                                            onClick={() => setInfoPairId(p.id)}
-                                            disabled={!hasServerId}
-                                            title="Povijest mečeva"
-                                            flexShrink={0}
-                                        >
-                                            <FiInfo />
-                                        </IconButton>
-                                    </HStack>
-
-                                    {/* Submitter line — always rendered (placeholder when missing)
-                                        so cards in the same grid row stay the same height.
-                                        The "Podijeli" share button lives on the profile's
-                                        Predlošci → Moji pari list, not here — sharing is a
-                                        my-stuff action, not a per-tournament one. */}
-                                    <Text fontSize="xs" color="fg.muted" pl="10" minH="1.25em" lineHeight="1.25em">
-                                        {p.submittedBySlug ? (
-                                            <>
-                                                Prijavio:{" "}
-                                                <RouterLink
-                                                    to={`/profil/${p.submittedBySlug}`}
-                                                    style={{ color: "var(--chakra-colors-blue-fg)", fontWeight: 500 }}
-                                                >
-                                                    {p.submittedByName || p.submittedBySlug}
-                                                </RouterLink>
-                                            </>
-                                        ) : (
-                                            // Non-breaking space keeps the line height; visually empty.
-                                            <chakra.span aria-hidden>&nbsp;</chakra.span>
-                                        )}
-                                    </Text>
-
-                                    {/* Bottom row: status pills + actions. mt="auto" pins it to
-                                        the card bottom so the action rows line up across cards
-                                        regardless of the submitter line above. */}
-                                    <HStack gap="2" wrap="wrap" justify="space-between" mt="auto">
-                                        <HStack gap="1.5" wrap="wrap">
-                                            {isPending && (
-                                                <Badge variant="solid" colorPalette="yellow">
-                                                    Čeka odobrenje
-                                                </Badge>
-                                            )}
-                                            {tournamentAlready && (
-                                                <Badge variant="subtle" colorPalette="gray">
-                                                    {p.wins}W – {p.losses}L
-                                                </Badge>
-                                            )}
-                                            {/* Život status badges — read-only for everyone.
-                                                "Ima život" (green): pair still on its first
-                                                life, hasn't lost a game yet. "Nema život"
-                                                (red): pair already burned through its first
-                                                life and bought the safety-net extra life,
-                                                so the next loss eliminates them. A pair
-                                                with one loss but no extraLife is in the
-                                                "buy now" middle zone and shows neither
-                                                badge — only the organizer's Život button. */}
-                                            {tournamentAlready && !isPending && !eliminated && p.losses === 0 && (
-                                                <Badge variant="subtle" colorPalette="green">
-                                                    <HStack gap="1"><FiHeart size={10} /> Ima život</HStack>
-                                                </Badge>
-                                            )}
-                                            {tournamentAlready && !isPending && !eliminated && p.extraLife && (
-                                                <Badge variant="subtle" colorPalette="red">
-                                                    <HStack gap="1"><FiHeart size={10} /> Nema život</HStack>
-                                                </Badge>
-                                            )}
-                                            {eliminated && (
-                                                <Badge variant="subtle" colorPalette="gray">Eliminiran</Badge>
-                                            )}
-                                            {!tournamentAlready && !isPending && (
-                                                <Badge variant="subtle" colorPalette={paid ? "green" : "red"}>
-                                                    <HStack gap="1">
-                                                        {paid ? <FiCheck size={10} /> : <FiX size={10} />}
-                                                        {paid ? "Plaćeno" : "Nije plaćeno"}
-                                                    </HStack>
-                                                </Badge>
-                                            )}
-                                        </HStack>
-
-                                        <HStack gap="1.5">
-                                            {/* Owner-only Odobri for pending pairs */}
-                                            {isPending && canEditTournament && (
-                                                <Button
-                                                    size="xs"
-                                                    variant="solid"
-                                                    colorPalette="green"
-                                                    onClick={async () => {
-                                                        try {
-                                                            const updated = await approvePair(uuid!, p.id)
-                                                            setPairs((ps) => ps.map((x) => (x.id === updated.id ? updated : x)))
-                                                        } catch (err: any) {
-                                                            alert(String(err?.response?.data ?? err?.message ?? "Failed to approve."))
-                                                        }
-                                                    }}
-                                                >
-                                                    <FiCheck /> Odobri
-                                                </Button>
-                                            )}
-                                            {!tournamentAlready && !isPending && canEditTournament ? (
-                                                <Button
-                                                    size="xs"
-                                                    variant={paid ? "outline" : "solid"}
-                                                    colorPalette={paid ? "green" : "red"}
-                                                    // onMouseDown fires BEFORE the name-input's blur, so
-                                                    // we stamp the intended paid value into a ref now.
-                                                    // The blur save runs next, reads the ref, and bakes
-                                                    // the new paid into its payload — no race with the
-                                                    // subsequent click handler. For temp pairs we also
-                                                    // optimistically flip the visible state so the
-                                                    // button colour updates instantly.
-                                                    onMouseDown={() => {
-                                                        if (p.id < 0) {
-                                                            pendingPaidRef.current.set(p.id, !paid)
-                                                            setPairs((ps) =>
-                                                                ps.map((x) =>
-                                                                    x.id === p.id ? ({ ...(x as any), paid: !paid }) : x,
-                                                                ),
-                                                            )
-                                                        }
-                                                    }}
-                                                    onClick={() => onTogglePaid(p.id, !paid)}
-                                                    title={paid ? "Označi kao neplaćeno" : "Označi kao plaćeno"}
-                                                >
-                                                    {paid ? "Označi neplaćeno" : "Plati"}
-                                                </Button>
-                                            ) : !tournamentLocked && !isPending && canEditTournament ? (
-                                                // Život buy-button — owner/admin only.
-                                                // Status (Ima/Nema život) is shown by the
-                                                // read-only badges above; this button is
-                                                // strictly the action that lets the
-                                                // organizer purchase a safety-net life
-                                                // for a pair after their first loss.
-                                                // Disabled (and tooltip-explained) when
-                                                // already bought, not yet eligible, or
-                                                // the pair hasn't been saved server-side.
-                                                <Button
-                                                    size="xs"
-                                                    variant="solid"
-                                                    colorPalette={p.extraLife ? "gray" : eligible ? "green" : "gray"}
-                                                    disabled={extraBtnDisabled}
-                                                    onClick={async () => {
-                                                        if (extraBtnDisabled) return
-                                                        try {
-                                                            const updated = await buyExtraLife(uuid!, p.id)
-                                                            setPairs((ps) => ps.map((x) => (x.id === updated.id ? updated : x)))
-                                                        } catch (err: any) {
-                                                            alert(String(err?.response?.data ?? err?.message ?? "Failed to buy extra life."))
-                                                        }
-                                                    }}
-                                                    title={
-                                                        p.extraLife ? "Već kupljeno"
-                                                            : eligible ? "Kupi život"
-                                                            : !hasServerId ? "Spremi prvo"
-                                                            : "Nije dostupno"
-                                                    }
-                                                >
-                                                    <HStack gap="1"><FiHeart /> Život</HStack>
-                                                </Button>
-                                            ) : null}
-
-                                            {/* Owner/admin only — non-owners shouldn't see
-                                                the trash icon at all. The backend would 403
-                                                them anyway, but rendering the button gives
-                                                the wrong impression that they can delete. */}
-                                            {!tournamentAlready && canEditTournament && (
-                                                <IconButton
-                                                    aria-label="Ukloni par"
-                                                    size="xs"
-                                                    variant="ghost"
-                                                    colorPalette="red"
-                                                    onClick={() => {
-                                                        // Locally-added rows (negative id) don't exist on the
-                                                        // server yet — drop them straight from state without
-                                                        // confirmation.
-                                                        if (p.id <= 0) {
-                                                            removePair(p.id)
-                                                            return
-                                                        }
-                                                        setPendingDeletePair(p)
-                                                    }}
-                                                    title="Ukloni par"
-                                                >
-                                                    <FiTrash2 />
-                                                </IconButton>
-                                            )}
-                                        </HStack>
-                                    </HStack>
-                                </Box>
-                            )
-                        }
-
-                        return (
-                            <VStack align="stretch" gap="4">
-                                {/* Header card with stats and actions */}
-                                <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
-                                    <Card.Body py="3" px={{ base: "3", md: "4" }}>
-                                        <HStack justify="space-between" wrap="wrap" gap="3">
-                                            <HStack gap="6" wrap="wrap">
-                                                <HStack gap="2" align="baseline">
-                                                    <Text
-                                                        fontSize="2xl"
-                                                        fontWeight="semibold"
-                                                        color={
-                                                            capacity != null && pairs.length > capacity
-                                                                ? "yellow.fg"
-                                                                : undefined
-                                                        }
-                                                    >
-                                                        {pairs.length}
-                                                    </Text>
-                                                    <Text fontSize="sm" color="fg.muted">
-                                                        {/* "∞" when there's no cap — consistent
-                                                            with the count shown on the tournament
-                                                            cards / list. The dedicated "Max parova"
-                                                            tile on the Detalji tab spells it out as
-                                                            "Neodređeno" instead. */}
-                                                        parova{capacity != null ? ` / ${capacity}` : " / ∞"}
-                                                    </Text>
-                                                    {capacity != null && pairs.length > capacity && (
-                                                        <Badge variant="solid" colorPalette="yellow" size="sm">
-                                                            +{pairs.length - capacity} preko kapaciteta
-                                                        </Badge>
-                                                    )}
-                                                </HStack>
-                                                {!tournamentAlready && (
-                                                    <HStack gap="2">
-                                                        <Text
-                                                            fontSize="2xl"
-                                                            fontWeight="semibold"
-                                                            color={paidCount === pairs.length && pairs.length > 0 ? "green.fg" : "fg"}
-                                                        >
-                                                            {paidCount}
-                                                        </Text>
-                                                        <Text fontSize="sm" color="fg.muted">platilo kotizaciju</Text>
-                                                    </HStack>
-                                                )}
-                                                {tournamentAlready && (
-                                                    <HStack gap="2">
-                                                        <Text fontSize="2xl" fontWeight="semibold">{activePairs.length}</Text>
-                                                        <Text fontSize="sm" color="fg.muted">aktivnih</Text>
-                                                    </HStack>
-                                                )}
-                                            </HStack>
-                                            <HStack gap="2" wrap="wrap">
-                                                {/* Self-registration is offered to everyone. Anonymous users
-                                                    get bounced to /login with state.from for return-redirect. */}
-                                                {showSelfRegisterButton && (
-                                                    <Button
-                                                        size="xs"
-                                                        variant="solid"
-                                                        colorPalette="blue"
-                                                        onClick={() => {
-                                                            if (!user) {
-                                                                navigate("/prijava", {
-                                                                    state: {
-                                                                        from: `${location.pathname}${location.search}`,
-                                                                    },
-                                                                })
-                                                                return
-                                                            }
-                                                            setSelfRegOpen(true)
-                                                        }}
-                                                    >
-                                                        <FiPlus />
-                                                        {userAlreadyRegistered
-                                                            ? " Prijavi još jedan par"
-                                                            : " Prijavi par za turnir"}
-                                                    </Button>
-                                                )}
-                                                {/* Organizer / admin: full pair management */}
-                                                {!tournamentLocked && canEditTournament && (
-                                                    <>
-                                                        <Button
-                                                            size="xs"
-                                                            variant="outline"
-                                                            onClick={addPair}
-                                                            disabled={tournamentAlready || atCapacity}
-                                                            title={atCapacity ? `Maksimalan broj parova (${capacity})` : "Dodaj novi par"}
-                                                        >
-                                                            <FiPlus /> Dodaj par
-                                                        </Button>
-                                                        {!tournamentAlready && (
-                                                            <Button
-                                                                size="xs"
-                                                                variant="solid"
-                                                                colorPalette="blue"
-                                                                onClick={savePairsAll}
-                                                            >
-                                                                Spremi promjene
-                                                            </Button>
-                                                        )}
-                                                    </>
-                                                )}
-                                            </HStack>
-                                        </HStack>
-                                    </Card.Body>
-                                </Card.Root>
-
-                                {/* Open pair-finding requests — visible only before the
-                                    tournament starts and only if at least one is OPEN.
-                                    Collapsible so the organizer can hide them once they
-                                    have a handle on who's looking. */}
-                                {(() => {
-                                    const openRequests = pairRequests.filter((r) => r.status === "OPEN")
-                                    if (tournamentAlready || openRequests.length === 0) return null
-                                    return (
-                                        <Card.Root
-                                            variant="outline"
-                                            rounded="xl"
-                                            borderColor="blue.muted"
-                                            bg="blue.subtle"
-                                            shadow="sm"
-                                        >
-                                            <Card.Body py="3" px={{ base: "3", md: "4" }}>
-                                                <HStack justify="space-between" align="center" mb={pairRequestsCollapsed ? "0" : "3"}>
-                                                    <HStack gap="2" align="center">
-                                                        <Box color="blue.fg"><FiUserPlus /></Box>
-                                                        <Text fontWeight="semibold" fontSize="sm">
-                                                            Zahtjevi za partnera
-                                                        </Text>
-                                                        <Badge variant="solid" colorPalette="blue" size="sm">
-                                                            {openRequests.length}
-                                                        </Badge>
-                                                    </HStack>
-                                                    <IconButton
-                                                        aria-label={pairRequestsCollapsed ? "Proširi" : "Sažmi"}
-                                                        size="xs"
-                                                        variant="ghost"
-                                                        onClick={() => setPairRequestsCollapsed((v) => !v)}
-                                                    >
-                                                        {pairRequestsCollapsed ? <FiChevronRight /> : <FiChevronDown />}
-                                                    </IconButton>
-                                                </HStack>
-                                                {!pairRequestsCollapsed && (
-                                                    <Box
-                                                        display="grid"
-                                                        gridTemplateColumns={{ base: "1fr", md: "1fr 1fr", lg: "1fr 1fr 1fr" }}
-                                                        gap="2"
-                                                    >
-                                                        {openRequests.map((r) => (
-                                                            <Box
-                                                                key={r.uuid}
-                                                                borderWidth="1px"
-                                                                borderColor="border.emphasized"
-                                                                rounded="md"
-                                                                bg="bg"
-                                                                p="2.5"
-                                                                display="flex"
-                                                                flexDirection="column"
-                                                                gap="1"
-                                                            >
-                                                                <HStack gap="2" align="center">
-                                                                    <PairAvatar name={r.playerName} />
-                                                                    <Text
-                                                                        fontWeight="semibold"
-                                                                        fontSize="sm"
-                                                                        flex="1"
-                                                                        minW="0"
-                                                                        overflow="hidden"
-                                                                        textOverflow="ellipsis"
-                                                                        whiteSpace="nowrap"
-                                                                    >
-                                                                        {r.playerName}
-                                                                    </Text>
-                                                                </HStack>
-                                                                {r.phone && (
-                                                                    <chakra.a
-                                                                        href={`tel:${r.phone.replace(/\s+/g, "")}`}
-                                                                        fontSize="xs"
-                                                                        color="blue.fg"
-                                                                        fontWeight="medium"
-                                                                        display="flex"
-                                                                        alignItems="center"
-                                                                        gap="1.5"
-                                                                        _hover={{ textDecoration: "underline" }}
-                                                                    >
-                                                                        <FiPhone size={11} /> {r.phone}
-                                                                    </chakra.a>
-                                                                )}
-                                                                {r.note && (
-                                                                    <Text fontSize="xs" color="fg.muted">
-                                                                        {r.note}
-                                                                    </Text>
-                                                                )}
-                                                            </Box>
-                                                        ))}
-                                                    </Box>
-                                                )}
-                                            </Card.Body>
-                                        </Card.Root>
-                                    )
-                                })()}
-
-                                {pairs.length === 0 ? (
-                                    <Box
-                                        borderWidth="1px"
-                                        borderColor="border.emphasized"
-                                        borderStyle="dashed"
-                                        rounded="xl"
-                                        py="10"
-                                        px="6"
-                                    >
-                                        <VStack gap="2">
-                                            <Box color="fg.muted"><FiUser size={24} /></Box>
-                                            <Text fontWeight="medium">Još nema parova</Text>
-                                            <Text color="fg.muted" fontSize="sm" textAlign="center">
-                                                Dodaj prvi par klikom na "Dodaj par" iznad.
-                                            </Text>
-                                        </VStack>
-                                    </Box>
-                                ) : (
-                                    <>
-                                        {/* Podium selectors — visible only to the
-                                            organiser, only after the tournament finishes.
-                                            Lets the organiser record who came 2nd and 3rd
-                                            so silver + bronze styling kicks in below.
-                                            Calls PATCH /tournaments/{uuid}/podium directly
-                                            on change; backend validates the names and
-                                            refreshes the canonical TournamentDetails. */}
-                                        {t?.status === "FINISHED" && canEditTournament && (
-                                            <PodiumEditor
-                                                tournamentUuid={uuid ?? ""}
-                                                winnerName={t.winnerName ?? null}
-                                                secondPlaceName={t.secondPlaceName ?? null}
-                                                thirdPlaceName={t.thirdPlaceName ?? null}
-                                                pairs={pairs}
-                                                onUpdated={(updated) => setT(updated)}
-                                            />
-                                        )}
-
-                                        {/* Active pairs (gold/silver/bronze pinned to top
-                                            on FINISHED tournaments). For each podium pair
-                                            that's been promoted from the eliminated bucket
-                                            we still pass eliminated=true to renderPair so
-                                            the underlying state stays accurate; the medal
-                                            styling overrides the muted look. */}
-                                        <Box>
-                                            <HStack mb="2" gap="2" align="center">
-                                                <Text fontSize="xs" color="fg.muted" fontWeight="semibold" letterSpacing="wide" textTransform="uppercase">
-                                                    Aktivni
-                                                </Text>
-                                                <Text fontSize="xs" color="fg.muted">({displayActivePairs.length})</Text>
-                                            </HStack>
-                                            <Box
-                                                display="grid"
-                                                gridTemplateColumns={{ base: "1fr", md: "1fr 1fr", lg: "1fr 1fr 1fr" }}
-                                                gap="2"
-                                            >
-                                                {displayActivePairs.map((p, idx) => (
-                                                    <Box
-                                                        key={p.id}
-                                                        // First card in the active grid gets a
-                                                        // tour anchor so the detail tour can
-                                                        // explain "what's a pair card". The
-                                                        // wrapper avoids threading the data
-                                                        // attribute through renderPair, which
-                                                        // is already a busy function.
-                                                        data-tour={idx === 0 ? "detail-first-pair" : undefined}
-                                                    >
-                                                        {renderPair(p, idx, p.isEliminated)}
-                                                    </Box>
-                                                ))}
-                                            </Box>
-                                        </Box>
-
-                                        {/* Eliminated pairs (excluding the silver + bronze
-                                            podium pairs we already showed in the active
-                                            section). */}
-                                        {displayEliminatedPairs.length > 0 && (
-                                            <Box>
-                                                <HStack mb="2" gap="2" align="center">
-                                                    <Text fontSize="xs" color="fg.muted" fontWeight="semibold" letterSpacing="wide" textTransform="uppercase">
-                                                        Eliminirani
-                                                    </Text>
-                                                    <Text fontSize="xs" color="fg.muted">({displayEliminatedPairs.length})</Text>
-                                                </HStack>
-                                                <Box
-                                                    display="grid"
-                                                    gridTemplateColumns={{ base: "1fr", md: "1fr 1fr", lg: "1fr 1fr 1fr" }}
-                                                    gap="2"
-                                                >
-                                                    {displayEliminatedPairs.map((p, idx) => renderPair(p, idx, true))}
-                                                </Box>
-                                            </Box>
-                                        )}
-                                    </>
-                                )}
-                            </VStack>
-                        )
-                    })()}
-                </>
-            ) : tab === "cjenik" ? (
-                <Box data-tour="detail-content-cjenik">
-                    <CjenikTab
-                        tournamentRef={t.uuid ?? t.slug ?? ""}
-                        canEdit={isAdmin || (!!user?.uid && user.uid === t.createdByUid)}
-                    />
-                </Box>
-            ) : (
-                <>
-                    {/* ===== BRACKET ===== */}
-                    {(() => {
-                        const allCollapsed = rounds.length > 0 && rounds.every(r => collapsedRounds[r.id])
-                        const activeRoundId = rounds.find(r => r.status !== "COMPLETED")?.id
-                        const canEditTournament =
-                            isAdmin || (!!user?.uid && user.uid === t?.createdByUid)
-                        // Pairs that have paid AND are approved — only these are
-                        // counted toward the start-tournament minimum of 2.
-                        const paidApprovedCount = pairs.filter(
-                            (p) => !!(p as any).paid && !p.pendingApproval,
-                        ).length
-                        const canStart = canEditTournament && paidApprovedCount >= 2
-
-                        const matchRow = (r: RoundLocal, m: MatchLocal) => {
-                            const a = m.pair1Name ?? (m.pair1Id ? pairById.get(m.pair1Id)?.name : undefined) ?? "—"
-                            const b = m.pair2Name ?? (m.pair2Id ? pairById.get(m.pair2Id)?.name : undefined) ?? (m.pair2Id ? "—" : "-")
-                            const isFinished = m.status === "FINISHED"
-                            const editing = !!m._editing
-                            const canEditNow = t?.status !== "FINISHED" && !!m.pair1Id && !!m.pair2Id
-                            const inputsEnabled =
-                                !!m.pair1Id && !!m.pair2Id &&
-                                ((r.status !== "COMPLETED" && !isFinished) || (isFinished && editing))
-
-                            const winnerSide = winnerOf(m) // null | pair1Id | pair2Id
-                            const aIsWinner = isFinished && winnerSide && winnerSide === m.pair1Id
-                            const bIsWinner = isFinished && winnerSide && winnerSide === m.pair2Id
-
-                            // Bye match — render compact and centered
-                            if (!m.pair2Id) {
-                                return (
-                                    <Box
-                                        key={m.id}
-                                        borderWidth="1px"
-                                        borderColor="blue.muted"
-                                        rounded="lg"
-                                        bg="blue.subtle"
-                                        px="3"
-                                        py="2.5"
-                                        display="flex"
-                                        alignItems="center"
-                                        gap="3"
-                                        flexWrap="wrap"
-                                    >
-                                        {/* No Stol N chip for bye matches — the
-                                            pair doesn't actually play on a table,
-                                            and showing the chip implies otherwise.
-                                            Pair name + the "Slobodan prolaz" badge
-                                            is enough on its own. */}
-                                        <Text fontWeight="semibold" flex="1" minW="0">{a}</Text>
-                                        <Badge variant="solid" colorPalette="blue">
-                                            <HStack gap="1"><FiCheckCircle size={11}/> Slobodan prolaz</HStack>
-                                        </Badge>
-                                    </Box>
-                                )
-                            }
-
-                            // Action button(s) reused by both desktop and mobile
-                            // layouts. Wrapping it in a memoised JSX node avoids
-                            // duplicating the canEditTournament/editing tree in
-                            // two places. Same component instance is rendered
-                            // inside the desktop grid and the mobile header row.
-                            const actionEl = (
-                                canEditTournament && editing ? (
-                                    <HStack gap="1">
-                                        <Button size="2xs" variant="solid" colorPalette="green"
-                                                onClick={() => saveEditedMatch(r.id, m)}>
-                                            Spremi
-                                        </Button>
-                                        <Button size="2xs" variant="ghost"
-                                                onClick={() => cancelEdit(r.id, m.id)}>
-                                            Odustani
-                                        </Button>
-                                    </HStack>
-                                ) : canEditTournament && !isFinished && r.status !== "COMPLETED" ? (
-                                    <Button
-                                        size="2xs"
-                                        variant="solid"
-                                        colorPalette="green"
-                                        onClick={() => saveMatch(r.id, m)}
-                                        disabled={!m._dirty}
-                                    >
-                                        <FiCheck /> Spremi
-                                    </Button>
-                                ) : canEditTournament && isFinished && canEditNow ? (
-                                    <Button
-                                        size="2xs"
-                                        variant="ghost"
-                                        onClick={() => enterEdit(r.id, m.id)}
-                                        title="Uredi rezultat meča"
-                                    >
-                                        <FiEdit2 />
-                                    </Button>
-                                ) : null
-                            )
-
-                            // Per-match drink-bill button.
-                            //   Owner: always sees it (acts as bartender).
-                            //   Players in this match: see it too (their bill).
-                            //   Everyone else: rendered as null — bills are private.
-                            const p1Uid = m.pair1Id ? pairById.get(m.pair1Id)?.submittedByUid : null
-                            const p2Uid = m.pair2Id ? pairById.get(m.pair2Id)?.submittedByUid : null
-                            const isParticipant = !!user?.uid &&
-                                (user.uid === p1Uid || user.uid === p2Uid)
-                            const billEl = (
-                                <MatchBillButton
-                                    tournamentRef={t?.uuid ?? t?.slug ?? ""}
-                                    matchId={m.id}
-                                    isBye={!m.pair2Id}
-                                    isFinished={isFinished}
-                                    paidAt={m.paidAt}
-                                    canEdit={!!canEditTournament}
-                                    isParticipant={isParticipant}
-                                    // When the deep-link prop matches this
-                                    // match's id, MatchBillButton auto-opens
-                                    // its modal on mount.
-                                    autoOpenBillId={billMatchIdFromUrl}
-                                    onChange={(paidAt) => {
-                                        // Patch just the one match's paidAt
-                                        // so the badge updates without a
-                                        // full rounds refetch.
-                                        setRounds((rs) =>
-                                            rs.map((rr) =>
-                                                rr.id !== r.id
-                                                    ? rr
-                                                    : {
-                                                          ...rr,
-                                                          matches: rr.matches.map((mx) =>
-                                                              mx.id !== m.id
-                                                                  ? mx
-                                                                  : { ...mx, paidAt },
-                                                          ),
-                                                      },
-                                            ),
-                                        )
-                                    }}
-                                />
-                            )
-
-                            return (
-                                <Box
-                                    key={m.id}
-                                    id={`match-${m.id}`}
-                                    borderWidth="1px"
-                                    borderColor={
-                                        editing ? "blue.muted"
-                                        : inputsEnabled ? "green.muted"
-                                        : "border.emphasized"
-                                    }
-                                    rounded="md"
-                                    bg={
-                                        editing ? "blue.subtle"
-                                        : inputsEnabled ? "green.subtle"
-                                        : "bg"
-                                    }
-                                    px="2.5"
-                                    py="1.5"
-                                >
-                                    {/* Mobile layout — scoreboard style. Tall rows
-                                        with one pair per line, the score input at
-                                        the right edge of each line, and a header
-                                        bar carrying the table chip + action. The
-                                        winner pair gets a green-tinted row so the
-                                        result is obvious at a glance. */}
-                                    <Box display={{ base: "flex", md: "none" }} flexDirection="column" gap="2">
-                                        <HStack justify="space-between" align="center">
-                                            <Badge variant="subtle" colorPalette="gray" size="sm">
-                                                Stol {m.tableNo}
-                                            </Badge>
-                                            <HStack gap="1.5">
-                                                {billEl}
-                                                {actionEl}
-                                            </HStack>
-                                        </HStack>
-                                        {/* Pair A row */}
-                                        <HStack
-                                            gap="2"
-                                            px="2"
-                                            py="1.5"
-                                            rounded="sm"
-                                            bg={aIsWinner ? "green.subtle" : "transparent"}
-                                            borderLeftWidth={aIsWinner ? "3px" : "0"}
-                                            borderLeftColor={aIsWinner ? "green.solid" : "transparent"}
-                                        >
-                                            {aIsWinner && (
-                                                <Box color="green.fg" flexShrink={0}>
-                                                    <FiAward size={14} />
-                                                </Box>
-                                            )}
-                                            <Text
-                                                fontWeight={aIsWinner ? "semibold" : "medium"}
-                                                fontSize="sm"
-                                                overflow="hidden"
-                                                textOverflow="ellipsis"
-                                                whiteSpace="nowrap"
-                                                flex="1"
-                                                minW="0"
-                                            >
-                                                {a}
-                                            </Text>
-                                            <Input
-                                                size="xs"
-                                                type="text"
-                                                inputMode="numeric"
-                                                w="52px"
-                                                textAlign="center"
-                                                fontWeight="bold"
-                                                value={m._score1 ?? ""}
-                                                onChange={(e) => setLocalMatchScore(r.id, m.id, "A", e.target.value)}
-                                                disabled={!inputsEnabled}
-                                            />
-                                        </HStack>
-                                        {/* Pair B row */}
-                                        <HStack
-                                            gap="2"
-                                            px="2"
-                                            py="1.5"
-                                            rounded="sm"
-                                            bg={bIsWinner ? "green.subtle" : "transparent"}
-                                            borderLeftWidth={bIsWinner ? "3px" : "0"}
-                                            borderLeftColor={bIsWinner ? "green.solid" : "transparent"}
-                                        >
-                                            {bIsWinner && (
-                                                <Box color="green.fg" flexShrink={0}>
-                                                    <FiAward size={14} />
-                                                </Box>
-                                            )}
-                                            <Text
-                                                fontWeight={bIsWinner ? "semibold" : "medium"}
-                                                fontSize="sm"
-                                                overflow="hidden"
-                                                textOverflow="ellipsis"
-                                                whiteSpace="nowrap"
-                                                flex="1"
-                                                minW="0"
-                                            >
-                                                {b}
-                                            </Text>
-                                            <Input
-                                                size="xs"
-                                                type="text"
-                                                inputMode="numeric"
-                                                w="52px"
-                                                textAlign="center"
-                                                fontWeight="bold"
-                                                value={m._score2 ?? ""}
-                                                onChange={(e) => setLocalMatchScore(r.id, m.id, "B", e.target.value)}
-                                                disabled={!inputsEnabled}
-                                            />
-                                        </HStack>
-                                    </Box>
-
-                                    {/* Desktop layout — keep the existing dense
-                                        5-column grid. Plenty of horizontal room
-                                        on md+ so the score-vs-score middle works
-                                        as before; mobile rebuilt above for a
-                                        more glanceable read. */}
-                                    <Box
-                                        display={{ base: "none", md: "grid" }}
-                                        gridTemplateColumns="auto 1fr auto 1fr auto"
-                                        alignItems="center"
-                                        gap="2"
-                                    >
-                                        <Badge variant="subtle" colorPalette="gray" size="sm" flexShrink={0}>
-                                            Stol {m.tableNo}
-                                        </Badge>
-
-                                        {/* Pair A */}
-                                        <HStack
-                                            gap="1.5"
-                                            px="1.5"
-                                            py="1"
-                                            rounded="sm"
-                                            bg={aIsWinner ? "green.subtle" : "transparent"}
-                                            borderLeftWidth={aIsWinner ? "2px" : "0"}
-                                            borderLeftColor={aIsWinner ? "green.solid" : "transparent"}
-                                            minW="0"
-                                        >
-                                            {aIsWinner && (
-                                                <Box color="green.fg" flexShrink={0}>
-                                                    <FiAward size={13} />
-                                                </Box>
-                                            )}
-                                            <Text
-                                                fontWeight={aIsWinner ? "semibold" : "medium"}
-                                                fontSize="sm"
-                                                overflow="hidden"
-                                                textOverflow="ellipsis"
-                                                whiteSpace="nowrap"
-                                                flex="1"
-                                                minW="0"
-                                            >
-                                                {a}
-                                            </Text>
-                                        </HStack>
-
-                                        {/* Score */}
-                                        <HStack gap="1" justify="center" flexShrink={0}>
-                                            <Input
-                                                size="xs"
-                                                type="text"
-                                                inputMode="numeric"
-                                                w="44px"
-                                                textAlign="center"
-                                                fontWeight="semibold"
-                                                value={m._score1 ?? ""}
-                                                onChange={(e) => setLocalMatchScore(r.id, m.id, "A", e.target.value)}
-                                                disabled={!inputsEnabled}
-                                            />
-                                            <Text fontSize="sm" fontWeight="bold" color="fg.muted">:</Text>
-                                            <Input
-                                                size="xs"
-                                                type="text"
-                                                inputMode="numeric"
-                                                w="44px"
-                                                textAlign="center"
-                                                fontWeight="semibold"
-                                                value={m._score2 ?? ""}
-                                                onChange={(e) => setLocalMatchScore(r.id, m.id, "B", e.target.value)}
-                                                disabled={!inputsEnabled}
-                                            />
-                                        </HStack>
-
-                                        {/* Pair B */}
-                                        <HStack
-                                            gap="1.5"
-                                            px="1.5"
-                                            py="1"
-                                            rounded="sm"
-                                            bg={bIsWinner ? "green.subtle" : "transparent"}
-                                            borderRightWidth={bIsWinner ? "2px" : "0"}
-                                            borderRightColor={bIsWinner ? "green.solid" : "transparent"}
-                                            justifyContent="flex-end"
-                                            minW="0"
-                                        >
-                                            <Text
-                                                fontWeight={bIsWinner ? "semibold" : "medium"}
-                                                fontSize="sm"
-                                                overflow="hidden"
-                                                textOverflow="ellipsis"
-                                                whiteSpace="nowrap"
-                                                textAlign="right"
-                                                flex="1"
-                                                minW="0"
-                                            >
-                                                {b}
-                                            </Text>
-                                            {bIsWinner && (
-                                                <Box color="green.fg" flexShrink={0}>
-                                                    <FiAward size={13} />
-                                                </Box>
-                                            )}
-                                        </HStack>
-
-                                        <Box flexShrink={0} justifySelf="end">
-                                            <HStack gap="1.5">
-                                                {billEl}
-                                                {actionEl}
-                                            </HStack>
-                                        </Box>
-                                    </Box>
-                                </Box>
-                            )
-                        }
-
-                        // Pre-start, the ždrijeb tab gets a single friendly
-                        // "Turnir još nije započeo" card. The organizer also
-                        // sees the toolbar above it so they can hit "Startaj
-                        // turnir"; everyone else just sees the message.
-                        if (!tournamentStarted) {
-                            return (
-                                <VStack align="stretch" gap="4">
-                                    {canEditTournament && (
-                                        <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
-                                            <Card.Body py="3" px={{ base: "3", md: "4" }}>
-                                                <HStack gap="2" wrap="wrap" justify="flex-end">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="solid"
-                                                        colorPalette="orange"
-                                                        onClick={onStartTournament}
-                                                        disabled={!canStart}
-                                                        title={
-                                                            !canStart
-                                                                ? "Treba najmanje 2 plaćena para za start"
-                                                                : "Pokreni turnir"
-                                                        }
-                                                    >
-                                                        <FiPlay /> Startaj turnir
-                                                    </Button>
-                                                </HStack>
-                                            </Card.Body>
-                                        </Card.Root>
-                                    )}
-                                    <Box
-                                        borderWidth="1px"
-                                        borderColor="border.emphasized"
-                                        borderStyle="dashed"
-                                        rounded="xl"
-                                        py="12"
-                                        px="6"
-                                    >
-                                        <VStack gap="2">
-                                            <Box color="fg.muted"><FiLayers size={28} /></Box>
-                                            <Text fontWeight="medium">Turnir još nije započeo</Text>
-                                            <Text color="fg.muted" fontSize="sm" textAlign="center">
-                                                {canEditTournament
-                                                    ? "Klikni \"Startaj turnir\" iznad kad su svi parovi spremni."
-                                                    : "Organizator još nije pokrenuo turnir. Provjerite kasnije."}
-                                            </Text>
-                                        </VStack>
-                                    </Box>
-                                </VStack>
-                            )
-                        }
-
-                        // Tournament has started — show the toolbar. It hosts
-                        // owner-only settings (repeats switch) and owner-only
-                        // actions (Generiraj / Završi / Resetiraj turnir) plus
-                        // the Sažmi/Proširi sve toggle which everyone benefits
-                        // from. The toolbar renders inside a bordered Card.Root
-                        // ONLY when the organizer has settings/actions to show;
-                        // for non-owners (or after the tournament is finished)
-                        // the Sažmi sve button stands alone in a slim flex row
-                        // without the heavy card frame.
-                        const tournamentFinished = t?.status === "FINISHED"
-                        const ownerToolbar = canEditTournament && !tournamentFinished
-                        const showToolbar = ownerToolbar || rounds.length > 0
-                        const showRepeatsSetting = ownerToolbar
-                        const toolbarTwoColumn = showRepeatsSetting
-                        // Inner JSX is the same in both wrappers — the only
-                        // difference is whether the outer container is the
-                        // bordered Card.Root or a plain Box.
-                        const ToolbarShell = ownerToolbar ? Card.Root : Box
-                        const toolbarShellProps = ownerToolbar
-                            ? {
-                                variant: "outline" as const,
-                                rounded: "xl" as const,
-                                borderColor: "border.emphasized" as const,
-                                shadow: "sm" as const,
-                              }
-                            : {}
-                        const InnerWrap = ownerToolbar ? Card.Body : Box
-                        const innerWrapProps = ownerToolbar
-                            ? { py: "3", px: { base: "3", md: "4" } }
-                            : { py: "0", px: "0" }
-                        return (
-                            <VStack align="stretch" gap="4">
-                                {/* ===== Toolbar ===== */}
-                                {showToolbar && (
-                                <ToolbarShell {...toolbarShellProps}>
-                                    <InnerWrap {...innerWrapProps}>
-                                        <Box
-                                            display="grid"
-                                            gridTemplateColumns={toolbarTwoColumn
-                                                ? { base: "1fr", lg: "auto 1fr" }
-                                                : "1fr"}
-                                            gap={{ base: "3", lg: "6" }}
-                                            alignItems="center"
-                                        >
-                                        {/* Settings — owner only AND only while the
-                                            tournament isn't finished. Once it's over
-                                            the matchmaking rule can't be changed
-                                            anymore and the toggle just clutters the
-                                            results screen. */}
-                                        {showRepeatsSetting && (
-                                            <HStack
-                                                gap="3"
-                                                align="center"
-                                                wrap="wrap"
-                                                borderRightWidth={{ base: "0", lg: "1px" }}
-                                                borderRightColor="border.subtle"
-                                                pr={{ base: "0", lg: "6" }}
-                                            >
-                                                <Box>
-                                                    <Text fontSize="sm" fontWeight="medium" lineHeight="short">
-                                                        Ponavljanje istih parova
-                                                    </Text>
-                                                    <Text fontSize="xs" color="fg.muted">
-                                                        Dopusti da isti parovi igraju ponovno
-                                                    </Text>
-                                                </Box>
-                                                <Switch.Root
-                                                    checked={allowRepeats}
-                                                    onCheckedChange={(e) => onToggleAllowRepeats(e.checked)}
-                                                    colorPalette={allowRepeats ? "green" : "gray"}
-                                                    disabled={savingPM}
-                                                >
-                                                    <Switch.HiddenInput />
-                                                    <Switch.Control cursor={savingPM ? "not-allowed" : "pointer"}>
-                                                        <Switch.Thumb />
-                                                    </Switch.Control>
-                                                </Switch.Root>
-                                                {savingPM && <Spinner size="xs" />}
-                                            </HStack>
-                                        )}
-
-                                        {/* Actions */}
-                                        <HStack gap="2" wrap="wrap" justify={{ base: "flex-start", lg: "flex-end" }}>
-                                            {rounds.length > 0 && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    onClick={() =>
-                                                        setCollapsedRounds(prev => {
-                                                            const target = !(rounds.length > 0 && rounds.every(r => prev[r.id]))
-                                                            const next: Record<number, boolean> = {}
-                                                            rounds.forEach(r => { next[r.id] = target })
-                                                            return next
-                                                        })
-                                                    }
-                                                >
-                                                    {allCollapsed
-                                                        ? <><FiChevronDown /> Proširi sve</>
-                                                        : <><FiChevronUp /> Sažmi sve</>}
-                                                </Button>
-                                            )}
-                                            {!tournamentStarted && canEditTournament && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="solid"
-                                                    colorPalette="orange"
-                                                    onClick={onStartTournament}
-                                                    disabled={!canStart}
-                                                    title={
-                                                        !canStart
-                                                            ? "Treba najmanje 2 plaćena para za start"
-                                                            : "Pokreni turnir"
-                                                    }
-                                                >
-                                                    <FiPlay /> Startaj turnir
-                                                </Button>
-                                            )}
-                                            {tournamentStarted && t?.status !== "FINISHED" && canEditTournament && (
-                                                <>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="solid"
-                                                        colorPalette="blue"
-                                                        onClick={onCreateRound}
-                                                        disabled={!canCreateRound}
-                                                        title={canCreateRound ? "Generiraj sljedeću rundu" : "Završi trenutnu rundu ili dodaj parove"}
-                                                    >
-                                                        <Icon as={FiShuffle} />
-                                                        {rounds.length === 0 ? " Generiraj prvu rundu" : " Generiraj rundu"}
-                                                    </Button>
-                                                    {/* Manual generation — only surfaces in the late
-                                                        bracket stage (≤ 4 active pairs) where the
-                                                        random auto-draw above isn't what the organiser
-                                                        wants. Two-step UX: click → confirmation alert
-                                                        → big dialog with the pair-pick form. */}
-                                                    {showManualRoundButton && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            colorPalette="purple"
-                                                            onClick={onClickManualRound}
-                                                            title="Ručno odaberi tko igra protiv koga u sljedećoj rundi"
-                                                        >
-                                                            Ručno generiraj
-                                                        </Button>
-                                                    )}
-                                                    {showResetTournament && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            colorPalette="red"
-                                                            onClick={onResetTournament}
-                                                            title="Obriši sve runde i vrati turnir u nacrt"
-                                                        >
-                                                            <FiRefreshCw /> Resetiraj turnir
-                                                        </Button>
-                                                    )}
-                                                </>
-                                            )}
-                                            {canFinishTournament && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="solid"
-                                                    colorPalette="green"
-                                                    onClick={onFinishTournament}
-                                                >
-                                                    <FiFlag /> Završi turnir
-                                                </Button>
-                                            )}
-                                        </HStack>
-                                        </Box>
-                                    </InnerWrap>
-                                </ToolbarShell>
-                                )}
-
-                                {/* ===== Rounds ===== */}
-                                {rounds.length === 0 ? (
-                                    <Box
-                                        borderWidth="1px"
-                                        borderColor="border.emphasized"
-                                        borderStyle="dashed"
-                                        rounded="xl"
-                                        py="12"
-                                        px="6"
-                                    >
-                                        <VStack gap="2">
-                                            <Box color="fg.muted"><FiLayers size={28} /></Box>
-                                            <Text fontWeight="medium">Još nema rundi</Text>
-                                            <Text color="fg.muted" fontSize="sm" textAlign="center">
-                                                {/* Only the organizer sees the actionable
-                                                    instructions ("klikni Generiraj…",
-                                                    "prvo startaj…") — for everyone else
-                                                    that text is misleading because they
-                                                    have no buttons to act on. They get
-                                                    a neutral "waiting" message instead. */}
-                                                {canEditTournament
-                                                    ? tournamentStarted
-                                                        ? "Klikni \"Generiraj prvu rundu\" da započneš ždrijeb."
-                                                        : "Prvo startaj turnir kad su svi parovi spremni."
-                                                    : "Organizator još nije generirao parove. Provjerite kasnije."}
-                                            </Text>
-                                        </VStack>
-                                    </Box>
-                                ) : (
-                                    /* Used to host data-tour="detail-rounds"
-                                       for the guided tour, but that anchor
-                                       was the entire rounds list — tall
-                                       enough to push the tooltip far below
-                                       the spotlight. The "Ždrijeb" tab step
-                                       now points at the tab BUTTON and
-                                       folds the rounds description into
-                                       its body, so this wrapper no longer
-                                       needs a tour anchor. */
-                                    <VStack align="stretch" gap="3">
-                                        {rounds.map((r, rIdx) => {
-                                            const collapsed = !!collapsedRounds[r.id]
-                                            const isActive = r.id === activeRoundId
-                                            const completed = r.status === "COMPLETED"
-                                            const finishable = canFinish(r) && !completed
-
-                                            return (
-                                                <Card.Root
-                                                    key={r.id}
-                                                    // Tour anchor on the first round so the
-                                                    // "proširi / fullscreen" step has a
-                                                    // concrete element to point at.
-                                                    data-tour={rIdx === 0 ? "detail-first-round" : undefined}
-                                                    variant="outline"
-                                                    rounded="xl"
-                                                    borderColor={isActive ? "blue.muted" : "border.emphasized"}
-                                                    borderLeftWidth={isActive ? "4px" : "1px"}
-                                                    borderLeftColor={isActive ? "blue.solid" : "border.emphasized"}
-                                                    opacity={completed ? 0.92 : 1}
-                                                    shadow="sm"
-                                                >
-                                                    {/* Header */}
-                                                    <Card.Header
-                                                        py="3"
-                                                        px={{ base: "3", md: "4" }}
-                                                    >
-                                                        <HStack justify="space-between" wrap="wrap" gap="2">
-                                                            <HStack gap="2" align="center">
-                                                                {/* Round collapse toggle. Bumped from
-                                                                    size="xs" to "sm" because the xs
-                                                                    icon-button shrinks the chevron to
-                                                                    near-invisible on some browsers; the
-                                                                    explicit `size={18}` on the SVG
-                                                                    overrides any inherited font-size
-                                                                    quirks so the glyph always renders. */}
-                                                                <IconButton
-                                                                    aria-label={collapsed ? "Proširi rundu" : "Sažmi rundu"}
-                                                                    title={collapsed ? "Proširi rundu" : "Sažmi rundu"}
-                                                                    size="sm"
-                                                                    variant="ghost"
-                                                                    onClick={() => toggleRoundCollapsed(r.id)}
-                                                                >
-                                                                    {collapsed ? <FiChevronRight size={18} /> : <FiChevronDown size={18} />}
-                                                                </IconButton>
-                                                                <Heading size="sm">Runda {r.number}</Heading>
-                                                                <Badge
-                                                                    variant="subtle"
-                                                                    colorPalette={completed ? "green" : "yellow"}
-                                                                    size="sm"
-                                                                >
-                                                                    {completed ? (
-                                                                        <HStack gap="1"><FiCheckCircle size={11} /> Završeno</HStack>
-                                                                    ) : (
-                                                                        "Igra se"
-                                                                    )}
-                                                                </Badge>
-                                                            </HStack>
-                                                            <HStack gap="1.5" wrap="wrap" justify="flex-end">
-                                                                <Button
-                                                                    size="xs"
-                                                                    variant="ghost"
-                                                                    onClick={() => setFullscreenRound(r.id)}
-                                                                >
-                                                                    <FiMaximize2 /> Puni zaslon
-                                                                </Button>
-                                                                {/* Round-level mutations are
-                                                                    owner/admin only. Hide
-                                                                    the buttons for everyone
-                                                                    else so the round card is
-                                                                    a clean read-only view. */}
-                                                                {!completed && canEditTournament && (
-                                                                    <Button
-                                                                        size="xs"
-                                                                        variant="ghost"
-                                                                        colorPalette="red"
-                                                                        onClick={() => hardReset(r.id)}
-                                                                        title="Obriši mečeve u rundi i vrati statistiku"
-                                                                    >
-                                                                        <FiRotateCcw /> Resetiraj
-                                                                    </Button>
-                                                                )}
-                                                                {!completed && canEditTournament && (
-                                                                    <Button
-                                                                        size="xs"
-                                                                        variant="solid"
-                                                                        colorPalette="green"
-                                                                        onClick={() => finishWholeRound(r)}
-                                                                        disabled={!finishable}
-                                                                        title={finishable ? "Završi rundu" : "Unesi sve rezultate prvo"}
-                                                                    >
-                                                                        <FiFlag /> Završi rundu
-                                                                    </Button>
-                                                                )}
-                                                            </HStack>
-                                                        </HStack>
-                                                    </Card.Header>
-
-                                                    {/* Body */}
-                                                    {!collapsed && (
-                                                        <Card.Body
-                                                            pt="0"
-                                                            pb="3"
-                                                            px={{ base: "3", md: "4" }}
-                                                        >
-                                                            {r.matches.length === 0 ? (
-                                                                <Box borderWidth="1px" rounded="md" p="4">
-                                                                    <Text color="fg.muted" fontSize="sm">
-                                                                        Nema mečeva u ovoj rundi.
-                                                                    </Text>
-                                                                </Box>
-                                                            ) : (
-                                                                <VStack align="stretch" gap="2">
-                                                                    {[...r.matches]
-                                                                        .sort((a, b) => a.tableNo - b.tableNo)
-                                                                        .map((m) => matchRow(r, m))}
-                                                                </VStack>
-                                                            )}
-                                                        </Card.Body>
-                                                    )}
-                                                </Card.Root>
-                                            )
-                                        })}
-                                    </VStack>
-                                )}
-                            </VStack>
-                        )
-                    })()}
-
-                    {/* ===== Winner banner — celebratory ===== */}
-                    {t?.status === "FINISHED" && t?.winnerName && (
-                        <Card.Root
-                            mt="6"
-                            variant="outline"
-                            rounded="xl"
-                            borderColor="yellow.muted"
-                            bg="yellow.subtle"
-                            overflow="hidden"
-                        >
-                            <Card.Body py={{ base: "8", md: "10" }} px="6">
-                                <VStack gap="3">
-                                    <Box color="yellow.fg" fontSize={{ base: "5xl", md: "6xl" }}>
-                                        <FiAward />
-                                    </Box>
-                                    <Text
-                                        fontSize="sm"
-                                        color="fg.muted"
-                                        letterSpacing="wider"
-                                        textTransform="uppercase"
-                                        fontWeight="semibold"
-                                    >
-                                        Pobjednici
-                                    </Text>
-                                    <Heading
-                                        size={{ base: "xl", md: "2xl" }}
-                                        textAlign="center"
-                                        color="yellow.fg"
-                                    >
-                                        {t.winnerName}
-                                    </Heading>
-                                </VStack>
-                            </Card.Body>
-                        </Card.Root>
-                    )}
-
-                    {/* ===== Fullscreen Dialog ===== */}
-                    <Dialog.Root
-                        open={fullscreenRound !== null}
-                        onOpenChange={(e) => {
-                            if (!e.open) setFullscreenRound(null)
-                        }}
-                    >
-                        <Dialog.Backdrop/>
-                        <Dialog.Positioner>
-                            <Dialog.Content
-                                maxW="90vw"
-                                w="90vw"
-                                maxH="90vh"
-                                h="90vh"
-                                p="0"
-                                rounded="xl"
-                                overflow="hidden"
-                            >
-                                <HStack justify="space-between" align="center" p="3" borderBottomWidth="1px" bg="bg">
-                                    <Heading size="sm">
-                                        {fullscreenRound
-                                            ? `Runda ${rounds.find((r) => r.id === fullscreenRound)?.number} — Puni zaslon`
-                                            : "Puni zaslon"}
-                                    </Heading>
-                                    <IconButton aria-label="Close" size="sm" variant="ghost"
-                                                onClick={() => setFullscreenRound(null)}>
-                                        <FiX/>
-                                    </IconButton>
-                                </HStack>
-
-                                <Box p={{ base: "3", md: "5" }} h="calc(100% - 50px)" overflow="auto">
-                                    {fullscreenRound &&
-                                    rounds.find((r) => r.id === fullscreenRound)?.matches?.length ? (
-                                        <Box
-                                            display="grid"
-                                            gridTemplateColumns={{
-                                                base: "repeat(auto-fill, minmax(220px, 1fr))",
-                                                md: "repeat(auto-fill, minmax(260px, 1fr))",
-                                                lg: "repeat(auto-fill, minmax(300px, 1fr))",
-                                            }}
-                                            gap={{ base: "3", md: "4" }}
-                                        >
-                                            {[...rounds.find((r) => r.id === fullscreenRound)!.matches]
-                                                .sort((a, b) => a.tableNo - b.tableNo)
-                                                .map((m) => {
-                                                    const a = m.pair1Id ? pairById.get(m.pair1Id)?.name ?? "—" : "—"
-                                                    const b = m.pair2Id ? pairById.get(m.pair2Id)?.name ?? "—" : "—"
-                                                    const isBye = !m.pair2Id
-                                                    // Winner highlight — only meaningful for
-                                                    // finished matches. Tints the winner side
-                                                    // green so a quick glance at fullscreen
-                                                    // shows who took each table. Byes stay blue.
-                                                    const fsWinner = m.status === "FINISHED" ? winnerOf(m) : null
-                                                    const aWon = fsWinner != null && fsWinner === m.pair1Id
-                                                    const bWon = fsWinner != null && fsWinner === m.pair2Id
-                                                    return (
-                                                        <Box
-                                                            key={m.id}
-                                                            borderWidth="1px"
-                                                            borderColor={isBye ? "blue.muted" : "border.emphasized"}
-                                                            bg={isBye ? "blue.subtle" : "bg"}
-                                                            rounded="2xl"
-                                                            shadow="sm"
-                                                            overflow="hidden"
-                                                        >
-                                                            <Box
-                                                                px={{ base: "4", md: "5" }}
-                                                                py={{ base: "5", md: "6" }}
-                                                                display="flex"
-                                                                flexDirection="column"
-                                                                gap={{ base: "3", md: "4" }}
-                                                            >
-                                                                {/* Pair A */}
-                                                                <Box
-                                                                    fontSize={{ base: "xl", md: "2xl", lg: "3xl" }}
-                                                                    fontWeight={aWon ? "bold" : "semibold"}
-                                                                    color={aWon ? "green.fg" : undefined}
-                                                                    bg={aWon ? "green.subtle" : undefined}
-                                                                    rounded={aWon ? "md" : undefined}
-                                                                    px={aWon ? "3" : undefined}
-                                                                    py={aWon ? "2" : undefined}
-                                                                    lineHeight="short"
-                                                                    textAlign="center"
-                                                                    overflow="hidden"
-                                                                    textOverflow="ellipsis"
-                                                                    whiteSpace="nowrap"
-                                                                >
-                                                                    {a}
-                                                                </Box>
-
-                                                                {/* Stol N separator (replaces vs).
-                                                                    Suppressed for bye matches — the
-                                                                    pair gets a free pass through
-                                                                    the round and isn't seated at a
-                                                                    table. Bye cards just show a
-                                                                    plain horizontal divider where
-                                                                    the Stol chip would have been. */}
-                                                                <HStack gap="3" align="center">
-                                                                    <Box flex="1" h="1px" bg="border.emphasized" />
-                                                                    {!isBye && (
-                                                                    <Box
-                                                                        bg="blue.solid"
-                                                                        color="white"
-                                                                        rounded="lg"
-                                                                        px={{ base: "3", md: "4" }}
-                                                                        py={{ base: "1", md: "1.5" }}
-                                                                        display="flex"
-                                                                        alignItems="center"
-                                                                        gap="1.5"
-                                                                        shadow="sm"
-                                                                        flexShrink={0}
-                                                                    >
-                                                                        <Text
-                                                                            fontSize={{ base: "2xs", md: "xs" }}
-                                                                            opacity={0.85}
-                                                                            fontWeight="semibold"
-                                                                            letterSpacing="wide"
-                                                                            textTransform="uppercase"
-                                                                        >
-                                                                            Stol
-                                                                        </Text>
-                                                                        <Text
-                                                                            fontSize={{ base: "lg", md: "xl" }}
-                                                                            fontWeight="bold"
-                                                                            lineHeight="1"
-                                                                        >
-                                                                            {m.tableNo}
-                                                                        </Text>
-                                                                    </Box>
-                                                                    )}
-                                                                    <Box flex="1" h="1px" bg="border.emphasized" />
-                                                                </HStack>
-
-                                                                {/* Pair B / bye */}
-                                                                <Box
-                                                                    fontSize={{ base: "xl", md: "2xl", lg: "3xl" }}
-                                                                    fontWeight={isBye ? "medium" : bWon ? "bold" : "semibold"}
-                                                                    color={isBye ? "blue.fg" : bWon ? "green.fg" : undefined}
-                                                                    bg={bWon ? "green.subtle" : undefined}
-                                                                    rounded={bWon ? "md" : undefined}
-                                                                    px={bWon ? "3" : undefined}
-                                                                    py={bWon ? "2" : undefined}
-                                                                    fontStyle={isBye ? "italic" : undefined}
-                                                                    lineHeight="short"
-                                                                    textAlign="center"
-                                                                    overflow="hidden"
-                                                                    textOverflow="ellipsis"
-                                                                    whiteSpace="nowrap"
-                                                                >
-                                                                    {isBye ? "Slobodan prolaz" : b}
-                                                                </Box>
-                                                            </Box>
-                                                        </Box>
-                                                    )
-                                                })}
-                                        </Box>
-                                    ) : (
-                                        <Box borderWidth="1px" rounded="md" p="4">
-                                            <Text color="fg.muted">Nema mečeva u ovoj rundi.</Text>
-                                        </Box>
-                                    )}
-                                </Box>
-                            </Dialog.Content>
-                        </Dialog.Positioner>
-                    </Dialog.Root>
-                    <Dialog.Root
-                        open={unpaidOpen}
-                        onOpenChange={(e) => { if (!e.open) setUnpaidOpen(false) }}
-                    >
-                        <Dialog.Backdrop />
-                        <Dialog.Positioner>
-                            <Dialog.Content maxW="sm">
-                                <Dialog.Header>Turnir ne može početi</Dialog.Header>
-                                <Dialog.Body>
-                                    <Text>
-                                        Turnir se ne može startati dok sve ekipe nemaju označenu <b>kotizaciju</b>.
-                                        Molim označite “Kotizacija” za sve parove koji su platili.
-                                    </Text>
-                                </Dialog.Body>
-                                <Dialog.Footer>
-                                    <Button onClick={() => setUnpaidOpen(false)} colorPalette="red" variant="solid">
-                                        U redu
-                                    </Button>
-                                </Dialog.Footer>
-                            </Dialog.Content>
-                        </Dialog.Positioner>
-                    </Dialog.Root>
-
-                </>
+            {!loading && t && (
+                <TournamentTopBar t={t} tourAnchors={!isDesktopShell} {...chromeProps} />
             )}
 
-            {/* ===== Self-register pair dialog ===== */}
-            <Dialog.Root
-                open={selfRegOpen}
-                onOpenChange={(e) => {
-                    if (!e.open) {
-                        setSelfRegOpen(false)
-                        setSelfRegError(null)
-                        setSelfRegName("")
+            {/* `align` is left at its `stretch` default on purpose: the sidebar
+                column has to be as tall as the content column, or the sticky
+                card inside it would unpin as soon as the column's own bottom
+                edge scrolled past. */}
+            <Flex gap={{ base: "0", lg: "6" }}>
+                {!loading && t && (
+                    <TournamentSideNav t={t} tourAnchors={isDesktopShell} {...chromeProps} />
+                )}
+
+                <Box flex="1" minW="0">
+                    {/* Phone / tablet twin of the sidebar's results card. Only
+                        on Detalji: repeated above every section it would push a
+                        screenful of podium in front of the actual content. */}
+                    {!loading && t && tab === "details" && (
+                        <Box display={{ base: "block", lg: "none" }} mb="4">
+                            <TournamentResultsCard
+                                winnerName={t.winnerName}
+                                secondName={t.secondPlaceName}
+                                thirdName={t.thirdPlaceName}
+                            />
+                        </Box>
+                    )}
+
+                    {loading ? (
+                        /* Skeleton that mirrors the real layout — a header
+                           strip, the tile grid, and a stack of list rows — so
+                           the page doesn't jump when the data lands. */
+                        <VStack align="stretch" gap="4" aria-busy="true" aria-label={tr("tournament.loadingAria")}>
+                            <Skeleton height="24px" width="60%" maxW="320px" rounded="md" />
+                            <HStack gap="2">
+                                {[0, 1, 2, 3].map((i) => (
+                                    <Skeleton key={i} height="32px" width="88px" rounded="md" />
+                                ))}
+                            </HStack>
+                            <Box
+                                display="grid"
+                                gridTemplateColumns={{ base: "1fr", md: "1fr 1fr", lg: "1fr 1fr 1fr" }}
+                                gap="3"
+                            >
+                                {[0, 1, 2, 3, 4, 5].map((i) => (
+                                    <Box
+                                        key={i}
+                                        borderWidth="1px"
+                                        borderColor="border.emphasized"
+                                        rounded="lg"
+                                        px="3"
+                                        py="2.5"
+                                    >
+                                        <Skeleton height="10px" width="45%" mb="2" rounded="sm" />
+                                        <Skeleton height="18px" width="75%" rounded="sm" />
+                                    </Box>
+                                ))}
+                            </Box>
+                            <VStack align="stretch" gap="2">
+                                {[0, 1, 2].map((i) => (
+                                    <Box
+                                        key={i}
+                                        borderWidth="1px"
+                                        borderColor="border.emphasized"
+                                        rounded="lg"
+                                        p="3"
+                                    >
+                                        <SkeletonText noOfLines={2} gap="2" />
+                                    </Box>
+                                ))}
+                            </VStack>
+                        </VStack>
+                    ) : !t ? (
+                        <VStack py="10" gap="3">
+                            <Text color="red.fg">{error ?? tr("tournament.notFound")}</Text>
+                            <Button asChild size="sm">
+                                <RouterLink to="/turniri">{tr("tournament.backToList")}</RouterLink>
+                            </Button>
+                        </VStack>
+                    ) : tab === "details" ? (
+                        !editor.editingDetails || !editor.editForm ? (
+                            <DetailsSection t={t} pairCount={pairs.length} />
+                        ) : (
+                            <Suspense
+                                fallback={
+                                    <VStack align="stretch" gap="4" aria-busy="true">
+                                        <Skeleton height="320px" rounded="xl" />
+                                        <Skeleton height="180px" rounded="xl" />
+                                    </VStack>
+                                }
+                            >
+                                <DetailsEditForm
+                                    editForm={editor.editForm}
+                                    patchEdit={editor.patchEdit}
+                                    bannerUrl={t.bannerUrl}
+                                    editPickedCoords={editor.editPickedCoords}
+                                    setEditPickedCoords={editor.setEditPickedCoords}
+                                    posterFile={editor.posterFile}
+                                    posterPreviewUrl={editor.posterPreviewUrl}
+                                    posterRemove={editor.posterRemove}
+                                    posterUploadErr={editor.posterUploadErr}
+                                    onPosterPick={editor.handlePosterPick}
+                                    onClearPosterPick={editor.clearPosterPick}
+                                    onMarkPosterForRemoval={editor.markPosterForRemoval}
+                                    editMissingRequired={editor.editMissingRequired}
+                                    editStartInPast={editor.editStartInPast}
+                                    savingDetails={editor.savingDetails}
+                                    onCancel={editor.cancelDetailsEdit}
+                                    onSave={editor.saveDetailsEdit}
+                                />
+                            </Suspense>
+                        )
+                    ) : tab === "pairs" ? (
+                        <PairsSectionContainer
+                            t={t}
+                            uuid={uuid}
+                            pairs={pairs}
+                            pairsView={pairsView}
+                            pairRequests={pairRequests}
+                            canEditTournament={canEditTournament}
+                            viewerUid={user?.uid}
+                            tournamentAlready={tournamentAlready}
+                            savingPairs={pairsEd.savingPairs}
+                            approvingPairId={pairsEd.approvingPairId}
+                            buyingLifePairId={pairsEd.buyingLifePairId}
+                            pendingPairPaid={pendingPairPaid}
+                            onAddPair={pairsEd.addPair}
+                            onChangePairName={pairsEd.changePairName}
+                            onPairNameBlur={pairsEd.onPairNameBlur}
+                            onRemoveTempPair={pairsEd.removePair}
+                            onRequestDeletePair={pairsEd.setPendingDeletePair}
+                            onApprovePair={pairsEd.onApprovePair}
+                            onBuyExtraLife={pairsEd.onBuyExtraLife}
+                            onTogglePaid={pairsEd.onTogglePaid}
+                            onStagePaid={pairsEd.stageTempPairPaid}
+                            isLifeEligible={isLifeEligible}
+                            onOpenPairInfo={setInfoPairId}
+                            onSelfRegisterClick={() => {
+                                // Anonymous visitors get bounced to /prijava
+                                // with state.from so they land back here.
+                                if (!user) {
+                                    navigate("/prijava", {
+                                        state: { from: `${location.pathname}${location.search}` },
+                                    })
+                                    return
+                                }
+                                pairsEd.setSelfRegOpen(true)
+                            }}
+                            onPodiumUpdated={setT}
+                            selfRegOpen={pairsEd.selfRegOpen}
+                            setSelfRegOpen={pairsEd.setSelfRegOpen}
+                            presets={pairsEd.presets}
+                            selfRegName={pairsEd.selfRegName}
+                            setSelfRegName={pairsEd.setSelfRegName}
+                            selfRegSubmitting={pairsEd.selfRegSubmitting}
+                            selfRegError={pairsEd.selfRegError}
+                            setSelfRegError={pairsEd.setSelfRegError}
+                            onSubmitSelfRegister={pairsEd.submitSelfRegister}
+                        />
+                    ) : tab === "cjenik" ? (
+                        <Box data-tour="detail-content-cjenik">
+                            <CjenikTab
+                                tournamentRef={t.uuid ?? t.slug ?? ""}
+                                canEdit={canEditTournament || waiterCanEditCjenik}
+                                // Only set for the "gazda konobara" branch — the
+                                // organiser's own bearer already authorises them,
+                                // and sending a stray waiter header alongside it
+                                // is needless. Template save/import stay off for
+                                // a waiter: those key a per-USER template, and a
+                                // waiter has no account to key one to.
+                                waiterToken={!canEditTournament && waiterCanEditCjenik ? waiterToken : null}
+                                canUseTemplates={canEditTournament}
+                            />
+                        </Box>
+                    ) : tab === "racuni" ? (
+                        /* Two renderings of one URL. The organiser and anyone
+                           already holding a waiter session get the bills; a
+                           visitor who followed the organiser's `?kod=` link gets
+                           the gate, which redeems that code and — through the
+                           session hook's shared store — flips this very branch
+                           on the next render. Nobody else can reach anything
+                           here without a valid code. */
+                        canEditTournament || hasWaiterSession ? (
+                            <RacuniSection
+                                tournamentUuid={t.uuid}
+                                tournamentSlug={t.slug}
+                                canEdit={canEditTournament}
+                            />
+                        ) : (
+                            <WaiterCodeGate tournamentUuid={t.uuid} />
+                        )
+                    ) : (
+                        <BracketSection
+                            t={t}
+                            rounds={rounds}
+                            collapsedRounds={collapsedRounds}
+                            setCollapsedRounds={setCollapsedRounds}
+                            sortedMatchesByRound={roundsCtl.sortedMatchesByRound}
+                            pairById={pairById}
+                            canEditTournament={canEditTournament}
+                            viewerUid={user?.uid}
+                            autoOpenBillId={billMatchIdFromUrl}
+                            allowRepeats={allowRepeats}
+                            savingPM={roundsCtl.savingPM}
+                            onToggleAllowRepeats={roundsCtl.onToggleAllowRepeats}
+                            tournamentStarted={roundsCtl.tournamentStarted}
+                            canStart={canStart}
+                            startingTournament={roundsCtl.startingTournament}
+                            onStartTournament={roundsCtl.onStartTournament}
+                            canFinishTournament={canFinishTournament}
+                            finishingTournament={roundsCtl.finishingTournament}
+                            onFinishTournament={roundsCtl.onFinishTournament}
+                            showResetTournament={roundsCtl.showResetTournament}
+                            resettingTournament={roundsCtl.resettingTournament}
+                            onOpenResetTournament={() => roundsCtl.setResetTournamentOpen(true)}
+                            canCreateRound={canCreateRound}
+                            creatingRound={roundsCtl.creatingRound}
+                            onCreateRound={roundsCtl.onCreateRound}
+                            showManualRoundButton={showManualRoundButton}
+                            onClickManualRound={roundsCtl.onClickManualRound}
+                            finishingRoundId={roundsCtl.finishingRoundId}
+                            onFinishRound={roundsCtl.finishWholeRound}
+                            hardResettingRound={roundsCtl.hardResettingRound}
+                            onRequestHardResetRound={roundsCtl.setPendingHardResetRound}
+                            toggleRoundCollapsed={roundsCtl.toggleRoundCollapsed}
+                            savingMatchId={roundsCtl.savingMatchId}
+                            onSaveMatch={roundsCtl.saveMatch}
+                            onSaveEditedMatch={roundsCtl.saveEditedMatch}
+                            onEnterEdit={roundsCtl.enterEdit}
+                            onCancelEdit={roundsCtl.cancelEdit}
+                            onScoreChange={roundsCtl.setLocalMatchScore}
+                            onBillChange={roundsCtl.patchMatchPaidAt}
+                            unpaidOpen={roundsCtl.unpaidOpen}
+                            onCloseUnpaid={() => roundsCtl.setUnpaidOpen(false)}
+                        />
+                    )}
+                </Box>
+            </Flex>
+
+            {/* ===== Dialogs that must work from any section ===== */}
+            <PairInfoDialog
+                pairId={infoPairId}
+                pairs={pairs}
+                rounds={rounds}
+                pairById={pairById}
+                onClose={() => setInfoPairId(null)}
+            />
+
+            <TournamentPageDialogs
+                tournamentName={t?.name}
+                deleteTournamentOpen={deleteTournamentOpen}
+                deletingTournament={deletingTournament}
+                onCloseDeleteTournament={() => setDeleteTournamentOpen(false)}
+                onConfirmDeleteTournament={() => void confirmDeleteTournament()}
+                pendingDeletePair={pairsEd.pendingDeletePair}
+                deletingPair={pairsEd.deletingPair}
+                onCloseDeletePair={() => pairsEd.setPendingDeletePair(null)}
+                onConfirmDeletePair={() => void pairsEd.confirmDeletePair()}
+                manualConfirmOpen={roundsCtl.manualConfirmOpen}
+                onCloseManualConfirm={() => roundsCtl.setManualConfirmOpen(false)}
+                onConfirmManualRound={roundsCtl.onConfirmManualRound}
+                resetTournamentOpen={roundsCtl.resetTournamentOpen}
+                resettingTournament={roundsCtl.resettingTournament}
+                onCloseResetTournament={() => roundsCtl.setResetTournamentOpen(false)}
+                onConfirmResetTournament={() => void roundsCtl.onResetTournament()}
+                hardResetRoundOpen={roundsCtl.pendingHardResetRound != null}
+                hardResettingRound={roundsCtl.hardResettingRound}
+                onCloseHardResetRound={() => roundsCtl.setPendingHardResetRound(null)}
+                onConfirmHardResetRound={() => {
+                    if (roundsCtl.pendingHardResetRound != null) {
+                        void roundsCtl.hardReset(roundsCtl.pendingHardResetRound)
                     }
                 }}
-            >
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content maxW="md">
-                        <Dialog.Header py="3" px="4" borderBottomWidth="1px" borderColor="border.emphasized">
-                            <Heading size="sm">Prijavi par za turnir</Heading>
-                        </Dialog.Header>
-                        <Dialog.Body py="4" px="4">
-                            <VStack align="stretch" gap="3">
-                                {(() => {
-                                    // Hide presets the current user has already
-                                    // submitted to *this* tournament (case-insensitive),
-                                    // so they can't accidentally re-register the same pair.
-                                    const myUid = user?.uid
-                                    const alreadyRegisteredNames = new Set(
-                                        pairs
-                                            .filter((p) => myUid && p.submittedByUid === myUid)
-                                            .map((p) => p.name?.trim().toLowerCase())
-                                            .filter(Boolean) as string[],
-                                    )
-                                    const available = presets.filter(
-                                        (p) => !alreadyRegisteredNames.has(p.name.trim().toLowerCase()),
-                                    )
-                                    if (available.length === 0) return null
-                                    return (
-                                        <Box>
-                                            <Text fontSize="xs" color="fg.muted" mb="1.5" fontWeight="medium">
-                                                Tvoji spremljeni parovi
-                                            </Text>
-                                            <HStack gap="1.5" wrap="wrap">
-                                                {available.map((p) => (
-                                                    <Button
-                                                        key={p.uuid}
-                                                        size="xs"
-                                                        variant={selfRegName === p.name ? "solid" : "outline"}
-                                                        colorPalette={selfRegName === p.name ? "blue" : "gray"}
-                                                        onClick={() => setSelfRegName(p.name)}
-                                                    >
-                                                        {p.name}
-                                                    </Button>
-                                                ))}
-                                            </HStack>
-                                        </Box>
-                                    )
-                                })()}
-
-                                <Box>
-                                    <Text fontSize="xs" color="fg.muted" mb="1.5" fontWeight="medium">
-                                        Ime para
-                                    </Text>
-                                    <Input
-                                        autoFocus
-                                        placeholder="npr. Marko & Pero"
-                                        value={selfRegName}
-                                        onChange={(e) => setSelfRegName(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                                e.preventDefault()
-                                                submitSelfRegister()
-                                            }
-                                        }}
-                                    />
-                                </Box>
-
-                                <Text fontSize="xs" color="fg.muted">
-                                    Par će biti označen <chakra.b color="yellow.fg">žuto</chakra.b> dok ga organizator ne potvrdi.
-                                </Text>
-
-                                {selfRegError && (
-                                    <Box borderWidth="1px" borderColor="red.muted" bg="red.subtle" rounded="md" p="2">
-                                        <Text fontSize="sm" color="red.fg">{selfRegError}</Text>
-                                    </Box>
-                                )}
-                            </VStack>
-                        </Dialog.Body>
-                        <Dialog.Footer py="3" px="4" borderTopWidth="1px" borderColor="border.emphasized">
-                            <HStack justify="flex-end" gap="2">
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => setSelfRegOpen(false)}
-                                    disabled={selfRegSubmitting}
-                                >
-                                    Odustani
-                                </Button>
-                                <Button
-                                    variant="solid"
-                                    colorPalette="blue"
-                                    loading={selfRegSubmitting}
-                                    disabled={!selfRegName.trim() || selfRegSubmitting}
-                                    onClick={submitSelfRegister}
-                                >
-                                    Prijavi se
-                                </Button>
-                            </HStack>
-                        </Dialog.Footer>
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Dialog.Root>
-
-            {/* ===== Pair info / match history dialog ===== */}
-            <Dialog.Root
-                open={infoPairId !== null}
-                onOpenChange={(e) => { if (!e.open) setInfoPairId(null) }}
-            >
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content maxW="md">
-                        {(() => {
-                            const pair = pairs.find((p) => p.id === infoPairId)
-                            if (!pair) return null
-
-                            type Played = {
-                                round: number
-                                tableNo: number
-                                opponentName: string | null
-                                myScore: number | null | undefined
-                                oppScore: number | null | undefined
-                                isFinished: boolean
-                                isBye: boolean
-                                isWinner: boolean
-                            }
-
-                            const played: Played[] = rounds.flatMap((r) =>
-                                r.matches
-                                    .filter((m) => m.pair1Id === pair.id || m.pair2Id === pair.id)
-                                    .map((m) => {
-                                        const meIs1 = m.pair1Id === pair.id
-                                        const oppId = meIs1 ? m.pair2Id : m.pair1Id
-                                        const oppName =
-                                            (meIs1 ? m.pair2Name : m.pair1Name) ??
-                                            (oppId ? pairById.get(oppId)?.name ?? null : null)
-                                        return {
-                                            round: r.number,
-                                            tableNo: m.tableNo,
-                                            opponentName: oppName,
-                                            myScore: meIs1 ? m.score1 : m.score2,
-                                            oppScore: meIs1 ? m.score2 : m.score1,
-                                            isFinished: m.status === "FINISHED",
-                                            isBye: !m.pair2Id,
-                                            isWinner: m.winnerPairId != null && m.winnerPairId === pair.id,
-                                        }
-                                    })
-                            )
-
-                            const finishedPlayed = played.filter((x) => x.isFinished && !x.isBye)
-                            const wins = finishedPlayed.filter((x) => x.isWinner).length
-                            const losses = finishedPlayed.filter((x) => !x.isWinner).length
-
-                            return (
-                                <>
-                                    <Dialog.Header
-                                        py="3"
-                                        px="4"
-                                        borderBottomWidth="1px"
-                                        borderColor="border.emphasized"
-                                    >
-                                        <HStack gap="3" align="center">
-                                            <PairAvatar name={pair.name} eliminated={pair.isEliminated} />
-                                            <Box flex="1" minW="0">
-                                                <Text fontWeight="semibold" lineHeight="short">{pair.name || "—"}</Text>
-                                                <Text fontSize="xs" color="fg.muted">Povijest mečeva</Text>
-                                            </Box>
-                                            <IconButton
-                                                aria-label="Zatvori"
-                                                size="sm"
-                                                variant="ghost"
-                                                onClick={() => setInfoPairId(null)}
-                                            >
-                                                <FiX />
-                                            </IconButton>
-                                        </HStack>
-                                    </Dialog.Header>
-                                    <Dialog.Body py="4" px="4">
-                                        {/* Stat summary */}
-                                        <HStack gap="6" mb="4" wrap="wrap">
-                                            <Box>
-                                                <Text fontSize="xs" color="fg.muted">Odigrano</Text>
-                                                <Text fontSize="xl" fontWeight="semibold">{finishedPlayed.length}</Text>
-                                            </Box>
-                                            <Box>
-                                                <Text fontSize="xs" color="fg.muted">Pobjede</Text>
-                                                <Text fontSize="xl" fontWeight="semibold" color="green.fg">{wins}</Text>
-                                            </Box>
-                                            <Box>
-                                                <Text fontSize="xs" color="fg.muted">Porazi</Text>
-                                                <Text fontSize="xl" fontWeight="semibold" color="red.fg">{losses}</Text>
-                                            </Box>
-                                            {pair.extraLife && (
-                                                <Box>
-                                                    <Text fontSize="xs" color="fg.muted">Status</Text>
-                                                    <Badge variant="subtle" colorPalette="red">
-                                                        <HStack gap="1"><FiHeart size={11} /> Život</HStack>
-                                                    </Badge>
-                                                </Box>
-                                            )}
-                                        </HStack>
-
-                                        {played.length === 0 ? (
-                                            <Box
-                                                borderWidth="1px"
-                                                borderColor="border.emphasized"
-                                                borderStyle="dashed"
-                                                rounded="md"
-                                                py="8"
-                                                px="4"
-                                                textAlign="center"
-                                            >
-                                                <Text color="fg.muted" fontSize="sm">
-                                                    Par još nije odigrao niti jedan meč.
-                                                </Text>
-                                            </Box>
-                                        ) : (
-                                            <VStack align="stretch" gap="2">
-                                                {played.map((x, i) => (
-                                                    <Box
-                                                        key={i}
-                                                        borderWidth="1px"
-                                                        borderColor="border.emphasized"
-                                                        rounded="md"
-                                                        p="2.5"
-                                                        bg={
-                                                            x.isBye
-                                                                ? "blue.subtle"
-                                                                : !x.isFinished
-                                                                    ? "yellow.subtle"
-                                                                    : x.isWinner
-                                                                        ? "green.subtle"
-                                                                        : "red.subtle"
-                                                        }
-                                                    >
-                                                        <HStack justify="space-between" gap="2" wrap="wrap">
-                                                            <HStack gap="2" minW="0" flex="1">
-                                                                <Badge variant="solid" colorPalette="gray" size="sm" flexShrink={0}>
-                                                                    R{x.round}
-                                                                </Badge>
-                                                                <Text fontSize="xs" color="fg.muted" flexShrink={0}>
-                                                                    Stol {x.tableNo}
-                                                                </Text>
-                                                                <Text
-                                                                    fontWeight="medium"
-                                                                    overflow="hidden"
-                                                                    textOverflow="ellipsis"
-                                                                    whiteSpace="nowrap"
-                                                                    minW="0"
-                                                                >
-                                                                    {x.isBye ? "Slobodan prolaz" : `vs ${x.opponentName ?? "—"}`}
-                                                                </Text>
-                                                            </HStack>
-                                                            <HStack gap="2" flexShrink={0}>
-                                                                {!x.isBye && x.isFinished && (
-                                                                    <Text fontWeight="semibold" fontSize="sm">
-                                                                        {x.myScore ?? "—"} : {x.oppScore ?? "—"}
-                                                                    </Text>
-                                                                )}
-                                                                {x.isBye ? (
-                                                                    <Badge variant="solid" colorPalette="blue" size="sm">
-                                                                        <HStack gap="1"><FiCheckCircle size={11}/> Prošao</HStack>
-                                                                    </Badge>
-                                                                ) : !x.isFinished ? (
-                                                                    <Badge variant="solid" colorPalette="yellow" size="sm">U tijeku</Badge>
-                                                                ) : x.isWinner ? (
-                                                                    <Badge variant="solid" colorPalette="green" size="sm">
-                                                                        <HStack gap="1"><FiAward size={11}/> Pobjeda</HStack>
-                                                                    </Badge>
-                                                                ) : (
-                                                                    <Badge variant="solid" colorPalette="red" size="sm">Poraz</Badge>
-                                                                )}
-                                                            </HStack>
-                                                        </HStack>
-                                                    </Box>
-                                                ))}
-                                            </VStack>
-                                        )}
-                                    </Dialog.Body>
-                                </>
-                            )
-                        })()}
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Dialog.Root>
-
-            {/* Admin-only confirm dialog for soft-deleting the entire tournament.
-                On confirm we DELETE the tournament and bounce back to the list. */}
-            <Dialog.Root
-                open={deleteTournamentOpen}
-                onOpenChange={(e) => { if (!e.open && !deletingTournament) setDeleteTournamentOpen(false) }}
-            >
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content maxW="sm">
-                        <Dialog.Header>Obriši turnir?</Dialog.Header>
-                        <Dialog.Body>
-                            <Text>
-                                Obrisati turnir{" "}
-                                <chakra.b>{t?.name}</chakra.b>?
-                                Turnir više neće biti vidljiv u pretrazi, na karti, kalendaru ni u
-                                profilima igrača. Ova radnja se ne poništava kroz aplikaciju.
-                            </Text>
-                        </Dialog.Body>
-                        <Dialog.Footer>
-                            <Button
-                                variant="ghost"
-                                onClick={() => setDeleteTournamentOpen(false)}
-                                disabled={deletingTournament}
-                            >
-                                Odustani
-                            </Button>
-                            <Button
-                                variant="solid"
-                                colorPalette="red"
-                                loading={deletingTournament}
-                                onClick={async () => {
-                                    if (!uuid) return
-                                    try {
-                                        setDeletingTournament(true)
-                                        await deleteTournament(uuid)
-                                        navigate("/turniri", { replace: true })
-                                    } catch (err: any) {
-                                        alert(String(err?.response?.data ?? err?.message ?? "Failed to delete tournament."))
-                                    } finally {
-                                        setDeletingTournament(false)
-                                        setDeleteTournamentOpen(false)
-                                    }
-                                }}
-                            >
-                                Da, obriši
-                            </Button>
-                        </Dialog.Footer>
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Dialog.Root>
-
-            {/* Confirm-delete dialog for a single pair. Mounted at the page
-                root so it works regardless of which tab is active — earlier
-                placement inside the bracket branch meant it never rendered
-                on the Parovi tab and the click did nothing. */}
-            <Dialog.Root
-                open={!!pendingDeletePair}
-                onOpenChange={(e) => { if (!e.open && !deletingPair) setPendingDeletePair(null) }}
-            >
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content maxW="sm">
-                        <Dialog.Header>Ukloni par?</Dialog.Header>
-                        <Dialog.Body>
-                            <Text>
-                                Stvarno ukloniti par
-                                {" "}<chakra.b>{pendingDeletePair?.name}</chakra.b>
-                                {" "}iz turnira? Ova radnja se ne može poništiti.
-                            </Text>
-                        </Dialog.Body>
-                        <Dialog.Footer>
-                            <Button
-                                variant="ghost"
-                                onClick={() => setPendingDeletePair(null)}
-                                disabled={deletingPair}
-                            >
-                                Ne
-                            </Button>
-                            <Button
-                                variant="solid"
-                                colorPalette="red"
-                                loading={deletingPair}
-                                onClick={async () => {
-                                    if (!pendingDeletePair || !uuid) return
-                                    try {
-                                        setDeletingPair(true)
-                                        await deletePair(uuid, pendingDeletePair.id)
-                                        setPairs(ps => ps.filter(x => x.id !== pendingDeletePair.id))
-                                        setPendingDeletePair(null)
-                                    } catch (err: any) {
-                                        alert(String(err?.response?.data ?? err?.message ?? "Failed to delete pair."))
-                                    } finally {
-                                        setDeletingPair(false)
-                                    }
-                                }}
-                            >
-                                Da, ukloni
-                            </Button>
-                        </Dialog.Footer>
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Dialog.Root>
-
-            {/* Manual round generation — confirmation prompt + main form.
-                Two steps so the organiser explicitly opts in to the
-                heavier flow (the auto button is still right there one
-                tap away). */}
-            <Dialog.Root
-                open={manualConfirmOpen}
-                onOpenChange={(e) => { if (!e.open) setManualConfirmOpen(false) }}
-            >
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content maxW="sm">
-                        <Dialog.Header>Ručna generacija kola?</Dialog.Header>
-                        <Dialog.Body>
-                            <Text>
-                                Sigurno želiš ručno odabrati parove za sljedeće kolo?
-                                Ovaj korak zaobilazi automatski ždrijeb i postavlja
-                                točno onaj raspored koji odabereš.
-                            </Text>
-                        </Dialog.Body>
-                        <Dialog.Footer>
-                            <HStack gap="2">
-                                <Button variant="ghost" onClick={() => setManualConfirmOpen(false)}>
-                                    Ne
-                                </Button>
-                                <Button
-                                    variant="solid"
-                                    colorPalette="purple"
-                                    onClick={onConfirmManualRound}
-                                >
-                                    Da, ručno
-                                </Button>
-                            </HStack>
-                        </Dialog.Footer>
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Dialog.Root>
-
-            <ManualRoundDialog
-                open={manualRoundOpen}
-                onClose={() => setManualRoundOpen(false)}
-                tournamentUuid={uuid ?? ""}
-                pairs={activePairsForManual}
-                nextRoundNumber={
-                    rounds.length === 0 ? 1 : rounds[rounds.length - 1].number + 1
-                }
-                onCreated={onManualRoundCreated}
             />
+
+            {/* Mounted only while open: the dialog seeds its rows from an
+                `open` effect, so there is nothing to preserve between openings,
+                and this keeps its chunk off the spectator path entirely. */}
+            {roundsCtl.manualRoundOpen && (
+                <Suspense fallback={null}>
+                    <ManualRoundDialog
+                        open
+                        onClose={() => roundsCtl.setManualRoundOpen(false)}
+                        tournamentUuid={uuid ?? ""}
+                        pairs={activePairsForManual}
+                        nextRoundNumber={
+                            rounds.length === 0 ? 1 : rounds[rounds.length - 1].number + 1
+                        }
+                        onCreated={roundsCtl.onManualRoundCreated}
+                    />
+                </Suspense>
+            )}
+
+            {/* Branded QR of this tournament — opened from the sidebar's icon
+                row on lg+, from the mobile header's overflow menu below that.
+                The image comes straight from the backend renderer. */}
+            {t && qrOpen && (
+                <Suspense fallback={null}>
+                    <TournamentQrDialog
+                        open
+                        onClose={() => setQrOpen(false)}
+                        tournamentUuid={t.uuid}
+                        tournamentSlug={t.slug}
+                        tournamentName={t.name}
+                    />
+                </Suspense>
+            )}
 
             {/* Detail-page tour. Runs in exactly two situations:
-                  - as a continuation when the user arrives from the
-                    list tour (TOUR_RESUME_DETAIL_KEY in sessionStorage,
-                    read into tourForceRun in the initial state above),
-                  - when the NavBar "?" ("Pokaži kako") button fires the
-                    replay window event.
-                No seenStorageKey is passed, so PageTour never auto-runs
-                this tour on a plain page visit. The onStepChange callback
-                drives tab switching so each step lands on a tab that's
-                actually mounted (the tab anchors are buttons, visible
-                regardless of which tab content is rendered, so Joyride
-                can find them either way — but switching the visible
-                content is what makes the tour feel guided). */}
-            <PageTour
-                key={tourReplayKey}
-                steps={TURNIR_DETAIL_TOUR_STEPS}
-                forceRun={tourForceRun}
-                onStepChange={(nextIndex) => {
-                    // Switch tabs at specific indices — see
-                    // DETAIL_TOUR_TAB_BY_INDEX comment in tourSteps.ts
-                    // for the index → tab mapping. Indices not in the
-                    // map don't change the tab (so e.g. the "pair card"
-                    // step keeps the Parovi tab visible from the
-                    // previous step).
-                    const targetTab = DETAIL_TOUR_TAB_BY_INDEX[nextIndex]
-                    if (targetTab) {
-                        // Snap the page back to the top BEFORE swapping
-                        // tabs. Why: each tab's content has a different
-                        // height (Parovi can be hundreds of pairs tall,
-                        // Cjenik is a one-line empty state on a fresh
-                        // tournament). If the user was scrolled down to
-                        // see Parovi, swapping to the shorter Cjenik
-                        // content shrinks the document — the browser
-                        // can clamp scrollTop to the new maxScroll, and
-                        // the tab buttons end up at unexpected viewport
-                        // coordinates. Joyride/popper then position the
-                        // tooltip against those wrong coords and we get
-                        // the "tooltip drifts to the bottom-left of the
-                        // page" symptom. Forcing scrollTop=0 means the
-                        // tab buttons are reliably at the top of the
-                        // viewport and the tooltip lands right below
-                        // them, where the step's `placement: "bottom"`
-                        // expects it to. `instant` skips the browser's
-                        // smooth-scroll animation that would otherwise
-                        // run concurrently with the React commit.
-                        window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior })
-                        setTab(targetTab)
-                    }
+                  - as a continuation when the user arrives from the list tour
+                    (TOUR_RESUME_DETAIL_KEY in sessionStorage, read into
+                    tourForceRun in the initial state above),
+                  - when the NavBar "?" ("Pokaži kako") button fires the replay
+                    window event.
+                No seenStorageKey is passed, so PageTour never auto-runs this
+                tour on a plain page visit. The onStepChange callback drives
+                section switching so each step lands on a section that's
+                actually mounted. */}
+            <Suspense fallback={null}>
+                <PageTour
+                    key={tourReplayKey}
+                    steps={TURNIR_DETAIL_TOUR_STEPS()}
+                    forceRun={tourForceRun}
+                    onStepChange={(nextIndex: number) => {
+                        // Switch sections at specific indices — see
+                        // DETAIL_TOUR_TAB_BY_INDEX in tourSteps.ts for the
+                        // index → section mapping. Indices not in the map don't
+                        // change the section.
+                        const targetTab = DETAIL_TOUR_TAB_BY_INDEX[nextIndex]
+                        if (targetTab) {
+                            // Snap the page back to the top BEFORE swapping
+                            // sections. Each section's content has a different
+                            // height (Parovi can be hundreds of pairs tall,
+                            // Cjenik is a one-line empty state on a fresh
+                            // tournament). If the user was scrolled down,
+                            // swapping to shorter content shrinks the document —
+                            // the browser can clamp scrollTop to the new
+                            // maxScroll, the section buttons end up at
+                            // unexpected viewport coordinates, and the tooltip
+                            // drifts to the bottom-left. `instant` skips the
+                            // smooth-scroll animation that would otherwise run
+                            // concurrently with the React commit.
+                            window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior })
+                            setTab(targetTab)
+                        }
 
-                    // The "Pomoć i instalacija" step (index 7) anchors on
-                    // the help-replay + install buttons. On desktop they
-                    // sit in the top-right of the navbar and are always
-                    // visible; on mobile the same pair lives inside the
-                    // hamburger drawer's Stack, so we have to open the
-                    // drawer before Joyride looks for the anchor.
-                    // Closes again at every other step so the previous
-                    // content stays in view. NavBar listens for these
-                    // events — desktop is unaffected because the drawer
-                    // block doesn't render at md+.
-                    const isHelpInstallStep = nextIndex === 7
-                    window.dispatchEvent(new CustomEvent(
-                        isHelpInstallStep ? "bela:open-nav-menu" : "bela:close-nav-menu",
-                    ))
-                }}
-                onFinished={() => {
-                    setTourForceRun(undefined)
-                    // Drawer cleanup — if the user finished from the
-                    // help-install step on mobile, the hamburger is still
-                    // open. Close it so the post-tour /turniri page isn't
-                    // partially obscured.
-                    window.dispatchEvent(new CustomEvent("bela:close-nav-menu"))
-                    // After the farewell step, drop the user back on the
-                    // /turniri landing so they're not stranded on the
-                    // detail page they were just guided through. Matches
-                    // the natural "back to the main list" expectation
-                    // after a guided tour completes.
-                    navigate("/turniri")
-                }}
-            />
+                        // The "Pomoć i instalacija" step (index 7) anchors on
+                        // the help-replay + install buttons. On desktop they sit
+                        // in the top-right of the navbar and are always visible;
+                        // on mobile the same pair lives inside the hamburger
+                        // drawer's Stack, so the drawer has to be opened before
+                        // Joyride looks for the anchor. Closes again at every
+                        // other step so the previous content stays in view.
+                        const isHelpInstallStep = nextIndex === 7
+                        window.dispatchEvent(new CustomEvent(
+                            isHelpInstallStep ? "bela:open-nav-menu" : "bela:close-nav-menu",
+                        ))
+                    }}
+                    onFinished={() => {
+                        setTourForceRun(undefined)
+                        // Drawer cleanup — if the user finished from the
+                        // help-install step on mobile, the hamburger is still
+                        // open. Close it so the post-tour /turniri page isn't
+                        // partially obscured.
+                        window.dispatchEvent(new CustomEvent("bela:close-nav-menu"))
+                        // After the farewell step, drop the user back on the
+                        // /turniri landing so they're not stranded on the detail
+                        // page they were just guided through.
+                        navigate("/turniri")
+                    }}
+                />
+            </Suspense>
         </>
     )
 }

@@ -1,4 +1,5 @@
 import { http } from "./http"
+import { t } from "../i18n"
 
 /** Public preview of a sharable pair, returned by GET /pairs/claim/{token}/preview. */
 export type ClaimPreviewDto = {
@@ -27,7 +28,7 @@ export type ClaimResultDto = {
 export async function fetchClaimPreview(token: string): Promise<ClaimPreviewDto> {
     const { data } = await http.get<ClaimPreviewDto>(
         `/pairs/claim/${encodeURIComponent(token)}/preview`,
-        { silent: true } as any,
+        { silent: true },
     )
     return data
 }
@@ -46,10 +47,10 @@ export async function claimPair(token: string): Promise<ClaimResultDto> {
         `/pairs/claim/${encodeURIComponent(token)}`,
         null,
         {
-            successMessage: "Par preuzet — pojavit će se na tvojem profilu.",
+            successMessage: t("common.toast.pairClaimed"),
             // Custom UI in the page handles 409 with explicit copy.
             silentErrorStatuses: [409],
-        } as any,
+        },
     )
     return data
 }

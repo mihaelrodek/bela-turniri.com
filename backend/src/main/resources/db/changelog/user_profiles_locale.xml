@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      Per-user language preference — the server-side half of the frontend's
+      language switcher (frontend/src/i18n, components/LanguagePicker.tsx), so
+      the choice follows the account across devices instead of living only in
+      that browser's localStorage.
+
+      varchar(5) holds a BCP-47 base tag plus an optional region ("hr", "sl",
+      later "en", "en-GB") without another migration. Null means "no explicit
+      preference" — the frontend then falls back to the browser's language and
+      finally to Croatian.
+
+      This column is also what the push/e-mail paths read to compose a message
+      in the RECIPIENT's language rather than the current request's — see
+      MessageService#t(Locale, String, Object...).
+
+      columnExists / MARK_RAN so re-running against a database where the
+      column was already added by hand is a no-op rather than a startup
+      failure.
+    -->
+
+    <changeSet id="2026-09-03-user-profiles-locale" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="user_profiles" columnName="locale"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="user_profiles">
+            <column name="locale" type="varchar(5)"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

@@ -3,10 +3,12 @@ package hr.mrodek.apps.bela_turniri.dtos;
 import jakarta.validation.constraints.Size;
 
 public record UserProfileDto(
-        @Size(max = 8, message = "phoneCountry must be at most 8 characters")
+        // `message` is an i18n bundle key (i18n/messages_*.properties), resolved
+        // into the caller's language by errors/ConstraintViolationExceptionMapper.
+        @Size(max = 8, message = "validation.profile.phoneCountry.max")
         String phoneCountry,
 
-        @Size(max = 50, message = "phone must be at most 50 characters")
+        @Size(max = 50, message = "validation.profile.phone.max")
         String phone,
 
         // Read-only fields — populated via /user/me/sync. Returned alongside
@@ -26,19 +28,33 @@ public record UserProfileDto(
          * other values get ignored server-side. Null means the user
          * hasn't picked one yet — frontend falls back to its own default.
          */
-        @Size(max = 10, message = "colorMode must be at most 10 characters")
-        String colorMode
+        @Size(max = 10, message = "validation.profile.colorMode.max")
+        String colorMode,
+
+        /**
+         * Per-user language preference — a supported BCP-47 base tag ("hr",
+         * "sl"). Written through {@code PATCH /user/me/profile/locale} (and
+         * accepted on PUT for symmetry with colorMode); unsupported values are
+         * rejected server-side. Null means the user hasn't picked one.
+         */
+        @Size(max = 5, message = "validation.profile.locale.max")
+        String locale
 ) {
     /** Two-arg convenience for callers that only manage phone fields. */
     public UserProfileDto(String phoneCountry, String phone) {
-        this(phoneCountry, phone, null, null, null, null);
+        this(phoneCountry, phone, null, null, null, null, null);
     }
 
     public UserProfileDto(String phoneCountry, String phone, String displayName, String slug) {
-        this(phoneCountry, phone, displayName, slug, null, null);
+        this(phoneCountry, phone, displayName, slug, null, null, null);
     }
 
     public UserProfileDto(String phoneCountry, String phone, String displayName, String slug, String avatarUrl) {
-        this(phoneCountry, phone, displayName, slug, avatarUrl, null);
+        this(phoneCountry, phone, displayName, slug, avatarUrl, null, null);
+    }
+
+    public UserProfileDto(String phoneCountry, String phone, String displayName, String slug,
+                          String avatarUrl, String colorMode) {
+        this(phoneCountry, phone, displayName, slug, avatarUrl, colorMode, null);
     }
 }

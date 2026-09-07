@@ -49,6 +49,13 @@ export type TournamentDetails = {
     rewardSecond?: number | null;
     rewardThird?: number | null;
 
+    /**
+     * When true the draw avoids repeat opponents (the "ne ponavljaj
+     * protivnike" switch). Toggled via PATCH
+     * /tournaments/{uuid}/preserve-matchmaking.
+     */
+    preserveMatchmaking?: boolean | null;
+
     additionalOptions?: string[];
     winnerName?: string | null;
     /** Silver-place pair name, set via PATCH /tournaments/{uuid}/podium. */
@@ -59,6 +66,14 @@ export type TournamentDetails = {
     // Creator info — populated server-side from the verified Firebase ID token.
     createdByUid?: string | null;
     createdByName?: string | null;
+
+    /**
+     * Last write to the tournament row. There is no dedicated "finished at"
+     * column, so this is what the details page uses to decide whether a
+     * FINISHED tournament is recent enough to keep its live socket open
+     * while the podium is being filled in.
+     */
+    updatedAt?: string | null;
 };
 
 export type CreateTournamentPayload = {

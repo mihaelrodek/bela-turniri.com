@@ -8,13 +8,39 @@
  *
  * Sizes are stored in litres so we can format consistently with the
  * Croatian comma convention (e.g. 0.5 → "0,5 l", 0.02 → "0,02 l").
+ *
+ * IMPORTANT — `label` is PERSISTED. Clicking a preset chip (CjenikTab,
+ * PublicProfilePage's drink-template editor) writes `label` verbatim into
+ * `DrinkPriceDto.name`, which is saved to a tournament's cjenik or a user's
+ * reusable drink template and sent back from the API on the next load. It
+ * is also compared against existing row names (case-insensitive) to skip
+ * duplicates. So `label` must stay this exact Croatian string forever —
+ * translating it would corrupt stored rows and break that matching against
+ * data saved before this file changed. `categoryKey` is the untranslated,
+ * stable id for the DISPLAY-only category heading; it is never persisted,
+ * so render code translates it via `t("common.drinkCategory.<key>")`.
  */
 
+export type DrinkCategoryKey = "beer" | "spritzer" | "juice" | "wine" | "water" | "spirits"
+
+/** Croatian category words used to build the persisted `label` strings.
+ *  Keep byte-identical to the pre-i18n copy — never localise these. */
+const CATEGORY_HR: Record<DrinkCategoryKey, string> = {
+    beer: "Pivo",
+    spritzer: "Gemišt",
+    juice: "Sok",
+    wine: "Vino",
+    water: "Voda",
+    spirits: "Žestoko piće",
+}
+
 export type DrinkPreset = {
-    /** Display label, e.g. "Pivo 0,5 l". Used as the cjenik row name. */
+    /** Display label, e.g. "Pivo 0,5 l". Used as the cjenik row name and
+     *  PERSISTED — see the file-level note above. Always Croatian. */
     label: string
-    /** Display category, e.g. "Pivo". Used to group items in the menu. */
-    category: string
+    /** Untranslated category id. Translate for display via
+     *  `t("common.drinkCategory." + categoryKey)`; never persisted. */
+    categoryKey: DrinkCategoryKey
     /** Serving size in litres, kept for reference / future filtering. */
     sizeL: number
 }
@@ -22,8 +48,13 @@ export type DrinkPreset = {
 /**
  * Format a litre value the Croatian way: comma as decimal separator,
  * unit suffix " l". Strips trailing zeroes ("0,30 l" → "0,3 l").
+ *
+ * The " l" (litre) abbreviation and comma-decimal convention are shared by
+ * Croatian and Slovenian, so this formatting itself needs no locale switch —
+ * it is also used directly by consumers to render a preset's size chip
+ * without slicing it out of the (Croatian) `label`.
  */
-function fmtL(litres: number): string {
+export function fmtL(litres: number): string {
     const s = litres
         .toFixed(2)
         .replace(/0+$/, "")
@@ -32,10 +63,11 @@ function fmtL(litres: number): string {
     return `${s} l`
 }
 
-function mk(category: string, sizes: number[]): DrinkPreset[] {
+function mk(categoryKey: DrinkCategoryKey, sizes: number[]): DrinkPreset[] {
+    const hrCategory = CATEGORY_HR[categoryKey]
     return sizes.map((s) => ({
-        label: `${category} ${fmtL(s)}`,
-        category,
+        label: `${hrCategory} ${fmtL(s)}`,
+        categoryKey,
         sizeL: s,
     }))
 }
@@ -45,21 +77,21 @@ function mk(category: string, sizes: number[]): DrinkPreset[] {
  * grouped by category, sizes ascending.
  */
 export const DRINK_PRESETS: DrinkPreset[] = [
-    ...mk("Pivo", [0.2, 0.33, 0.5]),
-    ...mk("Gemišt", [0.2]),
-    ...mk("Sok", [0.2, 0.33, 0.5]),
-    ...mk("Vino", [1]),
-    ...mk("Voda", [0.5, 1]),
-    ...mk("Žestoko piće", [0.02]),
+    ...mk("beer", [0.2, 0.33, 0.5]),
+    ...mk("spritzer", [0.2]),
+    ...mk("juice", [0.2, 0.33, 0.5]),
+    ...mk("wine", [1]),
+    ...mk("water", [0.5, 1]),
+    ...mk("spirits", [0.02]),
 ]
 
 /** Grouped view for menu rendering. Preserves the order above. */
-export function groupedPresets(): { category: string; items: DrinkPreset[] }[] {
-    const groups: { category: string; items: DrinkPreset[] }[] = []
+export function groupedPresets(): { categoryKey: DrinkCategoryKey; items: DrinkPreset[] }[] {
+    const groups: { categoryKey: DrinkCategoryKey; items: DrinkPreset[] }[] = []
     for (const p of DRINK_PRESETS) {
         let last = groups[groups.length - 1]
-        if (!last || last.category !== p.category) {
-            last = { category: p.category, items: [] }
+        if (!last || last.categoryKey !== p.categoryKey) {
+            last = { categoryKey: p.categoryKey, items: [] }
             groups.push(last)
         }
         last.items.push(p)

@@ -9,6 +9,7 @@ import {
 } from "@chakra-ui/react"
 import { FiDownload } from "react-icons/fi"
 import { useInstallPrompt } from "../hooks/useInstallPrompt"
+import { useTranslation } from "../i18n"
 import IosInstallSteps from "./IosInstallSteps"
 
 /**
@@ -42,6 +43,7 @@ export function InstallAppButton({
      */
     variant?: "icon" | "labeled"
 }) {
+    const { t } = useTranslation()
     const { canInstall, isIos, install } = useInstallPrompt()
     const [iosOpen, setIosOpen] = useState(false)
 
@@ -52,7 +54,7 @@ export function InstallAppButton({
     // already visible in the dialog that opens after the tap (iOS shows
     // the Share-menu walkthrough; Android fires the native prompt), so
     // we don't need to spell it out on the button itself.
-    const label = "Instaliraj aplikaciju"
+    const label = t("common.install.installAppLabel")
 
     function handleClick() {
         if (canInstall) {
@@ -125,7 +127,7 @@ export function InstallAppButton({
                                         h="28px"
                                         w="auto"
                                     />
-                                    <Dialog.Title>Instaliraj Bela Turniri</Dialog.Title>
+                                    <Dialog.Title>{t("common.install.title")}</Dialog.Title>
                                 </HStack>
                             </Dialog.Header>
                             <Dialog.Body>
@@ -133,7 +135,7 @@ export function InstallAppButton({
                             </Dialog.Body>
                             <Dialog.Footer>
                                 <Button variant="ghost" onClick={() => setIosOpen(false)}>
-                                    Zatvori
+                                    {t("common.close")}
                                 </Button>
                             </Dialog.Footer>
                         </Dialog.Content>

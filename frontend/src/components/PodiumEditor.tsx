@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Box, Card, HStack, NativeSelect, Stack, Text } from "@chakra-ui/react"
 import { FaMedal } from "react-icons/fa"
 import { setPodium } from "../api/tournaments"
+import { useTranslation } from "../i18n"
 import type { PairShort } from "../types/pairs"
 import type { TournamentDetails } from "../types/tournaments"
 
@@ -33,6 +34,7 @@ export default function PodiumEditor({
     pairs: PairShort[]
     onUpdated: (t: TournamentDetails) => void
 }) {
+    const { t } = useTranslation()
     const [saving, setSaving] = useState<"second" | "third" | null>(null)
 
     const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase()
@@ -79,10 +81,9 @@ export default function PodiumEditor({
             <Card.Body p={{ base: "3", md: "4" }}>
                 <Stack gap="3">
                     <Box>
-                        <Text fontSize="sm" fontWeight="semibold">Postolje</Text>
+                        <Text fontSize="sm" fontWeight="semibold">{t("common.podium.title")}</Text>
                         <Text fontSize="xs" color="fg.muted">
-                            Odaberi parove koji su završili na drugom i trećem mjestu.
-                            Pojavit će se na vrhu liste sa srebrnim i brončanim oznakama.
+                            {t("common.podium.description")}
                         </Text>
                     </Box>
 
@@ -90,14 +91,14 @@ export default function PodiumEditor({
                         <Box flex="1" minW="200px">
                             <HStack gap="2" mb="1" align="center">
                                 <Box color="gray.fg"><FaMedal size={14} /></Box>
-                                <Text fontSize="xs" fontWeight="medium">2. mjesto (srebro)</Text>
+                                <Text fontSize="xs" fontWeight="medium">{t("common.podium.second")}</Text>
                             </HStack>
                             <NativeSelect.Root size="sm" disabled={saving !== null}>
                                 <NativeSelect.Field
                                     value={secondPlaceName ?? ""}
                                     onChange={(e) => changeSecond(e.target.value)}
                                 >
-                                    <option value="">— nije postavljeno —</option>
+                                    <option value="">{t("common.podium.notSet")}</option>
                                     {candidateNames
                                         .filter((n) => norm(n) !== norm(thirdPlaceName))
                                         .map((n) => (
@@ -110,14 +111,14 @@ export default function PodiumEditor({
                         <Box flex="1" minW="200px">
                             <HStack gap="2" mb="1" align="center">
                                 <Box color="orange.fg"><FaMedal size={14} /></Box>
-                                <Text fontSize="xs" fontWeight="medium">3. mjesto (bronca)</Text>
+                                <Text fontSize="xs" fontWeight="medium">{t("common.podium.third")}</Text>
                             </HStack>
                             <NativeSelect.Root size="sm" disabled={saving !== null}>
                                 <NativeSelect.Field
                                     value={thirdPlaceName ?? ""}
                                     onChange={(e) => changeThird(e.target.value)}
                                 >
-                                    <option value="">— nije postavljeno —</option>
+                                    <option value="">{t("common.podium.notSet")}</option>
                                     {candidateNames
                                         .filter((n) => norm(n) !== norm(secondPlaceName))
                                         .map((n) => (

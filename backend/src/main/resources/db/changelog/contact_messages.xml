@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+        Submissions of the public contact form (/kontakt).
+
+        The row is the durable copy of the message; the notification e-mail
+        (Resend, via services/EmailService) is best-effort and fired after
+        commit, so a misconfigured mailbox loses a notification and never the
+        message. That is the entire reason this table exists rather than the
+        form being a pure mail relay.
+
+        `user_uid` is a plain string, not an FK: Firebase UIDs aren't a
+        foreign key to anything anywhere in this schema. It is informational
+        only - the endpoint is fully public and nothing is authorised
+        against it.
+    -->
+    <changeSet id="2026-09-04-contact-messages" author="mrodek">
+        <createTable tableName="contact_messages">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="varchar(120)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email" type="varchar(200)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Optional: the form lets the sender skip it. -->
+            <column name="subject" type="varchar(200)"/>
+            <column name="message" type="varchar(4000)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Firebase uid when the sender happened to be signed in. -->
+            <column name="user_uid" type="varchar(128)"/>
+            <!-- First hop of X-Forwarded-For; null in local dev. IPv6 fits in 64. -->
+            <column name="ip" type="varchar(64)"/>
+            <column name="locale" type="varchar(5)"/>
+            <column name="handled" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- The admin inbox reads exactly one way: newest first, capped. -->
+        <createIndex tableName="contact_messages" indexName="idx_contact_messages_created_at">
+            <column name="created_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

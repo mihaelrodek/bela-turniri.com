@@ -10,11 +10,13 @@ import jakarta.validation.constraints.Min;
  * high defensive ceiling to catch obvious typos / malicious input.
  */
 public record UpdateMatchRequest(
-        @Min(value = 0, message = "score1 cannot be negative")
-        @Max(value = 100_000, message = "score1 is unrealistically high")
+        // `message` is an i18n bundle key (i18n/messages_*.properties), resolved
+        // into the caller's language by errors/ConstraintViolationExceptionMapper.
+        @Min(value = 0, message = "validation.match.score1.negative")
+        @Max(value = 100_000, message = "validation.match.score1.tooHigh")
         Integer score1,
 
-        @Min(value = 0, message = "score2 cannot be negative")
-        @Max(value = 100_000, message = "score2 is unrealistically high")
+        @Min(value = 0, message = "validation.match.score2.negative")
+        @Max(value = 100_000, message = "validation.match.score2.tooHigh")
         Integer score2
 ) {}

@@ -16,7 +16,9 @@ import {
     fetchClaimPreview,
     claimPair,
 } from "../api/pairClaim"
-import { useAuth } from "../auth/AuthContext"
+import { useAuth } from "../auth/authContextValue"
+import { useTranslation } from "../i18n"
+import { formatDateTime } from "../utils/format"
 
 /**
  * Landing page for the pair-sharing URL: /claim-pair/{token}.
@@ -32,6 +34,7 @@ export default function ClaimPairPage() {
     const { token = "" } = useParams<{ token: string }>()
     const navigate = useNavigate()
     const { user, loading: authLoading } = useAuth()
+    const { t } = useTranslation()
 
     const [preview, setPreview] = useState<ClaimPreviewDto | null>(null)
     const [loading, setLoading] = useState(true)
@@ -70,34 +73,37 @@ export default function ClaimPairPage() {
             await claimPair(token)
             setClaimMessage({
                 kind: "ok",
-                text: "Par je dodan na tvoj profil.",
+                text: t("forms.claim.success"),
             })
             // Short delay so the user sees confirmation, then jump to their profile.
             setTimeout(() => {
                 navigate("/profil", { replace: true })
             }, 1200)
-        } catch (err: any) {
-            const status = err?.response?.status
-            const body = err?.response?.data
+        } catch (err) {
+            // Narrow through a minimal axios-error shape instead of `any` — the
+            // 409 bodies below are the contract this page keys its copy off.
+            const res = (err as { response?: { status?: number; data?: unknown } } | null)?.response
+            const status = res?.status
+            const body = res?.data
             if (status === 409 && body === "OWNER_SAME") {
                 setClaimMessage({
                     kind: "err",
-                    text: "Već si vlasnik ovog para — ne možeš preuzeti vlastiti par.",
+                    text: t("forms.claim.error.ownerSame"),
                 })
             } else if (status === 409 && body === "ALREADY_CLAIMED") {
                 setClaimMessage({
                     kind: "err",
-                    text: "Ovaj par je već preuzeo netko drugi.",
+                    text: t("forms.claim.error.alreadyClaimed"),
                 })
             } else if (status === 401) {
                 setClaimMessage({
                     kind: "err",
-                    text: "Prijavi se da preuzmeš par.",
+                    text: t("forms.claim.error.loginRequired"),
                 })
             } else {
                 setClaimMessage({
                     kind: "err",
-                    text: "Preuzimanje nije uspjelo.",
+                    text: t("forms.claim.error.generic"),
                 })
             }
         } finally {
@@ -109,7 +115,7 @@ export default function ClaimPairPage() {
         return (
             <VStack py="16" gap="3">
                 <Spinner />
-                <Text color="fg.muted" fontSize="sm">Učitavanje…</Text>
+                <Text color="fg.muted" fontSize="sm">{t("common.loading")}</Text>
             </VStack>
         )
     }
@@ -119,13 +125,12 @@ export default function ClaimPairPage() {
             <Card.Root maxW="md" mx="auto" mt="6" variant="outline" rounded="xl">
                 <Card.Body p="6">
                     <VStack gap="3" align="stretch">
-                        <Heading size="md">Veza nije pronađena</Heading>
+                        <Heading size="md">{t("forms.claim.notFoundHeading")}</Heading>
                         <Text fontSize="sm" color="fg.muted">
-                            Poveznica za preuzimanje para nije valjana ili je par
-                            obrisan. Pitaj svojeg suigrača da ti pošalje novu vezu.
+                            {t("forms.claimPair.notFoundMessage")}
                         </Text>
                         <Button asChild variant="outline" size="sm" mt="2">
-                            <RouterLink to="/turniri">Natrag na turnire</RouterLink>
+                            <RouterLink to="/turniri">{t("forms.shared.backToTournaments")}</RouterLink>
                         </Button>
                     </VStack>
                 </Card.Body>
@@ -138,12 +143,12 @@ export default function ClaimPairPage() {
             <Card.Body p="6">
                 <VStack gap="4" align="stretch">
                     <Box>
-                        <Text fontSize="xs" color="fg.muted">PREUZMI PAR</Text>
+                        <Text fontSize="xs" color="fg.muted">{t("forms.claim.label")}</Text>
                         <Heading size="lg" mt="1">{preview.pairName}</Heading>
                     </Box>
 
                     <Box>
-                        <Text fontSize="sm" color="fg.muted">Turnir:</Text>
+                        <Text fontSize="sm" color="fg.muted">{t("forms.claimPair.tournamentLabel")}</Text>
                         <Text fontWeight="medium">
                             {preview.tournamentRef ? (
                                 <RouterLink
@@ -158,20 +163,14 @@ export default function ClaimPairPage() {
                         </Text>
                         {preview.tournamentStartAt && (
                             <Text fontSize="xs" color="fg.muted" mt="1">
-                                {new Date(preview.tournamentStartAt).toLocaleString("hr-HR", {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                })}
+                                {formatDateTime(preview.tournamentStartAt)}
                             </Text>
                         )}
                     </Box>
 
                     {preview.primaryName && (
                         <Box>
-                            <Text fontSize="sm" color="fg.muted">Prijavio:</Text>
+                            <Text fontSize="sm" color="fg.muted">{t("forms.claimPair.submittedByLabel")}</Text>
                             <Text fontWeight="medium">
                                 {preview.primarySlug ? (
                                     <RouterLink
@@ -191,12 +190,12 @@ export default function ClaimPairPage() {
                         <Box
                             p="3"
                             rounded="md"
-                            bg="orange.50"
+                            bg="orange.subtle"
                             borderWidth="1px"
-                            borderColor="orange.200"
+                            borderColor="orange.muted"
                         >
                             <HStack gap="2">
-                                <Badge colorPalette="orange" variant="subtle">Već preuzet</Badge>
+                                <Badge colorPalette="orange" variant="subtle">{t("forms.claim.alreadyClaimedBadge")}</Badge>
                                 {preview.coOwnerName && (
                                     <Text fontSize="sm">
                                         {preview.coOwnerName}
@@ -204,7 +203,7 @@ export default function ClaimPairPage() {
                                 )}
                             </HStack>
                             <Text fontSize="xs" color="fg.muted" mt="2">
-                                Par je već preuzeo netko drugi i ne može se ponovno preuzeti.
+                                {t("forms.claim.alreadyClaimedMessage")}
                             </Text>
                         </Box>
                     )}
@@ -213,9 +212,9 @@ export default function ClaimPairPage() {
                         <Box
                             p="3"
                             rounded="md"
-                            bg={claimMessage.kind === "ok" ? "green.50" : "red.50"}
+                            bg={claimMessage.kind === "ok" ? "green.subtle" : "red.subtle"}
                             borderWidth="1px"
-                            borderColor={claimMessage.kind === "ok" ? "green.200" : "red.200"}
+                            borderColor={claimMessage.kind === "ok" ? "green.muted" : "red.muted"}
                         >
                             <Text fontSize="sm">{claimMessage.text}</Text>
                         </Box>
@@ -231,7 +230,7 @@ export default function ClaimPairPage() {
                             <RouterLink
                                 to={`/prijava?next=${encodeURIComponent(`/preuzmi-par/${token}`)}`}
                             >
-                                Prijavi se da preuzmeš
+                                {t("forms.claim.loginCta")}
                             </RouterLink>
                         </Button>
                     ) : (
@@ -247,7 +246,7 @@ export default function ClaimPairPage() {
                             }
                             onClick={handleClaim}
                         >
-                            Preuzmi par
+                            {t("forms.claim.submit")}
                         </Button>
                     )}
                 </VStack>

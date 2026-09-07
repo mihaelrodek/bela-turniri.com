@@ -7,17 +7,19 @@ import jakarta.validation.constraints.Size;
 public record PairDto(
         Integer id,
 
-        @NotBlank(message = "pair name is required")
-        @Size(max = 200, message = "pair name must be at most 200 characters")
+        // `message` is an i18n bundle key (i18n/messages_*.properties), resolved
+        // into the caller's language by errors/ConstraintViolationExceptionMapper.
+        @NotBlank(message = "validation.pair.name.required")
+        @Size(max = 200, message = "validation.pair.name.max")
         String name,
 
         Boolean isEliminated,
         Boolean extraLife,
 
-        @Min(value = 0, message = "wins cannot be negative")
+        @Min(value = 0, message = "validation.pair.wins.negative")
         Integer wins,
 
-        @Min(value = 0, message = "losses cannot be negative")
+        @Min(value = 0, message = "validation.pair.losses.negative")
         Integer losses,
 
         Boolean paid,

@@ -3,30 +3,40 @@ package hr.mrodek.apps.bela_turniri.controller;
 import hr.mrodek.apps.bela_turniri.dtos.DrinkPriceDto;
 import hr.mrodek.apps.bela_turniri.dtos.SaveDrinkPricesRequest;
 import hr.mrodek.apps.bela_turniri.model.Tournaments;
-import hr.mrodek.apps.bela_turniri.repository.TournamentsRepository;
 import hr.mrodek.apps.bela_turniri.services.CjenikService;
+import hr.mrodek.apps.bela_turniri.services.CurrentUser;
+import hr.mrodek.apps.bela_turniri.services.TournamentAccess;
+import hr.mrodek.apps.bela_turniri.services.WaiterAccessService;
 import io.quarkus.security.Authenticated;
-import io.quarkus.security.identity.SecurityIdentity;
+import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Per-tournament cjenik (drink price list).
  *
  *   GET    /tournaments/{uuid}/cjenik                       — public read
- *   PUT    /tournaments/{uuid}/cjenik                       — owner-only replace
+ *   PUT    /tournaments/{uuid}/cjenik                       — owner or head-waiter replace
  *   POST   /tournaments/{uuid}/cjenik/save-as-template      — owner-only
  *   POST   /tournaments/{uuid}/cjenik/import-template       — owner-only
  *
  * Reads are public so anyone viewing the tournament can see the prices
- * (matches the menu being printed on a board at the venue). Mutations
- * require the tournament creator (or an admin).
+ * (matches the menu being printed on a board at the venue). Replacing the
+ * list is owner/admin — or a waiter invited with
+ * {@code TournamentWaiter.canEditCjenik} set, via
+ * {@link WaiterAccessService#authorizeCjenikAccess}, the same organiser-or-
+ * waiter shape {@code WaiterBillController} uses. {@code @PermitAll} is
+ * method-level, not class-level, for the reason documented on that
+ * controller: a class-level {@code @PermitAll} eagerly rejects any request
+ * carrying an invalid {@code Authorization} header, defeating the "either
+ * caller" design for exactly the caller (the organiser) most likely to have
+ * a stale one. The template endpoints stay owner-only — they key a
+ * per-USER reusable template, and a waiter has no account to key one to.
  *
  * The per-user reusable template lives in {@link UserDrinkTemplateController}.
  */
@@ -35,30 +45,44 @@ import java.util.Objects;
 @Consumes(MediaType.APPLICATION_JSON)
 public class CjenikController {
 
+    /** Bearer credential minted by {@code POST /waiter-access/redeem}. */
+    private static final String TOKEN_HEADER = "X-Waiter-Token";
+
     @Inject CjenikService cjenikService;
-    @Inject TournamentsRepository tournamentsRepo;
-    @Inject SecurityIdentity identity;
-    @Inject JsonWebToken jwt;
+    @Inject TournamentAccess access;
+    @Inject CurrentUser currentUser;
+    @Inject WaiterAccessService waiter;
+    @Inject hr.mrodek.apps.bela_turniri.services.MessageService messages;
 
     @GET
     public List<DrinkPriceDto> getTournamentCjenik(@PathParam("uuid") String uuid) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuid).orElse(null);
-        if (t == null) throw new NotFoundException("Tournament not found");
-        return cjenikService.listForTournament(t.getId());
+        return cjenikService.listForTournament(access.load(uuid).getId());
     }
 
+    /**
+     * Replace the tournament's whole price list.
+     *
+     * <p>An empty {@code items} array is a legitimate "clear the cjenik".
+     * An absent body or absent {@code items} is not, and is rejected rather
+     * than coerced to an empty list: this endpoint is destructive by design,
+     * and a truncated or malformed request must not read as "the organiser
+     * asked me to delete every price".
+     */
     @PUT
-    @Authenticated
+    @PermitAll
     @Transactional
     public List<DrinkPriceDto> putTournamentCjenik(
             @PathParam("uuid") String uuid,
-            SaveDrinkPricesRequest body
+            @HeaderParam(TOKEN_HEADER) String waiterToken,
+            @Valid SaveDrinkPricesRequest body
     ) {
-        Tournaments t = mustOwn(uuid);
-        return cjenikService.replaceTournamentCjenik(
-                t,
-                body == null || body.items() == null ? List.of() : body.items()
-        );
+        Tournaments t = waiter.authorizeCjenikAccess(uuid, waiterToken);
+        // A null items list is caught by @NotNull on the DTO; a null body
+        // never reaches bean validation at all, so it is caught here.
+        if (body == null) {
+            throw new BadRequestException(messages.t("validation.cjenik.items.required"));
+        }
+        return cjenikService.replaceTournamentCjenik(t, body.items());
     }
 
     @POST
@@ -69,11 +93,11 @@ public class CjenikController {
             @PathParam("uuid") String uuid,
             @QueryParam("name") String templateName
     ) {
-        Tournaments t = mustOwn(uuid);
+        Tournaments t = access.loadForEdit(uuid);
         if (templateName == null || templateName.isBlank()) {
-            throw new BadRequestException("Template name required");
+            throw new BadRequestException(messages.t("cjenik.template.nameRequired"));
         }
-        return cjenikService.saveTournamentAsTemplate(t, jwt.getSubject(), templateName.trim());
+        return cjenikService.saveTournamentAsTemplate(t, currentUser.requireUid(), templateName.trim());
     }
 
     @POST
@@ -84,26 +108,10 @@ public class CjenikController {
             @PathParam("uuid") String uuid,
             @QueryParam("name") String templateName
     ) {
-        Tournaments t = mustOwn(uuid);
+        Tournaments t = access.loadForEdit(uuid);
         if (templateName == null || templateName.isBlank()) {
-            throw new BadRequestException("Template name required");
+            throw new BadRequestException(messages.t("cjenik.template.nameRequired"));
         }
-        return cjenikService.importTemplateIntoTournament(t, jwt.getSubject(), templateName.trim());
-    }
-
-    /**
-     * Resolve a tournament by uuid OR slug and 403 unless the current user
-     * is its creator (or an admin). Same convention as TournamentController.
-     */
-    private Tournaments mustOwn(String uuidOrSlug) {
-        var t = tournamentsRepo.findByUuidOrSlug(uuidOrSlug).orElse(null);
-        if (t == null) throw new NotFoundException("Tournament not found");
-        boolean admin = identity != null && identity.hasRole("admin");
-        if (admin) return t;
-        String me = jwt != null ? jwt.getSubject() : null;
-        if (me == null || !Objects.equals(me, t.getCreatedByUid())) {
-            throw new ForbiddenException("Only the tournament creator can edit cjenik.");
-        }
-        return t;
+        return cjenikService.importTemplateIntoTournament(t, currentUser.requireUid(), templateName.trim());
     }
 }
