@@ -88,7 +88,13 @@
             text-transform: uppercase;
             text-align: center;
             color: #227342;
-            margin: 0 0 10px;
+            /* `auto` on the sides, not 0 — FIX 2026-09-09. Every <p> here is
+               `max-width: 360px; margin: 0 auto`, and this rule's shorthand was
+               overriding those auto margins with 0. Inside the 440px column the
+               360px block then sat flush LEFT, and its centred text landed ~40px
+               left of the real centre. Invisible on a phone, where the column is
+               already narrower than 360px — which is exactly how it was reported. */
+            margin: 0 auto 10px;
         }
         .dots {
             display: inline-flex;
