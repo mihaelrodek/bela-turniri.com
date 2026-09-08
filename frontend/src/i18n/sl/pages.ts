@@ -320,4 +320,31 @@ export const pages: PagesDict = {
     "contact.success.title": "Sporočilo je poslano",
     "contact.success.description": "Hvala za sporočilo — odgovorili vam bomo čim prej na navedeni e-naslov.",
     "contact.success.backLink": "Nazaj na turnirje",
+
+    // ═══════════════════════ SharedBlokPage (/blok/z/{token}) ═══════════════════════
+    "blokShare.seo.title": "Zapisnik partije bele — bela-turniri.com",
+    "blokShare.seo.description":
+        "Deljen zapisnik odigrane bele — rezultat serije, vse partije in podelitve.",
+    "blokShare.seo.ogTitle": "Zapisnik partije bele",
+    "blokShare.seo.ogDescription": "{us} {gamesUs} : {gamesThem} {them} — poglej celoten zapisnik.",
+
+    "blokShare.vs": "vs",
+
+    "blokShare.notFoundTitle": "Ta povezava ne deluje več",
+    "blokShare.notFoundDescription":
+        "Zapisnik ne obstaja ali je lastnik prekinil deljenje. Prosi ga za novo povezavo.",
+    "blokShare.notFoundCta": "Odpri Bela blok",
+
+    "blokShare.fetchFailedTitle": "Zapisnik trenutno ni na voljo",
+    "blokShare.fetchFailedDescription":
+        "Nekaj je šlo narobe pri pridobivanju zapisnika. Preveri internetno povezavo in poskusi znova.",
+    "blokShare.retry": "Poskusi znova",
+
+    /* REVIZIJA 2026-09-08 (druga) — „DO 1001 · SKOZI” (BLOK-HISTORY.md §5.5).
+       Pravilo konca igre gre v vrstico pod rezultatom, število partij pa iz
+       nje izpade (partije so naštete tik pod njo). Besedi sta iste kot na
+       čipih v nastavitvah, vendar imajo lastne ključe za javni prikaz. */
+    "blokShare.meta": "DO {target} · {rule}",
+    "blokShare.rule.dosta": "DOVOLJ",
+    "blokShare.rule.prolaz": "SKOZI",
 }

@@ -9,6 +9,15 @@
      GAME_CORS_ORIGINS     comma list; when set, the upgrade `Origin` header
                            must match one of them
      GAME_LOG_LEVEL        error | warn | info | debug
+     BACKEND_INTERNAL_URL  base URL of the Quarkus backend for server-to-server
+                           calls (README §8.4, `statsReporter.ts`). Default
+                           `http://backend:8085/api` (prod-in-docker service
+                           name); override for local dev, e.g.
+                           `http://localhost:8085/api`.
+     GAME_RESULTS_TOKEN    shared secret sent as `X-Internal-Token` when
+                           reporting a finished game's stats. No safe default:
+                           unset means stats reporting is skipped entirely
+                           (one warning logged at startup use), never a crash.
    ────────────────────────────────────────────────────────────────────── */
 
 import { DEFAULTS } from "@bela/protocol"
@@ -22,15 +31,24 @@ export interface Config {
     /** `null` = no Origin check at all. */
     corsOrigins: string[] | null
     logLevel: LogLevel
+    /** Base URL of the Quarkus backend, no trailing slash (README §4, §8.4). */
+    backendInternalUrl: string
+    /** Shared secret for `X-Internal-Token`; `null` = stats reporting is disabled. */
+    gameResultsToken: string | null
 }
 
 /** Everything time-based, so tests can make a whole game run in milliseconds. */
 export interface Timings {
+    declarationsMs: number
     turnTimeoutMs: number
     reconnectGraceMs: number
     botThinkMinMs: number
     botThinkMaxMs: number
-    /** DEAL_DONE auto-advance when no connected human can confirm. */
+    /**
+     * How long a scored deal stays on screen before the next one is dealt.
+     * Unconditional since 2026-09-08 — nobody has to confirm a summary. Kept
+     * just above the client's 3 s auto-dismiss so the dialog is gone first.
+     */
     dealDoneAutoMs: number
     /** Empty room is deleted this long after the last member leaves. */
     emptyRoomTtlMs: number
@@ -49,11 +67,12 @@ export interface RateLimits {
 }
 
 export const DEFAULT_TIMINGS: Timings = {
+    declarationsMs: 5200,
     turnTimeoutMs: DEFAULTS.turnTimeoutMs,
     reconnectGraceMs: DEFAULTS.reconnectGraceMs,
     botThinkMinMs: DEFAULTS.botThinkMinMs,
     botThinkMaxMs: DEFAULTS.botThinkMaxMs,
-    dealDoneAutoMs: 4_000,
+    dealDoneAutoMs: 3_500,
     emptyRoomTtlMs: 5 * 60_000,
     finishedRoomTtlMs: 10 * 60_000,
     heartbeatMs: 25_000,
@@ -94,6 +113,12 @@ export function loadConfig(env: EnvLike = process.env, overrides: Partial<Config
         devAllowAnon: envBool(env["GAME_DEV_ALLOW_ANON"]),
         corsOrigins: envList(env["GAME_CORS_ORIGINS"]),
         logLevel: isLogLevel(rawLevel) ? rawLevel : "info",
+        // Dev default, not the docker one: `backend` only resolves inside the
+        // compose network, and docker-compose.prod.yaml sets this explicitly
+        // anyway. Defaulting to the docker name meant every local run silently
+        // failed its profile/stats calls against a host that cannot resolve.
+        backendInternalUrl: env["BACKEND_INTERNAL_URL"]?.trim() || "http://localhost:8085/api",
+        gameResultsToken: env["GAME_RESULTS_TOKEN"]?.trim() || null,
     }
     return { ...base, ...overrides }
 }

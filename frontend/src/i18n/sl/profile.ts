@@ -195,4 +195,59 @@ export const profile: ProfileDict = {
     "invoices.dialogTitleFallback": "Račun",
     "invoices.noDrinks": "Ni dodanih pijač.",
     "invoices.total": "Skupaj",
+
+    // --- Turnirji tab › Statistika igranja -----------------------------------
+    "gameStats.title": "Statistika igranja",
+    "gameStats.loadFailed": "Napaka pri pridobivanju statistike.",
+    "gameStats.emptyNoGames": "Še ni odigranih partij.",
+    "gameStats.games.one": "{n} partija",
+    "gameStats.games.two": "{n} partiji",
+    "gameStats.games.few": "{n} partije",
+    "gameStats.games.other": "{n} partij",
+    "gameStats.wins.one": "{n} zmaga",
+    "gameStats.wins.two": "{n} zmagi",
+    "gameStats.wins.few": "{n} zmage",
+    "gameStats.wins.other": "{n} zmag",
+    "gameStats.losses.one": "{n} poraz",
+    "gameStats.losses.two": "{n} poraza",
+    "gameStats.losses.few": "{n} porazi",
+    "gameStats.losses.other": "{n} porazov",
+    "gameStats.winRate": "Procent zmag",
+    "gameStats.categoryStats": "{wins}/{n} ({winRate}%)",
+    "gameStats.targetScore.501": "Do 501",
+    "gameStats.targetScore.701": "Do 701",
+    "gameStats.targetScore.1001": "Do 1001",
+
+    /* ═══════════════════════════════════════════════════════════════════
+       ZAVIHEK BLOK — zasebna zgodovina odigranih blokov (BLOK-HISTORY.md §4)
+       ═══════════════════════════════════════════════════════════════════
+       Viden samo lastniku profila, enak mehanizem kot "predlosci" /
+       "racuni". Izrazi napovedi/štiglja/padli/adut/partija prihajajo iz
+       `blok` namespacea (`blok.entry.*`, `blok.side.*`) — tu se namenoma
+       ne podvajajo. Slovenščina ima dvojino, zato `.two` obstaja tudi kjer
+       ga hrvaščina nikoli ne izbere. */
+    "tab.blok": "Blok",
+    "blok.title": "Blok",
+    "blok.description": "Zgodovina odigranih blokov — serije partij, shranjene z naprave.",
+    "blok.loadFailed": "Napaka pri pridobivanju zgodovine.",
+    "blok.empty": "Še ni shranjenih serij.",
+    "blok.emptyHint": "Serija se shrani, ko na Bloku izbereš „Ponastavi”.",
+    "blok.gamesCount.one": "{n} partija",
+    "blok.gamesCount.two": "{n} partiji",
+    "blok.gamesCount.few": "{n} partije",
+    "blok.gamesCount.other": "{n} partij",
+    "blok.detailTitleFallback": "Serija",
+    "blok.detailLoadFailed": "Napaka pri pridobivanju serije.",
+    "blok.deleteDialogTitle": "Izbrisati serijo?",
+    "blok.deleteBody": "Res želiš izbrisati serijo {result}? Tega dejanja ni mogoče razveljaviti.",
+    "blok.deleted": "Serija izbrisana",
+
+    /* REVIZIJA 2026-09-08 (druga) — „Do 1001 · skozi” (BLOK-HISTORY.md §5.5).
+       Pravilo konca igre gre v vrstico pod rezultatom; število partij tu
+       OSTANE, ker vrstica v seznamu serij partij pod sabo ne našteva (te so v
+       pogovornem oknu). Besedi sta iste kot na čipih v nastavitvah, le z malo
+       začetnico sredi stavka. */
+    "blok.meta": "Do {target} · {rule}",
+    "blok.rule.dosta": "dovolj",
+    "blok.rule.prolaz": "skozi",
 }

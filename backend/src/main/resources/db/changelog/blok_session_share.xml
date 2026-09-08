@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      "Dijeljenje zapisnika poveznicom" — BLOK-HISTORY.md §5.2.
+
+      One nullable column on `blok_sessions`, and the whole design is in why
+      it is not the `uuid` that is already there:
+
+        * A blok series is uploaded the moment the player starts a new game
+          (§5.1). Every record in this table therefore exists WITHOUT its
+          owner ever having agreed to publish it. `uuid` travels through the
+          owner's own URLs and every API response they receive, so if the
+          public route took a uuid, a guessed or leaked one would expose a
+          record nobody consented to share. `share_token` IS the consent:
+          absent until the owner asks for it, gone the moment they revoke.
+
+        * NULL = not shared. There is no "shared" boolean to fall out of sync
+          with the token, and no separate table: revoking is `set null`, and
+          a partial unique index is unnecessary because Postgres does not
+          consider NULLs equal — any number of rows may be un-shared while
+          `uq_blok_sessions_share_token` still guarantees one record per
+          live token.
+
+        * The unique constraint doubles as the index behind
+          GET /blok-share/{token}, which is the only lookup of this table
+          that is NOT scoped by user_uid. No second index is created.
+
+        * varchar(48) with a 32-character token (services/ClaimTokens: 24
+          SecureRandom bytes, base64-url, unpadded — the same generator the
+          pair/preset claim links use). The slack is deliberate: a future
+          longer token must not need a migration to fit.
+
+      Additive and nullable, so it needs no backfill: every existing series
+      is simply un-shared, which is the correct default.
+    -->
+
+    <changeSet id="2026-09-08-blok-session-share" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="blok_sessions" columnName="share_token"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="blok_sessions">
+            <!-- NULL = not shared. Set by POST /user/me/blok-history/{uuid}/share,
+                 cleared by the matching DELETE. Never derived from `uuid`. -->
+            <column name="share_token" type="varchar(48)"/>
+        </addColumn>
+
+        <addUniqueConstraint tableName="blok_sessions"
+                             columnNames="share_token"
+                             constraintName="uq_blok_sessions_share_token"/>
+
+        <rollback>
+            <dropUniqueConstraint tableName="blok_sessions"
+                                  constraintName="uq_blok_sessions_share_token"/>
+            <dropColumn tableName="blok_sessions" columnName="share_token"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

@@ -188,17 +188,15 @@ export function cardAriaLabel(
 }
 
 /**
- * Display order for a hand: suits grouped, trump first, then alternating
- * colours so two red suits never sit next to each other (the classic way a
- * bela player fans their cards — misreading ♥ for ♦ mid-trick is the single
- * most common misclick). Within a suit, high cards to the right in NATURAL
- * order; the trump ranking is deliberately NOT used, because a hand re-sorted
- * into trump order every deal is disorienting.
+ * Fixed display order for every hand: heart, bell, leaf, acorn, matching the
+ * bidding controls and the photographed Hungarian deck. Trump never moves a
+ * suit to the front, so the same card always occupies the same relative place
+ * from one shuffle and deal to the next. Ranks stay in natural low-to-high
+ * order within their suit.
  */
-export function sortHandForDisplay(hand: readonly Card[], trump: Suit | null): Card[] {
-    const order = suitDisplayOrder(trump)
+export function sortHandForDisplay(hand: readonly Card[]): Card[] {
     return [...hand].sort((a, b) => {
-        const suitDelta = order.indexOf(cardSuit(a)) - order.indexOf(cardSuit(b))
+        const suitDelta = SUITS.indexOf(cardSuit(a)) - SUITS.indexOf(cardSuit(b))
         if (suitDelta !== 0) return suitDelta
         return RANKS.indexOf(cardRank(a)) - RANKS.indexOf(cardRank(b))
     })
@@ -212,9 +210,9 @@ export type CardSize = "sm" | "md" | "lg"
  * One table of card geometry, so a card in the trick, a card in the hand and
  * a card in the declarations overlay are the same object at three scales.
  *
- * All three are a true **2:3** — a real card's proportion, and the ratio the
- * Hungarian artwork's `0 0 200 300` viewBox is drawn in, so the SVG never has
- * to letterbox. `md` is the hand size on a phone: 72 px wide stays a 44 px+
+ * These base metrics are 2:3 for the French deck. The photographed mađarice
+ * use the same widths with their physical 3:5 height below. `md` is the hand
+ * size on a phone: 72 px wide stays a 44 px+
  * tap target even once the fan overlaps the cards by a third, which is the
  * accessibility floor for a control a player hits sixteen times a deal.
  */
@@ -231,9 +229,10 @@ export const CARD_METRICS: Record<CardSize, {
     lg: { w: "96px", h: "144px", rankFont: "25px", pipFont: "46px", cornerFont: "19px", radius: "md" },
 }
 
-/** Trump suit first, the rest alternating red/black around it. */
-export function suitDisplayOrder(trump: Suit | null): Suit[] {
-    const base: Suit[] = ["HERC", "PIK", "KARA", "TREF"]
-    if (!trump) return base
-    return [trump, ...base.filter((s) => s !== trump)]
+/** The photographed Hungarian pack is 3:5, slightly narrower than the
+ * modern 2:3 French cards represented by CARD_METRICS. */
+export const MADJARICA_HEIGHT: Record<CardSize, string> = {
+    sm: "93px",
+    md: "120px",
+    lg: "160px",
 }

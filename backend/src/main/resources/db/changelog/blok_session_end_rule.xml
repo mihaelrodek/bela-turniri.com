@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      "Pravilo kraja putuje" — BLOK-HISTORY.md §5.5.
+
+      A game of blok ends under one of two rules:
+
+        * `dosta`  — the first side to reach the target wins, full stop;
+        * `prolaz` — the side that crosses the target must have CALLED that
+                     deal and passed it.
+
+      Two series with byte-identical deals have DIFFERENT winners under the
+      two rules. The stored `winner` is therefore not checkable by anyone
+      reading the record later — not on the owner's profile and not through a
+      shared link — unless the rule is stored beside it. So it is stored, in
+      two places, for two different readers:
+
+        * per GAME, inside `payload`, because the player may change the rule
+          between games of one series and the detail view renders each game's
+          own label ("Do 1001 · prolaz");
+
+        * per SERIES, in this column, because the history LISTING must keep
+          not reading `payload` (§3.1) and still has to print that label on
+          every row. It carries the rule in force for the series as it now
+          stands — the newest game's — exactly like `target` beside it.
+
+      NOT NULL with a default rather than a nullable column: §5.5 makes the
+      absence of the field mean `prolaz`, so a NULL would be a second spelling
+      of a value that already has one, and every read would have to remember
+      to coalesce it. The default also does the backfill: rows written before
+      this changeset are `prolaz`, which is what §5.5 says a record without
+      the field means.
+
+      varchar(8) fits both words with one character to spare; the service
+      never writes anything else, because §5.5's normalisation maps every
+      other input to `prolaz` rather than rejecting it (a label on a record
+      is not worth 400-ing an older client over).
+    -->
+
+    <changeSet id="2026-09-08-blok-session-end-rule" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="blok_sessions" columnName="game_end_rule"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="blok_sessions">
+            <!-- 'dosta' | 'prolaz'. The DEFAULT is also the backfill for
+                 every series stored before the rule travelled. -->
+            <column name="game_end_rule" type="varchar(8)" defaultValue="prolaz">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <rollback>
+            <dropColumn tableName="blok_sessions" columnName="game_end_rule"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

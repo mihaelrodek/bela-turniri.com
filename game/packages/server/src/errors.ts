@@ -11,6 +11,8 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
     UNAUTHENTICATED: "Niste prijavljeni.",
     ROOM_NOT_FOUND: "Soba ne postoji.",
     ROOM_FULL: "Soba je puna.",
+    ROOM_CODE_REQUIRED: "Za ulaz u privatnu sobu potrebna je šifra.",
+    SPECTATORS_DISABLED: "Gledatelji nisu omogućeni za ovu igru.",
     SEAT_TAKEN: "Sjedalo je zauzeto.",
     NOT_HOST: "Samo domaćin može to učiniti.",
     NOT_IN_ROOM: "Niste u sobi.",
@@ -20,6 +22,7 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
     BAD_REQUEST: "Neispravan zahtjev.",
     ALREADY_STARTED: "Igra je već započela.",
     NOT_ENOUGH_PLAYERS: "Nema dovoljno igrača.",
+    ALREADY_IN_GAME: "Već imate sjedalo u drugoj sobi. Vratite se u nju ili je napustite.",
 }
 
 export class ProtocolError extends Error {

@@ -66,14 +66,14 @@ export type FsMetrics = {
    full-width column in both modes (`min(minCol, 100%)` in the template). */
 const FS_BASE: FsMetrics = {
     minCol: 300,
-    gap: 12,
+    gap: 8,
     name: 18,
     score: 24,
     tableNo: 19,
-    label: 12,
-    padX: 14,
-    padY: 12,
-    rowGap: 8,
+    label: 11,
+    padX: 10,
+    padY: 8,
+    rowGap: 5,
 }
 
 export function fsMetrics(size: FsSize): FsMetrics {

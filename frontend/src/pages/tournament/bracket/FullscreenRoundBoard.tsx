@@ -57,7 +57,7 @@ export default function FullscreenRoundBoard({
     const scoreSize = `${z.score}px`
     const labelSize = `${z.label}px`
     const badgePadX = `${Math.round(z.padX * 0.6)}px`
-    const badgePadY = `${Math.round(z.padY * 0.25)}px`
+    const badgePadY = `${Math.max(2, Math.round(z.padY * 0.3))}px`
 
     const pairLine = (name: string, score: string, isWinner: boolean) => (
         <HStack gap={`${z.rowGap}px`} minW="0" align="center">

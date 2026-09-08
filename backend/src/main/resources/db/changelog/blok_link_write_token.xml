@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      "Povezivanje bez obavezne prijave" — BLOK-LINK.md §7.1.
+
+      Signing in used to be what told the server WHO may write a score into a
+      linked table. §7 removes that requirement, so the same question needs a
+      different answer, and it is the one this project already uses for staff
+      who have no account (`tournament_waiter_sessions.token`): a per-link
+      bearer secret, minted once by `services/ClaimTokens` and returned to the
+      client exactly once, on creation.
+
+      Two changes, and they only make sense together:
+
+        * `write_token varchar(48)` — UNIQUE so a token names at most one
+          link, NULLABLE because every link created before §7 has none and
+          must keep working through its requester's uid. 48 is the width the
+          other ClaimTokens columns use (`pairs.claim_token`); the generator
+          emits 32 characters, and the slack is for a future widening rather
+          than for anything stored today.
+
+        * `requested_by_uid` LOSES its NOT NULL. An anonymous requester has no
+          Firebase uid to store — that is the entire point of §7 — and the
+          column is the natural place for "there was none". Dropping the
+          constraint is what makes an anonymous row insertable at all, so
+          this is not a separate concern that could be deferred: without it
+          POST /blok-links would still be closed to anonymous callers, just
+          with a 500 instead of a 401.
+
+      What did NOT change, and must not: the organiser's approval is still the
+      only real defence (BLOK-LINK.md §7.1, last line). A write token proves
+      "I am the device that asked for THIS link" and nothing else — it cannot
+      approve itself, cannot reach another link, and is useless until an
+      organiser has moved the row to APPROVED.
+
+      No backfill and no index beyond the unique constraint: the token is only
+      ever looked up as "does the one link I already loaded by uuid carry
+      this?", never as a lookup key of its own, so the constraint is there to
+      keep two links from colliding rather than to serve a query.
+    -->
+
+    <changeSet id="2026-09-08-blok-link-write-token" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="match_score_links" columnName="write_token"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="match_score_links">
+            <!-- The device secret handed out once, at creation. NULL on every
+                 link made before §7, and on any link whose owner never needed
+                 one. -->
+            <column name="write_token" type="varchar(48)">
+                <constraints unique="true" uniqueConstraintName="uq_msl_write_token"/>
+            </column>
+        </addColumn>
+
+        <!-- An anonymous requester has no uid. See the note above. -->
+        <dropNotNullConstraint tableName="match_score_links"
+                               columnName="requested_by_uid"
+                               columnDataType="varchar(64)"/>
+
+        <rollback>
+            <addNotNullConstraint tableName="match_score_links"
+                                  columnName="requested_by_uid"
+                                  columnDataType="varchar(64)"/>
+            <dropColumn tableName="match_score_links" columnName="write_token"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

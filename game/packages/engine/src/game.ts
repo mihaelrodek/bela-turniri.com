@@ -94,12 +94,26 @@ function startDeal(
         declarations: EMPTY_DECLARATIONS(),
         declarationsScoringTeam: null,
         belaDeclared: null,
+        belaRefused: null,
         dealScore: null,
         score: base.score,
         history: base.history,
         rng: dealt.rng,
         winner: null,
     }
+}
+
+/**
+ * README §1.7: the game is over at the END OF THE DEAL in which at least one
+ * team is at or past the target — and only then, so a deal is never cut short.
+ * A level score buys another deal, however far past the target both teams are.
+ *
+ * Returns the winner, or null when the game goes on.
+ */
+function gameWinner(target: number, score: Record<Team, number>): Team | null {
+    if (score.A < target && score.B < target) return null
+    if (score.A === score.B) return null
+    return score.A > score.B ? "A" : "B"
 }
 
 export function newGame(config: GameConfig): GameState {
@@ -121,7 +135,7 @@ export function reduce(
 ): { state: GameState; events: GameEvent[] } {
     if (action.type === "BID") return applyBid(state, action.seat, action.trump)
     if (action.type === "PASS") return applyPass(state, action.seat)
-    if (action.type === "PLAY") return applyPlay(state, action.seat, action.card)
+    if (action.type === "PLAY") return applyPlay(state, action.seat, action.card, action.bela)
     if (action.type === "NEXT_DEAL") return applyNextDeal(state)
     throw new EngineError("BAD_REQUEST", `Nepoznata akcija: ${String((action as GameAction).type)}`)
 }
@@ -155,8 +169,24 @@ function applyBid(
     events.push({ type: "HAND_COMPLETED" })
 
     const declarations = EMPTY_DECLARATIONS()
-    for (const s of SEATS) declarations[s] = findDeclarations(hands[s])
+    if (!state.config.noDeclarations) {
+        for (const s of SEATS) declarations[s] = findDeclarations(hands[s])
+    }
     const scoringTeam = declarationsScoringTeam(declarations, state.dealer)
+    if (!state.config.noDeclarations) {
+        // Only the SCORING pair travels (README §1.4). The server broadcasts
+        // one identical events frame to the whole table, so the payload has to
+        // be safe for every recipient — and the losing pair's declarations are
+        // three-plus named cards of hands nobody has played yet. They are lost
+        // at a real table too; here they simply never leave `state`.
+        const perSeat: Partial<Record<Seat, Declaration[]>> = {}
+        if (scoringTeam !== null) {
+            for (const s of SEATS) {
+                if (teamOf(s) === scoringTeam) perSeat[s] = declarations[s].slice()
+            }
+        }
+        events.push({ type: "DECLARATIONS_REVEALED", perSeat, scoringTeam })
+    }
 
     const opener = nextSeat(state.dealer)
     return {
@@ -196,6 +226,7 @@ function applyPlay(
     state: GameState,
     seat: Seat,
     card: Card,
+    bela?: boolean,
 ): { state: GameState; events: GameEvent[] } {
     if (state.phase !== "PLAYING") {
         throw new EngineError("BAD_PHASE", "Štihovi se trenutno ne igraju.")
@@ -216,15 +247,39 @@ function applyPlay(
 
     const events: GameEvent[] = [{ type: "CARD_PLAYED", seat, card }]
 
-    // Bela: announced when the holder plays the FIRST of trump K/Q. "First"
-    // means the other one is still in hand at this moment.
+    /* Bela — the holder's CHOICE, decided on the FIRST of trump K/Q (README
+       §1.4). "First" means the other one is still in hand at this moment.
+
+       The `bela` flag is an answer, not an authority. Whether a bela exists at
+       all is derived HERE, from the hand, exactly as it always was; the flag
+       can only suppress it. So a `bela: true` the hand does not back is
+       IGNORED rather than rejected: it could never have scored anything, and
+       bouncing an otherwise legal card mid-trick over a stale flag (an old
+       client build, a reconnect that mis-guessed) would punish the player for
+       a claim that was harmless. `bela: false` is likewise ignored when there
+       is nothing to decline.
+
+       `undefined` means "no answer", and no answer DECLARES: the turn timer,
+       a disconnected seat and every bot move arrive without a flag, and 20
+       points is a gain on the large majority of deals, so silence must not
+       cost them.
+
+       A refusal is final for the deal, and it is silent: there is no event
+       for it. Announcing "seat 2 declined a bela" would publish the very fact
+       the player is hiding — that they hold K+Q of trump. */
     let belaDeclared = state.belaDeclared
-    if (belaDeclared === null && cardSuit(card) === trump) {
+    let belaRefused = state.belaRefused
+    const belaAllowed = !state.config.noDeclarations || state.config.allowBela !== false
+    if (belaAllowed && belaDeclared === null && belaRefused === null && cardSuit(card) === trump) {
         const rank = cardRank(card)
         const twin = rank === "K" ? `Q${trump}` : rank === "Q" ? `K${trump}` : null
         if (twin !== null && hand.includes(twin as Card)) {
-            belaDeclared = teamOf(seat)
-            events.push({ type: "BELA", seat })
+            if (bela === false) {
+                belaRefused = seat
+            } else {
+                belaDeclared = teamOf(seat)
+                events.push({ type: "BELA", seat })
+            }
         }
     }
 
@@ -239,6 +294,7 @@ function applyPlay(
                 ...state,
                 hands,
                 belaDeclared,
+                belaRefused,
                 trick: { ...state.trick, turn: nextSeat(seat), cards: trickCards },
             },
             events,
@@ -258,38 +314,47 @@ function applyPlay(
     }
     tricksWon[winnerTeam] = [
         ...tricksWon[winnerTeam],
-        { winner, cards: trickCards.map((c) => c.card) },
+        {
+            no: trickNo,
+            leader: state.trick.leader,
+            winner,
+            // Copied, not aliased: `trickCards` is also the array the events
+            // carry, and a stored trick must never change afterwards.
+            plays: trickCards.map((c) => ({ ...c })),
+            cards: trickCards.map((c) => c.card),
+        },
     ]
 
     let next: GameState = {
         ...state,
         hands,
         belaDeclared,
+        belaRefused,
         tricksWon,
         trick: { leader: winner, turn: winner, cards: [] },
     }
 
-    if (trickNo === 1) {
-        events.push({
-            type: "DECLARATIONS_REVEALED",
-            perSeat: next.declarations,
-            scoringTeam: next.declarationsScoringTeam,
-        })
-    }
-
     if (trickNo === 8) {
         const dealScore = scoreDeal(next)
+        const score: Record<Team, number> = {
+            A: next.score.A + dealScore.total.A,
+            B: next.score.B + dealScore.total.B,
+        }
+        // The deal that settles the game ENDS it here, not on the next
+        // NEXT_DEAL (README §1.7). DEAL_DONE therefore means exactly one
+        // thing — "another deal follows" — and nothing has to ask the player
+        // for a deal that is never going to be played.
+        const winner = gameWinner(state.config.targetScore, score)
         next = {
             ...next,
-            phase: "DEAL_DONE",
+            phase: winner === null ? "DEAL_DONE" : "GAME_OVER",
             dealScore,
-            score: {
-                A: next.score.A + dealScore.total.A,
-                B: next.score.B + dealScore.total.B,
-            },
+            score,
             history: [...next.history, dealScore],
+            winner,
         }
         events.push({ type: "DEAL_SCORED", dealScore })
+        if (winner !== null) events.push({ type: "GAME_OVER", winner, score: { ...score } })
     }
 
     return { state: next, events }
@@ -300,10 +365,13 @@ function applyNextDeal(state: GameState): { state: GameState; events: GameEvent[
         throw new EngineError("BAD_PHASE", "Nova podjela je moguća tek nakon obračuna.")
     }
 
-    const target = state.config.targetScore
-    const reached = state.score.A >= target || state.score.B >= target
-    if (reached && state.score.A !== state.score.B) {
-        const winner: Team = state.score.A > state.score.B ? "A" : "B"
+    // Settlement already ends a decided game (see applyPlay), so in ordinary
+    // play this never fires. It stays because DEAL_DONE is a state anyone may
+    // hand the reducer — a saved game, a test, a future server that adjusts a
+    // score between deals — and "one team is past the target" must mean the
+    // same thing wherever the state came from.
+    const winner = gameWinner(state.config.targetScore, state.score)
+    if (winner !== null) {
         return {
             state: { ...state, phase: "GAME_OVER", winner },
             events: [{ type: "GAME_OVER", winner, score: { ...state.score } }],

@@ -165,6 +165,15 @@ export const common = {
     "errorBoundary.home": "Natrag na početnu",
     "errorBoundary.refresh": "Osvježi stranicu",
 
+    // --- Offline: stranica nije na uređaju (components/OfflineNotice.tsx) ----
+    "offline.title": "Nema internetske veze",
+    "offline.description":
+        "Ova stranica treba internet. Blok radi i bez veze — sve što upišeš ostaje na uređaju.",
+    "offline.descriptionBlok":
+        "Ova stranica treba internet, a nije spremljena na uređaj. Pokušaj ponovno kad se veza vrati.",
+    "offline.retry": "Pokušaj ponovno",
+    "offline.blok": "Otvori blok",
+
     // --- Podium editor (components/PodiumEditor.tsx) -------------------------
     "podium.title": "Postolje",
     "podium.description":

@@ -71,4 +71,54 @@
          so a message survives a dead or misconfigured mail provider. -->
     <include file="db/changelog/contact_messages.xml" relativeToChangelogFile="false"/>
 
+    <!-- Online-game player statistics (game/README.md §8). The Node game
+         server reports finished games to POST /api/internal/game-results;
+         the profile reads them back through GET /api/user/me/game-stats. -->
+    <include file="db/changelog/game_stats.xml" relativeToChangelogFile="false"/>
+
+    <!-- "Poveži blok sa stolom" (BLOK-LINK.md): an organiser-approved grant
+         that lets one player's local blok write one table's score. Carries the
+         partial unique index that allows at most one PENDING/APPROVED link
+         per match. -->
+    <include file="db/changelog/blok_match_links.xml" relativeToChangelogFile="false"/>
+
+    <!-- "Povijest blokova na profilu" (BLOK-HISTORY.md): one row per series
+         of blok games, owned by a Firebase UID. Summary columns for the
+         listing, the games and deals themselves in a jsonb payload, and the
+         (user_uid, session_id) unique constraint that makes a retried upload
+         idempotent. A personal scorepad — nothing else reads it. -->
+    <include file="db/changelog/blok_sessions.xml" relativeToChangelogFile="false"/>
+
+    <!-- "Dijeljenje zapisnika poveznicom" (BLOK-HISTORY.md §5.2): the
+         nullable share_token on blok_sessions. A separate random token
+         rather than the uuid, because a series is uploaded without its
+         owner ever consenting to publish it — the token IS that consent,
+         and revoking is `set null`. -->
+    <include file="db/changelog/blok_session_share.xml" relativeToChangelogFile="false"/>
+
+    <!-- "Pravilo kraja putuje" (BLOK-HISTORY.md §5.5): game_end_rule on
+         blok_sessions. Two series with identical deals have different
+         winners under `dosta` and `prolaz`, so a stored winner without the
+         rule beside it cannot be checked by whoever reads the record later.
+         Per game it lives in the payload; this column is the series-level
+         value the listing needs without touching the jsonb. -->
+    <include file="db/changelog/blok_session_end_rule.xml" relativeToChangelogFile="false"/>
+
+    <!-- "Zapisnik povezanog stola je javan" (BLOK-LINK.md §6.2): the nullable
+         session_id on match_score_links, naming which blok series is being
+         played at the linked table. Linking IS the consent to publish that
+         scorepad, so writing a score through an approved link mints the
+         series' share_token — which needs the link to say which series it
+         is. Not a FK: the series is routinely not uploaded yet. -->
+    <include file="db/changelog/blok_link_session.xml" relativeToChangelogFile="false"/>
+
+    <!-- "Povezivanje bez obavezne prijave" (BLOK-LINK.md §7.1): the unique,
+         nullable write_token on match_score_links, and the NOT NULL dropped
+         from requested_by_uid. Signing in is no longer what proves the right
+         to write a score into a linked table — a per-link bearer secret
+         minted by ClaimTokens stands in for it, the same way waiter sessions
+         already work for staff without accounts. The organiser's approval is
+         still the only real defence. -->
+    <include file="db/changelog/blok_link_write_token.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>

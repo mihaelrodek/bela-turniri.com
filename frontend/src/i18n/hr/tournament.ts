@@ -574,6 +574,47 @@ export const tournament = {
     "sync.pending.two": "{n} promjene čekaju",
     "sync.pending.few": "{n} promjene čekaju",
     "sync.pending.other": "{n} promjena čeka",
+
+    // ═══════════════════════ "Poveži blok sa stolom" (BLOK-LINK.md §4) ═══════════════════════
+    // Organiser's side, in Ždrijeb: pending link requests and the approved
+    // link shown on a match row. Appended at the end of the file on purpose —
+    // see the task note that added this block.
+    "blokLinks.pendingHeading": "Zahtjevi za povezivanje",
+    "blokLinks.pendingCount.one": "{n} zahtjev",
+    "blokLinks.pendingCount.two": "{n} zahtjeva",
+    "blokLinks.pendingCount.few": "{n} zahtjeva",
+    "blokLinks.pendingCount.other": "{n} zahtjeva",
+    "blokLinks.requestLine": "Runda {round} · Stol {table} · Par: {pair}",
+    "blokLinks.approve": "Odobri",
+    "blokLinks.reject": "Odbij",
+    /* Shown on the match row itself once a link is APPROVED. */
+    "blokLinks.linkedBadge": "Blok povezan: {name}",
+    "blokLinks.endLink": "Prekini vezu s blokom",
+    "blokLinks.rejectConfirmTitle": "Odbiti zahtjev za povezivanje?",
+    "blokLinks.rejectConfirmBody": "{name} će biti obaviješten/a da je zahtjev odbijen.",
+    "blokLinks.rejectConfirmYes": "Da, odbij",
+    "blokLinks.revokeConfirmTitle": "Prekinuti vezu s blokom?",
+    "blokLinks.revokeConfirmBody":
+        "{name} više neće moći slati rezultat s bloka na ovaj stol dok ne zatraži novu vezu.",
+    "blokLinks.revokeConfirmYes": "Da, prekini",
+    "blokLinks.toast.approved": "Veza s blokom odobrena",
+    "blokLinks.toast.rejected": "Zahtjev za povezivanje odbijen",
+    "blokLinks.toast.revoked": "Veza s blokom prekinuta",
+
+    /* ═══════════════════════════════════════════════════════════════════
+       REVIZIJA 2026-09-08 — JAVNI ZAPISNIK POVEZANOG STOLA
+       BLOK-LINK.md §6.2
+       ═══════════════════════════════════════════════════════════════════
+       Redak mečа s povezanim blokom nosi poveznicu na `/blok/z/{token}`:
+       sve podjele iza rezultata 2:1, onako kako ih je igrač upisao.
+
+       Natpis je imenica („Zapisnik”), ne naredba: to je poveznica na stvar,
+       a ne gumb koji nešto radi. Cijela rečenica o tome što se otvara i da
+       je javno ide u `title`, gdje ne troši širinu retka u kojem se upisuju
+       rezultati. */
+    "blokLinks.logbook": "Zapisnik",
+    "blokLinks.logbookTitle":
+        "Otvori zapisnik povezanog bloka — javna poveznica, otvara se u novoj kartici",
 }
 
 /** Contract every other locale's `tournament` namespace must satisfy. */

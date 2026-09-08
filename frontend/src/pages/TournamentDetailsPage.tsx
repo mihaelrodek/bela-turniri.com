@@ -26,6 +26,7 @@ import {
     TURNIR_DETAIL_TOUR_STEPS,
 } from "../components/tourSteps"
 import { useCanManageTournament } from "../hooks/useCanManageTournament"
+import { useOrganiserBlokLinks } from "../hooks/useOrganiserBlokLinks"
 import { useTournamentData } from "../hooks/useTournamentData"
 import { useTournamentEditForm } from "../hooks/useTournamentEditForm"
 import { useTournamentHead } from "../hooks/useTournamentHead"
@@ -117,6 +118,7 @@ export default function TournamentDetailsPage() {
         pairs, setPairs,
         rounds, setRounds,
         pairRequests,
+        blokLinks, setBlokLinks,
         collapsedRounds, setCollapsedRounds,
         allowRepeats, setAllowRepeats,
         loading, error,
@@ -141,6 +143,7 @@ export default function TournamentDetailsPage() {
         allowRepeats, setAllowRepeats, cancelInFlight, pendingOpsRef,
         requireOnlineFor, enqueueOp, refreshAll,
     })
+    const blokLinksCtl = useOrganiserBlokLinks({ uuid, blokLinks, setBlokLinks })
 
     /**
      * Every in-flight write, ORed. `refreshLive` reads this through the ref: a
@@ -162,6 +165,8 @@ export default function TournamentDetailsPage() {
         || roundsCtl.savingMatchId != null
         || pairsEd.approvingPairId != null
         || pairsEd.buyingLifePairId != null
+        || blokLinksCtl.approvingLinkUuid != null
+        || blokLinksCtl.decidingLinkUuid != null
     anySaveInFlightRef.current = anySaveInFlight
 
     /* ---------- Section ↔ URL ----------
@@ -674,6 +679,7 @@ export default function TournamentDetailsPage() {
                                 tournamentUuid={t.uuid}
                                 tournamentSlug={t.slug}
                                 canEdit={canEditTournament}
+                                tournamentStatus={t.status}
                             />
                         ) : (
                             <WaiterCodeGate tournamentUuid={t.uuid} />
@@ -721,6 +727,19 @@ export default function TournamentDetailsPage() {
                             onBillChange={roundsCtl.patchMatchPaidAt}
                             unpaidOpen={roundsCtl.unpaidOpen}
                             onCloseUnpaid={() => roundsCtl.setUnpaidOpen(false)}
+                            pendingBlokLinks={blokLinksCtl.pendingLinks}
+                            approvedBlokLinkByMatchId={blokLinksCtl.approvedLinkByMatchId}
+                            approvingBlokLinkUuid={blokLinksCtl.approvingLinkUuid}
+                            decidingBlokLinkUuid={blokLinksCtl.decidingLinkUuid}
+                            onApproveBlokLink={blokLinksCtl.onApproveLink}
+                            onRequestRejectBlokLink={blokLinksCtl.setPendingRejectLink}
+                            onRequestRevokeBlokLink={blokLinksCtl.setPendingRevokeLink}
+                            pendingRejectBlokLink={blokLinksCtl.pendingRejectLink}
+                            onCloseRejectBlokLink={() => blokLinksCtl.setPendingRejectLink(null)}
+                            onConfirmRejectBlokLink={() => void blokLinksCtl.confirmRejectLink()}
+                            pendingRevokeBlokLink={blokLinksCtl.pendingRevokeLink}
+                            onCloseRevokeBlokLink={() => blokLinksCtl.setPendingRevokeLink(null)}
+                            onConfirmRevokeBlokLink={() => void blokLinksCtl.confirmRevokeLink()}
                         />
                     )}
                 </Box>

@@ -4,17 +4,13 @@ import { SUIT_PALETTE, ACE_PALETTE, FACE, HAIRLINE, INK, NUMERAL_FONT } from "./
 import SuitGlyph, { Pip } from "./SuitGlyph"
 import CourtFigure from "./figures"
 import SeasonVignette from "./vignettes"
+import { cardImage } from "./imageAssets"
 
 /* ──────────────────────────────────────────────────────────────────────────
-   MadjaricaCard — one Hungarian (Tell-pattern) card face as inline SVG.
+   MadjaricaCard — prepared image when available, otherwise inline SVG.
 
-   Drawn rather than scanned. The public-domain Tell scans on Wikimedia are
-   photographs of worn 1930s decks: at the sizes this game actually renders a
-   card (56 px wide in a trick) the roman numeral is a smudge, the four suits
-   photograph at four different white balances, and no two cards in a shot are
-   square to the lens. A flat vector face is legible at 56 px, identical
-   across the pack, crisp at any DPI, and carries no attribution burden —
-   game/DESIGN.md §2.1 allows either.
+   Image assets are registered by engine card ID in imageAssets.ts.
+   The geometry described below applies to the existing SVG fallback.
 
    The geometry is a real Tell card's:
      · 200 × 300 (2:3), cream face, thin double frame;
@@ -135,6 +131,19 @@ function AceFace({ suit }: { suit: Suit }) {
 }
 
 export default function MadjaricaCard({ rank, suit }: { rank: Rank; suit: Suit }) {
+    const image = cardImage(rank, suit)
+    if (image) {
+        return (
+            <img
+                src={image}
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                decoding="async"
+                style={{ display: "block", width: "100%", height: "100%", objectFit: "contain" }}
+            />
+        )
+    }
     return (
         <svg
             viewBox="0 0 200 300"
@@ -174,10 +183,10 @@ export default function MadjaricaCard({ rank, suit }: { rank: Rank; suit: Suit }
 
 /**
  * The bare suit glyph as a standalone `<svg>` — what the bidding panel, the
- * trump indicator and the scoreboard put next to a word. `mono` by default:
- * the printed two-tone acorn is mud below ~20 px.
+ * trump indicator and the scoreboard put next to a word. It uses the same
+ * full-colour print as the photographed cards by default.
  */
-export function MadjaricaSuitIcon({ suit, mono = true }: { suit: Suit; mono?: boolean }) {
+export function MadjaricaSuitIcon({ suit, mono = false }: { suit: Suit; mono?: boolean }) {
     return (
         <svg viewBox="-4 -4 108 108" width="100%" height="100%" aria-hidden="true" focusable="false" style={{ display: "block" }}>
             <SuitGlyph suit={suit} mono={mono} />

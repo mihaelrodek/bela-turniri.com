@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest"
 import type { Card, Declaration, Seat, Team, WonTrick } from "../src/index"
 import { EngineError, fullDeck, scoreDeal, teamOf } from "../src/index"
-import { makeState } from "./helpers"
+import { makeState, won } from "./helpers"
 
 /** Chop the deck into 8 tricks of 4 and hand them to the given winners in order. */
 function tricksFor(winners: Seat[]): Record<Team, WonTrick[]> {
     const deck = fullDeck()
     const out: Record<Team, WonTrick[]> = { A: [], B: [] }
     winners.forEach((winner, i) => {
-        out[teamOf(winner)].push({ winner, cards: deck.slice(i * 4, i * 4 + 4) as Card[] })
+        out[teamOf(winner)].push(won(i + 1, winner, deck.slice(i * 4, i * 4 + 4) as Card[]))
     })
     return out
 }
@@ -87,8 +87,8 @@ describe("scoreDeal — pass and fall (README §1.6)", () => {
     it("an exact tie is a fall — the caller must be strictly ahead", () => {
         // Deliberately small, hand-built tricks: 11 + 10 for A against 11 + 10 for B.
         const tricksWon: Record<Team, WonTrick[]> = {
-            A: [{ winner: 0, cards: ["APIK"] }],
-            B: [{ winner: 1, cards: ["AHERC", "10HERC"] }],
+            A: [won(1, 0, ["APIK"])],
+            B: [won(2, 1, ["AHERC", "10HERC"])],
         }
         const tie = scoreDeal(
             makeState({

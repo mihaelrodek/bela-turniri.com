@@ -1,4 +1,5 @@
-import { Badge, Box, Button, Dialog, Flex, HStack, Portal, Text, VStack } from "@chakra-ui/react"
+import { useEffect, useState } from "react"
+import { Badge, Box, CloseButton, Dialog, HStack, Portal, Text, VStack } from "@chakra-ui/react"
 import type { DealScore, Team } from "@bela/engine"
 import { useTranslation } from "../../i18n"
 import { suitKey } from "../util/cards"
@@ -15,9 +16,20 @@ import SuitGlyph from "./SuitGlyph"
    made 90 and still scored 0" is the single most confusing thing that
    happens to somebody learning the game.
 
-   It does not auto-advance: the next deal starts on `game.nextDeal`, when
-   the player has read it.
+   It is a RECEIPT, not a decision (changed 2026-09-08 on the user's
+   request): the server deals the next hand on its own after
+   `dealDoneAutoMs`, so there is no "Sljedeća podjela" button to press and
+   nobody waits on anybody. This closes itself after AUTO_CLOSE_MS — kept
+   just under the server's timer so the next deal never arrives behind an
+   open modal — and the ✕ only skips the remaining seconds.
+
+   Deliberately not shown: the deal number (the scoreboard already carries
+   it) and the prose explaining a fall (the red "Pali smo" badge and a
+   0 in "Upisano" say it in the time this dialog is actually on screen).
    ────────────────────────────────────────────────────────────────────── */
+
+/** How long the receipt stays up. Below `dealDoneAutoMs` on the server. */
+const AUTO_CLOSE_MS = 3000
 
 function Row({
     label,
@@ -66,19 +78,35 @@ export default function DealSummary({
     open,
     dealScore,
     myTeam,
-    busy = false,
-    canContinue = true,
-    onNextDeal,
+    // `busy` / `canContinue` / `onNextDeal` are still passed by the call
+    // site and deliberately NOT destructured: the deal now advances
+    // server-side, so nothing here waits on them. They stay in the type so
+    // the parent keeps compiling until it is next touched.
 }: {
     open: boolean
     dealScore: DealScore | null
     myTeam: Team
     busy?: boolean
-    /** False for a spectator, who has nothing to press. */
     canContinue?: boolean
-    onNextDeal: () => void
+    onNextDeal?: () => void
 }) {
     const { t } = useTranslation()
+
+    /* Dismissal is owned HERE, not by the parent: the parent's `open` is
+       derived from the phase, and the whole point is to disappear before the
+       phase changes. Keyed by deal number so the next deal's receipt shows
+       again after this one was dismissed early. */
+    const dealNo = dealScore?.dealNo ?? null
+    const [dismissedDeal, setDismissedDeal] = useState<number | null>(null)
+    const shown = open && dealNo !== null && dismissedDeal !== dealNo
+
+    // Hooks run before the early return: `dealScore` is null between deals.
+    useEffect(() => {
+        if (!shown || dealNo === null) return
+        const id = setTimeout(() => setDismissedDeal(dealNo), AUTO_CLOSE_MS)
+        return () => clearTimeout(id)
+    }, [shown, dealNo])
+
     if (!dealScore) return null
 
     const theirTeam: Team = myTeam === "A" ? "B" : "A"
@@ -86,15 +114,21 @@ export default function DealSummary({
     const goodForUs = dealScore.passed === weCalled
 
     return (
-        <Dialog.Root open={open} placement="center" closeOnInteractOutside={false}>
+        <Dialog.Root open={shown} placement="center" closeOnInteractOutside={false}>
             <Portal>
                 <Dialog.Backdrop />
                 <Dialog.Positioner>
                     <Dialog.Content maxW={{ base: "92%", md: "sm" }}>
-                        <Dialog.Header pb="2">
-                            <Dialog.Title>{t("game.deal.summaryTitle", { n: dealScore.dealNo })}</Dialog.Title>
-                        </Dialog.Header>
-                        <Dialog.Body>
+                        <CloseButton
+                            aria-label={t("common.close")}
+                            position="absolute"
+                            top="2"
+                            right="2"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setDismissedDeal(dealScore.dealNo)}
+                        />
+                        <Dialog.Body pt="5">
                             <VStack gap="2" align="stretch">
                                 <HStack gap="2" wrap="wrap">
                                     <Badge size="sm" variant="subtle" colorPalette="brand">
@@ -147,34 +181,8 @@ export default function DealSummary({
                                         strong
                                     />
                                 </Box>
-
-                                {!dealScore.passed && (
-                                    <Flex
-                                        rounded="l2"
-                                        bg="bg.subtle"
-                                        borderWidth="1px"
-                                        borderColor="border.subtle"
-                                        px="3"
-                                        py="2"
-                                    >
-                                        <Text fontSize="xs" color="fg.muted">
-                                            {t("game.deal.fallExplained")}
-                                        </Text>
-                                    </Flex>
-                                )}
                             </VStack>
                         </Dialog.Body>
-                        <Dialog.Footer>
-                            <Button
-                                colorPalette="brand"
-                                loading={busy}
-                                disabled={!canContinue}
-                                onClick={onNextDeal}
-                                w="100%"
-                            >
-                                {canContinue ? t("game.deal.next") : t("game.deal.waitingForNext")}
-                            </Button>
-                        </Dialog.Footer>
                     </Dialog.Content>
                 </Dialog.Positioner>
             </Portal>

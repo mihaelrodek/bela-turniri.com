@@ -13,10 +13,12 @@ const CODE_LENGTH = 4
 
 export default function JoinByCodeDialog({
     open,
+    roomName,
     onOpenChange,
     onSubmit,
 }: {
     open: boolean
+    roomName?: string
     onOpenChange: (open: boolean) => void
     /** Called once, the moment the 4th digit is entered. */
     onSubmit: (code: string) => void
@@ -45,12 +47,14 @@ export default function JoinByCodeDialog({
                 <Dialog.Positioner>
                     <Dialog.Content maxW={{ base: "92%", md: "sm" }}>
                         <Dialog.Header>
-                            <Dialog.Title>{t("game.lobby.joinByCode.title")}</Dialog.Title>
+                            <Dialog.Title>{roomName
+                                ? t("game.lobby.joinByCode.privateTitle", { name: roomName })
+                                : t("game.lobby.joinByCode.title")}</Dialog.Title>
                         </Dialog.Header>
                         <Dialog.Body>
                             <VStack gap="3" align="stretch">
                                 <Text fontSize="sm" color="fg.muted">
-                                    {t("game.lobby.joinByCode.description")}
+                                    {t(roomName ? "game.lobby.joinByCode.privateDescription" : "game.lobby.joinByCode.description")}
                                 </Text>
                                 <Field.Root>
                                     <Field.Label>{t("game.lobby.joinByCode.codeLabel")}</Field.Label>

@@ -19,6 +19,7 @@ import {
 } from "@chakra-ui/react"
 import {
     FiAward,
+    FiCheck,
     FiCheckCircle,
     FiChevronDown,
     FiChevronRight,
@@ -36,11 +37,13 @@ import {
     FiX,
 } from "react-icons/fi"
 
+import ConfirmDialog from "../../../components/ConfirmDialog"
 import MatchRow from "../bracket/MatchRow"
 import FullscreenRoundBoard from "../bracket/FullscreenRoundBoard"
 import { FS_SIZE_STORAGE_KEY, type FsSize, readStoredFsSize } from "../bracket/fullscreenSize"
-import { useTranslation } from "../../../i18n"
+import { usePlural, useTranslation } from "../../../i18n"
 import { canFinish, type MatchLocal, type RoundLocal } from "../../../utils/tournamentMatch"
+import type { OrganiserBlokLink } from "../../../api/blokLink"
 import type { PairShort } from "../../../types/pairs"
 import type { TournamentDetails } from "../../../types/tournaments"
 
@@ -91,6 +94,22 @@ export type BracketSectionProps = {
     /* the "at least two paid pairs" modal, opened by a 409 on start */
     unpaidOpen: boolean
     onCloseUnpaid: () => void
+    /* "Poveži blok sa stolom" (BLOK-LINK.md §4) — requests to link a player's
+     * blok scorepad to a table in the active round. `approvedBlokLinkByMatchId`
+     * keys by match id so each row can show its own without a linear scan. */
+    pendingBlokLinks: OrganiserBlokLink[]
+    approvedBlokLinkByMatchId: Map<number, OrganiserBlokLink>
+    approvingBlokLinkUuid: string | null
+    decidingBlokLinkUuid: string | null
+    onApproveBlokLink: (link: OrganiserBlokLink) => void
+    onRequestRejectBlokLink: (link: OrganiserBlokLink) => void
+    onRequestRevokeBlokLink: (link: OrganiserBlokLink) => void
+    pendingRejectBlokLink: OrganiserBlokLink | null
+    onCloseRejectBlokLink: () => void
+    onConfirmRejectBlokLink: () => void
+    pendingRevokeBlokLink: OrganiserBlokLink | null
+    onCloseRevokeBlokLink: () => void
+    onConfirmRevokeBlokLink: () => void
 }
 
 /**
@@ -145,9 +164,23 @@ export default function BracketSection(props: BracketSectionProps) {
         onBillChange,
         unpaidOpen,
         onCloseUnpaid,
+        pendingBlokLinks,
+        approvedBlokLinkByMatchId,
+        approvingBlokLinkUuid,
+        decidingBlokLinkUuid,
+        onApproveBlokLink,
+        onRequestRejectBlokLink,
+        onRequestRevokeBlokLink,
+        pendingRejectBlokLink,
+        onCloseRejectBlokLink,
+        onConfirmRejectBlokLink,
+        pendingRevokeBlokLink,
+        onCloseRevokeBlokLink,
+        onConfirmRevokeBlokLink,
     } = props
 
     const { t: tr } = useTranslation()
+    const plural = usePlural()
 
     const [fullscreenRound, setFullscreenRound] = useState<number | null>(null)
     /* Card size on the fullscreen board. Persisted so the organiser sets it
@@ -490,6 +523,89 @@ export default function BracketSection(props: BracketSectionProps) {
                     )
                 )}
 
+                {/* ===== "Poveži blok sa stolom" — pending requests =====
+                    Same visual language as PairsSection's pending-approval
+                    group (BLOK-LINK.md §4): a yellow-bordered card above
+                    everything else, a counted heading, and an inline
+                    Odobri/Odbij pair per row. Organiser/admin only — the
+                    prop is already empty for anyone else since the fetch
+                    behind it never runs for them. */}
+                {canEditTournament && pendingBlokLinks.length > 0 && (
+                    <Box
+                        borderWidth="1px"
+                        borderColor="yellow.solid"
+                        rounded="xl"
+                        bg="yellow.subtle"
+                        p={{ base: "3", md: "4" }}
+                    >
+                        <HStack mb="2" gap="2" align="baseline">
+                            <Text
+                                fontSize="2xs"
+                                color="fg.muted"
+                                fontWeight="semibold"
+                                letterSpacing="wider"
+                                textTransform="uppercase"
+                            >
+                                {tr("tournament.blokLinks.pendingHeading")}
+                            </Text>
+                            <Text fontSize="xs" color="fg.muted">
+                                {plural("tournament.blokLinks.pendingCount", pendingBlokLinks.length)}
+                            </Text>
+                        </HStack>
+                        <VStack align="stretch" gap="2">
+                            {pendingBlokLinks.map((link) => (
+                                <HStack
+                                    key={link.uuid}
+                                    justify="space-between"
+                                    align="center"
+                                    gap="2"
+                                    wrap="wrap"
+                                    borderWidth="1px"
+                                    borderColor="yellow.muted"
+                                    rounded="md"
+                                    bg="bg.panel"
+                                    px="3"
+                                    py="2"
+                                >
+                                    <Box minW="0" flex="1">
+                                        <Text fontWeight="semibold" fontSize="sm" truncate>
+                                            {link.requestedByName}
+                                        </Text>
+                                        <Text fontSize="xs" color="fg.muted" truncate>
+                                            {tr("tournament.blokLinks.requestLine", {
+                                                round: link.roundNumber,
+                                                table: link.tableNo ?? "—",
+                                                pair: link.usPairName,
+                                            })}
+                                        </Text>
+                                    </Box>
+                                    <HStack gap="1.5" flexShrink={0}>
+                                        <Button
+                                            size="xs"
+                                            variant="solid"
+                                            colorPalette="green"
+                                            loading={approvingBlokLinkUuid === link.uuid}
+                                            disabled={approvingBlokLinkUuid != null}
+                                            onClick={() => onApproveBlokLink(link)}
+                                        >
+                                            <FiCheck /> {tr("tournament.blokLinks.approve")}
+                                        </Button>
+                                        <Button
+                                            size="xs"
+                                            variant="outline"
+                                            colorPalette="red"
+                                            disabled={approvingBlokLinkUuid != null}
+                                            onClick={() => onRequestRejectBlokLink(link)}
+                                        >
+                                            <FiX /> {tr("tournament.blokLinks.reject")}
+                                        </Button>
+                                    </HStack>
+                                </HStack>
+                            ))}
+                        </VStack>
+                    </Box>
+                )}
+
                 {/* ===== Rounds ===== */}
                 {rounds.length === 0 ? (
                     <Box
@@ -674,6 +790,8 @@ export default function BracketSection(props: BracketSectionProps) {
                                                             onCancelEdit={onCancelEdit}
                                                             onScoreChange={onScoreChange}
                                                             onBillChange={onBillChange}
+                                                            blokLink={approvedBlokLinkByMatchId.get(m.id) ?? null}
+                                                            onEndBlokLink={canEditTournament ? onRequestRevokeBlokLink : undefined}
                                                         />
                                                     ))}
                                                 </VStack>
@@ -901,6 +1019,35 @@ export default function BracketSection(props: BracketSectionProps) {
                     </Dialog.Content>
                 </Dialog.Positioner>
             </Dialog.Root>
+
+            {/* ===== "Poveži blok sa stolom" — reject / end-link confirmations =====
+                Approving needs none (pressing it twice is a no-op); these two
+                both cut something off for the other person, so they route
+                through ConfirmDialog like every other consequential action. */}
+            <ConfirmDialog
+                open={pendingRejectBlokLink != null}
+                title={tr("tournament.blokLinks.rejectConfirmTitle")}
+                description={pendingRejectBlokLink
+                    ? tr("tournament.blokLinks.rejectConfirmBody", { name: pendingRejectBlokLink.requestedByName })
+                    : undefined}
+                confirmLabel={tr("tournament.blokLinks.rejectConfirmYes")}
+                destructive
+                busy={decidingBlokLinkUuid != null && decidingBlokLinkUuid === pendingRejectBlokLink?.uuid}
+                onConfirm={onConfirmRejectBlokLink}
+                onCancel={onCloseRejectBlokLink}
+            />
+            <ConfirmDialog
+                open={pendingRevokeBlokLink != null}
+                title={tr("tournament.blokLinks.revokeConfirmTitle")}
+                description={pendingRevokeBlokLink
+                    ? tr("tournament.blokLinks.revokeConfirmBody", { name: pendingRevokeBlokLink.requestedByName })
+                    : undefined}
+                confirmLabel={tr("tournament.blokLinks.revokeConfirmYes")}
+                destructive
+                busy={decidingBlokLinkUuid != null && decidingBlokLinkUuid === pendingRevokeBlokLink?.uuid}
+                onConfirm={onConfirmRevokeBlokLink}
+                onCancel={onCloseRevokeBlokLink}
+            />
         </>
     )
 }

@@ -10,6 +10,34 @@
    ovdje, `.two` dodatno u slovenskom (dvojina). */
 
 export const game = {
+    "room.privateGame": "Privatna igra",
+    "room.allowSpectators": "Omogući gledatelje",
+    "room.spectatorsAllowed": "Gledatelji omogućeni",
+    "room.spectatorsDisabled": "Bez gledatelja",
+    "guest.title": "Zaigraj belu",
+    "guest.name": "Ime igrača",
+    "guest.nameHint": "Unesi ime za stolom. Zapamtit ćemo ga u ovom pregledniku.",
+    "guest.play": "Igraj kao gost",
+    "guest.statsHint": "Prijavi se kako bi tvoja statistika ostala spremljena i dostupna na svim platformama i uređajima.",
+    "guest.login": "Prijavi se",
+    "declarations.calculating": "Igra računa zvanja…",
+    "declarations.reviewing": "Pregled zvanja…",
+
+    "lobby.heroLabel": "Bela online",
+    "lobby.heroTitle": "Tvoj stol. Tvoja ekipa.",
+    "lobby.heroDescription": "Pronađi slobodan stol ili okupi svoju ekipu za novu partiju bele.",
+    "room.visibility": "Vidljivost igre",
+    "room.private": "Privatna",
+    "room.public": "Javna",
+    "room.waitingReady": "Čeka spremnost",
+    "bot.label": "Bot",
+    "rules.title": "Pravila podjele",
+    "rules.noDeclarations": "Bez zvanja",
+    "rules.withDeclarations": "Sa zvanjima",
+    "rules.allowBela": "Bela je dopuštena",
+    "rules.noBela": "Bez bele",
+    "settings.alwaysReady": "Uvijek spreman",
+    "settings.alwaysReadyHint": "Automatski označi spremnost kada sjedneš za stol.",
     /* ─── Navigacija ────────────────────────────────────────── */
     "nav.igraj": "Igraj",
 
@@ -97,7 +125,6 @@ export const game = {
     "lobby.form.namePlaceholder": "npr. Petak navečer",
     "lobby.form.target": "Igra se do",
     "lobby.form.private": "Privatna soba",
-    "lobby.form.privateHint": "Privatna soba se ne prikazuje u predvorju — ulazi se samo preko poveznice.",
 
     /* ─── Soba (/igra/soba/:id) ─────────────────────────────── */
     "room.metaTitle": "Soba {name} — bela",
@@ -112,12 +139,12 @@ export const game = {
     "room.addBot": "Bot",
     "room.removeBot": "Ukloni bota",
     "room.ready": "Spreman",
-    "room.readyOn": "Spreman si",
-    "room.readyOff": "Označi da si spreman",
+    "room.readyOn": "Spreman",
+    "room.readyOff": "Spreman",
     "room.seatsTaken": "{taken}/{total} sjedala zauzeto",
     "room.start": "Počni igru",
     "room.waitingForHost": "Čeka se da domaćin pokrene igru.",
-    "room.emptySeatsFilled": "Prazna sjedala popunit će botovi (srednje).",
+    "room.emptySeatsFilled": "Prazna sjedala popunit će botovi.",
     "room.spectators": "Gledatelji",
 
     /* ─── Predvorje/soba v2 (bela.fun redizajn, game/DESIGN.md §1/§2.9) ──
@@ -132,11 +159,13 @@ export const game = {
     "lobby.privateAria": "Privatna soba",
     "lobby.enterAria": "Uđi u sobu {name}",
     "lobby.seatsAria": "{taken} od {total} mjesta zauzeto",
-    "lobby.create.title": "Do koliko se igra?",
+    "lobby.create.title": "Postavi svoj stol",
     "lobby.create.targetAria": "Igraj do {target} bodova",
     "lobby.create.private": "Privatna igra",
     "lobby.joinByCode.title": "Pridruži se šifrom",
     "lobby.joinByCode.description": "Upiši 4-znamenkastu šifru sobe.",
+    "lobby.joinByCode.privateTitle": "Uđi u igru {name}",
+    "lobby.joinByCode.privateDescription": "Ova igra je privatna. Unesi šifru koju ti je prijatelj poslao.",
     "lobby.joinByCode.codeLabel": "Šifra sobe",
     "lobby.joinByCode.codeAria": "Šifra sobe, 4 znamenke",
 
@@ -150,6 +179,10 @@ export const game = {
     // to je oznaka u UI-u, ne riječ.
     "room.vs": "vs",
     "room.waitingSeat": "čekam…",
+    // Naslovi "MI"/"ONI" nad parovima su maknuti (strane su vezane uz
+    // domaćina, iste su na svakom ekranu), pa grupiranje ostaje samo vizualno
+    // — ovo ga vraća čitaču ekrana. Par 1 je uvijek domaćinov.
+    "room.pairAria": "Par {n}",
     "room.addBotCta": "Dodaj bota",
     "room.launch": "Pokreni igru",
     "room.launchHint": "Čeka se da svi budu spremni.",
@@ -167,10 +200,14 @@ export const game = {
     "seat.cardsInHand.few": "{n} karte u ruci",
     "seat.cardsInHand.other": "{n} karata u ruci",
 
-    /* ─── Botovi ────────────────────────────────────────────── */
-    "bot.level.lako": "Lako",
-    "bot.level.srednje": "Srednje",
-    "bot.level.tesko": "Teško",
+    /* ─── NOVO (redizajn sjedala, 2026-09-08) ───────────────────────────
+       Sjedalo ima jednu anatomiju na sve četiri strane: avatar s oznakama u
+       kutovima, pilula s imenom, pa jedan status-čip. Ovo su tri stringa
+       koje taj čip odnosno oznaka trebaju. "{n} s" je kratica za sekunde
+       (mjerna jedinica, ne brojiva imenica) pa namjerno nema množinu. */
+    "seat.onTurn": "Na potezu",
+    "seat.secondsShort": "{n} s",
+    "seat.calledTrump": "Zove aduta: {suit}",
 
     /* ─── Zvanje aduta ──────────────────────────────────────── */
     "bidding.yourTurn": "Zovi aduta",
@@ -183,6 +220,7 @@ export const game = {
 
     /* ─── Stol ──────────────────────────────────────────────── */
     "table.caller": "zove",
+    "table.holdsTrick": "Drži štih",
     "table.trumpSet": "Adut je {suit}",
     "table.autoPlayed": "Bot je odigrao umjesto igrača",
     "table.settings": "Postavke igre",
@@ -217,9 +255,8 @@ export const game = {
     "score.us": "Mi",
     "score.them": "Oni",
     "score.target": "do {target}",
-    "score.dealNo": "{n}. podjela",
+    "score.currentDeal": "+{points} bodova · {tricks}",
     "score.calledBy": "zove {name}",
-    "score.tricks": "štihovi {us}:{them}",
     "score.history": "Povijest",
     "score.historyTitle": "Povijest podjela",
     // Gledatelj nema "svoj" tim, pa mu se timovi imenuju kako ih zove protokol.
@@ -229,22 +266,29 @@ export const game = {
     "score.col.trump": "Adut",
     "score.col.caller": "Zvao",
     "score.col.result": "Ishod",
+    // Naslov malog "+150" uz veliki broj podjele — samo tooltip/aria, sam
+    // broj nosi značenje. Uključuje i belu (README §2).
+    "score.declarationBonus": "Zvanja",
 
     /* ─── Zvanja ────────────────────────────────────────────── */
     "declarations.title": "Zvanja",
     "declarations.none": "Nitko nema zvanja.",
     "declarations.scores": "boduje",
-    "declarations.lost": "propada",
     "declarations.weScore": "Naša zvanja se boduju.",
     "declarations.theyScore": "Njihova zvanja se boduju.",
+    // Jedina rečenica o zvanjima koja su propala: karte protivničkog para se
+    // više ne šalju ni ne prikazuju (README §1.4), a svoje si ionako vidiš.
+    "declarations.oursLost": "Tvoja zvanja ({points}) propadaju.",
     "declarations.tapToClose": "Dodirni za nastavak",
-    "declaration.four": "četiri iste ({points})",
-    "declaration.sequence.3": "terca (20)",
-    "declaration.sequence.4": "kvarta (50)",
-    "declaration.sequence.5": "niz od pet i više (100)",
 
     "bela.title": "Bela!",
     "bela.by": "zove {name}",
+    // Zvanje bele je IZBOR (game/README.md §1.4): pitamo jednom, kad se baca
+    // prva od K/Q aduta. Odbijanje vrijedi za cijelu podjelu.
+    "bela.ask": "Zovi belu?",
+    "bela.askHint": "20 bodova — ali ako padnete, idu protivniku.",
+    "bela.askYes": "Zovi",
+    "bela.askNo": "Ne zovi",
 
     /* ─── Kraj podjele ──────────────────────────────────────── */
     "deal.summaryTitle": "{n}. podjela",
@@ -266,7 +310,7 @@ export const game = {
     /* ─── Kraj igre ─────────────────────────────────────────── */
     "over.youWon": "Pobjeda!",
     "over.youLost": "Poraz",
-    "over.description": "Igra je gotova. Možeš otvoriti novu sobu ili se pridružiti drugoj.",
+    "over.description": "Partija je završena. Označi spremnost za novu partiju ili napusti sobu.",
     "over.backToLobby": "Natrag u predvorje",
     "over.newGame": "Nova igra",
     "over.finalScore": "Konačni rezultat",
@@ -287,6 +331,8 @@ export const game = {
     "error.UNAUTHENTICATED": "Prijavi se da bi igrao.",
     "error.ROOM_NOT_FOUND": "Soba više ne postoji.",
     "error.ROOM_FULL": "Soba je puna.",
+    "error.ROOM_CODE_REQUIRED": "Za ulaz u privatnu sobu potrebna je šifra.",
+    "error.SPECTATORS_DISABLED": "Ova igra ne dopušta gledatelje.",
     "error.SEAT_TAKEN": "To je sjedalo zauzeto.",
     "error.NOT_HOST": "Samo domaćin može to napraviti.",
     "error.NOT_IN_ROOM": "Nisi u toj sobi.",
@@ -313,6 +359,115 @@ export const game = {
     "settings.deck.francuske": "Francuske",
     "settings.recommended": "Preporučeno",
     "common.close": "Zatvori",
+
+    /* ─── Pravila sobe — unmissable badges + potvrda (RoomPanel/CreateGameDialog) ──
+       "Bez zvanja" / "Bez bele" moraju biti jasne svima za stolom, ne samo
+       domaćinu, i host mora vidjeti sažetak izbora prije nego stvori sobu. */
+    "room.spectatingFull": "Sva su mjesta zauzeta — gledaš igru dok se neko mjesto ne oslobodi.",
+
+    /* ─── Čuvanje sjedala, aktivna soba, povratak (game/README.md §3) ─────
+       DODANO NA KRAJ — ne premještaj i ne briši ključeve iznad. */
+    "active.title": "Imaš aktivnu igru",
+    "active.description": "Igra još traje. Vrati se za stol ili je napusti.",
+    "active.holdLeft": "Sjedalo ti se čuva još {time}",
+    "active.holdNone": "Sjedalo je i dalje tvoje.",
+    "active.resume": "Vrati se u igru",
+    "active.leave": "Napusti igru",
+    "active.seatBadge": "Tvoje sjedalo",
+    "active.status.LOBBY": "Čeka početak",
+    "active.status.PLAYING": "Igra u tijeku",
+    "active.status.FINISHED": "Završeno",
+
+    "reconnect.title": "Veza je prekinuta",
+    "reconnect.hold": "Sjedalo ti se čuva još {time}",
+    "reconnect.retrying": "Pokušavam se ponovno spojiti…",
+
+    "exit.title": "Napustiti stol?",
+    "exit.description": "Ako ostaneš, nastavljaš igrati. Ako izađeš, počinje odbrojavanje od dvije minute; do isteka se možeš vratiti, a zatim tvoje mjesto preuzima bot.",
+    "exit.stay": "Ostani u sobi",
+    "exit.leave": "Izađi iz sobe",
+
+    "widget.title": "Aktivna soba",
+    "widget.return": "Vrati se",
+    "widget.leave": "Izađi",
+    "widget.collapse": "Sažmi",
+    "widget.expand": "Proširi",
+    "widget.dismiss": "Sakrij",
+
+    /* ─── Kompaktan red "Privatna igra" + "Spreman" (RoomPanel, mobilni layout) ──
+       DODANO NA KRAJ — ne premještaj i ne briši ključeve iznad. */
+    "room.privateGameShort": "Privatna",
+
+    /* ─── Semafor okrenut kako treba + jedan dijalog na kraju partije ────
+       (game/README.md §1.7, §2 — veliki broj su bodovi tekuće podjele,
+       ukupni rezultat partije ide malo ispod)
+       DODANO NA KRAJ — ne premještaj i ne briši ključeve iznad. */
+    "score.matchTotal": "ukupno {total}",
+    "over.dismiss": "U redu",
+
+    /* ─── Gledanje štihova (game/README.md §1.8) ─────────────────────────
+       Postavka sobe s TRI stanja, bira se pri otvaranju sobe i vrijedi za
+       cijelu sobu. Srednje stanje je par igrača koji ZAPOČINJE štih — nikad
+       "tko je na potezu".
+       DODANO NA KRAJ — ne premještaj i ne briši ključeve iznad. */
+    "rules.trickReview": "Gledanje štihova",
+    "rules.trickReview.off": "Isključeno",
+    "rules.trickReview.leaderPair": "Par koji je na redu",
+    "rules.trickReview.all": "Svi",
+    /* Lica trostrukog prekidača u „Nova igra” — puna rečenica iznad ostaje
+       pristupačno ime svakog gumba, ovo je samo ono što stane u redak. */
+    "rules.trickReviewShort.off": "Ne",
+    "rules.trickReviewShort.leaderPair": "Par",
+    "rules.trickReviewShort.all": "Svi",
+    "rules.trickReviewBadge.off": "Bez gledanja štihova",
+    "rules.trickReviewBadge.leaderPair": "Štihove gleda par koji je na redu",
+    "rules.trickReviewBadge.all": "Štihove gledaju svi",
+
+    "tricks.title": "Štihovi",
+    "tricks.open": "Pogledaj odigrane štihove",
+    "tricks.trickNo": "{n}. štih",
+    "tricks.ledBy": "otvara {name}",
+    "tricks.wonBy": "uzeo {name}",
+    "tricks.empty": "Još nema odigranih štihova.",
+    "tricks.hiddenOff": "Gledanje štihova je isključeno u ovoj sobi.",
+    "tricks.hiddenLeaderPair": "Štihove pregledava samo par koji je započeo trenutni štih.",
+
+    /* ─── Jedna igra odjednom (game/README.md §3.2) ─────────────────────── */
+    "error.ALREADY_IN_GAME": "Već imaš sjedalo u drugoj igri. Vrati se za stol ili je napusti.",
+    "lobby.blockedByActive": "Već imaš igru u tijeku. Vrati se za stol ili pričekaj istek odbrojavanja.",
+    "lobby.blockedRoom": "Ne možeš ući — već imaš aktivnu igru.",
+
+    /* ─── "Dolazi uskoro" (src/game/GameComingSoonPage.tsx) ───────────────
+       Ono što /igra prikazuje dok je produkcijski prekidač isključen
+       (ops/toggle-game.sh). "Igraj" je od sada uvijek u izborniku, pa ova
+       stranica mora sama objasniti zašto igre još nema. Bez odbrojavanja i
+       bez datuma — ne znamo kada se prekidač pali.
+       DODANO NA KRAJ — ne premještaj i ne briši ključeve iznad. */
+    "comingSoon.metaTitle": "Igranje bele — uskoro — bela-turniri.com",
+    "comingSoon.metaDescription": "Bela online je u pripremi. Turniri, kalendar, karta i bela blok rade kao i dosad.",
+    "comingSoon.label": "Bela online",
+    "comingSoon.title": "Igranje bele — dolazi uskoro",
+    "comingSoon.description": "Još radimo na online beli. Dok ne bude spremna, sve ostalo radi kao i dosad — turniri, kalendar, karta i bela blok.",
+    "comingSoon.backToTournaments": "Idi na turnire",
+    "comingSoon.openBlok": "Otvori bela blok",
+
+    /* ─── Tko je u sobi + puna soba (game/README.md §3 "Lobby", §3.2) ─────
+       Redak u predvorju sada pokazuje stvarne suigrače (`RoomSummary.occupants`),
+       a soba bez slobodnog sjedala i bez gledatelja odbija ulaz unaprijed
+       (`RoomSummary.joinable`) umjesto da te tiho pretvori u gledatelja.
+       DODANO NA KRAJ — ne premještaj i ne briši ključeve iznad. */
+    "lobby.full": "Puna",
+    "lobby.fullBlocked": "Soba je puna — nema slobodnog sjedala.",
+    "lobby.emptySeat": "Slobodno sjedalo",
+    "lobby.occupantsAria": "Za stolom: {names}",
+    "lobby.freeSeats.one": "još {n} slobodno sjedalo",
+    // `.two` je slovenska dvojina; hrvatski je nikad ne traži, ali mora
+    // postojati jer `sl` tipizira ovu datoteku.
+    "lobby.freeSeats.two": "još {n} slobodna sjedala",
+    "lobby.freeSeats.few": "još {n} slobodna sjedala",
+    "lobby.freeSeats.other": "još {n} slobodnih sjedala",
+    "lobby.spectateHint": "Sva sjedala su zauzeta — možeš gledati.",
+    "room.sitHere": "Sjedni ovdje",
 }
 
 /** Ugovor koji svaki drugi jezik mora zadovoljiti za `game`. */

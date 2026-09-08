@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react"
 import type { Seat, Team } from "@bela/engine"
+import type { SeatInfo } from "@bela/protocol"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Seat geometry for the table.
@@ -18,6 +19,17 @@ import type { Seat, Team } from "@bela/engine"
    ────────────────────────────────────────────────────────────────────── */
 
 export const SEATS: readonly Seat[] = [0, 1, 2, 3]
+
+/** `@bela/protocol` inlines the union in `SeatInfo`; naming it here keeps
+ *  every signature that takes one readable. */
+export type Occupant = SeatInfo["occupant"]
+
+/** Who is in a seat — a bot's given name, a player's display name, or the
+ *  caller's own word for "nobody". */
+export function occupantName(occupant: Occupant, fallback: string): string {
+    if (occupant === null) return fallback
+    return occupant.kind === "BOT" ? occupant.name : occupant.user.name
+}
 
 /** Seats 0 and 2 are team A, seats 1 and 3 are team B (README §1.1). */
 export function teamOf(seat: Seat): Team {
@@ -57,25 +69,51 @@ export function seatsFromMe(mySeat: Seat | null): Seat[] {
     return [0, 1, 2, 3].map((i) => ((base + i) % 4) as Seat)
 }
 
-/** Where a seat is pinned on the felt. Shared by the live table and the
- *  room's preview of it, so the two never drift apart.
+/** Where a seat is pinned on the felt.
  *
- *  Partner top-centre, opponents on the flanks at mid height, me hugging the
- *  bottom edge right above the hand tray (game/DESIGN.md §1 "Stol"). The
- *  flanks sit slightly ABOVE centre because the trick's own cards fan
- *  downward from the middle, and the bottom row is a compact horizontal pill
- *  rather than a column, so it costs the felt almost no height. */
+ *  Partner top-centre, opponents on the flanks at the table's mid height,
+ *  and — for a spectator, who has no seat of their own below the felt —
+ *  seat 0 along the bottom (game/DESIGN.md §2.2).
+ *
+ *  Every anchor is expressed against the FOUR GEOMETRY VARIABLES the table's
+ *  root sets (`tableGeometry` in components/tableStyles.ts), never against
+ *  numbers of its own: `--seat-x` / `--seat-y` are the gaps from the table's
+ *  centre to a seat's inner edge, `--table-cy` is where that centre is, and
+ *  `--seat-w` / `--seat-h` are the seat block's own size. One place to tune,
+ *  and the flank offsets can never drift out of step with the trick's
+ *  `REST_X`/`REST_Y` again, because both are stated in the same file.
+ *
+ *  Each anchor is wrapped in a `min()` against the box's own edge, so a
+ *  window short or narrow enough that the ring does not fit degrades to
+ *  edge-to-edge instead of pushing a seat outside the felt. (The trick pile
+ *  scales down on exactly those screens — see TrickArea's TIGHT/SHORT — so
+ *  the two meet in the middle rather than colliding.) */
 export const SEAT_ANCHORS: Record<TablePosition, CSSProperties> = {
-    bottom: { bottom: "0px", left: "50%", transform: "translateX(-50%)" },
-    top: { top: "0px", left: "50%", transform: "translateX(-50%)" },
-    left: { left: "0px", top: "46%", transform: "translateY(-50%)" },
-    right: { right: "0px", top: "46%", transform: "translateY(-50%)" },
+    top: {
+        bottom: "min(calc(100% - var(--seat-h)), calc(var(--cy-bottom) + var(--seat-y)))",
+        left: "50%",
+        transform: "translateX(-50%)",
+    },
+    bottom: {
+        top: "min(calc(100% - var(--seat-h)), calc(var(--table-cy) + var(--seat-y)))",
+        left: "50%",
+        transform: "translateX(-50%)",
+    },
+    left: {
+        right: "min(calc(100% - var(--seat-w)), calc(50% + var(--seat-x)))",
+        top: "var(--table-cy)",
+        transform: "translateY(-50%)",
+    },
+    right: {
+        left: "min(calc(100% - var(--seat-w)), calc(50% + var(--seat-x)))",
+        top: "var(--table-cy)",
+        transform: "translateY(-50%)",
+    },
 }
 
-/** Seats on the flanks stack their card fan vertically; top/bottom horizontally. */
-export function isFlank(position: TablePosition): boolean {
-    return position === "left" || position === "right"
-}
+/* There used to be an `isFlank(position)` here, because the flanks rendered a
+   different seat from the top and bottom ones. They no longer do — one seat
+   anatomy, four anchors (Seat.tsx) — so nothing needs to ask. */
 
 /**
  * Deterministic 0..1 noise from two small integers. Used for the trick's

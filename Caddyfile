@@ -101,6 +101,16 @@ bela-turniri.com, www.bela-turniri.com {
         respond 404
     }
 
+    # ─── 0. Block the internal game-results endpoint from the public ────
+    # POST /api/internal/game-results is server-to-server only (the Node
+    # game server reporting a finished game, see game/README.md §8.4) —
+    # auth there is a shared secret header, not a Firebase token, so it
+    # must never be reachable from the internet at all. The token is
+    # defense in depth; this 404 is the real gate.
+    handle /api/internal/* {
+        respond 404
+    }
+
     # ─── 1a. Tight throttle on the SSR preview endpoints ───────────────
     # /api/preview/* is rendered per-request for crawlers/link-unfurlers
     # (see routes 3-6 below) - each one is a real DB read plus HTML render,

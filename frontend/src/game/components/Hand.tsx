@@ -1,8 +1,11 @@
 import { useRef } from "react"
-import { Box, Flex, Text } from "@chakra-ui/react"
-import type { Card, Suit } from "@bela/protocol"
+import { Box, Flex, Text, useBreakpointValue } from "@chakra-ui/react"
+import { keyframes } from "@emotion/react"
+import type { Card } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
-import { sortHandForDisplay } from "../util/cards"
+import { sortHandForDisplay, type CardSize } from "../util/cards"
+import { useGamePrefs } from "../hooks/useGamePrefs"
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import PlayingCard from "./PlayingCard"
 import { GLASS, INK_MUTED, SHORT } from "./tableStyles"
 
@@ -16,39 +19,60 @@ import { GLASS, INK_MUTED, SHORT } from "./tableStyles"
       you play leaves an EMPTY SLOT behind. Cards that shuffle themselves
       left after every trick are how a player's thumb lands on the wrong one
       — muscle memory over tidiness (game/DESIGN.md §2.4).
-   2. Legality is VISUAL, not a rejection. Legal cards sit raised and are
-      tappable; illegal ones stay in place, dimmed and inert — you can still
-      see what you hold (which matters for planning) but you cannot throw a
-      card the server would bounce. `legal` comes straight from
-      `PlayerView.legalMoves`, so the client never re-derives the rules.
+   2. Legality controls interaction without recommending a move. Every card
+      keeps the same full-colour resting appearance; only cards contained in
+      `PlayerView.legalMoves` respond to a tap. The server validates the same
+      engine result again, so an illegal play cannot bypass this UI.
    3. The row NEVER scrolls sideways. On a narrow screen the slots tighten
       and the cards overlap instead; the visible slice of each is its tap
       target and it never falls below ~42 px (a 360 px phone cannot fit eight
       44 px cards, and a card that has scrolled off-screen is worse than a
       slightly narrow one).
-   4. It is sorted by suit with trump first (`sortHandForDisplay`) and never
-      re-sorted mid-deal.
+   4. It uses one fixed suit/rank order (`sortHandForDisplay`) in every deal.
+      Trump never moves a suit, so shuffling cannot change the layout rule.
    ────────────────────────────────────────────────────────────────────── */
 
-/** Card width at `size="md"` — the slot maths has to agree with it. */
-const CARD_W = 48
+/** Card widths from CARD_METRICS. Slot maths must use the size actually drawn. */
+const CARD_WIDTH: Record<"sm" | "md", number> = { sm: 56, md: 72 }
+
+/* Fan geometry — purely a paint-time transform (rotate + a couple of px of
+   translateY), never touches the slot's actual box size, so it cannot
+   change a tap target or fight the "never re-flow" contract above. Cards
+   read as a hand of real cards standing in a fan rather than a flat row of
+   tiles touching edge to edge; the further a card sits from the centre, the
+   more it tilts and the lower it sits, hinged from its own bottom edge. */
+const FAN_ANGLE_STEP = 3.1
+const FAN_ANGLE_MAX = 12
+const FAN_ARC_STEP = 2.4
+
+function fanTransform(index: number, count: number, compact: boolean): { angle: number; arc: number } {
+    if (count <= 1) return { angle: 0, arc: 0 }
+    const rel = index - (count - 1) / 2
+    const angleStep = compact ? 1.7 : FAN_ANGLE_STEP
+    const angleMax = compact ? 6 : FAN_ANGLE_MAX
+    const arcStep = compact ? 1.4 : FAN_ARC_STEP
+    const angle = Math.max(-angleMax, Math.min(angleMax, rel * angleStep))
+    return { angle, arc: Math.abs(rel) * arcStep }
+}
 
 export default function Hand({
     cards,
     legal,
-    trump,
     disabled = false,
     onPlay,
 }: {
     cards: Card[]
     /** `PlayerView.legalMoves` — empty when it is not our turn. */
     legal: Card[]
-    trump: Suit | null
     /** True while an animation is playing or the connection is down. */
     disabled?: boolean
     onPlay: (card: Card) => void
 }) {
     const { t } = useTranslation()
+    const [prefs] = useGamePrefs()
+    const reducedMotion = usePrefersReducedMotion() || prefs.reduceMotion
+    const cardSize = (useBreakpointValue<CardSize>({ base: "sm", md: "md" }) ?? "sm") as "sm" | "md"
+    const cardWidth = CARD_WIDTH[cardSize]
     const legalSet = new Set(legal)
     const myTurn = legal.length > 0 && !disabled
 
@@ -64,7 +88,7 @@ export default function Hand({
     const known = kept.length > 0 && cards.every((card) => kept.includes(card))
     const slots = known
         ? layoutRef.current.map((card) => (card !== null && held.has(card) ? card : null))
-        : sortHandForDisplay(cards, trump)
+        : sortHandForDisplay(cards)
     layoutRef.current = slots
 
     if (cards.length === 0) {
@@ -99,6 +123,36 @@ export default function Hand({
                 {slots.map((card, index) => {
                     const isLegal = card !== null && legalSet.has(card)
                     const isLast = index === count - 1
+                    const { angle, arc } = fanTransform(index, count, cardSize === "sm")
+                    const fanCss =
+                        card !== null
+                            ? {
+                                  transform: `rotate(${angle}deg) translateY(${arc}px)`,
+                                  transformOrigin: "bottom center",
+                                  // Plays once, on this DOM node's first paint —
+                                  // React keys slots by card id, so a card that
+                                  // was already in the hand and just moved
+                                  // position (a resort) keeps its element and
+                                  // never replays this; only a genuinely new
+                                  // card (the initial six, or the two dealt
+                                  // after bidding) mounts fresh and deals in.
+                                  ...(reducedMotion
+                                      ? {}
+                                      : {
+                                            animation: `${keyframes({
+                                                from: {
+                                                    transform: `rotate(${angle}deg) translateY(${arc + 26}px) scale(0.85)`,
+                                                    opacity: 0,
+                                                },
+                                                to: {
+                                                    transform: `rotate(${angle}deg) translateY(${arc}px) scale(1)`,
+                                                    opacity: 1,
+                                                },
+                                            })} 260ms cubic-bezier(0.16,1,0.3,1) backwards`,
+                                            animationDelay: `${Math.min(index, 7) * 35}ms`,
+                                        }),
+                              }
+                            : {}
                     return (
                         <Box
                             key={card ?? `empty-${index}`}
@@ -108,32 +162,32 @@ export default function Hand({
                             // cards overlap instead of the row scrolling.
                             css={{
                                 width: isLast
-                                    ? `${CARD_W}px`
-                                    : `min(${CARD_W}px, calc((100% - ${CARD_W}px) / ${Math.max(1, count - 1)}))`,
+                                    ? `${cardWidth}px`
+                                    : `min(${cardWidth}px, calc((100% - ${cardWidth}px) / ${Math.max(1, count - 1)}))`,
+                                ...fanCss,
                             }}
-                            zIndex={isLegal ? count + index : index}
+                            // Keep the natural fan order for every card. Legal
+                            // cards used to jump above and visually separate
+                            // from the rest, which looked like a recommendation.
+                            zIndex={index}
                         >
                             {card === null ? (
-                                // The gap a played card leaves: a faint
-                                // outline, so the hand keeps its shape and
-                                // you can see how far through the deal you
-                                // are without counting.
+                                // The gap a played card leaves. It keeps its
+                                // BOX — that is the whole "never re-flow"
+                                // contract above — but paints nothing: an
+                                // outlined ghost of every card already played
+                                // turns the tray into a row of empty boxes by
+                                // the sixth trick, which is exactly the clutter
+                                // the table is trying not to have.
                                 <Box
-                                    w={`${CARD_W}px`}
-                                    h="68px"
-                                    rounded="md"
-                                    borderWidth="1px"
-                                    borderStyle="dashed"
-                                    borderColor="brand.700/70"
-                                    opacity={0.5}
+                                    w={`${cardWidth}px`}
+                                    h={cardSize === "sm" ? "93px" : "120px"}
                                     aria-hidden="true"
                                 />
                             ) : (
                                 <PlayingCard
                                     card={card}
-                                    size="md"
-                                    raised={myTurn && isLegal}
-                                    dimmed={myTurn && !isLegal}
+                                    size={cardSize}
                                     disabled={!myTurn || !isLegal}
                                     onSelect={myTurn && isLegal ? onPlay : undefined}
                                 />

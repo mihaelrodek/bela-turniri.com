@@ -467,4 +467,38 @@ export const tournament: TournamentDict = {
     "sync.pending.two": "{n} spremembi čakata",
     "sync.pending.few": "{n} spremembe čakajo",
     "sync.pending.other": "{n} sprememb čaka",
+
+    // ═══════════════════════ "Poveži blok sa stolom" (BLOK-LINK.md §4) ═══════════════════════
+    "blokLinks.pendingHeading": "Zahteve za povezavo",
+    /* Dual kept, as everywhere else in this file: 1 zahteva, 2 zahtevi,
+       3-4 zahteve, 5+ zahtev. */
+    "blokLinks.pendingCount.one": "{n} zahteva",
+    "blokLinks.pendingCount.two": "{n} zahtevi",
+    "blokLinks.pendingCount.few": "{n} zahteve",
+    "blokLinks.pendingCount.other": "{n} zahtev",
+    "blokLinks.requestLine": "Runda {round} · Miza {table} · Par: {pair}",
+    "blokLinks.approve": "Odobri",
+    "blokLinks.reject": "Zavrni",
+    "blokLinks.linkedBadge": "Blok povezan: {name}",
+    "blokLinks.endLink": "Prekini povezavo z blokom",
+    "blokLinks.rejectConfirmTitle": "Zavrniti zahtevo za povezavo?",
+    "blokLinks.rejectConfirmBody": "{name} bo obveščen/a, da je zahteva zavrnjena.",
+    "blokLinks.rejectConfirmYes": "Da, zavrni",
+    "blokLinks.revokeConfirmTitle": "Prekiniti povezavo z blokom?",
+    "blokLinks.revokeConfirmBody":
+        "{name} ne bo več mogel/mogla pošiljati rezultata iz bloka za to mizo, dokler ne zaprosi za novo povezavo.",
+    "blokLinks.revokeConfirmYes": "Da, prekini",
+    "blokLinks.toast.approved": "Povezava z blokom odobrena",
+    "blokLinks.toast.rejected": "Zahteva za povezavo zavrnjena",
+    "blokLinks.toast.revoked": "Povezava z blokom prekinjena",
+
+    /* ═══════════════════════════════════════════════════════════════════
+       REVIZIJA 2026-09-08 — JAVNI ZAPISNIK POVEZANE MIZE
+       BLOK-LINK.md §6.2
+       ═══════════════════════════════════════════════════════════════════
+       Vrstica tekme s povezanim blokom nosi povezavo na `/blok/z/{token}`.
+       Napis je samostalnik, cel stavek o tem, da je javen, pa gre v `title`. */
+    "blokLinks.logbook": "Zapisnik",
+    "blokLinks.logbookTitle":
+        "Odpri zapisnik povezanega bloka — javna povezava, odpre se v novem zavihku",
 }

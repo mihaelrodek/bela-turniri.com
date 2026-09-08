@@ -26,8 +26,30 @@ export type Phase = "BIDDING" | "PLAYING" | "DEAL_DONE" | "GAME_OVER"
 
 export type TargetScore = 501 | 701 | 1001
 
+/**
+ * "Gledanje štihova" — who may review the completed tricks of the deal, with
+ * seat attribution (README §1.8). NOT a rule of play: `reduce`, `legalMoves`
+ * and `scoreDeal` never read it. It exists here only because `viewFor(state,
+ * seat)` is the one place redaction can be enforced and `state` is its only
+ * input.
+ *
+ *   • `off`        — nobody reviews anything. THE DEFAULT.
+ *   • `leaderPair` — the seat that LEADS the current trick and its partner.
+ *                    Not "whoever is on the move": the leader's pair.
+ *   • `all`        — everyone at the table, spectators included.
+ */
+export type TrickReview = "off" | "leaderPair" | "all"
+export const TRICK_REVIEWS: readonly TrickReview[] = ["off", "leaderPair", "all"]
+export const DEFAULT_TRICK_REVIEW: TrickReview = "off"
+
 export interface GameConfig {
     targetScore: TargetScore
+    /** Defaults to standard declarations. */
+    noDeclarations?: boolean
+    /** Only configurable when noDeclarations is true; defaults to allowed. */
+    allowBela?: boolean
+    /** Who may review completed tricks; defaults to `off`. */
+    trickReview?: TrickReview
     /** Any string; the engine derives its PRNG from it. Same seed + same actions ⇒ same game. */
     seed: string
 }
@@ -65,8 +87,29 @@ export interface BiddingState {
     caller: Seat | null
 }
 
+/**
+ * A completed trick, stored as it was actually played.
+ *
+ * `plays` is the record: every card WITH the seat that threw it, in play
+ * order. Nothing else can answer "who played what" — `cards` alone cannot,
+ * and the leader used to be re-derived by walking the win chain backwards
+ * from the current trick, which was fragile bookkeeping to hang a feature on.
+ * `no` makes the global order of the deal explicit even though `tricksWon` is
+ * bucketed per team.
+ *
+ * `winner` and `cards` are kept (and always populated) because scoring, the
+ * bots and the UI already read them: `cards` is exactly
+ * `plays.map(p => p.card)`.
+ */
 export interface WonTrick {
+    /** 1-based position within the deal. */
+    no: number
+    /** Who opened the trick; `plays[0].seat`. */
+    leader: Seat
     winner: Seat
+    /** Every play, with its seat, in play order. */
+    plays: TrickCard[]
+    /** The same cards without their seats, in play order. */
     cards: Card[]
 }
 
@@ -98,11 +141,30 @@ export interface GameState {
     bidding: BiddingState
     trick: TrickState
     tricksWon: Record<Team, WonTrick[]>
-    /** Computed once hands reach 8 cards; per seat. Revealed to players after the first trick. */
+    /** Computed once hands reach 8 cards; per seat. Revealed after trump selection, before the first card. */
     declarations: Record<Seat, Declaration[]>
     /** Team that scores its declarations this deal (null = nobody declared anything). */
     declarationsScoringTeam: Team | null
     belaDeclared: Team | null
+    /**
+     * The seat that DECLINED to announce bela this deal, or null (README §1.4).
+     *
+     * Announcing is a CHOICE, not an automatism: on a deal the caller's team is
+     * about to lose, every point of the deal goes to the opponents, so a bela
+     * would be 20 points handed to the other side. A player who can see the
+     * fall coming stays quiet.
+     *
+     * The refusal is asked once — when the FIRST of trump K/Q is played — and
+     * is FINAL for the deal. It lives here, in the state, rather than in the
+     * client, so nothing a browser does can resurrect it: a reconnecting
+     * client, the bot playing on a timeout, or the bot that took the seat over
+     * all see the same dead bela.
+     *
+     * Deliberately NOT in `PlayerView`: publishing "seat 2 refused a bela"
+     * would announce exactly the fact the player chose to hide — that they
+     * hold K+Q of trump. It never leaves the server.
+     */
+    belaRefused: Seat | null
     dealScore: DealScore | null
     score: Record<Team, number>
     history: DealScore[]
@@ -113,7 +175,22 @@ export interface GameState {
 export type GameAction =
     | { type: "BID"; seat: Seat; trump: Suit }
     | { type: "PASS"; seat: Seat }
-    | { type: "PLAY"; seat: Seat; card: Card }
+    /**
+     * `bela` is the player's ANSWER to "Zovi belu?", asked only when this card
+     * is the first of trump K/Q out of a hand that holds both (README §1.4):
+     *
+     *   • omitted / `true` → announce. Silence declares: no answer, a timeout,
+     *     a disconnect and every bot move all land here, and 20 points is a
+     *     gain on the large majority of deals.
+     *   • `false`          → decline, once and for the whole deal
+     *     (`belaRefused`). The second of the two cards is then an ordinary
+     *     card: it is never asked about again and never scores.
+     *
+     * The flag can only SUPPRESS a bela the hand already backs — it can never
+     * create one. A `true` from a seat that does not hold both is not an
+     * error, it is simply nothing: see `applyPlay`.
+     */
+    | { type: "PLAY"; seat: Seat; card: Card; bela?: boolean }
     | { type: "NEXT_DEAL" }
 
 export type GameEvent =
@@ -127,7 +204,19 @@ export type GameEvent =
     | { type: "TRICK_WON"; winner: Seat; cards: TrickCard[]; points: number; trickNo: number }
     | {
           type: "DECLARATIONS_REVEALED"
-          perSeat: Record<Seat, Declaration[]>
+          /**
+           * ONLY the seats of `scoringTeam` (README §1.4) — the losing pair's
+           * declarations are lost and are never transmitted. Partial, so a
+           * non-scoring seat has no entry at all rather than an empty array.
+           *
+           * The server broadcasts one identical `game.events` frame to
+           * everybody at the table, so whatever this carries must be safe for
+           * every recipient. Trimming it here — rather than redacting the
+           * frame per connection — keeps that single-frame guarantee true.
+           * A seat's OWN declarations, which it may always see, travel in
+           * `PlayerView.declarations`, not in this event.
+           */
+          perSeat: Partial<Record<Seat, Declaration[]>>
           scoringTeam: Team | null
       }
     | { type: "DEAL_SCORED"; dealScore: DealScore }
@@ -155,14 +244,47 @@ export interface PlayerView {
     trick: TrickState
     /** Number of tricks won so far per team this deal. */
     tricksWon: Record<Team, number>
+    /** Card points collected in completed tricks of the current deal. */
+    currentDealPoints: Record<Team, number>
     /** The last completed trick, so the UI can animate it being collected. */
     lastTrick: WonTrick | null
     /**
-     * Declarations visible to this seat: own declarations always; everyone's
-     * once the first trick of the deal is done (README §1.4).
+     * Every completed trick of this deal in play order, with seat attribution
+     * — the "gledanje štihova" review (README §1.8).
+     *
+     * `null` means THIS seat may not review them, and then the data is simply
+     * not here: the restriction is applied in `viewFor`, on the server, so it
+     * cannot be undone from a browser. Optional (rather than required) so a
+     * PlayerView assembled by hand — the bots' simulation sub-views — need not
+     * carry it; `undefined` reads the same as `null`.
+     */
+    trickHistory?: WonTrick[] | null
+    /**
+     * Declarations visible to this seat (README §1.4): its OWN always — they
+     * are its own cards — plus, once trump has been selected, the seats of the
+     * team that WON the declarations contest. The losing pair's declarations
+     * are lost and are never sent to anybody, so a seat whose own pair lost
+     * finds only itself here. A spectator gets the scoring team's only.
      */
     declarations: Partial<Record<Seat, Declaration[]>>
+    /**
+     * The declaration bonus each team has banked this deal: the scoring team's
+     * declarations summed, plus 20 for an announced bela to whichever team
+     * announced it (engine `declarationPoints`, the same arithmetic
+     * `DealScore.declarationPoints` uses — the scoreboard's "+150" and the
+     * deal summary can therefore never disagree).
+     *
+     * `{A: 0, B: 0}` before trump selection. It does NOT include card points,
+     * the last-trick +10, a štiglja, or the pass/fall verdict — those are
+     * settled by `scoreDeal` and appear in `DealScore`.
+     *
+     * Optional for the same reason as `trickHistory`: `@bela/bots` assembles
+     * PlayerViews by hand for its simulations. `undefined` means "no bonus
+     * known"; read it as 0.
+     */
+    declarationPoints?: Record<Team, number>
     declarationsRevealed: boolean
+    declarationsScoringTeam: Team | null
     belaDeclared: Team | null
     dealScore: DealScore | null
     score: Record<Team, number>

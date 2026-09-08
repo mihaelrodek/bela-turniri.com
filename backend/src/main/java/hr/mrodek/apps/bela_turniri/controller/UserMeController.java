@@ -1,5 +1,6 @@
 package hr.mrodek.apps.bela_turniri.controller;
 
+import hr.mrodek.apps.bela_turniri.dtos.GameStatsDto;
 import hr.mrodek.apps.bela_turniri.dtos.MyTournamentParticipationDto;
 import hr.mrodek.apps.bela_turniri.dtos.SyncProfileRequest;
 import hr.mrodek.apps.bela_turniri.dtos.UserProfileDto;
@@ -12,6 +13,7 @@ import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
 import hr.mrodek.apps.bela_turniri.services.CurrentUser;
+import hr.mrodek.apps.bela_turniri.services.GameStatsService;
 import hr.mrodek.apps.bela_turniri.services.MessageService;
 import hr.mrodek.apps.bela_turniri.services.SlugService;
 import hr.mrodek.apps.bela_turniri.services.StorageService;
@@ -52,6 +54,7 @@ public class UserMeController {
     @Inject StorageService storageService;
     @Inject MessageService messages;
     @Inject CurrentUser currentUser;
+    @Inject GameStatsService gameStatsService;
 
     @GET
     @Path("/tournaments")
@@ -124,6 +127,23 @@ public class UserMeController {
             ));
         }
         return out;
+    }
+
+    /**
+     * The viewer's online-Bela record (game/README.md §8.5) — one always-present
+     * {@code global} row plus a {@code byTargetScore} map holding only the
+     * categories they have actually played.
+     *
+     * <p>Computed by query on every call, never from a stored counter, so it
+     * cannot drift from the recorded games. The rows come from the Node game
+     * server via {@code POST /api/internal/game-results}; that server also owns
+     * the eligibility rule (a game counts only when both teams contain at least
+     * one human), so nothing is filtered here.
+     */
+    @GET
+    @Path("/game-stats")
+    public GameStatsDto gameStats() {
+        return gameStatsService.statsFor(currentUser.requireUid());
     }
 
     @GET

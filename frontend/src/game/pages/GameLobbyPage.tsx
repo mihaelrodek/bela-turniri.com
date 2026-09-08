@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
-import { Badge, Box, Button, HStack, Heading, Input, InputGroup, Text, VStack } from "@chakra-ui/react"
-import { FiPlus, FiSearch, FiUsers } from "react-icons/fi"
-import type { TargetScore } from "@bela/protocol"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { Badge, Box, Button, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Text, VStack } from "@chakra-ui/react"
+import { FiLogIn, FiPlus, FiSearch, FiSettings, FiUsers } from "react-icons/fi"
+import type { RoomStatus, RoomSummary } from "@bela/protocol"
+import type { CreateGameOptions } from "../components/CreateGameDialog"
 import EmptyState from "../../components/EmptyState"
 import { useDocumentHead } from "../../hooks/useDocumentHead"
 import { useTranslation } from "../../i18n"
@@ -10,13 +11,14 @@ import { showError } from "../../toaster"
 import CreateGameDialog from "../components/CreateGameDialog"
 import JoinByCodeDialog from "../components/JoinByCodeDialog"
 import PlayerAvatar from "../components/PlayerAvatar"
+import GameSettingsSheet from "../components/GameSettingsSheet"
 import RoomListItem from "../components/RoomListItem"
+import { formatCountdown, useHoldCountdown } from "../hooks/useHoldCountdown"
 import { useGameSocket } from "../hooks/useGameSocket"
 
 /* ──────────────────────────────────────────────────────────────────────────
-   GameLobbyPage (/igra) — mirrors bela.fun's "Postojeće igre" screen
-   (game/DESIGN.md §1 "Lobby", §2.9): my avatar up top, a search box, a list
-   of room cards, and a fixed bottom CTA to start or join a game.
+   GameLobbyPage (/igra) — player settings, a card-table welcome panel,
+   create/join actions and a searchable grid of public rooms.
 
    The room list is pushed, not polled: `lobby.subscribe` and the server
    re-sends `lobby.rooms` on every change (README §3), so a table filling up
@@ -26,6 +28,53 @@ import { useGameSocket } from "../hooks/useGameSocket"
    the whole flow — create, sit, add bots, play a deal — works with no server
    running. See `src/game/README.md`.
    ────────────────────────────────────────────────────────────────────── */
+
+/** The lobby's "you have a game running" card, with the live hold countdown. */
+function ActiveGameCard({
+    roomName,
+    status,
+    holdUntil,
+    onResume,
+    onLeave,
+}: {
+    roomName: string
+    status: RoomStatus
+    holdUntil: number | null
+    onResume: () => void
+    onLeave: () => void
+}) {
+    const { t } = useTranslation()
+    const remaining = useHoldCountdown(holdUntil)
+
+    return (
+        <Box rounded="l3" borderWidth="1px" borderColor="brand.400" bg="bg.panel" px="3" py="2.5" shadow="sm">
+            <HStack justify="space-between" gap="3" wrap="wrap">
+                <HStack gap="2" minW="0" flex="1" wrap="wrap">
+                    <Text fontWeight="semibold" whiteSpace="nowrap">{t("game.active.title")}</Text>
+                    <Badge size="sm" variant="subtle" colorPalette={status === "PLAYING" ? "green" : "gray"}>
+                        {t(`game.active.status.${status}`)}
+                    </Badge>
+                    <Text fontSize="sm" color="fg.muted" lineClamp={1}>{roomName}</Text>
+                    {remaining !== null && remaining > 0 && (
+                        <Badge size="sm" variant="subtle" colorPalette="orange">
+                            {t("game.active.holdLeft", { time: formatCountdown(remaining) })}
+                        </Badge>
+                    )}
+                </HStack>
+                <HStack gap="2" flexShrink={0}>
+                    <Button size="sm" colorPalette="brand" onClick={onResume}>
+                        <FiLogIn /> {t("game.active.resume")}
+                    </Button>
+                    {status !== "PLAYING" && (
+                        <Button size="sm" variant="outline" onClick={onLeave}>
+                            {t("game.active.leave")}
+                        </Button>
+                    )}
+                </HStack>
+            </HStack>
+        </Box>
+    )
+}
 
 export default function GameLobbyPage() {
     const { t } = useTranslation()
@@ -37,15 +86,24 @@ export default function GameLobbyPage() {
     const [search, setSearch] = useState("")
     const [createOpen, setCreateOpen] = useState(false)
     const [joinOpen, setJoinOpen] = useState(false)
+    const [privateRoom, setPrivateRoom] = useState<RoomSummary | null>(null)
+    const [settingsOpen, setSettingsOpen] = useState(false)
 
     useDocumentHead({ title: t("game.lobby.metaTitle"), description: t("game.lobby.metaDescription") })
 
     // The server answers `room.create` / `room.joinByCode` with `room.joined`,
-    // so the moment a room appears on this connection we hand over to the
-    // room page.
+    // so the moment a room appears we hand over to the room page — but ONLY
+    // when this page asked for it. The connection now outlives these pages
+    // (see `../gameConnection.ts`), so `socket.room` can perfectly well be a
+    // room we are still a member of while deliberately standing in the lobby;
+    // navigating on its mere presence would make /igra impossible to open.
+    const wantsRoomRef = useRef(false)
     const joinedId = socket.room?.id ?? null
     useEffect(() => {
-        if (!joinedId) return
+        if (!joinedId || !wantsRoomRef.current) return
+        wantsRoomRef.current = false
+        setJoinOpen(false)
+        setPrivateRoom(null)
         navigate(`/igra/soba/${joinedId}${mock ? "?mock=1" : ""}`, { replace: true })
     }, [joinedId, mock, navigate])
 
@@ -63,30 +121,88 @@ export default function GameLobbyPage() {
 
     const connected = socket.status === "open"
 
-    const create = (targetScore: TargetScore, isPrivate: boolean) => {
-        socket.send({ t: "room.create", targetScore, private: isPrivate })
+    const create = (options: CreateGameOptions) => {
+        wantsRoomRef.current = true
+        socket.send({ t: "room.create", ...options })
         setCreateOpen(false)
     }
 
     const joinByCode = (code: string) => {
+        wantsRoomRef.current = true
         socket.send({ t: "room.joinByCode", code })
-        setJoinOpen(false)
     }
 
+    const openRoom = (room: RoomSummary) => {
+        const mine = active?.roomId === room.id
+        /* "Puna" is the server's own verdict (`RoomSummary.joinable`), not a
+           guess from the counts, so the refusal here says exactly what the
+           join would say — instead of walking into the room screen to be
+           thrown out of it, or worse, parked there as a spectator in a room
+           that has none. Our own room is never refused. */
+        if (!room.joinable && !mine) {
+            showError(t("game.lobby.fullBlocked"))
+            return
+        }
+        if (room.private && !mine) {
+            setPrivateRoom(room)
+            setJoinOpen(true)
+            return
+        }
+        navigate(`/igra/soba/${room.id}${mock ? "?mock=1" : ""}`)
+    }
+
+    /* ONE GAME AT A TIME (game/README.md §3.2). While a room still holds a
+       seat for us, opening or joining another one is refused by the server —
+       so the buttons that would fire that request are disabled here instead,
+       and the card above says how to get out of it (back to the table, or
+       leave it). The client is not the boundary: the server refuses the same
+       thing whatever this page does. */
+    const active = socket.activeSeat
+    const blocked = active !== null
+
     return (
-        <Box maxW="720px" mx="auto" pb={{ base: "150px", md: "120px" }}>
-            <VStack gap="4" align="stretch">
+        <Box maxW="1040px" mx="auto" pb="8">
+            <VStack gap="6" align="stretch">
                 <HStack justify="space-between" gap="3">
                     <HStack gap="2" minW="0">
                         <PlayerAvatar name={socket.me?.name} avatarUrl={socket.me?.avatarUrl} size="sm" />
                         <Text fontWeight="medium" lineClamp={1}>{socket.me?.name ?? "…"}</Text>
                     </HStack>
+                    <HStack>
+                    <IconButton aria-label={t("game.settings.title")} variant="outline" rounded="full" onClick={() => setSettingsOpen(true)}><FiSettings /></IconButton>
                     {!connected && (
                         <Badge size="sm" variant="subtle" colorPalette="orange">
                             {t(`game.connection.${socket.status}`)}
                         </Badge>
                     )}
+                    </HStack>
                 </HStack>
+
+                {socket.me?.guest && <Text fontSize="sm" color="fg.muted">{t("game.guest.statsHint")} <Link to="/prijava">{t("game.guest.login")}</Link></Text>}
+
+                {/* "Imaš aktivnu igru" — the server tells us which room still
+                    holds a seat for this user (`game.active`), so walking out
+                    of a table is recoverable instead of a silent forfeit. */}
+                {active && (
+                    <ActiveGameCard
+                        roomName={active.roomName}
+                        status={active.status}
+                        holdUntil={active.holdUntil}
+                        onResume={() => navigate(`/igra/soba/${active.roomId}${mock ? "?mock=1" : ""}`)}
+                        onLeave={() => socket.leaveRoom()}
+                    />
+                )}
+                <VStack align="stretch" gap="1.5">
+                    {/* Only "Nova igra" up here — 2026-09-08, user request. The
+                        code dialog is still the way into a private room, but it
+                        is reached by TAPPING that room in the list below, where
+                        the code is being asked for something you can see. A
+                        standing button asked for a code with no room in sight. */}
+                    <HStack gap="3" wrap="wrap">
+                        <Button colorPalette="brand" onClick={() => setCreateOpen(true)} disabled={!connected || blocked}><FiPlus />{t("game.lobby.newGame")}</Button>
+                    </HStack>
+                    {blocked && <Text fontSize="sm" color="fg.muted">{t("game.lobby.blockedByActive")}</Text>}
+                </VStack>
 
                 <HStack justify="space-between" gap="2">
                     <Heading textStyle="title">{t("game.lobby.heading")}</Heading>
@@ -111,53 +227,31 @@ export default function GameLobbyPage() {
                         description={t("game.lobby.empty.description")}
                     />
                 ) : (
-                    <VStack gap="2" align="stretch">
+                    <SimpleGrid columns={{ base: 1, md: 2 }} gap="4">
                         {rooms.map((room) => (
                             <RoomListItem
                                 key={room.id}
                                 room={room}
-                                onClick={() => navigate(`/igra/soba/${room.id}${mock ? "?mock=1" : ""}`)}
+                                mine={active?.roomId === room.id}
+                                /* Our own room is always open to us; any other
+                                   one is closed while we hold a seat. */
+                                disabled={blocked && active?.roomId !== room.id}
+                                onClick={() => openRoom(room)}
                             />
                         ))}
-                    </VStack>
+                    </SimpleGrid>
                 )}
             </VStack>
 
-            <Box
-                position="fixed"
-                left="0"
-                right="0"
-                bottom="0"
-                zIndex={1100}
-                bg="bg.panel"
-                borderTopWidth="1px"
-                borderColor="border.subtle"
-                pt="3"
-                px="4"
-                style={{ paddingBottom: "calc(var(--chakra-spacing-3) + env(safe-area-inset-bottom, 0px))" }}
-            >
-                <VStack maxW="720px" mx="auto" gap="2" align="stretch">
-                    <Button variant="outline" onClick={() => setJoinOpen(true)} disabled={!connected}>
-                        {t("game.lobby.joinByCode")}
-                    </Button>
-                    <Button
-                        size="lg"
-                        colorPalette="brand"
-                        onClick={() => setCreateOpen(true)}
-                        disabled={!connected}
-                    >
-                        <FiPlus /> {t("game.lobby.newGame")}
-                    </Button>
-                </VStack>
-            </Box>
-
-            <CreateGameDialog
+            {createOpen && <CreateGameDialog
                 open={createOpen}
                 onOpenChange={setCreateOpen}
                 onCreate={create}
                 busy={!connected}
-            />
-            <JoinByCodeDialog open={joinOpen} onOpenChange={setJoinOpen} onSubmit={joinByCode} />
+            />}
+            <GameSettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+            <JoinByCodeDialog open={joinOpen} roomName={privateRoom?.name}
+                onOpenChange={(open) => { setJoinOpen(open); if (!open) setPrivateRoom(null) }} onSubmit={joinByCode} />
         </Box>
     )
 }

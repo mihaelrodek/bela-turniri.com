@@ -2,8 +2,24 @@
    *.test.ts), just a way to hand-build GameState for the pure-rule tests. */
 
 import { expect } from "vitest"
-import type { Card, GameState, Seat, Suit, TrickCard } from "../src/index"
+import type { Card, GameState, Seat, Suit, TrickCard, WonTrick } from "../src/index"
 import { EngineError, createRng } from "../src/index"
+
+/**
+ * A completed trick in the shape the engine stores (`WonTrick`): its position
+ * in the deal, who led, who won, and every play with its seat. Seats are
+ * handed out from `leader` in play order — enough for the scoring and review
+ * tests, which care about the cards and the order, not about who was dealt what.
+ */
+export function won(no: number, winner: Seat, cards: Card[], leader: Seat = winner): WonTrick {
+    return {
+        no,
+        leader,
+        winner,
+        plays: cards.map((card, i) => ({ seat: (((leader + i) % 4) as Seat), card })),
+        cards: cards.slice(),
+    }
+}
 
 /** Assert that `fn` throws an EngineError carrying exactly `code`. */
 export function expectEngineError(fn: () => unknown, code: EngineError["code"]): void {
@@ -34,6 +50,7 @@ export function makeState(over: Partial<GameState> = {}): GameState {
         declarations: { 0: [], 1: [], 2: [], 3: [] },
         declarationsScoringTeam: null,
         belaDeclared: null,
+        belaRefused: null,
         dealScore: null,
         score: { A: 0, B: 0 },
         history: [],

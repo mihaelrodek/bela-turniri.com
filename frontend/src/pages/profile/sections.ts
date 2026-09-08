@@ -1,6 +1,6 @@
 import React from "react"
 import { FaTrophy } from "react-icons/fa"
-import { FiFileText, FiGrid, FiLayers, FiMail, FiUsers } from "react-icons/fi"
+import { FiBookOpen, FiFileText, FiGrid, FiLayers, FiMail, FiUsers } from "react-icons/fi"
 import { NAVBAR_H } from "../../components/navChrome"
 
 /**
@@ -18,6 +18,7 @@ export type ProfileSectionKey =
     | "predlosci"
     | "postavke"
     | "racuni"
+    | "blok"
     | "dashboard"
     | "popis-igraca"
     | "poruke"
@@ -53,6 +54,9 @@ export function buildProfileSections(
         // identity block above this list (name or the edit pencil), not by
         // its own nav item. See `ProfileIdentityBlock`'s `onEdit`.
         { key: "racuni", label: t("profile.tab.invoices"), icon: React.createElement(FiFileText, { size: 15 }) },
+        // Private scorepad history (BLOK-HISTORY.md §4) — never shown on a
+        // visitor's view of this page; see PublicProfilePage's isOwner branch.
+        { key: "blok", label: t("profile.tab.blok"), icon: React.createElement(FiBookOpen, { size: 15 }) },
         ...(isAdmin
             ? ([
                 { key: "dashboard", label: t("profile.tab.dashboard"), icon: React.createElement(FiGrid, { size: 15 }), admin: true },

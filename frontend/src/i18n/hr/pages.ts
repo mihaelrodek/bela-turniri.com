@@ -400,6 +400,63 @@ export const pages = {
     "contact.success.title": "Poruka je poslana",
     "contact.success.description": "Hvala na poruci — javit ćemo se čim prije na navedenu e-poštu.",
     "contact.success.backLink": "Natrag na turnire",
+
+    // ═══════════════════════ SharedBlokPage (/blok/z/{token}) ═══════════════════════
+    // Public, read-only view of a shared "Bela blok" session (BLOK-HISTORY.md
+    // §5.2) — no sign-in, opened straight from a chat-app link on a phone.
+    // Domain vocabulary (partija, podjela, zvanja, štiglja, adut) reuses the
+    // stable keys already established in the `blok` namespace (`blok.entry.*`,
+    // `blok.side.*`) — see `components/BlokGamesList.tsx` — so it is not
+    // duplicated here; this block only carries copy specific to this page.
+    "blokShare.seo.title": "Zapisnik partije bele — bela-turniri.com",
+    "blokShare.seo.description":
+        "Podijeljeni zapisnik odigrane bele — rezultat serije, sve partije i podjele.",
+    "blokShare.seo.ogTitle": "Zapisnik partije bele",
+    "blokShare.seo.ogDescription": "{us} {gamesUs} : {gamesThem} {them} — pogledaj cijeli zapisnik.",
+
+    // Trivial separator between the two side names in the headline — kept as
+    // its own key (rather than reusing another namespace's) so this page
+    // doesn't depend on copy another agent's file may change independently.
+    "blokShare.vs": "vs",
+
+    // The one state a recipient is most likely to hit: a revoked or mistyped
+    // link. Calm, not an error page — BLOK-HISTORY.md is explicit that this
+    // must never read as a crash or an empty page.
+    "blokShare.notFoundTitle": "Ova poveznica više ne radi",
+    "blokShare.notFoundDescription":
+        "Zapisnik ne postoji ili je vlasnik prekinuo dijeljenje. Zamoli ga za novu poveznicu.",
+    "blokShare.notFoundCta": "Otvori Bela blok",
+
+    // Separate from the 404 above on purpose: a network blip or a backend
+    // 5xx is NOT "the owner revoked this link" — that would tell someone on
+    // a bad connection to give up on a link that is perfectly alive. This
+    // state offers a retry instead of the "open Bela blok" dead end.
+    "blokShare.fetchFailedTitle": "Zapisnik trenutno nije dostupan",
+    "blokShare.fetchFailedDescription":
+        "Nešto je pošlo po zlu prilikom dohvaćanja zapisnika. Provjeri internetsku vezu i pokušaj ponovno.",
+    "blokShare.retry": "Pokušaj ponovno",
+
+    /* ═══════════════════════════════════════════════════════════════════
+       REVIZIJA 2026-09-08 (druga) — „DO 1001 · PROLAZ”
+       BLOK-HISTORY.md §5.5
+       ═══════════════════════════════════════════════════════════════════
+       Redak ispod rezultata više ne govori „Cilj”, nego „DO”, i uz cilj nosi
+       PRAVILO KRAJA PARTIJE. Bez pravila spremljeni pobjednik nije
+       provjerljiv: iste podjele daju drugog pobjednika po „dosta” i po
+       „prolaz”, pa pravilo mora stajati na ekranu, ne samo u zapisu.
+
+       Broj partija je iz tog retka NESTAO — partije su izlistane odmah
+       ispod, pa ih je brojati tu bilo isto rečeno dvaput.
+
+       Vlastiti `rule.*` ključevi drže oznaku dijeljenog prikaza neovisnom o
+       natpisima na čipovima u dijalogu s postavkama.
+
+       NADIĐENO ovom revizijom, zadržano da ne razbije ničiji rad u tijeku:
+       `blokShare.target`, `blokShare.gameHeading` i `blokShare.gamesCount.*`
+       više nemaju nijedno pozivno mjesto. */
+    "blokShare.meta": "DO {target} · {rule}",
+    "blokShare.rule.dosta": "DOSTA",
+    "blokShare.rule.prolaz": "PROLAZ",
 }
 
 /** Contract every other locale's `pages` namespace must satisfy. */

@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      "Povijest blokova na profilu" — BLOK-HISTORY.md §3.1.
+
+      One row = one SERIES (`serija`): every game played at the same table
+      between two presses of "Resetiraj", e.g. a series that ended 4 : 3 is a
+      single row holding seven games and all their deals.
+
+      Points worth knowing:
+
+        * `payload` is jsonb, not three normalised tables. The record is
+          written once, read whole, and never searched by a field inside a
+          deal. Everything a LISTING needs — the series result, the target,
+          the dates, the side names — sits in real columns, so
+          GET /user/me/blok-history never touches `payload`. Normalising
+          would have added three tables and zero queries (see the contract).
+
+        * `uq_blok_sessions_user_session` on (user_uid, session_id) is what
+          makes an upload idempotent. The blok keeps a finished series
+          locally until the server confirms it and retries after a failure,
+          so the SAME session_id will arrive twice; the service inserts with
+          ON CONFLICT DO NOTHING and then reads the row back, answering 200
+          with the existing record rather than storing a duplicate.
+          session_id is the client's own crypto.randomUUID(), scoped per user
+          so two accounts can never collide.
+
+        * `games_us` / `games_them` are the SERIES score (4 and 3), counted
+          on the server from the per-game winners in the payload. They are
+          not sent by the client — §2.3 has no such field — and counting
+          winners is tallying, not scoring, so no bela rule is duplicated in
+          Java.
+
+        * This is a PERSONAL SCOREPAD and nothing else reads it: it never
+          touches `matches`, tournament results or player statistics. Hence
+          no foreign key to anything — the only owner is a Firebase UID, the
+          same way `user_pair_presets` and `push_subscriptions` are keyed.
+
+        * The sequence is created explicitly and named to match the entity's
+          @SequenceGenerator (seq_blok_sessions_id), like every other table
+          here, rather than relying on an identity column Hibernate would
+          then disagree with.
+    -->
+
+    <changeSet id="2026-09-08-blok-sessions" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="blok_sessions"/>
+            </not>
+        </preConditions>
+
+        <createSequence sequenceName="seq_blok_sessions_id" incrementBy="1" startValue="1"/>
+
+        <createTable tableName="blok_sessions">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- What travels through the API; the bigint PK never leaves the server. -->
+            <column name="uuid" type="uuid">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_blok_sessions_uuid"/>
+            </column>
+
+            <!-- The client's own id for the series (crypto.randomUUID()).
+                 Half of the idempotency key; see the unique index below. -->
+            <column name="session_id" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Firebase UID of the owner. The ONLY scope every read and
+                 write of this table is made through. -->
+            <column name="user_uid" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Client wall clock (epoch ms on the wire), stored as real
+                 instants. Nullable: an old locally-stored game may not know
+                 when its series began. -->
+            <column name="started_at" type="timestamptz"/>
+            <column name="finished_at" type="timestamptz"/>
+
+            <!-- Points a game is played to, 1001 by default. -->
+            <column name="target" type="int">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Side names as the player typed them; empty/NULL means "show
+                 the translated MI / VI", so they are not defaulted here. -->
+            <column name="name_us" type="varchar(60)"/>
+            <column name="name_them" type="varchar(60)"/>
+
+            <!-- The series result, e.g. 4 and 3, plus the total it adds up
+                 to (games that ended without a winner are counted in
+                 games_count but in neither side's tally). -->
+            <column name="games_us" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="games_them" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="games_count" type="int">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- The games and every deal inside them, exactly as the summary
+                 columns above summarise. Capped at 256 KB by the service
+                 before it ever gets here. -->
+            <column name="payload" type="jsonb">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Idempotency: a retried upload of the same series is the same row. -->
+        <addUniqueConstraint tableName="blok_sessions"
+                             columnNames="user_uid, session_id"
+                             constraintName="uq_blok_sessions_user_session"/>
+
+        <!-- GET /user/me/blok-history: one user's series, newest first.
+             Postgres scans this index backwards for the DESC order, so a
+             plain ascending index is enough. -->
+        <createIndex tableName="blok_sessions" indexName="idx_blok_sessions_user_created">
+            <column name="user_uid"/>
+            <column name="created_at"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="blok_sessions"/>
+            <dropSequence sequenceName="seq_blok_sessions_id"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

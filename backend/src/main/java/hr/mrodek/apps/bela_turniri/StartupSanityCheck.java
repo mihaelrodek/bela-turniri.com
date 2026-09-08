@@ -26,12 +26,19 @@ import java.util.List;
  *   <li>{@code MINIO_ENDPOINT} doesn't reference {@code localhost} in prod
  *       (would mean the backend can't reach MinIO from inside the container
  *       network).</li>
+ *   <li>{@code GAME_RESULTS_TOKEN} is set in prod and is not the dev default
+ *       (unset means every online-game result is rejected with a 401 and the
+ *       statistics stay empty; the dev default means anyone who reaches the
+ *       endpoint can write to them).</li>
  * </ul>
  */
 @ApplicationScoped
 public class StartupSanityCheck {
 
     private static final Logger LOG = Logger.getLogger(StartupSanityCheck.class);
+
+    /** The %dev,test fallback in application.properties — never acceptable in prod. */
+    private static final String DEV_GAME_RESULTS_TOKEN = "dev-secret-change-me";
 
     @ConfigProperty(name = "quarkus.http.cors.origins")
     String corsOrigins;
@@ -44,6 +51,10 @@ public class StartupSanityCheck {
 
     @ConfigProperty(name = "minio.endpoint")
     String minioEndpoint;
+
+    /** Shared secret for POST /api/internal/game-results (game/README.md §8.4). */
+    @ConfigProperty(name = "game.results.token", defaultValue = "")
+    String gameResultsToken;
 
     void onStart(@Observes StartupEvent ev) {
         // Only nag in prod — dev/test profiles legitimately use localhost and
@@ -88,6 +99,19 @@ public class StartupSanityCheck {
                     + "'). Inside a container that means the MinIO client will "
                     + "fail to reach MinIO. Set it to e.g. 'http://minio:9000' "
                     + "(the docker-compose service name) or your managed S3 host.");
+        }
+
+        if (gameResultsToken == null || gameResultsToken.isBlank()) {
+            warnings.add("GAME_RESULTS_TOKEN is unset. POST /api/internal/game-results will "
+                    + "reject every report with 401, so no online-game statistics are recorded. "
+                    + "Set the same random value on the backend and the game server "
+                    + "(openssl rand -base64 32).");
+        } else if (DEV_GAME_RESULTS_TOKEN.equals(gameResultsToken)) {
+            warnings.add("GAME_RESULTS_TOKEN is still the dev default ('"
+                    + DEV_GAME_RESULTS_TOKEN
+                    + "'), which is committed to the repository. Anyone who can reach "
+                    + "/api/internal/game-results could forge game statistics. Set a real "
+                    + "random value (openssl rand -base64 32).");
         }
 
         if (warnings.isEmpty()) {

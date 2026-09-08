@@ -151,9 +151,17 @@ export function ProfilePhoneLine({ profile }: { profile: PublicProfile }) {
 export function ProfileIdentityBlock({
     profile,
     onEdit,
+    hidePhone = false,
 }: {
     profile: PublicProfile
     onEdit: () => void
+    /** The collapsed mobile header sits directly above "Moji podaci" (same
+     *  page, one scroll), which already shows the phone number as an
+     *  editable field — repeating it right above itself read as a mistake,
+     *  not confirmation. Desktop's sidebar copy stays put: it's a permanent
+     *  fixture next to whichever section is open, not stacked on top of
+     *  "Moji podaci" specifically. */
+    hidePhone?: boolean
 }) {
     const { t } = useTranslation()
     return (
@@ -195,7 +203,7 @@ export function ProfileIdentityBlock({
                     <FiEdit2 />
                 </IconButton>
             </HStack>
-            <ProfilePhoneLine profile={profile} />
+            {!hidePhone && <ProfilePhoneLine profile={profile} />}
         </VStack>
     )
 }

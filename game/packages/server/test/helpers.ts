@@ -12,6 +12,7 @@ export const DEV_ENV: Record<string, string | undefined> = {
 
 /** Fast timings so a whole game runs in milliseconds. */
 export const FAST_TIMINGS = {
+    declarationsMs: 0,
     turnTimeoutMs: 10_000,
     reconnectGraceMs: 10_000,
     botThinkMinMs: 0,

@@ -34,6 +34,8 @@ import { MyPairsCard } from "./profile/MyPairsCard"
 import { DrinkTemplateCard } from "./profile/DrinkTemplateCard"
 import { SettingsCard } from "./profile/SettingsCard"
 import { InvoicesCard } from "./profile/InvoicesCard"
+import { GameStatsCard } from "./profile/GameStatsCard"
+import { BlokHistoryCard } from "./profile/BlokHistoryCard"
 import { buildProfileSections, SIDEBAR_MAX_H, type ProfileSectionDef, type ProfileSectionKey } from "./profile/sections"
 
 /* The three admin consoles are reachable only by an admin, only on their own
@@ -367,6 +369,16 @@ export default function PublicProfilePage() {
             onEdit={() => setProfileTab("postavke")}
         />
     )
+    // The collapsed mobile header sits right above "Moji podaci" (MyDataCard),
+    // which already shows the phone number as an editable field — see
+    // ProfileIdentityBlock's `hidePhone` doc comment.
+    const identityMobile = (
+        <ProfileIdentityBlock
+            profile={profile}
+            onEdit={() => setProfileTab("postavke")}
+            hidePhone
+        />
+    )
 
     return (
         <Flex align="stretch" gap={{ base: "4", lg: "5" }} maxW="1100px" mx="auto" w="full">
@@ -403,7 +415,7 @@ export default function PublicProfilePage() {
                     the navbar's own frosted surface — so the two headers are
                     one component rather than two drifting copies. */}
                 <StickyPageHeader display={{ base: "block", lg: "none" }} mb="0">
-                    <Box pb="2.5">{identity}</Box>
+                    <Box pb="2.5">{identityMobile}</Box>
                     <StickyHeaderStrip
                         as="nav"
                         aria-label={t("profile.nav.sectionsAria")}
@@ -414,7 +426,12 @@ export default function PublicProfilePage() {
                 </StickyPageHeader>
 
                 {/* === TURNIRI === */}
-                {profileTab === "turniri" && tournamentsCard}
+                {profileTab === "turniri" && (
+                    <>
+                        {tournamentsCard}
+                        {isOwner && <GameStatsCard />}
+                    </>
+                )}
 
                 {/* === PREDLOŠCI — saved pair presets + drink templates === */}
                 {profileTab === "predlosci" && (
@@ -436,6 +453,11 @@ export default function PublicProfilePage() {
 
                 {/* === RAČUNI === */}
                 {profileTab === "racuni" && <InvoicesCard />}
+
+                {/* === BLOK — private scorepad history (BLOK-HISTORY.md §4),
+                    owner-only: reachable only through this owner-view branch,
+                    same as every other tab above. === */}
+                {profileTab === "blok" && <BlokHistoryCard />}
 
                 {/* === DASHBOARD — admin-only, on own profile === */}
                 {isAdmin && profileTab === "dashboard" && (

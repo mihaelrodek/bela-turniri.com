@@ -6,6 +6,7 @@ import type { CardSize, DeckStyle } from "../util/cards"
 import {
     CARD_INK,
     CARD_METRICS,
+    MADJARICA_HEIGHT,
     SUIT_IS_RED,
     SUIT_SYMBOL,
     cardAriaLabel,
@@ -19,10 +20,9 @@ import { MadjaricaCard, MadjaricaSuitIcon } from "../cards/madjarice"
    PlayingCard — one card, in whichever deck the player picked.
 
    Bela is played with **mađarice** (Hungarian, Tell pattern), so that is the
-   default and the artwork lives in `../cards/madjarice` as flat inline SVG:
-   32 faces built from four suit glyphs, three court figures and four season
-   vignettes, so the whole pack is a few kB of shared paths rather than 32
-   images to download, cache-bust and serve at 2×. The French deck stays as a
+   default and the artwork lives in `../cards/madjarice`. Prepared card images
+   take priority; cards without an image retain the inline SVG face.
+   The French deck stays as a
    setting (`useGamePrefs().deck === "francuske"`) and is the original CSS
    card — a rank and a pip glyph, two text nodes.
 
@@ -66,9 +66,10 @@ export default function PlayingCard({
     const [prefs] = useGamePrefs()
     const style = deck ?? prefs.deck
     const metrics = CARD_METRICS[size]
+    const height = style === "madjarice" ? MADJARICA_HEIGHT[size] : metrics.h
     const interactive = !!onSelect && !disabled && !faceDown && !!card
 
-    if (faceDown || !card) return <CardBack size={size} />
+    if (faceDown || !card) return <CardBack size={size} deck={style} />
 
     const suit = cardSuit(card)
     const rank = cardRank(card)
@@ -88,20 +89,57 @@ export default function PlayingCard({
             position="relative"
             display="block"
             w={metrics.w}
-            h={metrics.h}
+            h={height}
             flexShrink={0}
             rounded={metrics.radius}
             bg={style === "madjarice" ? CARD_INK.face : CARD_INK.faceFrench}
             color={SUIT_IS_RED[suit] ? CARD_INK.red : CARD_INK.ink}
             borderWidth={style === "madjarice" ? "0" : "1px"}
             borderColor={selected ? "brand.500" : "border.emphasized"}
-            boxShadow={selected ? "md" : "sm"}
+            // The photographed mađarice carry their own paper edge, which
+            // varies slightly shot to shot — a plain Chakra "sm"/"md" shadow
+            // read as a flat pasted sticker against the felt. This stacks a
+            // soft ambient shadow (the card sitting a little off the table),
+            // a tight contact shadow (the edge actually touching it) and a
+            // hairline dark ring that stands the card off ANY background
+            // regardless of how much white margin that particular photo has.
+            // The French deck keeps the plain Chakra shadow — it's a flat
+            // CSS face with its own border already.
+            boxShadow={
+                style === "madjarice"
+                    ? selected
+                        ? "0 1px 0 rgba(0,0,0,0.45) inset, 0 12px 22px -6px rgba(0,0,0,0.65), 0 2px 4px rgba(0,0,0,0.4)"
+                        : "0 1px 0 rgba(0,0,0,0.4) inset, 0 6px 14px -6px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.4)"
+                    : selected
+                        ? "md"
+                        : "sm"
+            }
             opacity={dimmed ? 0.42 : 1}
-            filter={dimmed ? "saturate(0.4)" : undefined}
+            filter={
+                dimmed
+                    ? "saturate(0.4)"
+                    // Unifies the 32 photographed faces (shot under slightly
+                    // different light) and gives the ink a bit more punch —
+                    // "richer" reads as "premium" more than any shape change
+                    // does. Flat French cards need none of this.
+                    : style === "madjarice"
+                        ? "saturate(1.1) contrast(1.05)"
+                        : undefined
+            }
             cursor={interactive ? "pointer" : "default"}
             transform={raised ? "translateY(-10px)" : undefined}
             transition="transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease"
-            _hover={interactive ? { transform: "translateY(-16px)", boxShadow: "md" } : undefined}
+            _hover={
+                interactive
+                    ? {
+                          transform: "translateY(-16px)",
+                          boxShadow:
+                              style === "madjarice"
+                                  ? "0 1px 0 rgba(0,0,0,0.45) inset, 0 18px 26px -8px rgba(0,0,0,0.65), 0 3px 5px rgba(0,0,0,0.4)"
+                                  : "md",
+                      }
+                    : undefined
+            }
             _focusVisible={{
                 outline: "2px solid",
                 outlineColor: "brand.500",
@@ -184,13 +222,13 @@ function FrenchFace({ suit, rankLabel, size }: { suit: Suit; rankLabel: string; 
  * rectangle. Theme-following on purpose — it is the one part of a card that
  * belongs to the table rather than to the pack.
  */
-export function CardBack({ size = "md" }: { size?: CardSize }) {
+export function CardBack({ size = "md", deck = "madjarice" }: { size?: CardSize; deck?: DeckStyle }) {
     const metrics = CARD_METRICS[size]
     return (
         <Box
             aria-hidden="true"
             w={metrics.w}
-            h={metrics.h}
+            h={deck === "madjarice" ? MADJARICA_HEIGHT[size] : metrics.h}
             flexShrink={0}
             rounded={metrics.radius}
             bg="brand.700"

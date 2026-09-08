@@ -162,47 +162,23 @@ const GLASS_CONTENT: SystemStyleObject = {
 
 const config = defineConfig({
     globalCss: {
-        /* ── App-wide background art ──────────────────────────────────────
-           The four bela suit cards (Zima/Proljeće/Ljeto/Jesen), faint,
-           behind the whole app. `bg-cards-faded.png` is a pre-processed copy
-           of the source art — rotated 90° counter-clockwise (portrait photo
-           → landscape, so it actually fits a screen) and its own alpha
-           channel scaled to 10% (see the `python3`/Pillow one-liner in the
-           commit that added it) — layered directly as `body`'s own
-           `background-image`, not a separate `opacity`-ed element or
-           pseudo. That was the first attempt (`body::before`,
-           `position: fixed`, `z-index: -1`) and it never painted: this
-           app's `body` carries `position: relative` (Chakra's own base
-           layer), and a negative-z-index pseudo of a positioned element
-           paints BELOW that element's own background-color, not above it —
-           confirmed live in Chrome devtools (computed styles were all
-           correct; forcing `z-index: 99999` painted it, `-1` never did, at
-           any opacity). A background-image is just part of `body`'s own
-           box, so it has no stacking question to get wrong — every real
-           card/panel in the app is opaque by design (see the glass-surfaces
-           note above) and simply paints over it in normal flow; it only
-           shows through the gaps: page margins, empty canvas.
-           `backgroundSize` is a fraction, not `cover`: `cover` crops a
-           four-card fan down to whichever slice fills the viewport, which
-           on a normal-width screen showed maybe one and a half cards
-           zoomed in — the point was the whole fan being recognisable.
-           It's a RESPONSIVE fraction, not a flat one: the percentage is of
-           the viewport's own width, so the same "55%" that reads fine on a
-           desktop shrinks to a barely-visible sliver on a 390px phone —
-           phones need a much bigger fraction of their own (much smaller)
-           screen for the fan to read as four actual cards rather than a
-           smudge.
-           `background-attachment: fixed` keeps it from scrolling with the
-           page (degrades gracefully to scrolling-with-content on older iOS
-           Safari, which never supported fixed backgrounds — not worth a
-           second image just for that). */
+        /* ── App-wide background colour ───────────────────────────────────
+           The faint four-suit card art that used to live here as a
+           `background-image` on `body` (with `background-attachment: fixed`
+           to keep it off the scroll) moved to `components/AppBackground.tsx`
+           — a real `position: fixed` element, mounted once at the root in
+           main.tsx. Reason: iOS Safari does not honour
+           `background-attachment: fixed` on the document's scrolling
+           element, silently treating it as `scroll`, which made the image
+           centre within `body`'s full (per-tab-varying) content height
+           instead of the viewport, and scroll away with the page instead of
+           staying put — both bugs were reported live. See that file's own
+           comment for the full explanation. `body` keeps only the base
+           colour here; its own background propagates to the canvas layer
+           (CSS spec), which is why `AppBackground` needs no colour of its
+           own to sit correctly between it and the app's content. */
         "html, body": {
             backgroundColor: "bg.canvas",
-            backgroundImage: "url(/bg-cards-faded.png)",
-            backgroundSize: { base: "95%", md: "70%", lg: "55%" },
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-            backgroundAttachment: "fixed",
             color: "fg.ink",
         },
         "::selection": {
@@ -212,17 +188,58 @@ const config = defineConfig({
 
         /* ── Leaflet in dark mode ──────────────────────────────────────────
            The basemap tiles are a fixed light raster from CARTO, so on the
-           dark theme the map was a bright rectangle punched into a dark page.
-           Filtering the tile PANE rather than each tile avoids seams between
-           tiles, and markers and popups live in sibling panes so they keep
-           their real colours. sepia() colourises the near-grey tiles,
-           hue-rotate() swings that warm cast round to blue, saturate() gives
-           it body, brightness() lifts it off pure black.
+           dark theme the map was a bright rectangle punched into a dark page
+           — the exact opposite of the point of a dark theme. Filtering the
+           tile PANE rather than each tile avoids seams between tiles, and
+           markers and popups live in sibling panes so they keep their real
+           colours.
+
+           This used to be a sepia/hue-rotate/saturate recolour with
+           `brightness(1.32)` — which, on a light basemap, made it BRIGHTER,
+           not darker; it only ever changed the tint, never the tone (request
+           2026-09-08: "treba biti tamnija nijansa"). A first fix used
+           `invert(0.85) hue-rotate(180deg)` (the standard "flip a light map
+           dark" trick), which works once the basemap actually loads — but
+           this app's CARTO tile source currently 403s without an API key
+           (a separate, known issue) and serves a near-white/grey placeholder
+           instead. `hue-rotate` has nothing to rotate on a desaturated
+           pixel, so that attempt read as plain dark GREY, not any
+           particular colour — confirmed live. Request 2026-09-08 (second
+           round): make it blue instead ("hladno plava").
+
+           Split into two steps that don't fight each other:
+             1. `brightness()`/`contrast()` on the pane itself — tone only,
+                never hue, so it darkens the placeholder AND any real tile
+                identically without caring what colour (or lack of one) is
+                underneath. 0.18 lands white ≈ #2e2e2e: dark, not full black.
+             2. A `::after` pseudo INSIDE the tile pane (so it is confined to
+                tiles — markers/popups are sibling panes, untouched) blended
+                with `mix-blend-mode: color`. That mode takes the hue+
+                saturation from ITS OWN background and the LIGHTNESS from
+                whatever is behind it — which is exactly what a hue-rotate
+                can't do to a grey pixel: it imposes real colour even where
+                there is none to begin with, while still tracking each
+                tile's own tone (so roads/water/land keep reading as
+                different shades of the same blue, not one flat rectangle).
+             The pane's own filter runs on the composited result of both
+             steps, so the ::after's colour rides along and gets the same
+             darkening — no separate brightness tuning needed for it.
 
            next-themes puts `class="dark"` on <html>, so all of this is
            dark-only. */
         ".dark .leaflet-tile-pane": {
-            filter: "sepia(1) hue-rotate(182deg) saturate(1.9) brightness(1.32)",
+            filter: "brightness(0.2) contrast(1.05)",
+        },
+        // No `position` override needed: leaflet.css already sets every
+        // `.leaflet-pane` to `position: absolute`, which is a valid
+        // containing block for the `inset: 0` pseudo below on its own.
+        ".dark .leaflet-tile-pane::after": {
+            content: "\"\"",
+            position: "absolute",
+            inset: 0,
+            background: "#1c5f92",
+            mixBlendMode: "color",
+            pointerEvents: "none",
         },
 
         /* Leaflet's own chrome — zoom buttons, popup bubble, attribution bar —
@@ -412,10 +429,17 @@ const config = defineConfig({
                        unaffected. `bg.subtle/muted/emphasized` stay plain
                        gray on purpose: they are recessed fills INSIDE a
                        panel, not a second canvas, so nothing here needed to
-                       move to keep the ladder legible. Dark is untouched —
-                       this is a light-theme-only accent. */
+                       move to keep the ladder legible.
+
+                       Dark was Chakra's stock gray.950 (#111111) until
+                       2026-09-08, lifted one small step to #141517 on
+                       request ("malo svjetlije") — still clearly darker
+                       than the gray.900 (#18181b) panels sitting on it (the
+                       whole point of a canvas/panel pair), just not flat
+                       black. White text keeps 18.3:1 (was 18.9:1) — no
+                       practical difference, AA/AAA unaffected. */
                     canvas: {
-                        value: { base: "#dae7de", _light: "#dae7de", _dark: "{colors.gray.950}" },
+                        value: { base: "#dae7de", _light: "#dae7de", _dark: "#141517" },
                     },
                     /* Cards, dialogs, the navbar — one step above the canvas.
                        Translucent (61%) — actually past `glass`'s own 72% at

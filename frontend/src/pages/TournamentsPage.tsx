@@ -71,8 +71,11 @@ const PageTour = lazy(() => import("../components/PageTour"))
    The screen is one toolbar over two sections:
 
      1. a single-row toolbar — search (with a real ⌘K / Ctrl-K shortcut behind
-        the hint chip), a "Filteri" disclosure, a "Sortiraj" menu and a
-        Mreža/Popis view switcher;
+        the hint chip), the "Kreiraj turnir" action, a "Filteri" disclosure, a
+        "Sortiraj" menu and a Mreža/Popis view switcher. Creating a tournament
+        lives HERE, not in the navigation: it is an action rather than a
+        destination, and it was costing a slot in both the desktop capsule and
+        the mobile tab bar;
      2. a filter panel that only exists while "Filteri" is on, holding the
         location, kotizacija and repasaž ranges plus the "U krugu od" radius —
         the old "Blizu mene" toggle and its three radius chips MOVED here and
@@ -582,64 +585,124 @@ export default function TournamentsPage() {
                     step. */}
                 {!loading && (
                     <Box data-tour="turniri-filters" mb="4">
-                        {/* One row on md+; on phones the search takes the full
-                            width and the three controls share the row beneath
-                            it (see the notes on each control). */}
+                        {/* One row on md+; on phones the search and the create
+                            button take the full width and the three remaining
+                            controls share the row beneath them (see the notes
+                            on each control). */}
                         <Stack direction={{ base: "column", md: "row" }} gap="2" align="stretch">
-                            <Box position="relative" flex="1" minW={{ base: "100%", md: "260px" }}>
-                                <Box
-                                    position="absolute"
-                                    left="3.5"
-                                    top="50%"
-                                    color="fg.muted"
-                                    pointerEvents="none"
-                                    zIndex="1"
-                                    style={{ transform: "translateY(-50%)" }}
-                                >
-                                    <FiSearch />
-                                </Box>
-                                <Input
-                                    ref={searchRef}
-                                    h={{ base: "42px", md: "44px" }}
-                                    pl="10"
-                                    pr="16"
-                                    bg="bg.panel"
-                                    borderColor="border.subtle"
-                                    rounded="lg"
-                                    placeholder={tt("pages.tournaments.search.placeholder")}
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        // Escape empties a non-empty box, then
-                                        // gets out of the way on a second press.
-                                        if (e.key !== "Escape") return
-                                        if (search) {
-                                            e.preventDefault()
-                                            setSearch("")
-                                        } else {
-                                            e.currentTarget.blur()
-                                        }
-                                    }}
-                                    aria-label={tt("pages.tournaments.search.placeholder")}
-                                />
-                                {search && (
+                            {/* Search + "Kreiraj turnir" share a row at every
+                                width. The create button moved OUT of both
+                                navigations (it is an action, not a place) and
+                                landed here rather than in the second row: that
+                                row already carries Filteri + Sortiraj + the
+                                view switcher and is at its limit at 320px,
+                                whereas the search field can spare ~44px. */}
+                            <HStack
+                                flex="1"
+                                gap="2"
+                                align="stretch"
+                                // 260px of search + the 44px button: the same
+                                // floor the search field alone used to hold, so
+                                // the md row still can't squeeze the query box
+                                // down to nothing.
+                                minW={{ base: "100%", md: "304px" }}
+                            >
+                                <Box position="relative" flex="1" minW="0">
                                     <Box
                                         position="absolute"
-                                        right="2.5"
+                                        left="3.5"
                                         top="50%"
+                                        color="fg.muted"
+                                        pointerEvents="none"
+                                        zIndex="1"
                                         style={{ transform: "translateY(-50%)" }}
                                     >
-                                        <IconButton
-                                            aria-label={tt("pages.tournaments.search.clearAria")}
-                                            size="xs"
-                                            variant="ghost"
-                                            onClick={() => setSearch("")}
-                                        >
-                                            <FiX />
-                                        </IconButton>
+                                        <FiSearch />
                                     </Box>
-                                )}
-                            </Box>
+                                    <Input
+                                        ref={searchRef}
+                                        h={{ base: "42px", md: "44px" }}
+                                        pl="10"
+                                        pr="16"
+                                        bg="bg.panel"
+                                        borderColor="border.subtle"
+                                        rounded="lg"
+                                        placeholder={tt("pages.tournaments.search.placeholder")}
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            // Escape empties a non-empty box, then
+                                            // gets out of the way on a second press.
+                                            if (e.key !== "Escape") return
+                                            if (search) {
+                                                e.preventDefault()
+                                                setSearch("")
+                                            } else {
+                                                e.currentTarget.blur()
+                                            }
+                                        }}
+                                        aria-label={tt("pages.tournaments.search.placeholder")}
+                                    />
+                                    {search && (
+                                        <Box
+                                            position="absolute"
+                                            right="2.5"
+                                            top="50%"
+                                            style={{ transform: "translateY(-50%)" }}
+                                        >
+                                            <IconButton
+                                                aria-label={tt("pages.tournaments.search.clearAria")}
+                                                size="xs"
+                                                variant="ghost"
+                                                onClick={() => setSearch("")}
+                                            >
+                                                <FiX />
+                                            </IconButton>
+                                        </Box>
+                                    )}
+                                </Box>
+
+                                {/* Rendered for signed-out visitors too, exactly
+                                    like this page's empty-state CTA: /turniri/novi
+                                    is wrapped in RequireAuth, which bounces them to
+                                    /prijava?next=… and back. No new sign-in flow,
+                                    and no button that silently does nothing.
+
+                                    The label collapses below lg — the toolbar has
+                                    room for it at 6xl but not next to a 230px
+                                    Sortiraj button at 768px — so the accessible
+                                    name comes from `aria-label`, which is present
+                                    at every width. */}
+                                <Button
+                                    asChild
+                                    h={{ base: "42px", md: "44px" }}
+                                    px={{ base: "0", lg: "4" }}
+                                    w={{ base: "42px", md: "44px", lg: "auto" }}
+                                    flexShrink="0"
+                                    colorPalette="brand"
+                                    rounded="lg"
+                                    fontWeight="semibold"
+                                    aria-label={tt("common.nav.kreirajTurnir")}
+                                    title={tt("common.nav.kreirajTurnir")}
+                                >
+                                    <RouterLink to="/turniri/novi">
+                                        <Box as="span" display="inline-flex" flexShrink="0" aria-hidden="true">
+                                            <FiPlus />
+                                        </Box>
+                                        {/* Just the verb on screen — the row it
+                                            sits in already says these are
+                                            tournaments, and the short label
+                                            buys back width for the search box
+                                            beside it. The full "Kreiraj
+                                            turnir" stays as the accessible
+                                            name above, where a screen reader
+                                            has no row to read it from. */}
+                                        <Box as="span" display={{ base: "none", lg: "inline" }}>
+                                            {tt("common.mobileNav.kreiraj")}
+                                        </Box>
+                                    </RouterLink>
+                                </Button>
+                            </HStack>
 
                             {/* Filteri + Sortiraj + the grid/list toggle share
                                 ONE row even at 360px: the two buttons are

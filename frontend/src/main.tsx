@@ -8,6 +8,7 @@ import { queryClient, CACHE_BUSTER, NON_PERSISTED_KEY_ROOTS } from "./queryClien
 import { persister } from "./persister"
 import { ColorModeProvider } from "./color-mode"
 import { system } from "./system"
+import AppBackground from "./components/AppBackground"
 import { AuthProvider } from "./auth/AuthContext"
 import AppToaster from "./components/AppToaster"
 import FirstRunInstallPrompt from "./components/FirstRunInstallPrompt"
@@ -81,6 +82,13 @@ const withQueryCache = persister ? (
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
         <ChakraProvider value={system ?? defaultSystem}>
+            {/* True `position: fixed`, mounted at the very top level (above
+                the router and every dialog/portal) so no ancestor transform
+                can turn it into a containing block for something else and no
+                page's own content height can affect where it centres — see
+                the component for the iOS `background-attachment: fixed` bug
+                this replaces. */}
+            <AppBackground />
             <ColorModeProvider>
                 {withQueryCache}
             </ColorModeProvider>

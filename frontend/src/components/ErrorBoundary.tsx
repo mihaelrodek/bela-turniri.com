@@ -2,6 +2,8 @@ import { Component, type ErrorInfo, type ReactNode } from "react"
 import { useLocation } from "react-router-dom"
 import { Box, Button, Heading, HStack, Text, VStack } from "@chakra-ui/react"
 import { t } from "../i18n"
+import OfflineNotice from "./OfflineNotice"
+import { OFFLINE_CHUNK_ERROR } from "../utils/lazyWithReload"
 
 type Props = {
     children: ReactNode
@@ -13,7 +15,13 @@ type Props = {
      */
     resetKey?: string | number
 }
-type State = { hasError: boolean }
+type State = {
+    hasError: boolean
+    /** The page's code is simply not on this device and there is no network to
+     *  fetch it with — a different thing from a crash, and it gets a different
+     *  screen (see `OfflineNotice`). */
+    offline: boolean
+}
 
 /**
  * Top-level safety net: any uncaught render error (a crashing component, or a
@@ -21,10 +29,13 @@ type State = { hasError: boolean }
  * here and shown as a friendly "refresh" screen instead of a blank white page.
  */
 export default class ErrorBoundary extends Component<Props, State> {
-    state: State = { hasError: false }
+    state: State = { hasError: false, offline: false }
 
-    static getDerivedStateFromError(): State {
-        return { hasError: true }
+    static getDerivedStateFromError(error: unknown): State {
+        // `name`, not `instanceof`: the error is thrown inside a lazily-loaded
+        // module and crosses React's boundary machinery on the way here.
+        const offline = error instanceof Error && error.name === OFFLINE_CHUNK_ERROR
+        return { hasError: true, offline }
     }
 
     componentDidUpdate(prev: Props) {
@@ -32,21 +43,28 @@ export default class ErrorBoundary extends Component<Props, State> {
         // route a clean slate. Without this the boundary stays latched and
         // every subsequent link click renders the same error page.
         if (this.state.hasError && prev.resetKey !== this.props.resetKey) {
-            this.setState({ hasError: false })
+            this.setState({ hasError: false, offline: false })
         }
     }
 
     componentDidCatch(error: Error, info: ErrorInfo) {
+        // A route chunk that is not on an offline device is an expected state,
+        // not a defect — it gets its own screen and stays out of the console,
+        // where a stack trace would only be noise.
+        if (error.name === OFFLINE_CHUNK_ERROR) return
         // Surface for debugging; no external error reporting is wired up.
         console.error("[ErrorBoundary]", error, info.componentStack)
     }
 
     render() {
         if (!this.state.hasError) return this.props.children
+        if (this.state.offline) return <OfflineNotice />
         return (
             <Box minH="100dvh" display="flex" alignItems="center" justifyContent="center" p="6">
                 <VStack gap="4" textAlign="center" maxW="sm">
-                    <Text fontSize="40px" lineHeight="1">🃏</Text>
+                    {/* No emoji here: the joker rendered as a white card on a
+                        dark page, which read as a stray card left over from
+                        the app's own deck rather than as an error mark. */}
                     <Heading size="md">{t("common.errorBoundary.title")}</Heading>
                     <Text fontSize="sm" color="fg.muted">
                         {t("common.errorBoundary.description")}

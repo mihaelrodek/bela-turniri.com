@@ -158,6 +158,15 @@ export const common: CommonDict = {
     "errorBoundary.home": "Nazaj na domačo stran",
     "errorBoundary.refresh": "Osveži stran",
 
+    // --- Offline: strani ni na napravi ---------------------------------------
+    "offline.title": "Ni internetne povezave",
+    "offline.description":
+        "Ta stran potrebuje internet. Blok deluje tudi brez povezave — vse, kar vpišeš, ostane na napravi.",
+    "offline.descriptionBlok":
+        "Ta stran potrebuje internet, na napravi pa ni shranjena. Poskusi znova, ko se povezava vrne.",
+    "offline.retry": "Poskusi znova",
+    "offline.blok": "Odpri blok",
+
     // --- Podium editor -------------------------------------------------------------
     "podium.title": "Stopničke",
     "podium.description":

@@ -211,6 +211,74 @@ export const profile = {
     "invoices.dialogTitleFallback": "Račun",
     "invoices.noDrinks": "Nema dodanih pića.",
     "invoices.total": "Ukupno",
+
+    // --- Turniri tab › Statistika igranja (owner) -----------------------
+    "gameStats.title": "Statistika igranja",
+    "gameStats.loadFailed": "Greška pri dohvaćanju statistike.",
+    "gameStats.emptyNoGames": "Još nema odigranih partija.",
+    "gameStats.games.one": "{n} partija",
+    "gameStats.games.two": "{n} partije",
+    "gameStats.games.few": "{n} partije",
+    "gameStats.games.other": "{n} partija",
+    "gameStats.wins.one": "{n} pobjeda",
+    "gameStats.wins.two": "{n} pobjede",
+    "gameStats.wins.few": "{n} pobjede",
+    "gameStats.wins.other": "{n} pobjeda",
+    "gameStats.losses.one": "{n} poraz",
+    "gameStats.losses.two": "{n} poraza",
+    "gameStats.losses.few": "{n} poraza",
+    "gameStats.losses.other": "{n} poraza",
+    "gameStats.winRate": "Postotak pobjeda",
+    "gameStats.categoryStats": "{wins}/{n} ({winRate}%)",
+    "gameStats.targetScore.501": "Do 501",
+    "gameStats.targetScore.701": "Do 701",
+    "gameStats.targetScore.1001": "Do 1001",
+
+    /* ═══════════════════════════════════════════════════════════════════
+       BLOK TAB — privatna povijest odigranih blokova (BLOK-HISTORY.md §4)
+       ═══════════════════════════════════════════════════════════════════
+       Vidljivo samo vlasniku profila, isti mehanizam kao "predlosci" /
+       "racuni" (v. pages/profile/sections.ts i PublicProfilePage.tsx).
+       Pojmovi zvanja/štiglja/pad/adut/partija su iz `blok` namespacea
+       (`blok.entry.*`, `blok.side.*`) — namjerno se ne dupliciraju ovdje. */
+    "tab.blok": "Blok",
+    "blok.title": "Blok",
+    "blok.description": "Povijest odigranih blokova — serije partija spremljene s tvog uređaja.",
+    "blok.loadFailed": "Greška pri dohvaćanju povijesti.",
+    "blok.empty": "Još nema spremljenih serija.",
+    "blok.emptyHint": "Serija se sprema kad na Bloku odabereš „Resetiraj”.",
+    "blok.gamesCount.one": "{n} partija",
+    "blok.gamesCount.two": "{n} partije",
+    "blok.gamesCount.few": "{n} partije",
+    "blok.gamesCount.other": "{n} partija",
+    "blok.detailTitleFallback": "Serija",
+    "blok.detailLoadFailed": "Greška pri dohvaćanju serije.",
+    "blok.deleteDialogTitle": "Obrisati seriju?",
+    "blok.deleteBody": "Sigurno želiš obrisati seriju {result}? Ova radnja se ne može poništiti.",
+    "blok.deleted": "Serija obrisana",
+
+    /* ═══════════════════════════════════════════════════════════════════
+       REVIZIJA 2026-09-08 (druga) — „Do 1001 · prolaz”
+       BLOK-HISTORY.md §5.5
+       ═══════════════════════════════════════════════════════════════════
+       Isti natpis kao na dijeljenom zapisniku i na kartici bloka: „Do” umjesto
+       „Cilj”, i pravilo kraja partije uz cilj. Malo slovo jer je riječ usred
+       retka, iza točke — čipovi u postavkama i dalje pišu „Dosta” / „Prolaz”
+       (`blok.rule.*` u `blok` rječniku).
+
+       Broj partija OSTAJE u ovom retku, za razliku od dijeljenog zapisnika:
+       redak u popisu serija ne izlistava partije ispod sebe (one su u
+       dijalogu, jedan dodir dalje), pa je ovo jedino mjesto gdje se broj
+       kaže.
+
+       U dijalogu `components/BlokGamesList.tsx` prikazuje rezultat serije
+       nakon svake partije uz rezultat te partije.
+
+       NADIĐENO: `blok.target` i `blok.gameHeading` više se nigdje ne
+       pozivaju. */
+    "blok.meta": "Do {target} · {rule}",
+    "blok.rule.dosta": "dosta",
+    "blok.rule.prolaz": "prolaz",
 }
 
 /** Contract every other locale's `profile` namespace must satisfy. */

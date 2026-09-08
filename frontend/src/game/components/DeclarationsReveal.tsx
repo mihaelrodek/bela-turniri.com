@@ -13,12 +13,19 @@ import { GLASS_STRONG, INK, INK_MUTED } from "./tableStyles"
    Declarations are detected automatically by the engine (README §1.4, an
    explicit decision to avoid a "did you forget to declare?" step), which
    means the player never sees them being made. So the one moment they ARE
-   revealed — after the first trick — has to say everything at once: whose
-   they were, WHICH CARDS, and that only the strongest team scores while the
-   other team's declarations are simply lost.
+   revealed — before the first card — has to say whose they were and WHICH
+   CARDS.
 
-   It dismisses itself after 3 s (the event queue's dwell) or on a tap,
-   whichever comes first: it is an interruption in the middle of a deal and
+   ONLY THE SCORING PAIR IS EVER SHOWN, because only the scoring pair is ever
+   sent (README §1.4): the losing pair's declarations are cards of hands
+   nobody has played yet, and handing them out was free information every
+   deal. There is therefore no dimmed "PROPADA" block any more — there is
+   nothing to dim. If the VIEWER's own declarations lost, they get one plain
+   line saying so and how much went with it; their own cards are theirs to
+   know, but nobody else's are shown, and no cards are drawn for that line.
+
+   It dismisses itself after 3.4 s (the event queue's dwell) or on a tap,
+   whichever comes first: the automatic opening preview is brief and
    must never be something you have to close.
    ────────────────────────────────────────────────────────────────────── */
 
@@ -28,12 +35,8 @@ function seatName(seats: RoomState["seats"], seat: Seat, fallback: string): stri
     return occupant.kind === "BOT" ? occupant.name : occupant.user.name
 }
 
-function declarationLabel(
-    t: (key: string, params?: Record<string, string | number>) => string,
-    declaration: Declaration,
-): string {
-    if (declaration.kind === "FOUR") return t("game.declaration.four", { points: declaration.points })
-    return t(`game.declaration.sequence.${Math.min(declaration.cards.length, 5)}`)
+function totalPoints(declarations: readonly Declaration[]): number {
+    return declarations.reduce((sum, d) => sum + d.points, 0)
 }
 
 /** The "Bela!" flash — 20 points for K+Q of trump, announced as it is played. */
@@ -74,17 +77,31 @@ export default function DeclarationsReveal({
     scoringTeam,
     seats,
     mySeat,
+    ownDeclarations,
     onDismiss,
 }: {
-    perSeat: Record<Seat, Declaration[]>
+    /** The SCORING pair only — that is all the engine sends (README §1.4). */
+    perSeat: Partial<Record<Seat, Declaration[]>>
     scoringTeam: Team | null
     seats: RoomState["seats"]
     mySeat: Seat | null
+    /** The viewer's own declarations, from `PlayerView.declarations[mySeat]`.
+     *  Used ONLY to say "yours lost" when our pair did not win the contest. */
+    ownDeclarations?: readonly Declaration[]
     onDismiss?: () => void
 }) {
     const { t } = useTranslation()
-    const withDeclarations = SEATS.filter((seat) => (perSeat[seat]?.length ?? 0) > 0)
     const myTeam: Team = mySeat === null ? "A" : teamOf(mySeat)
+    // Belt and braces: the payload is already trimmed server-side, but the
+    // overlay must not render a losing block even if one ever reached it.
+    const withDeclarations = SEATS.filter(
+        (seat) =>
+            (perSeat[seat]?.length ?? 0) > 0 &&
+            scoringTeam !== null &&
+            teamOf(seat) === scoringTeam,
+    )
+    const ownLost =
+        scoringTeam !== null && myTeam !== scoringTeam ? totalPoints(ownDeclarations ?? []) : 0
 
     return (
         <Flex
@@ -125,54 +142,52 @@ export default function DeclarationsReveal({
                         {t("game.declarations.none")}
                     </Text>
                 ) : (
-                    withDeclarations.map((seat) => {
-                        const scores = scoringTeam !== null && teamOf(seat) === scoringTeam
-                        return (
-                            <Box
-                                key={seat}
-                                opacity={scores ? 1 : 0.45}
-                                rounded="l2"
-                                px="2"
-                                py="1.5"
-                                bg={scores ? "brand.800/70" : "transparent"}
-                                borderWidth="1px"
-                                borderColor={scores ? "brand.500" : "brand.800/70"}
-                            >
-                                <HStack justify="space-between" gap="2">
-                                    <Text fontSize="xs" fontWeight="bold" color={INK} lineClamp={1}>
-                                        {seatName(seats, seat, t("game.seat.empty"))}
-                                    </Text>
-                                    <Text
-                                        fontSize="9px"
-                                        fontWeight="bold"
-                                        textTransform="uppercase"
-                                        letterSpacing="wide"
-                                        color={scores ? "brand.200" : INK_MUTED}
-                                    >
-                                        {scores ? t("game.declarations.scores") : t("game.declarations.lost")}
+                    withDeclarations.map((seat) => (
+                        <Box
+                            key={seat}
+                            rounded="l2"
+                            px="2"
+                            py="1.5"
+                            bg="brand.800/70"
+                            borderWidth="1px"
+                            borderColor="brand.500"
+                        >
+                            <HStack justify="space-between" gap="2">
+                                <Text fontSize="xs" fontWeight="bold" color={INK} lineClamp={1}>
+                                    {seatName(seats, seat, t("game.seat.empty"))}
+                                </Text>
+                                <Text
+                                    fontSize="9px"
+                                    fontWeight="bold"
+                                    textTransform="uppercase"
+                                    letterSpacing="wide"
+                                    color="brand.200"
+                                >
+                                    {t("game.declarations.scores")}
+                                </Text>
+                            </HStack>
+
+                            {/* Cards and the points, nothing else. The old
+                                "terca (20)" / "kvarta (50)" caption is gone
+                                (2026-09-08): nobody at a table says it, the
+                                cards already are the declaration, and the
+                                number is right there. */}
+                            {(perSeat[seat] ?? []).map((declaration) => (
+                                <HStack key={declaration.cards.join("-")} gap="2" mt="1.5" wrap="wrap">
+                                    <HStack gap="0" flex="1" minW="0">
+                                        {declaration.cards.map((card, i) => (
+                                            <Box key={card} ml={i === 0 ? "0" : "-10px"}>
+                                                <PlayingCard card={card} size="sm" />
+                                            </Box>
+                                        ))}
+                                    </HStack>
+                                    <Text textStyle="mono" fontSize="xs" fontWeight="bold" color={INK}>
+                                        {declaration.points}
                                     </Text>
                                 </HStack>
-
-                                {perSeat[seat].map((declaration) => (
-                                    <HStack key={declaration.cards.join("-")} gap="2" mt="1.5" wrap="wrap">
-                                        <HStack gap="0">
-                                            {declaration.cards.map((card, i) => (
-                                                <Box key={card} ml={i === 0 ? "0" : "-10px"}>
-                                                    <PlayingCard card={card} size="sm" />
-                                                </Box>
-                                            ))}
-                                        </HStack>
-                                        <Text fontSize="2xs" color={INK_MUTED} flex="1" lineClamp={1}>
-                                            {declarationLabel(t, declaration)}
-                                        </Text>
-                                        <Text textStyle="mono" fontSize="xs" fontWeight="bold" color={INK}>
-                                            {declaration.points}
-                                        </Text>
-                                    </HStack>
-                                ))}
-                            </Box>
-                        )
-                    })
+                            ))}
+                        </Box>
+                    ))
                 )}
 
                 {scoringTeam !== null && (
@@ -180,6 +195,15 @@ export default function DeclarationsReveal({
                         {scoringTeam === myTeam
                             ? t("game.declarations.weScore")
                             : t("game.declarations.theyScore")}
+                    </Text>
+                )}
+
+                {/* Our own declarations lost. One line, no cards: the viewer
+                    already holds these eight cards, but there is nothing to
+                    show off and nothing anyone else may see. */}
+                {ownLost > 0 && (
+                    <Text fontSize="2xs" color={INK_MUTED} textAlign="center">
+                        {t("game.declarations.oursLost", { points: ownLost })}
                     </Text>
                 )}
 

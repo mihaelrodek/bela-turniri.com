@@ -1,6 +1,6 @@
 import React from "react"
-import { Badge, Box, HStack, IconButton, Input, Text } from "@chakra-ui/react"
-import { FiAward, FiClock, FiEdit2, FiSave, FiX } from "react-icons/fi"
+import { Badge, Box, Button, chakra, HStack, IconButton, Input, Text } from "@chakra-ui/react"
+import { FiAward, FiBookOpen, FiClock, FiEdit2, FiLink, FiSave, FiX } from "react-icons/fi"
 
 import MatchBillButton from "../../../components/MatchBillButton"
 import { useTranslation } from "../../../i18n"
@@ -17,6 +17,7 @@ import {
     matchVisualState,
     winnerOf,
 } from "../../../utils/tournamentMatch"
+import type { OrganiserBlokLink } from "../../../api/blokLink"
 import type { PairShort } from "../../../types/pairs"
 
 export type MatchRowProps = {
@@ -42,6 +43,10 @@ export type MatchRowProps = {
     onCancelEdit: (roundId: number, matchId: number) => void
     onScoreChange: (roundId: number, matchId: number, which: "A" | "B", raw: string) => void
     onBillChange: (roundId: number, matchId: number, paidAt: string | null) => void
+    /** This match's APPROVED "Poveži blok sa stolom" link, if any (BLOK-LINK.md §4). */
+    blokLink?: OrganiserBlokLink | null
+    /** Opens the organiser's confirmation to end an approved link. */
+    onEndBlokLink?: (link: OrganiserBlokLink) => void
 }
 
 /**
@@ -71,6 +76,8 @@ function MatchRow({
     onCancelEdit,
     onScoreChange,
     onBillChange,
+    blokLink,
+    onEndBlokLink,
 }: MatchRowProps) {
     const { t: tr } = useTranslation()
 
@@ -440,6 +447,73 @@ function MatchRow({
 
                 {actionSlot}
             </Box>
+
+            {/* "Poveži blok sa stolom" — an APPROVED link is visible right on
+                the row it feeds, with a way to end it (BLOK-LINK.md §4). One
+                slim strip under both layouts rather than a fifth grid column,
+                since it only ever applies to a handful of tables at once. */}
+            {blokLink && (
+                <HStack
+                    mt="1"
+                    pt="1"
+                    borderTopWidth="1px"
+                    borderColor="border.subtle"
+                    justify="space-between"
+                    align="center"
+                    gap="2"
+                >
+                    <HStack gap="1.5" minW="0">
+                        <Box color="blue.fg" flexShrink={0} aria-hidden>
+                            <FiLink size={12} />
+                        </Box>
+                        <Text fontSize="2xs" color="fg.muted" truncate>
+                            {tr("tournament.blokLinks.linkedBadge", { name: blokLink.requestedByName })}
+                        </Text>
+                    </HStack>
+                    {/* The linked table's logbook — every deal behind the 2:1
+                        in this row (BLOK-LINK.md §6.2). A new tab, because the
+                        organiser is in the middle of running a round and must
+                        not lose the bracket to read a scorecard. The page is
+                        public by the player's own consent, given when they
+                        asked for the link; the title says so, so nobody passes
+                        the URL on believing it is private.
+
+                        The token arrives with the first score push, so this is
+                        absent on a freshly approved link and appears by itself
+                        with the first result. */}
+                    {blokLink.shareToken && (
+                        <Button
+                            asChild
+                            size="2xs"
+                            variant="ghost"
+                            colorPalette="blue"
+                            flexShrink={0}
+                            ml="auto"
+                        >
+                            <chakra.a
+                                href={`/blok/z/${encodeURIComponent(blokLink.shareToken)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={tr("tournament.blokLinks.logbookTitle")}
+                            >
+                                <FiBookOpen size={12} /> {tr("tournament.blokLinks.logbook")}
+                            </chakra.a>
+                        </Button>
+                    )}
+                    {onEndBlokLink && (
+                        <IconButton
+                            aria-label={tr("tournament.blokLinks.endLink")}
+                            title={tr("tournament.blokLinks.endLink")}
+                            size="2xs"
+                            variant="ghost"
+                            colorPalette="red"
+                            onClick={() => onEndBlokLink(blokLink)}
+                        >
+                            <FiX size={12} />
+                        </IconButton>
+                    )}
+                </HStack>
+            )}
         </Box>
     )
 }

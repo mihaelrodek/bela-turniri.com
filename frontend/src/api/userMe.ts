@@ -33,6 +33,18 @@ export type UserProfile = {
     locale?: string | null
 }
 
+export type GameStatCategory = {
+    games: number
+    wins: number
+    losses: number
+    winRate: number
+}
+
+export type GameStatsDto = {
+    global: GameStatCategory
+    byTargetScore?: Partial<Record<"501" | "701" | "1001", GameStatCategory>>
+}
+
 export async function getProfile(): Promise<UserProfile> {
     const { data } = await http.get<UserProfile>("/user/me/profile")
     return data
@@ -111,6 +123,18 @@ export async function deleteAvatar(): Promise<UserProfile> {
     const { data } = await http.delete<UserProfile>(
         "/user/me/avatar",
         { successMessage: t("common.toast.avatarRemoved") },
+    )
+    return data
+}
+
+/**
+ * Fetch the signed-in user's game statistics. Silent — stats are a soft,
+ * non-critical read; a failure should not disrupt the profile page.
+ */
+export async function fetchMyGameStats(): Promise<GameStatsDto> {
+    const { data } = await http.get<GameStatsDto>(
+        "/user/me/game-stats",
+        { silent: true },
     )
     return data
 }

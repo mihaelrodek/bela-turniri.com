@@ -1,18 +1,36 @@
-import { Box, IconButton, Text } from "@chakra-ui/react"
+import { Box, Text } from "@chakra-ui/react"
 import { Link as RouterLink, useLocation } from "react-router-dom"
-import { FiCalendar, FiHome, FiMap, FiPlus, FiUser } from "react-icons/fi"
+import { FiCalendar, FiEdit3, FiHome, FiMap, FiPlay } from "react-icons/fi"
 import { useTranslation } from "../i18n"
 import type { ReactNode } from "react"
 
 /**
- * Mobile-only bottom tab bar matching the design handoff (`screen-mobile.jsx`).
+ * Mobile-only bottom tab bar.
  *
  * Anatomy (left → right):
- *   Turniri | Kalendar | [Kreiraj 56px circle] | Karta | Profil
+ *   Turniri | Kalendar | Igraj | Karta | Blok
  *
- * The Kreiraj button is a raised solid-blue circle that overflows the bar's
- * top edge so it visually pops above the row — a common bottom-nav pattern
- * for the primary CTA. The other 4 are stacked icon + 11px label.
+ * "Igraj" sits dead centre on purpose: the middle slot is where a thumb
+ * rests, and online bela is the tap we want cheapest. It is also ALWAYS
+ * rendered — the production kill switch (game/hooks/useGameEnabled.ts) no
+ * longer decides whether the tab exists, only whether /igra shows the game or
+ * the "dolazi uskoro" page (src/game/GameFeatureGate.tsx). Do not put a
+ * `gameEnabled` filter back here: a fifth tab appearing under the user's
+ * thumb a moment after load moves every other tab sideways mid-tap.
+ *
+ * These are the SAME five destinations, in the same order and with the same
+ * icons, that NavBar's desktop capsule renders (see `buildNavItems` there) —
+ * the two bars are one navigation seen at two widths. Each bar keeps its own
+ * array because they render very differently; the contents must stay in step.
+ *
+ * Every tab is a stacked icon + 11px label, EXCEPT the centre one, which is a
+ * raised disc (`CENTRE_INDEX`). That shape used to belong to a "+" for creating
+ * a tournament; creating is an action rather than a place and moved to the
+ * /turniri toolbar, but the shape itself was worth keeping — five identical
+ * icons have no centre of gravity, and the disc is what makes the thumb's home
+ * position mean something. "Profil" is gone as well: the avatar in the
+ * top-right corner of NavBar is the way there, and a second door to the same
+ * room cost a fifth of the bar.
  *
  * <p>Visibility: shown on `base` viewport, hidden on `md+`. The bar uses
  * `position: fixed` + `bottom: 0` so it stays glued to the viewport bottom
@@ -37,6 +55,11 @@ type TabDef = {
     matchPrefixes?: string[]
 }
 
+/** The tab that gets the raised disc: the middle one, "Igraj". Derived from
+ *  the list rather than hard-coded, so the shape follows the tabs if the list
+ *  ever changes rather than pointing at whatever ends up third. */
+const CENTRE_INDEX = 2
+
 /**
  * Built inside the component (not as a module-level constant) so the
  * labels re-render immediately on a language switch — `useTranslation()`
@@ -48,12 +71,17 @@ function buildTabs(t: (key: string) => string): TabDef[] {
     return [
         { to: "/turniri", label: t("common.nav.turniri"), icon: <FiHome size={20} />, matchPrefixes: ["/turniri"] },
         { to: "/kalendar", label: t("common.nav.kalendar"), icon: <FiCalendar size={20} /> },
-        // Kreiraj sits in the middle slot as a raised circle button —
-        // see the dedicated JSX below for the styling. The entry here
-        // exists so the surrounding tabs lay out evenly around it.
-        { to: "/turniri/novi", label: t("common.mobileNav.kreiraj"), icon: <FiPlus size={22} /> },
+        // Online bela (src/game) — centre slot, see the header comment. The
+        // bar hides itself on /igra* (`hidden` below), so this tab hands the
+        // game its own full screen.
+        { to: "/igra", label: t("game.nav.igraj"), icon: <FiPlay size={20} />, matchPrefixes: ["/igra"] },
         { to: "/karta", label: t("common.nav.karta"), icon: <FiMap size={20} /> },
-        { to: "/profil", label: t("common.nav.profil"), icon: <FiUser size={20} />, matchPrefixes: ["/profil"] },
+        // Bela blok (src/blok) — public offline scorepad, meant to be opened
+        // one-handed at a real table, so mobile is its primary surface. Its own
+        // bottom-docked entry buttons (BLOK.md §3.1) are why /blok is in the
+        // `hidden` list below — same pattern as /turniri/novi's sticky submit
+        // bar and the game table's docked hand.
+        { to: "/blok", label: t("blok.nav"), icon: <FiEdit3 size={20} />, matchPrefixes: ["/blok"] },
     ]
 }
 
@@ -99,14 +127,23 @@ export default function MobileTabBar() {
     // collide with this row at the same viewport bottom). Auth pages
     // also hide it — there's nothing to navigate to until the user
     // signs in.
-    // The online-bela table (/igra*) is the same case as the create form: it
-    // sizes itself to `100dvh - chrome` and docks the hand on the viewport's
-    // bottom edge, which this bar would sit on top of.
+    // The online-bela TABLE (/igra/soba/…) is the same case as the create
+    // form: it sizes itself to `100dvh - chrome` and docks the hand on the
+    // viewport's bottom edge, which this bar would sit on top of.
+    //
+    // Only the table, not all of `/igra` — NARROWED 2026-09-08. "Igraj" is now
+    // the centre tab and, while the feature flag is off in production, it
+    // lands on the "dolazi uskoro" page. Hiding the bar there took the whole
+    // navigation away from someone who had simply tapped the middle tab and
+    // found nothing to play, leaving that page's own two buttons as the only
+    // way out. The lobby has no bottom-docked chrome either, so it keeps the
+    // bar too.
     const hidden =
         pathname.startsWith("/prijava") ||
         pathname.startsWith("/registracija") ||
         pathname.startsWith("/turniri/novi") ||
-        pathname.startsWith("/igra")
+        pathname.startsWith("/igra/soba") ||
+        pathname.startsWith("/blok")
 
     if (hidden) return null
 
@@ -148,32 +185,64 @@ export default function MobileTabBar() {
             px="2"
             pt="2"
         >
-            <Box display="grid" gridTemplateColumns="repeat(5, 1fr)" w="100%" alignItems="center">
-                {TABS.map((tab, idx) => {
+            {/* Column count follows the tab count rather than a hard-coded
+                number, so adding or removing a destination can never leave a
+                dead column behind. (It is a stable 5 today — the "Igraj" tab
+                no longer comes and goes with its production flag.) */}
+            <Box
+                display="grid"
+                gridTemplateColumns={`repeat(${TABS.length}, 1fr)`}
+                w="100%"
+                alignItems="center"
+            >
+                {TABS.map((tab, index) => {
                     const active = isActive(pathname, tab)
-                    // Middle slot (idx === 2) is the raised Kreiraj button.
-                    if (idx === 2) {
+
+                    /* THE CENTRE TAB IS RAISED — restored 2026-09-08 at the
+                       user's request, now carrying "Igraj" instead of the old
+                       create-tournament "+". A bar of five identical icons has
+                       no centre of gravity; the raised disc is what makes the
+                       thumb's home position mean something, and online play is
+                       what the user wants it to mean. It is a link like every
+                       other tab — same route, same accessible name — only
+                       painted differently, so nothing about navigation depends
+                       on the shape. */
+                    if (index === CENTRE_INDEX) {
                         return (
                             <Box key={tab.to} display="flex" justifyContent="center">
-                                <IconButton
+                                <Box
                                     asChild
-                                    aria-label={t("common.nav.kreirajTurnir")}
+                                    display="flex"
+                                    flexDirection="column"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                    boxSize="56px"
+                                    mt="-22px"
                                     rounded="full"
-                                    colorPalette="blue"
-                                    variant="solid"
-                                    w="56px"
-                                    h="56px"
-                                    boxShadow="md"
-                                    // Negative top margin lifts the circle above
-                                    // the bar so it visually pops. The transform
-                                    // hint keeps it crisp during scroll on iOS.
-                                    mt="-28px"
+                                    bg="brand.solid"
+                                    color="brand.contrast"
+                                    borderWidth="4px"
+                                    /* Ringed in the page's own colour so the
+                                       disc reads as sitting ON the bar rather
+                                       than punched through it. */
+                                    borderColor="bg.canvas"
+                                    boxShadow="raised"
+                                    transition="transform 0.15s ease"
+                                    _hover={{ transform: "translateY(-1px)" }}
+                                    _active={{ transform: "translateY(0)" }}
                                 >
-                                    <RouterLink to={tab.to}>{tab.icon}</RouterLink>
-                                </IconButton>
+                                    <RouterLink
+                                        to={tab.to}
+                                        aria-label={tab.label}
+                                        aria-current={active ? "page" : undefined}
+                                    >
+                                        {tab.icon}
+                                    </RouterLink>
+                                </Box>
                             </Box>
                         )
                     }
+
                     return (
                         <Box
                             asChild

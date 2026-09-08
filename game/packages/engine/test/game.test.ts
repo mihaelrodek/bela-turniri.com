@@ -1,17 +1,20 @@
 import { describe, expect, it } from "vitest"
-import type { Card, GameAction, GameEvent, GameState, Seat, Suit } from "../src/index"
+import type { Card, DealScore, GameAction, GameEvent, GameState, Seat, Suit, Team } from "../src/index"
 import {
     SEATS,
     SUITS,
     cardSuit,
+    declarationPoints,
+    fullDeck,
     legalBids,
     legalMoves,
     newGame,
     nextSeat,
     reduce,
     sortHand,
+    viewFor,
 } from "../src/index"
-import { allCards, expectEngineError, playing } from "./helpers"
+import { allCards, expectEngineError, makeState, playing, won } from "./helpers"
 
 const cfg = (seed: string, targetScore: 501 | 1001 = 1001) => ({ targetScore, seed })
 
@@ -195,7 +198,7 @@ describe("bidding (README §1.2)", () => {
         const state = newGame(cfg("hand"))
         const step = reduce(state, { type: "BID", seat: state.bidding.turn, trump: "HERC" })
         const next = step.state
-        expect(step.events.map((e) => e.type)).toEqual(["BID", "TRUMP_SET", "HAND_COMPLETED"])
+        expect(step.events.map((e) => e.type)).toEqual(["BID", "TRUMP_SET", "HAND_COMPLETED", "DECLARATIONS_REVEALED"])
         expect(next.phase).toBe("PLAYING")
         expect(next.stock).toEqual([])
         for (const seat of SEATS) {
@@ -282,7 +285,6 @@ describe("playing (README §1.5)", () => {
         expect(step.events.map((e) => e.type)).toEqual([
             "CARD_PLAYED",
             "TRICK_WON",
-            "DECLARATIONS_REVEALED",
         ])
         expect(step.events[1]).toMatchObject({
             type: "TRICK_WON",
@@ -297,7 +299,7 @@ describe("playing (README §1.5)", () => {
         expect(step.state.hands[3]).toEqual(["8TREF"])
     })
 
-    it("reveals declarations only once, after the first trick", () => {
+    it("does not repeat declarations after completed tricks", () => {
         const first = playing({
             trump: "HERC",
             leader: 0,
@@ -309,7 +311,7 @@ describe("playing (README §1.5)", () => {
             hands: { 3: ["KPIK"] },
         })
         const afterFirst = reduce(first, { type: "PLAY", seat: 3, card: "KPIK" })
-        expect(afterFirst.events.some((e) => e.type === "DECLARATIONS_REVEALED")).toBe(true)
+        expect(afterFirst.events.some((e) => e.type === "DECLARATIONS_REVEALED")).toBe(false)
 
         const second = playing({
             trump: "HERC",
@@ -321,7 +323,7 @@ describe("playing (README §1.5)", () => {
             ],
             hands: { 3: ["KKARA"] },
         })
-        second.tricksWon.A = [{ winner: 0, cards: ["APIK", "7PIK", "10PIK", "KPIK"] }]
+        second.tricksWon.A = [won(1, 0, ["APIK", "7PIK", "10PIK", "KPIK"])]
         const afterSecond = reduce(second, { type: "PLAY", seat: 3, card: "KKARA" })
         expect(afterSecond.events.some((e) => e.type === "DECLARATIONS_REVEALED")).toBe(false)
     })
@@ -359,6 +361,131 @@ describe("playing (README §1.5)", () => {
         const step = reduce(state, { type: "PLAY", seat: 0, card: "KPIK" })
         expect(step.events.some((e) => e.type === "BELA")).toBe(false)
         expect(step.state.belaDeclared).toBeNull()
+    })
+})
+
+/* Announcing bela is the holder's CHOICE (README §1.4). On a deal the calling
+   team is going to lose, every point of it goes to the opponents, so a bela is
+   20 points handed to the other side — and a player who sees the fall coming
+   wants to stay quiet. The answer rides on the move itself; there is no phase
+   the engine waits in. */
+describe("bela is a choice (README §1.4)", () => {
+    const withKQ = () =>
+        playing({ trump: "HERC", leader: 0, hands: { 0: ["KHERC", "QHERC", "APIK"] } })
+
+    it("announces on an explicit yes, exactly as it does with no answer at all", () => {
+        const silent = reduce(withKQ(), { type: "PLAY", seat: 0, card: "KHERC" })
+        const yes = reduce(withKQ(), { type: "PLAY", seat: 0, card: "KHERC", bela: true })
+        expect(yes.events).toContainEqual({ type: "BELA", seat: 0 })
+        expect(yes.state.belaDeclared).toBe("A")
+        expect(yes.state.belaRefused).toBeNull()
+        // Silence declares: a timeout, an away seat and every bot move arrive
+        // without a flag, and 20 points must not be the price of not answering.
+        expect(yes.state).toEqual(silent.state)
+        expect(yes.events).toEqual(silent.events)
+    })
+
+    it("declines on `bela: false`, and says nothing at all about it", () => {
+        const step = reduce(withKQ(), { type: "PLAY", seat: 0, card: "KHERC", bela: false })
+        expect(step.state.belaDeclared).toBeNull()
+        expect(step.state.belaRefused).toBe(0)
+        // No BELA event — and no event of any other kind for the refusal
+        // either. Announcing "seat 0 declined" would publish the very fact the
+        // player is hiding: that they hold K+Q of trump.
+        expect(step.events).toEqual([{ type: "CARD_PLAYED", seat: 0, card: "KHERC" }])
+    })
+
+    it("scores nothing for a refused bela, while a declared one still scores 20", () => {
+        const refused = reduce(withKQ(), { type: "PLAY", seat: 0, card: "KHERC", bela: false }).state
+        const declared = reduce(withKQ(), { type: "PLAY", seat: 0, card: "KHERC" }).state
+        // The scoreboard's live "+x" and `DealScore.declarationPoints` are the
+        // same arithmetic, so this is both of them at once (README §2).
+        expect(declarationPoints(refused)).toEqual({ A: 0, B: 0 })
+        expect(viewFor(refused, 0).declarationPoints).toEqual({ A: 0, B: 0 })
+        expect(declarationPoints(declared)).toEqual({ A: 20, B: 0 })
+        expect(viewFor(declared, 0).declarationPoints).toEqual({ A: 20, B: 0 })
+    })
+
+    it("keeps the refusal in the state through the trick, so the SECOND card cannot revive it", () => {
+        // A refusal is final for the deal, and it has to survive as a fact the
+        // SERVER holds: a reconnected client, the bot on a timeout, or the bot
+        // that took the seat over must all find the same dead bela.
+        let state = playing({
+            trump: "HERC",
+            leader: 0,
+            hands: {
+                0: ["KHERC", "QHERC", "7PIK"],
+                1: ["7KARA", "8KARA"],
+                2: ["7TREF", "8TREF"],
+                3: ["9KARA", "10KARA"],
+            },
+        })
+        state = reduce(state, { type: "PLAY", seat: 0, card: "KHERC", bela: false }).state
+        expect(state.belaRefused).toBe(0)
+
+        // Finish the trick the ordinary way; seat 0's trump takes it, so seat 0
+        // leads again holding the other half of the pair.
+        state = reduce(state, { type: "PLAY", seat: 1, card: "7KARA" }).state
+        state = reduce(state, { type: "PLAY", seat: 2, card: "7TREF" }).state
+        state = reduce(state, { type: "PLAY", seat: 3, card: "9KARA" }).state
+        expect(state.trick.turn).toBe(0)
+        expect(state.belaRefused).toBe(0)
+
+        // Even an explicit `bela: true` on the second card announces nothing.
+        const second = reduce(state, { type: "PLAY", seat: 0, card: "QHERC", bela: true })
+        expect(second.events.some((e) => e.type === "BELA")).toBe(false)
+        expect(second.state.belaDeclared).toBeNull()
+        expect(second.state.belaRefused).toBe(0)
+        expect(declarationPoints(second.state)).toEqual({ A: 0, B: 0 })
+    })
+
+    it("ignores a `bela: true` the hand does not back, rather than rejecting the card", () => {
+        // The client is not the authority: whether a bela exists is derived
+        // from the hand here, and the flag can only SUPPRESS one. A claim that
+        // could never have scored is dropped, not turned into an error — a
+        // stale client build must not get an otherwise legal card bounced
+        // mid-trick.
+        const oneHalf = playing({ trump: "HERC", leader: 0, hands: { 0: ["KHERC", "APIK"] } })
+        const step = reduce(oneHalf, { type: "PLAY", seat: 0, card: "KHERC", bela: true })
+        expect(step.events).toEqual([{ type: "CARD_PLAYED", seat: 0, card: "KHERC" }])
+        expect(step.state.belaDeclared).toBeNull()
+        expect(step.state.belaRefused).toBeNull()
+
+        // Nor does a K+Q of the WRONG suit back it.
+        const wrongSuit = playing({ trump: "HERC", leader: 0, hands: { 0: ["KPIK", "QPIK"] } })
+        const off = reduce(wrongSuit, { type: "PLAY", seat: 0, card: "KPIK", bela: true })
+        expect(off.state.belaDeclared).toBeNull()
+        expect(off.state.belaRefused).toBeNull()
+    })
+
+    it("ignores a `bela: false` with nothing to decline", () => {
+        const oneHalf = playing({ trump: "HERC", leader: 0, hands: { 0: ["QHERC", "APIK"] } })
+        const step = reduce(oneHalf, { type: "PLAY", seat: 0, card: "QHERC", bela: false })
+        expect(step.state.belaDeclared).toBeNull()
+        expect(step.state.belaRefused).toBeNull()
+    })
+
+    it("never records a refusal when the room forbids bela — there is nothing to ask", () => {
+        const state = playing({ trump: "HERC", leader: 0, hands: { 0: ["KHERC", "QHERC"] } })
+        state.config = { ...state.config, noDeclarations: true, allowBela: false }
+        for (const bela of [undefined, true, false]) {
+            const step = reduce(state, { type: "PLAY", seat: 0, card: "KHERC", bela })
+            expect(step.events.some((e) => e.type === "BELA")).toBe(false)
+            expect(step.state.belaDeclared).toBeNull()
+            expect(step.state.belaRefused).toBeNull()
+        }
+    })
+
+    it("clears the refusal with the deal it belonged to", () => {
+        const start = newGame(cfg("bela-refusal-reset"))
+        expect(start.belaRefused).toBeNull()
+        const scored = makeState({
+            phase: "DEAL_DONE",
+            belaRefused: 2,
+            score: { A: 10, B: 20 },
+            dealScore: null,
+        })
+        expect(reduce(scored, { type: "NEXT_DEAL" }).state.belaRefused).toBeNull()
     })
 })
 
@@ -447,7 +574,9 @@ describe("a full deterministic game (README §1.6, §1.7)", () => {
                     cardTotal + dealScore.declarationPoints.A + dealScore.declarationPoints.B,
                 )
                 expect(state.tricksWon.A.length + state.tricksWon.B.length).toBe(8)
-                expect(state.phase).toBe("DEAL_DONE")
+                // The deal that decides the game settles straight into
+                // GAME_OVER (README §1.7); every other one waits in DEAL_DONE.
+                expect(state.phase).toBe(state.winner === null ? "DEAL_DONE" : "GAME_OVER")
                 if (!dealScore.passed) expect(dealScore.total[dealScore.callerTeam]).toBe(0)
             }
 
@@ -533,5 +662,115 @@ describe("a full deterministic game (README §1.6, §1.7)", () => {
         const next = reduce(state, { type: "NEXT_DEAL" })
         expect(next.state.phase).toBe("BIDDING")
         expect(next.state.winner).toBeNull()
+    })
+})
+
+/* ── README §1.7 at the moment of settlement ──────────────────────────────
+   The deal that carries a team over the target must end the game where it is
+   scored. Ending it one action later (on NEXT_DEAL) is what made the client
+   offer "Sljedeća podjela" for a deal that was never going to be played. */
+
+const TARGET = 501
+
+/**
+ * A deal one trick from home: seven tricks are already in the books (four to
+ * A, three to B) and every seat holds exactly one card, so one round of four
+ * plays settles it. The tricks are the real 32-card deck split into groups of
+ * four, so nothing is duplicated and the deal's card points still add to 162.
+ */
+function lastTrickState(score: Record<Team, number>): GameState {
+    const deck = fullDeck()
+    const hands: Record<Seat, Card[]> = {
+        0: [deck[0] as Card],
+        1: [deck[1] as Card],
+        2: [deck[2] as Card],
+        3: [deck[3] as Card],
+    }
+    const rest = deck.slice(4)
+    const tricks: Card[][] = []
+    for (let i = 0; i < rest.length; i += 4) tricks.push(rest.slice(i, i + 4))
+
+    return makeState({
+        config: { targetScore: TARGET, seed: "last-trick" },
+        phase: "PLAYING",
+        dealer: 3,
+        hands,
+        bidding: { turn: 0, passes: [], trump: "HERC", caller: 0 },
+        trick: { leader: 0, turn: 0, cards: [] },
+        tricksWon: {
+            A: tricks.slice(0, 4).map((cards, i) => won(i + 1, 0, cards)),
+            B: tricks.slice(4).map((cards, i) => won(i + 5, 1, cards)),
+        },
+        score,
+    })
+}
+
+function playLastTrick(state: GameState): { state: GameState; events: GameEvent[] } {
+    let current = state
+    const events: GameEvent[] = []
+    for (let i = 0; i < 4; i++) {
+        const seat = current.trick.turn
+        const step = reduce(current, { type: "PLAY", seat, card: legalMoves(current, seat)[0] as Card })
+        current = step.state
+        events.push(...step.events)
+    }
+    return { state: current, events }
+}
+
+/** What this deal pays, learned by settling it from 0:0 first. */
+function dealPayout(): DealScore {
+    const probe = playLastTrick(lastTrickState({ A: 0, B: 0 }))
+    return probe.state.dealScore as DealScore
+}
+
+describe("the deal that reaches the target (README §1.7)", () => {
+    it("ends the game the moment it is scored, and never asks for another deal", () => {
+        const payout = dealPayout()
+        expect(payout.total.A).toBeGreaterThan(0)
+
+        const { state, events } = playLastTrick(
+            lastTrickState({ A: TARGET - payout.total.A, B: 0 }),
+        )
+
+        expect(state.phase).toBe("GAME_OVER")
+        expect(state.winner).toBe("A")
+        expect(state.score.A).toBe(TARGET)
+        expect(state.dealScore).not.toBeNull()
+        expect(state.history).toHaveLength(1)
+        // Both facts travel with the settling PLAY, in this order.
+        expect(events.map((e) => e.type).slice(-2)).toEqual(["DEAL_SCORED", "GAME_OVER"])
+        expect(events.at(-1)).toEqual({ type: "GAME_OVER", winner: "A", score: { ...state.score } })
+        // Nothing left to confirm: the client has no next deal to ask for.
+        expectEngineError(() => reduce(state, { type: "NEXT_DEAL" }), "BAD_PHASE")
+    })
+
+    it("plays on when both teams cross the target level (a tie buys a deal)", () => {
+        const payout = dealPayout()
+        expect(payout.total.A).toBeGreaterThan(0)
+        expect(payout.total.B).toBeGreaterThan(0)
+
+        const { state, events } = playLastTrick(
+            lastTrickState({ A: TARGET - payout.total.A, B: TARGET - payout.total.B }),
+        )
+
+        expect(state.score).toEqual({ A: TARGET, B: TARGET })
+        expect(state.phase).toBe("DEAL_DONE")
+        expect(state.winner).toBeNull()
+        expect(events.some((e) => e.type === "GAME_OVER")).toBe(false)
+
+        const another = reduce(state, { type: "NEXT_DEAL" })
+        expect(another.state.phase).toBe("BIDDING")
+        expect(another.state.dealNo).toBe(state.dealNo + 1)
+        expect(another.state.winner).toBeNull()
+    })
+
+    it("stops one deal short of the target without ending anything", () => {
+        const payout = dealPayout()
+        const { state } = playLastTrick(
+            lastTrickState({ A: TARGET - payout.total.A - 1, B: 0 }),
+        )
+        expect(state.score.A).toBe(TARGET - 1)
+        expect(state.phase).toBe("DEAL_DONE")
+        expect(state.winner).toBeNull()
     })
 })

@@ -5,12 +5,19 @@
    receives only `viewFor(state, theirSeat)`; spectators get `viewFor(state, null)`.
 
    Turn handling:
-     • connected human on turn  → `turnTimeoutMs` deadline; on expiry the seat's
-       bot acts for them and the next `game.state` carries `autoPlayed: true`
-     • bot / disconnected human → the bot acts after a random think delay
-     • DEAL_DONE                → any seated human may send `game.nextDeal`
-       (first one wins); with nobody connected it auto-advances after 4 s
-     • GAME_OVER                → the room is marked FINISHED
+     • human on turn (connected OR on a seat hold) → `turnTimeoutMs` deadline;
+       on expiry the seat's bot plays ONE move for them and the next
+       `game.state` carries `autoPlayed: true`. An away player is deliberately
+       NOT fast-forwarded: the table keeps its normal rhythm while their seat
+       is held, and they can walk back in mid-deadline (README §3 "Timeri")
+     • bot seat → the bot acts after a random think delay
+     • DEAL_DONE                → advances on its own after `dealDoneAutoMs`;
+       `game.nextDeal` may still short-circuit it (first one wins).
+       A deal that DECIDES the game never gets here: the engine settles it
+       straight into GAME_OVER (README §1.7), so this phase always means
+       "another deal follows" and nothing has to auto-advance a finished game
+     • GAME_OVER                → the room is marked FINISHED and, once,
+       `statsReporter.reportGameResult` tells the backend about it (README §8)
    ────────────────────────────────────────────────────────────────────── */
 
 import {
@@ -25,19 +32,14 @@ import type { Card, GameAction, GameEvent, GameState, PlayerView, Seat, Suit } f
 import type { ServerMessage } from "@bela/protocol"
 import type { Timings } from "./config.js"
 import { codeFromEngine, ProtocolError } from "./errors.js"
-import { chooseBid, chooseCard, DEFAULT_BOT_LEVEL, makeBot, thinkDelay } from "./bots.js"
+import { chooseBid, chooseCard, makeBot, thinkDelay } from "./bots.js"
 import type { Bot } from "./bots.js"
 import { newSeed } from "./ids.js"
 import { log } from "./log.js"
 import type { Room } from "./room.js"
+import { reportGameResult } from "./statsReporter.js"
 import type { Connection } from "./ws.js"
 
-import type { BotLevel } from "@bela/protocol"
-
-interface SeatBot {
-    level: BotLevel
-    bot: Bot
-}
 
 type Timer = ReturnType<typeof setTimeout>
 
@@ -48,10 +50,12 @@ function unref(t: Timer): Timer {
 
 export class GameRoom {
     state: GameState
+    private declarationsUntil = 0
 
     private readonly room: Room
     private readonly t: Timings
-    private readonly bots: Map<Seat, SeatBot>
+    /** One bot serves every bot seat: it is stateless and level-free (README §5). */
+    private readonly bot: Bot
     private turnTimer: Timer | null
     private botTimer: Timer | null
     private dealDoneTimer: Timer | null
@@ -64,7 +68,7 @@ export class GameRoom {
     constructor(room: Room, timings: Timings) {
         this.room = room
         this.t = timings
-        this.bots = new Map()
+        this.bot = makeBot()
         this.turnTimer = null
         this.botTimer = null
         this.dealDoneTimer = null
@@ -73,7 +77,10 @@ export class GameRoom {
         this.scheduledSeat = null
         this.scheduledAsBot = null
         this.disposed = false
-        this.state = newGame({ targetScore: room.targetScore, seed: newSeed() })
+        // `trickReview` travels in the engine config because `viewFor(state,
+        // seat)` — the only place the redaction can be enforced — has nothing
+        // but the state to read it from. It changes no rule of play.
+        this.state = newGame({ targetScore: room.targetScore, seed: newSeed(), noDeclarations: room.noDeclarations, allowBela: room.allowBela, trickReview: room.trickReview })
     }
 
     /** First broadcast + first timer, right after `room.start`. */
@@ -100,8 +107,12 @@ export class GameRoom {
         this.applyChecked({ type: "PASS", seat: this.seatOf(conn) }, false)
     }
 
-    play(conn: Connection, card: Card): void {
-        this.applyChecked({ type: "PLAY", seat: this.seatOf(conn), card }, false)
+    /** `bela` is the answer to "Zovi belu?" the client asked before sending the
+     *  move (README §1.4). Absent = announce, which is also what the turn
+     *  timeout and every bot move below produce. */
+    play(conn: Connection, card: Card, bela?: boolean): void {
+        if (this.declarationsUntil > Date.now()) throw new ProtocolError("BAD_REQUEST", "Pričekajte prikaz zvanja.")
+        this.applyChecked({ type: "PLAY", seat: this.seatOf(conn), card, bela }, false)
     }
 
     nextDeal(conn: Connection): void {
@@ -125,6 +136,9 @@ export class GameRoom {
     private apply(action: GameAction, autoPlayed: boolean): void {
         const result = reduce(this.state, action)
         this.state = result.state
+        if (result.events.some((event) => event.type === "DECLARATIONS_REVEALED")) {
+            this.declarationsUntil = Date.now() + this.t.declarationsMs
+        }
         this.lastAutoPlayed = autoPlayed
         this.schedule()
         // Events BEFORE the state on purpose: the events describe the
@@ -148,10 +162,12 @@ export class GameRoom {
         let view = cache.get(seat)
         if (!view) {
             view = viewFor(this.state, seat)
+            if (this.declarationsUntil > Date.now()) view = { ...view, legalMoves: [] }
             cache.set(seat, view)
         }
         return {
             t: "game.state",
+            declarationsPending: this.declarationsUntil > Date.now(),
             view,
             turnDeadline: this.turnDeadline,
             autoPlayed: this.lastAutoPlayed,
@@ -183,11 +199,17 @@ export class GameRoom {
         return null
     }
 
+    /**
+     * Only an actual bot slot is bot-controlled. A disconnected human is NOT:
+     * their seat is on hold, so the ordinary turn deadline runs and the bot
+     * steps in exactly once, at expiry, through `actForSeat` (`autoPlayed`).
+     * Returning true here — as this used to — meant a bot started playing for
+     * anyone the instant their socket blinked.
+     */
     private isBotControlled(seat: Seat): boolean {
         const slot = this.room.slotAt(seat)
         if (!slot) return true
-        if (slot.kind === "BOT") return true
-        return !slot.connected
+        return slot.kind === "BOT"
     }
 
     private clearTimers(): void {
@@ -204,10 +226,27 @@ export class GameRoom {
         if (this.disposed) return
         const st = this.state
 
+        if (this.declarationsUntil > Date.now()) {
+            this.turnDeadline = null
+            this.scheduledSeat = null
+            this.scheduledAsBot = null
+            this.botTimer = unref(setTimeout(() => {
+                this.declarationsUntil = 0
+                this.schedule()
+                this.broadcastState()
+            }, this.declarationsUntil - Date.now()))
+            return
+        }
+
         if (st.phase === "GAME_OVER") {
             this.turnDeadline = null
             this.scheduledSeat = null
             this.scheduledAsBot = null
+            // `apply()` only reaches this branch once per game (the engine's
+            // `reduce()` sets GAME_OVER exactly once, and once here neither
+            // `apply()` nor `onPresenceChanged()` calls `schedule()` again —
+            // see their guards), so this is exactly-once, not per-broadcast.
+            reportGameResult(this.room, st)
             this.room.onGameOver()
             return
         }
@@ -216,14 +255,20 @@ export class GameRoom {
             this.turnDeadline = null
             this.scheduledSeat = null
             this.scheduledAsBot = null
-            if (!this.room.hasConnectedHuman()) {
-                this.dealDoneTimer = unref(
-                    setTimeout(() => {
-                        this.dealDoneTimer = null
-                        this.autoApply({ type: "NEXT_DEAL" })
-                    }, this.t.dealDoneAutoMs),
-                )
-            }
+            // Always auto-advance, whether or not a human is watching
+            // (2026-09-08, user's request): the summary is a receipt, not a
+            // decision, so making four people each click "Sljedeća podjela"
+            // only added a wait for whoever clicked first. `game.nextDeal`
+            // stays in the protocol — a client may still short-circuit the
+            // wait — but nothing depends on it arriving any more. The client
+            // dismisses its own summary dialog slightly BEFORE this fires so
+            // the next deal never lands behind an open modal.
+            this.dealDoneTimer = unref(
+                setTimeout(() => {
+                    this.dealDoneTimer = null
+                    this.autoApply({ type: "NEXT_DEAL" })
+                }, this.t.dealDoneAutoMs),
+            )
             return
         }
 
@@ -270,16 +315,6 @@ export class GameRoom {
 
     /* ───────────────────────── bot turns ───────────────────────── */
 
-    private botForSeat(seat: Seat): Bot {
-        const slot = this.room.slotAt(seat)
-        const level: BotLevel = slot && slot.kind === "BOT" ? slot.level : DEFAULT_BOT_LEVEL
-        const existing = this.bots.get(seat)
-        if (existing && existing.level === level) return existing.bot
-        const bot = makeBot(level)
-        this.bots.set(seat, { level, bot })
-        return bot
-    }
-
     /** Apply an action the server decided on (bot move, timeout, auto next deal). */
     private autoApply(action: GameAction, autoPlayed = true): void {
         if (this.disposed) return
@@ -299,7 +334,7 @@ export class GameRoom {
         const slot = this.room.slotAt(seat)
         // Acting for a human (timeout or disconnect) is what `autoPlayed` marks.
         const autoPlayed = slot?.kind === "PLAYER"
-        const bot = this.botForSeat(seat)
+        const bot = this.bot
         const view = viewFor(st, seat)
 
         try {
@@ -340,6 +375,11 @@ export class GameRoom {
                     card = fallback
                 }
                 if (!legal.includes(card)) card = fallback
+                // No `bela` flag, deliberately: nobody answered "Zovi belu?"
+                // — the clock ran out, the seat is away, or it is a bot — and
+                // no answer ANNOUNCES (README §1.4). Twenty points is a gain
+                // on the large majority of deals, so silence must not cost
+                // the player them. The bot follows the same rule.
                 this.autoApply({ type: "PLAY", seat, card }, autoPlayed)
             }
         } catch (e) {
@@ -351,7 +391,6 @@ export class GameRoom {
     dispose(): void {
         this.disposed = true
         this.clearTimers()
-        this.bots.clear()
     }
 }
 

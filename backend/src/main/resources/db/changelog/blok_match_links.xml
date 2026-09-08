@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      "Poveži blok sa stolom" — BLOK-LINK.md §2.1.
+
+      A player running the local bela blok asks to be linked to one table
+      (= one `matches` row) of a running tournament; the organiser approves;
+      from then on the player's own SERIES RESULT — how many games each side
+      has won, the 2 : 1 a tournament match is scored in (BLOK-LINK.md §6.1),
+      not the blok's point totals — lands in the organiser's score sheet.
+      This is the only path in the application by which someone
+      who is not the organiser writes a match score, which is why the grant
+      is an explicit, per-match, approved row rather than a flag on a user.
+
+      Points worth knowing:
+
+        * `tournament_id` is denormalised — it is reachable through
+          matches → rounds → tournaments — so the organiser's "all links of
+          this tournament" screen is one indexed read instead of a two-hop
+          join. Both FKs cascade: a deleted tournament or match leaves no
+          orphan grants behind.
+
+        * `us_pair_id` records which side of the match the requester is. A
+          blok only knows "us" and "them"; without this column the organiser
+          receives two numbers and no way to tell whose is whose. Chosen once
+          at request time and never edited (a wrong choice is revoked and
+          re-requested), so there is no history to keep.
+
+        * `uq_msl_active_per_match` is a PARTIAL unique index — at most one
+          PENDING-or-APPROVED link per match, while any number of REJECTED /
+          REVOKED rows may pile up behind it as history. Liquibase's
+          <createIndex> has no WHERE clause, hence raw <sql>; the <rollback>
+          drops it explicitly for the same reason. The service answers
+          409 LINK_EXISTS before it gets this far — the index is the backstop
+          for two players tapping the same table at the same moment.
+
+        * The sequence is created explicitly and named to match the entity's
+          @SequenceGenerator (seq_match_score_links_id), the way every other
+          table here does it, rather than relying on an autoIncrement/identity
+          column Hibernate would then disagree with.
+    -->
+
+    <changeSet id="2026-09-08-blok-match-links" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="match_score_links"/>
+            </not>
+        </preConditions>
+
+        <createSequence sequenceName="seq_match_score_links_id" incrementBy="1" startValue="1"/>
+
+        <createTable tableName="match_score_links">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- What travels through the API; the bigint PK never leaves the server. -->
+            <column name="uuid" type="uuid">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_msl_uuid"/>
+            </column>
+
+            <column name="match_id" type="bigint">
+                <constraints nullable="false"
+                             foreignKeyName="fk_msl_match"
+                             references="matches(id)"
+                             deleteCascade="true"/>
+            </column>
+
+            <column name="tournament_id" type="bigint">
+                <constraints nullable="false"
+                             foreignKeyName="fk_msl_tournament"
+                             references="tournaments(id)"
+                             deleteCascade="true"/>
+            </column>
+
+            <column name="us_pair_id" type="bigint">
+                <constraints nullable="false"
+                             foreignKeyName="fk_msl_us_pair"
+                             references="pairs(id)"
+                             deleteCascade="true"/>
+            </column>
+
+            <!-- PENDING / APPROVED / REJECTED / REVOKED, see MatchScoreLinkStatus. -->
+            <column name="status" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Firebase UID of the requester: the ONLY uid allowed to write
+                 the score through this link. -->
+            <column name="requested_by_uid" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Display-name snapshot, so the approval list reads without a
+                 profile join and still reads correctly after a rename. -->
+            <column name="requested_by_name" type="varchar(120)"/>
+
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Null while PENDING. -->
+            <column name="decided_at" type="timestamptz"/>
+            <column name="decided_by_uid" type="varchar(64)"/>
+        </createTable>
+
+        <!-- Organiser listing: every link of one tournament. -->
+        <createIndex tableName="match_score_links" indexName="idx_msl_tournament">
+            <column name="tournament_id"/>
+        </createIndex>
+
+        <!-- GET /blok-links/mine. -->
+        <createIndex tableName="match_score_links" indexName="idx_msl_requested_by">
+            <column name="requested_by_uid"/>
+        </createIndex>
+
+        <sql>
+            CREATE UNIQUE INDEX uq_msl_active_per_match
+                ON match_score_links (match_id)
+                WHERE status IN ('PENDING', 'APPROVED')
+        </sql>
+
+        <rollback>
+            <sql>DROP INDEX IF EXISTS uq_msl_active_per_match</sql>
+            <dropTable tableName="match_score_links"/>
+            <dropSequence sequenceName="seq_match_score_links_id"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

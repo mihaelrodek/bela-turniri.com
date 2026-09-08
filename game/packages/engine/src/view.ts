@@ -1,58 +1,94 @@
 /* Redaction — the only thing that ever leaves the server.
 
    Everything a seat must not know (other hands, undealt stock, other players'
-   declarations before the first trick is over) is stripped here. See the doc
+   declarations before trump selection) is stripped here. See the doc
    comments on PlayerView in types.ts. */
 
-import type { Card, Declaration, GameState, PlayerView, Seat, Team, WonTrick } from "./types"
-import { SEATS } from "./types"
-import { legalBids, legalMoves, winningCardIndex } from "./rules"
-import { seatFrom, teamOf } from "./seats"
+import type { Card, Declaration, GameState, PlayerView, Seat, TrickReview, WonTrick } from "./types"
+import { DEFAULT_TRICK_REVIEW, SEATS } from "./types"
+import { legalBids, legalMoves } from "./rules"
+import { currentDealPoints, declarationPoints } from "./scoring"
+import { teamOf } from "./seats"
 
 /**
  * The completed tricks of this deal in the order they were won.
  *
- * `tricksWon` is bucketed per team, so the global order has to be rebuilt. It
- * is recoverable without extra bookkeeping: the leader of the current trick is
- * the winner of the last completed one, and inside a stored trick the cards are
- * in play order, so leader = winner − indexOfWinningCard (mod 4). Walking that
- * chain backwards names the team of each previous trick unambiguously.
+ * `tricksWon` is bucketed per team, so the global order has to be restored —
+ * and every stored trick carries its own `no`, so restoring it is a sort.
+ * (This used to walk the win chain backwards from the current trick's leader,
+ * re-deriving each previous leader from the index of its winning card. It
+ * worked, but it inferred bookkeeping the state can simply hold.)
  */
 export function completedTricksInOrder(state: GameState): WonTrick[] {
-    const total = state.tricksWon.A.length + state.tricksWon.B.length
-    if (total === 0) return []
-    const trump = state.bidding.trump
-    if (trump === null) return [...state.tricksWon.A, ...state.tricksWon.B]
+    return [...state.tricksWon.A, ...state.tricksWon.B].sort((a, b) => a.no - b.no)
+}
 
-    const remaining: Record<Team, WonTrick[]> = {
-        A: state.tricksWon.A.slice(),
-        B: state.tricksWon.B.slice(),
+/** A defensive copy — a review must never hand out the state's own arrays. */
+function copyTrick(trick: WonTrick): WonTrick {
+    return {
+        ...trick,
+        plays: trick.plays.map((play) => ({ ...play })),
+        cards: trick.cards.slice(),
     }
-    const out: WonTrick[] = []
-    let winner: Seat = state.trick.leader
+}
 
-    for (let i = 0; i < total; i++) {
-        const trick = remaining[teamOf(winner)].pop()
-        if (trick === undefined || trick.winner !== winner) {
-            // Inconsistent bookkeeping: fall back to a stable, if unordered, list.
-            return [...state.tricksWon.A, ...state.tricksWon.B]
-        }
-        out.unshift(trick)
-        winner = seatFrom(trick.winner - winningCardIndex(trick.cards, trump))
+/**
+ * May this seat review the completed tricks (README §1.8)?
+ *
+ * `leaderPair` is the pair of the seat that LEADS the current trick — the one
+ * who opened it — not the seat whose turn it happens to be. In DEAL_DONE /
+ * GAME_OVER `trick.leader` is the winner of the last trick, which keeps the
+ * answer defined at every moment of the deal.
+ *
+ * A spectator (`seat === null`) has no pair, so only `all` lets them look.
+ */
+function mayReviewTricks(state: GameState, seat: Seat | null): boolean {
+    const rule: TrickReview = state.config.trickReview ?? DEFAULT_TRICK_REVIEW
+    if (rule === "all") return true
+    if (rule === "off") return false
+    if (seat === null) return false
+    return teamOf(seat) === teamOf(state.trick.leader)
+}
+
+/**
+ * Whose declarations may this seat see (README §1.4)?
+ *
+ * Own always — they are this seat's own eight cards, so there is nothing to
+ * leak. On top of that, once trump is set, the seats of the team that WON the
+ * declarations contest: those points are announced at the table and the deal
+ * cannot be followed without them.
+ *
+ * The losing pair's declarations are simply lost, and they are never sent to
+ * anybody. This used to hand every seat's declarations to every player the
+ * moment trump was chosen — an opponent's terca is three named cards of a hand
+ * they have not played yet, so that was three cards of free information every
+ * deal, rendered right in the reveal overlay.
+ *
+ * A spectator (`seat === null`) has no own hand, so they get the scoring
+ * team's and nothing else.
+ */
+function visibleDeclarations(
+    state: GameState,
+    seat: Seat | null,
+    revealed: boolean,
+): Partial<Record<Seat, Declaration[]>> {
+    const out: Partial<Record<Seat, Declaration[]>> = {}
+    if (seat !== null) out[seat] = state.declarations[seat].slice()
+    if (!revealed) return out
+
+    const scoringTeam = state.declarationsScoringTeam
+    if (scoringTeam === null) return out
+    for (const s of SEATS) {
+        if (teamOf(s) === scoringTeam) out[s] = state.declarations[s].slice()
     }
     return out
 }
 
 export function viewFor(state: GameState, seat: Seat | null): PlayerView {
     const tricks = completedTricksInOrder(state)
-    const revealed = tricks.length > 0
+    const revealed = state.bidding.trump !== null
 
-    const declarations: Partial<Record<Seat, Declaration[]>> = {}
-    if (revealed) {
-        for (const s of SEATS) declarations[s] = state.declarations[s].slice()
-    } else if (seat !== null) {
-        declarations[seat] = state.declarations[seat].slice()
-    }
+    const declarations = visibleDeclarations(state, seat, revealed)
 
     const handSizes: Record<Seat, number> = { 0: 0, 1: 0, 2: 0, 3: 0 }
     for (const s of SEATS) handSizes[s] = state.hands[s].length
@@ -82,9 +118,15 @@ export function viewFor(state: GameState, seat: Seat | null): PlayerView {
         bidding: { ...state.bidding, passes: state.bidding.passes.slice() },
         trick: { ...state.trick, cards: state.trick.cards.map((c) => ({ ...c })) },
         tricksWon: { A: state.tricksWon.A.length, B: state.tricksWon.B.length },
+        currentDealPoints: currentDealPoints(state),
         lastTrick: tricks.length === 0 ? null : ((tricks[tricks.length - 1] as WonTrick) ?? null),
+        // The whole review, or nothing at all. Hiding it in the UI instead
+        // would leave it in the frame for anyone with devtools.
+        trickHistory: mayReviewTricks(state, seat) ? tricks.map(copyTrick) : null,
         declarations,
+        declarationPoints: declarationPoints(state),
         declarationsRevealed: revealed,
+        declarationsScoringTeam: revealed ? state.declarationsScoringTeam : null,
         belaDeclared: state.belaDeclared,
         dealScore: state.dealScore,
         score: { ...state.score },

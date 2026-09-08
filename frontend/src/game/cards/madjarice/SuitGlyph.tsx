@@ -1,5 +1,10 @@
 import type { Suit } from "@bela/engine"
-import { FACE, INK, SUIT_PALETTE } from "./palette"
+import { INK, SUIT_PALETTE } from "./palette"
+
+const PRINT_RED = "#b72b22"
+const PRINT_GOLD = "#e0bf18"
+const PRINT_GREEN = "#34753a"
+const PRINT_DARK_GREEN = "#20542e"
 
 /* ──────────────────────────────────────────────────────────────────────────
    The four German suits of the Tell pattern, drawn flat.
@@ -20,13 +25,14 @@ import { FACE, INK, SUIT_PALETTE } from "./palette"
 /** srce — the one suit shared with the French deck. */
 function Heart({ main }: { main: string }) {
     return (
-        <path
-            d="M50 94C18 70 6 52 6 34 6 17 18 6 32 6c9 0 15 5 18 12 3-7 9-12 18-12 14 0 26 11 26 28 0 18-12 36-44 60Z"
-            fill={main}
-            stroke={INK}
-            strokeWidth={4}
-            strokeLinejoin="round"
-        />
+        <>
+            <path
+                d="M50 94C18 70 6 52 6 34 6 17 18 6 32 6c9 0 15 5 18 12 3-7 9-12 18-12 14 0 26 11 26 28 0 18-12 36-44 60Z"
+                fill={main} stroke={INK} strokeWidth={3.5} strokeLinejoin="round"
+            />
+            <path d="M50 20c5-9 12-12 20-10 13 4 20 16 18 29-3 17-15 31-38 49Z" fill={PRINT_RED} opacity={0.55} />
+            <path d="M50 20v66" fill="none" stroke={INK} strokeWidth={1.5} opacity={0.55} />
+        </>
     )
 }
 
@@ -35,13 +41,15 @@ function Leaf({ main, alt }: { main: string; alt: string }) {
     return (
         <>
             <path
-                d="M50 4c12 16 42 26 44 48 2 20-18 30-34 25l-7-2v21h-6V75l-7 2C24 82 4 72 6 52 8 30 38 20 50 4Z"
-                fill={main}
+                d="M50 4C40 18 10 23 7 48 4 69 22 84 46 76l4 20 4-20c24 8 42-7 39-28C90 23 60 18 50 4Z"
+                fill={PRINT_GOLD}
                 stroke={INK}
-                strokeWidth={4}
+                strokeWidth={3.5}
                 strokeLinejoin="round"
             />
-            <path d="M50 16v58" stroke={alt} strokeWidth={4} strokeLinecap="round" />
+            <path d="M50 5c10 13 40 19 43 43 3 21-15 36-39 28L50 96Z" fill={main} />
+            <path d="M50 12v67M50 30 29 22M50 43 17 37M50 57 15 57M50 70 27 79M50 30l21-8M50 43l33-6M50 57h35M50 70l23 9"
+                fill="none" stroke={alt} strokeWidth={2.2} strokeLinecap="round" />
         </>
     )
 }
@@ -56,20 +64,24 @@ function Acorn({ main, alt }: { main: string; alt: string }) {
     return (
         <>
             <path
-                d="M50 97c-20 0-31-16-31-34 0-13 14-21 31-21s31 8 31 21c0 18-11 34-31 34Z"
-                fill={main}
-                stroke={INK}
-                strokeWidth={4}
-                strokeLinejoin="round"
-            />
-            <path d="M46 12V2h8v10Z" fill={INK} />
-            <path
-                d="M50 7C27 7 13 23 13 35c0 7 6 10 14 10h46c8 0 14-3 14-10C87 23 73 7 50 7Z"
+                d="M50 98C30 98 19 81 19 63c0-14 14-23 31-23s31 9 31 23c0 18-11 35-31 35Z"
                 fill={alt}
                 stroke={INK}
-                strokeWidth={4}
+                strokeWidth={3.5}
                 strokeLinejoin="round"
             />
+            <path d="M50 42v53c15-3 24-17 24-32 0-11-10-19-24-21Z" fill={main} opacity={0.85} />
+            <path d="M50 43v51" stroke={INK} strokeWidth={1.5} opacity={0.55} />
+            <rect x="18" y="35" width="64" height="11" rx="4" fill={PRINT_RED} stroke={INK} strokeWidth={3} />
+            <path
+                d="M50 4C29 4 15 19 14 34c0 7 6 10 14 10h44c8 0 14-3 14-10C85 19 71 4 50 4Z"
+                fill={PRINT_GREEN}
+                stroke={INK}
+                strokeWidth={3.5}
+                strokeLinejoin="round"
+            />
+            <path d="M24 35c5-10 10-10 15 0 5-10 10-10 15 0 5-10 10-10 15 0 4-8 8-9 12-3"
+                fill="none" stroke={PRINT_DARK_GREEN} strokeWidth={4} strokeLinecap="round" />
         </>
     )
 }
@@ -78,17 +90,21 @@ function Acorn({ main, alt }: { main: string; alt: string }) {
 function Bell({ main, alt }: { main: string; alt: string }) {
     return (
         <>
-            <circle cx={50} cy={11} r={8} fill={alt} stroke={INK} strokeWidth={4} />
-            <circle cx={50} cy={11} r={3} fill={FACE} />
             <path
-                d="M43 19C25 26 20 44 20 60c0 11-5 19-11 23h82c-6-4-11-12-11-23 0-16-5-34-23-41Z"
-                fill={main}
+                d="M50 4C26 4 13 20 13 40c0 17 8 29 15 36h44c7-7 15-19 15-36C87 20 74 4 50 4Z"
+                fill={PRINT_GOLD}
                 stroke={INK}
-                strokeWidth={4}
+                strokeWidth={3.5}
                 strokeLinejoin="round"
             />
-            <rect x={5} y={81} width={90} height={9} rx={4} fill={alt} stroke={INK} strokeWidth={4} />
-            <circle cx={50} cy={97} r={7} fill={alt} stroke={INK} strokeWidth={4} />
+            <path d="M50 6c19 0 31 13 31 34 0 14-7 25-13 31H50Z" fill={main} opacity={0.5} />
+            <path d="M46 5h8v18h-8Z" fill={INK} />
+            <rect x="10" y="55" width="80" height="14" rx="5" fill={alt} stroke={INK} strokeWidth={3} />
+            <path d="M19 61h62M25 56c3 8 7 8 10 0 3 8 7 8 10 0 3 8 7 8 10 0 3 8 7 8 10 0 3 8 7 8 10 0"
+                fill="none" stroke={PRINT_RED} strokeWidth={2} />
+            <path d="M20 68h60c-2 17-13 24-30 24S22 85 20 68Z" fill={PRINT_GREEN} stroke={INK} strokeWidth={3.5} />
+            <path d="M25 76c5-8 10-8 15 0 5-8 10-8 15 0 5-8 10-8 15 0" fill="none" stroke={PRINT_DARK_GREEN} strokeWidth={4} strokeLinecap="round" />
+            <circle cx="50" cy="96" r="4" fill={PRINT_RED} stroke={INK} strokeWidth={2.5} />
         </>
     )
 }
@@ -96,8 +112,8 @@ function Bell({ main, alt }: { main: string; alt: string }) {
 /**
  * One suit glyph in a 100 × 100 local box. Wrap it in a `<g transform>` to
  * place and size it; `mono` collapses the two-tone printing to a single
- * colour, which is what the tiny corner marks and the settings thumbnails
- * want (two colours at 14 px is mud).
+ * colour for the secondary etched lines when a caller needs a quieter mark.
+ * The main printed colours remain intact so the suit never changes identity.
  */
 export default function SuitGlyph({ suit, mono = false }: { suit: Suit; mono?: boolean }) {
     const { main, alt: printed } = SUIT_PALETTE[suit]

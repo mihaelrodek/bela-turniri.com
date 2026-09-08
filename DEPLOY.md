@@ -150,6 +150,13 @@ Environment variables (in `.env.prod`):
   `CORS_ORIGINS`).
 - `GAME_DEV_ALLOW_ANON=1` — dev only: allow anonymous sessions for testing
   (omit in prod).
+- `GAME_RESULTS_TOKEN` — shared secret between the game server and the
+  backend for `POST /api/internal/game-results` (per-player win/loss stats,
+  game/README.md §8). Same value must be set on BOTH the `backend` and
+  `game` services. Caddy also 404s this path publicly; the token is the
+  second layer. Missing/default in prod only warns at backend startup
+  (`StartupSanityCheck`) — it does not fail the boot, but every report is
+  refused (401) until it's set.
 
 The `./ops/deploy.sh` script rebuilds the game image alongside the backend and
 edge, and includes `bela-game` in the image-rollback logic. The Caddy routing

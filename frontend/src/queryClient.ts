@@ -115,6 +115,17 @@ export const qk = {
     myDrinkTemplate: (name: string) => ["myDrinkTemplate", name] as const,
     /** Every bill the signed-in user was a party to, across all tournaments. */
     myInvoices: ["myInvoices"] as const,
+    /** The signed-in user's game statistics (bela online). */
+    gameStats: ["gameStats"] as const,
+    /** Organiser/admin view of "Poveži blok sa stolom" requests (BLOK-LINK.md). */
+    blokLinks: (tournamentUuid: string) => ["blokLinks", tournamentUuid] as const,
+    /** The signed-in user's saved "Bela blok" sessions (BLOK-HISTORY.md) — summaries only. */
+    blokHistory: ["blokHistory"] as const,
+    /** One session's full record (games + deals), fetched only when opened. */
+    blokHistoryDetail: (uuid: string) => ["blokHistory", "detail", uuid] as const,
+    /** Public, read-only "Bela blok" share link (BLOK-HISTORY.md §5.2), keyed
+     *  by its share token. No sign-in involved on either side. */
+    blokShare: (token: string) => ["blokShare", token] as const,
 }
 
 /**
@@ -145,4 +156,16 @@ export const NON_PERSISTED_KEY_ROOTS: ReadonlySet<string> = new Set([
     "myDrinkTemplateNames",
     "myDrinkTemplate",
     "myInvoices",
+    // User's game statistics — scoped to the signed-in user.
+    "gameStats",
+    // Organiser-only: names/uids of everyone who has asked to link a blok.
+    "blokLinks",
+    // Personal scorepad record (BLOK-HISTORY.md) — scoped to the signed-in
+    // user, same treatment as "blokLinks" just above.
+    "blokHistory",
+    // Public share-token lookups (BLOK-HISTORY.md §5.2). Not auth-scoped, but
+    // the token can be revoked at any time — a stale localStorage snapshot
+    // would keep showing "removed" content to a recipient, and this route is
+    // typically opened once from a chat link, not worth persisting anyway.
+    "blokShare",
 ])

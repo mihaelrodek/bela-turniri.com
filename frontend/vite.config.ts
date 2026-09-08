@@ -1,9 +1,118 @@
 import { fileURLToPath } from "node:url"
-import { defineConfig } from "vite"
+import { defineConfig, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 
+/* ──────────────────────────────────────────────────────────────────────────
+   OFFLINE PRECACHE MANIFEST — what `public/sw.js` has to put in Cache Storage
+   so an installed PWA opened with no signal still reaches /blok.
+
+   THE LIST CANNOT BE HAND-WRITTEN. Every chunk Vite emits carries a content
+   hash (`BlokPage-BEklaU9U.js`), so a literal array in sw.js would name last
+   deploy's files and be wrong from the first `npm run build`. It also cannot
+   be derived at RUNTIME by the worker: index.html only names the entry, and
+   the route chunk for /blok is reached through a dynamic import that nothing
+   in the served HTML mentions.
+
+   So Rollup is asked, at the only moment the answer exists — `generateBundle`,
+   with the finished bundle in hand. Two roots:
+
+     • every ENTRY chunk (the app shell's JS), and
+     • the chunk that /blok's `React.lazy` resolves to, found by its
+       `facadeModuleId` rather than by name, so renaming the file cannot
+       silently empty the precache.
+
+   From each root we follow STATIC imports only (`chunk.imports`), plus the CSS
+   and assets Vite attributes to each chunk. Static-only is the whole point of
+   the closure: it is exactly "what the browser must already have to execute
+   this module", so `vendor-map` (Leaflet, only ever dynamically imported by
+   /karta) and every other route's chunk stay out of a cache meant for one
+   screen. Following `dynamicImports` as well would precache the entire app.
+
+   The output is `/precache-manifest.json`, read by the worker on install and
+   again on every page load (see `public/sw.js` → `refreshPrecache`). It is a
+   plain public file: no auth, no per-user content, nothing but file names.
+
+   WHY AN ARTEFACT AND NOT A GENERATED sw.js: the worker is `public/sw.js`,
+   copied verbatim, and a browser only re-installs a worker whose BYTES
+   changed. A worker that carried the file list inside itself would therefore
+   need to be rewritten (and re-installed) on every deploy; one that fetches a
+   manifest re-checks the current build on every load without the install
+   dance. `build` below is the entry chunk's hashed name — a build identity
+   that changes exactly when the output does, with no timestamp to make two
+   builds of the same source differ.
+   ────────────────────────────────────────────────────────────────────── */
+
+/** The module `App.tsx` lazily imports for the `/blok` route. */
+const BLOK_ROUTE_MODULE = "src/blok/pages/BlokPage.tsx"
+
+function precacheManifest(): Plugin {
+    return {
+        name: "bela-precache-manifest",
+        apply: "build",
+        generateBundle(_options, bundle) {
+            const files = new Set<string>()
+
+            const walk = (fileName: string) => {
+                const entry = bundle[fileName]
+                if (!entry || entry.type !== "chunk") return
+                if (files.has(`/${fileName}`)) return
+                files.add(`/${fileName}`)
+                for (const css of entry.viteMetadata?.importedCss ?? []) files.add(`/${css}`)
+                // NOT `importedAssets`. Those are the URLs a module holds, not
+                // the bytes it needs to EXECUTE: `game/cards/madjarice`'s
+                // `import.meta.glob` puts all 32 card faces (2.8 MB of webp)
+                // into the graph of `PlayingCard`, which the scorepad reaches
+                // only for `SuitIcon` — four inline SVG paths that touch none
+                // of them. A blok never renders a card face, so precaching the
+                // deck would be the single biggest thing in the cache and the
+                // one thing offline /blok cannot use. An image that is missing
+                // offline degrades one picture; a missing chunk stops the app
+                // from booting, and only chunks and their CSS can do that.
+                for (const imported of entry.imports) walk(imported)
+            }
+
+            let blokFound = false
+            for (const [fileName, entry] of Object.entries(bundle)) {
+                if (entry.type !== "chunk") continue
+                const facade = entry.facadeModuleId?.replaceAll("\\", "/") ?? ""
+                if (entry.isEntry) walk(fileName)
+                if (facade.endsWith(BLOK_ROUTE_MODULE)) {
+                    blokFound = true
+                    walk(fileName)
+                }
+            }
+
+            // Loud, not silent: a precache without the scorepad in it would
+            // still "work" in every test that is not run on a plane.
+            if (!blokFound) {
+                this.error(
+                    `precache manifest: no chunk for ${BLOK_ROUTE_MODULE}. `
+                    + "Did the route move? The offline scorepad depends on this.",
+                )
+            }
+
+            const entryChunk = Object.values(bundle).find(
+                (entry) => entry.type === "chunk" && entry.isEntry,
+            )
+
+            this.emitFile({
+                type: "asset",
+                fileName: "precache-manifest.json",
+                source: `${JSON.stringify(
+                    {
+                        build: entryChunk?.fileName ?? "unknown",
+                        files: [...files].sort(),
+                    },
+                    null,
+                    4,
+                )}\n`,
+            })
+        },
+    }
+}
+
 export default defineConfig({
-    plugins: [react()],
+    plugins: [react(), precacheManifest()],
     resolve: {
         // The online-bela packages live OUTSIDE this app, in the sibling
         // `game/` workspace, and are consumed straight from TypeScript source

@@ -13,11 +13,11 @@
 
 import type { RawData, WebSocket } from "ws"
 import {
-    isBotLevel,
     isClientMessage,
     isReaction,
     isSeat,
     isTargetScore,
+    isTrickReview,
     LIMITS,
     PROTOCOL_VERSION,
 } from "@bela/protocol"
@@ -293,7 +293,7 @@ export class Hub {
         }
         let user: UserInfo
         try {
-            user = await this.deps.auth.authenticate({ token: msg.token, devName: msg.devName })
+            user = await this.deps.auth.authenticate({ token: msg.token, devName: msg.devName, guest: msg.guest })
         } catch (e) {
             if (isProtocolError(e)) conn.error(e.code, e.message, "hello")
             else conn.error("UNAUTHENTICATED", DEFAULT_MESSAGES.UNAUTHENTICATED, "hello")
@@ -304,9 +304,17 @@ export class Hub {
         conn.send({ t: "hello.ok", user, v: PROTOCOL_VERSION })
         log.info("hello", { conn: conn.id, uid: user.uid })
 
-        // Reconnect: a room is still holding this uid's seat → walk straight back in.
+        // Reconnect: a room is still holding this uid's seat.
+        //
+        // We only walk them straight back in when the hold exists because their
+        // SOCKET died — that is a genuine reconnect. After an explicit
+        // `room.leave` the hold is still theirs, but re-attaching here would
+        // cancel it and pin the seat forever while they sit in the lobby; they
+        // get `game.active` instead and come back through the lobby's button
+        // (`room.join`). See `HoldReason` in room.ts.
         const room = this.deps.lobby.findRoomForUid(user.uid)
-        if (room) {
+        const hold = room?.holdFor(user.uid) ?? null
+        if (room && (room.hasConnFor(user.uid) || hold === null || hold.reason === "disconnect")) {
             try {
                 room.attach(conn)
                 conn.send(room.joinedMessageFor(conn))
@@ -317,6 +325,7 @@ export class Hub {
                 log.warn("room.reconnect.failed", { room: room.id, uid: user.uid, err: e })
             }
         }
+        this.deps.lobby.sendActiveSeat(conn)
     }
 
     private dispatch(conn: Conn, msg: ClientMessage): void {
@@ -334,19 +343,36 @@ export class Hub {
                 return
 
             case "room.create": {
+                if ((msg.noDeclarations !== undefined && typeof msg.noDeclarations !== "boolean") ||
+                    (msg.allowBela !== undefined && typeof msg.allowBela !== "boolean") ||
+                    (msg.allowSpectators !== undefined && typeof msg.allowSpectators !== "boolean")) {
+                    throw new ProtocolError("BAD_REQUEST", "Neispravne postavke zvanja.")
+                }
                 if (msg.name !== undefined && typeof msg.name !== "string") {
                     throw new ProtocolError("BAD_REQUEST", "Naziv sobe mora biti tekst.")
                 }
                 if (!isTargetScore(msg.targetScore)) {
                     throw new ProtocolError("BAD_REQUEST", "Neispravan cilj (501, 701 ili 1001).")
                 }
+                if (msg.trickReview !== undefined && !isTrickReview(msg.trickReview)) {
+                    throw new ProtocolError("BAD_REQUEST", "Neispravna postavka gledanja štihova.")
+                }
+                // One game at a time: refuse BEFORE leaving the current room,
+                // or leaving a lobby room would free the seat and let the
+                // check pass on the way out.
+                this.requireSingleSeat(conn, null)
                 this.leaveCurrentRoom(conn)
                 const room = this.deps.lobby.create(conn, {
                     name: msg.name,
                     targetScore: msg.targetScore,
                     private: msg.private === true,
+                    allowSpectators: msg.allowSpectators === true,
+                    noDeclarations: msg.noDeclarations === true,
+                    allowBela: msg.allowBela !== false,
+                    trickReview: msg.trickReview,
                 })
                 conn.send(room.joinedMessageFor(conn))
+                this.afterEnteringRoom(conn, room)
                 return
             }
 
@@ -355,11 +381,14 @@ export class Hub {
                     throw new ProtocolError("BAD_REQUEST", "Nedostaje oznaka sobe.")
                 }
                 const room = this.deps.lobby.require(msg.roomId)
+                room.assertCanJoin(conn, false)
+                this.requireSingleSeat(conn, room.id)
                 if (conn.roomId !== room.id) this.leaveCurrentRoom(conn)
                 room.attach(conn)
                 conn.send(room.joinedMessageFor(conn))
                 room.broadcastState()
                 room.game?.sendStateTo(conn)
+                this.afterEnteringRoom(conn, room)
                 return
             }
 
@@ -368,16 +397,32 @@ export class Hub {
                     throw new ProtocolError("BAD_REQUEST", "Nedostaje šifra sobe.")
                 }
                 const room = this.deps.lobby.findByCode(msg.code)
+                room.assertCanJoin(conn, true)
+                this.requireSingleSeat(conn, room.id)
                 if (conn.roomId !== room.id) this.leaveCurrentRoom(conn)
                 room.attach(conn)
                 conn.send(room.joinedMessageFor(conn))
                 room.broadcastState()
                 room.game?.sendStateTo(conn)
+                this.afterEnteringRoom(conn, room)
                 return
             }
 
             case "room.leave": {
-                this.requireRoom(conn).leave(conn)
+                const room = this.roomOf(conn)
+                if (room) {
+                    room.leave(conn)
+                } else {
+                    // Not in the room any more, but a seat may still be held
+                    // for us there — this is the lobby's "napusti igru", which
+                    // forfeits the hold instead of waiting it out.
+                    const uid = conn.user?.uid
+                    const holding = uid ? this.deps.lobby.findRoomForUid(uid) : undefined
+                    if (!uid || !holding) throw new ProtocolError("NOT_IN_ROOM")
+                    holding.abandonSeat(uid)
+                    conn.send({ t: "room.left" })
+                }
+                this.deps.lobby.sendActiveSeat(conn)
                 return
             }
 
@@ -393,10 +438,7 @@ export class Hub {
 
             case "room.addBot": {
                 if (!isSeat(msg.seat)) throw new ProtocolError("BAD_REQUEST", "Neispravno sjedalo.")
-                if (!isBotLevel(msg.level)) {
-                    throw new ProtocolError("BAD_REQUEST", "Neispravna razina bota.")
-                }
-                this.requireRoom(conn).addBot(conn, msg.seat, msg.level)
+                this.requireRoom(conn).addBot(conn, msg.seat)
                 return
             }
 
@@ -405,6 +447,11 @@ export class Hub {
                 this.requireRoom(conn).removeBot(conn, msg.seat)
                 return
             }
+
+            case "room.setPrivate":
+                if (typeof msg.private !== "boolean") throw new ProtocolError("BAD_REQUEST")
+                this.requireRoom(conn).setPrivate(conn, msg.private)
+                return
 
             case "room.ready":
                 this.requireRoom(conn).setReady(conn, msg.ready === true)
@@ -430,7 +477,14 @@ export class Hub {
                 if (typeof msg.card !== "string" || msg.card.length === 0) {
                     throw new ProtocolError("BAD_REQUEST", "Neispravna karta.")
                 }
-                game.play(conn, msg.card)
+                // "Zovi belu?" travels as a flag on the move itself (README
+                // §1.4). Only its SHAPE is checked here; whether the seat
+                // really holds K+Q of trump is the engine's business, and a
+                // flag it cannot back is simply ignored there.
+                if (msg.bela !== undefined && typeof msg.bela !== "boolean") {
+                    throw new ProtocolError("BAD_REQUEST", "Neispravna oznaka bele.")
+                }
+                game.play(conn, msg.card, msg.bela)
                 return
             }
 
@@ -471,6 +525,25 @@ export class Hub {
     private leaveCurrentRoom(conn: Conn): void {
         const room = this.roomOf(conn)
         if (room) room.leave(conn)
+    }
+
+    /**
+     * ONE GAME AT A TIME (README §3.2). A seat somewhere else is a refusal,
+     * not something to quietly throw away — the client disables these actions
+     * from `game.active`, and this is the authority behind that.
+     *
+     * `enteringRoomId` is the room being entered (null when creating one):
+     * your own seat in it never blocks you, so walking back into your own
+     * table keeps working exactly as before.
+     */
+    private requireSingleSeat(conn: Conn, enteringRoomId: string | null): void {
+        const uid = conn.user?.uid
+        if (!uid) return
+        this.deps.lobby.requireNoSeatElsewhere(uid, enteringRoomId)
+    }
+
+    private afterEnteringRoom(conn: Conn, _room: Room): void {
+        this.deps.lobby.sendActiveSeat(conn)
     }
 
     /* ───────────────────────── heartbeat ───────────────────────── */

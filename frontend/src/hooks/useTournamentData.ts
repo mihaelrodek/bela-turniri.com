@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { fetchTournamentDetails, fetchTournamentPairs } from "../api/tournaments"
 import { fetchRounds } from "../api/round"
 import { listPairRequestsForTournament, type PairRequest } from "../api/pairRequests"
+import { fetchBlokLinks, type OrganiserBlokLink } from "../api/blokLink"
 import { useAuth } from "../auth/authContextValue"
 import { qk, queryClient } from "../queryClient"
 import { subscribeToOutcomes, useOfflineQueue } from "./useOfflineQueue"
@@ -74,6 +75,7 @@ const keysFor = (uuid: string | undefined) => {
         pairs: qk.tournamentPairs(id),
         rounds: qk.rounds(id),
         requests: qk.pairRequestsForTournament(id),
+        blokLinks: qk.blokLinks(id),
     }
 }
 
@@ -296,6 +298,28 @@ export function useTournamentData(uuid: string | undefined) {
 
     const { canEditTournament } = useCanManageTournament(t)
 
+    /**
+     * "Poveži blok sa stolom" requests (BLOK-LINK.md). The list endpoint is
+     * organiser/admin only, so this stays disabled for every other viewer —
+     * a spectator's page never even asks for it, rather than asking and
+     * eating a 403 on every poll tick.
+     */
+    const blokLinksQ = useQuery({
+        queryKey: keys.blokLinks,
+        enabled: enabled && canEditTournament,
+        queryFn: () => fetchBlokLinks(uuid as string, { silent: isRefresh(keys.blokLinks) }),
+    })
+    const blokLinks = useMemo(() => blokLinksQ.data ?? [], [blokLinksQ.data])
+
+    const setBlokLinks = useCallback<Dispatch<SetStateAction<OrganiserBlokLink[]>>>((update) => {
+        queryClient.setQueryData<OrganiserBlokLink[]>(keys.blokLinks, (old) => {
+            const prev = old ?? []
+            return typeof update === "function"
+                ? (update as (l: OrganiserBlokLink[]) => OrganiserBlokLink[])(prev)
+                : update
+        })
+    }, [keys.blokLinks])
+
     /* ---------- Cache writers ----------
        The mutation hooks were written against `useState` setters and still
        are: these accept the same `SetStateAction` shape and write straight
@@ -363,14 +387,19 @@ export function useTournamentData(uuid: string | undefined) {
     const refreshAll = useCallback(async () => {
         if (!uuid) return
         lastFetchAtRef.current = Date.now()
-        await Promise.all([
+        const jobs = [
             queryClient.refetchQueries({ queryKey: keys.details }),
             queryClient.refetchQueries({ queryKey: keys.pairs }),
             queryClient.refetchQueries({ queryKey: keys.rounds }),
             queryClient.refetchQueries({ queryKey: keys.requests }),
-        ])
+        ]
+        // Organiser/admin only — see blokLinksQ's `enabled` above. Refetching
+        // this key for a spectator would fire the request anyway (manual
+        // refetches ignore `enabled`) straight into a 403.
+        if (canEditTournament) jobs.push(queryClient.refetchQueries({ queryKey: keys.blokLinks }))
+        await Promise.all(jobs)
         lastFetchAtRef.current = Date.now()
-    }, [uuid, keys])
+    }, [uuid, keys, canEditTournament])
 
     /**
      * The background refresh the poll, the websocket and pull-to-refresh all
@@ -402,11 +431,18 @@ export function useTournamentData(uuid: string | undefined) {
         if (!force && Date.now() - lastFetchAtRef.current < 5_000) return false
         lastFetchAtRef.current = Date.now()
         try {
-            await Promise.all([
+            const jobs = [
                 queryClient.refetchQueries({ queryKey: keys.details }),
                 queryClient.refetchQueries({ queryKey: keys.pairs }),
                 queryClient.refetchQueries({ queryKey: keys.rounds }),
-            ])
+            ]
+            // Same reasoning as refreshAll: only ask for this when the viewer
+            // can actually see it. The backend broadcasts the `match` scope
+            // (not a new one) when a blok link changes, so this ping-driven
+            // refresh is genuinely how an organiser's other open tab/device
+            // learns about an approval — see BLOK-LINK.md §2.3.6.
+            if (canEditTournament) jobs.push(queryClient.refetchQueries({ queryKey: keys.blokLinks }))
+            await Promise.all(jobs)
         } catch (e) {
             // Every background call is silent (see `isRefresh`), so nothing was
             // toasted. A failed tick just means we retry next interval.
@@ -415,7 +451,7 @@ export function useTournamentData(uuid: string | undefined) {
             console.warn("Osvježavanje uživo nije uspjelo", e)
         }
         return true
-    }, [uuid, keys])
+    }, [uuid, keys, canEditTournament])
 
     /* ---------- Auth-aware reload ----------
        The backend redacts the organiser's contact phone for anonymous viewers
@@ -446,6 +482,7 @@ export function useTournamentData(uuid: string | undefined) {
         void queryClient.invalidateQueries({ queryKey: keys.pairs })
         void queryClient.invalidateQueries({ queryKey: keys.rounds })
         void queryClient.invalidateQueries({ queryKey: keys.requests })
+        void queryClient.invalidateQueries({ queryKey: keys.blokLinks })
     }, [authLoading, user?.uid, keys])
 
     /* Switching tournaments switches every query key, but the local overlay
@@ -708,6 +745,7 @@ export function useTournamentData(uuid: string | undefined) {
         pairs, setPairs,
         rounds, setRounds,
         pairRequests, setPairRequests,
+        blokLinks, setBlokLinks,
         collapsedRounds, setCollapsedRounds,
         allowRepeats, setAllowRepeats,
         loading, error,

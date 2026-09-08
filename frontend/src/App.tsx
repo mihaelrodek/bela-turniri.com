@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { Container, Flex, Spinner, Text } from '@chakra-ui/react'
 import NavBar from './components/NavBar'
@@ -6,9 +6,12 @@ import MobileTabBar from './components/MobileTabBar'
 import PushBootstrap from './components/PushBootstrap'
 import ThemeSync from './components/ThemeSync'
 import LocaleSync from './components/LocaleSync'
+import BlokOutbox from './blok/BlokOutbox'
 import SiteFooter from './components/SiteFooter'
+import GameIdentityGate from "./game/components/GameIdentityGate"
 import { RequireAuth } from "./components/RequireAuth"
 import GameFeatureGate from "./game/GameFeatureGate"
+import { readStickyRoomId } from "./game/activeRoomKey"
 import { lazyWithReload } from "./utils/lazyWithReload"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -40,11 +43,24 @@ const ClaimNamePage = lazyWithReload(() => import('./pages/ClaimNamePage'))
 const ContactPage = lazyWithReload(() => import('./pages/ContactPage'))
 const PrivacyPage = lazyWithReload(() => import('./pages/PrivacyPage'))
 const TermsPage = lazyWithReload(() => import('./pages/TermsPage'))
+/* Bela blok — offline scorepad for a table game (src/blok/BLOK.md). Its own
+   localStorage-backed subtree, no auth, no backend calls — split out purely
+   because it's a heavy-ish page that most visitors never open. */
+const BlokPage = lazyWithReload(() => import('./blok/pages/BlokPage'))
+/* Public, read-only view of a shared "Bela blok" session (BLOK-HISTORY.md
+   §5.2) — /blok/z/{token}, no sign-in, no localStorage of its own. Its own
+   chunk since most visitors to /blok never open a share link. */
+const SharedBlokPage = lazyWithReload(() => import('./pages/SharedBlokPage'))
 /* Online bela. Its own subtree (src/game) with a WebSocket client, a table
    renderer and the shared @bela/engine types — none of which any other route
    touches, so it is strictly a separate chunk. */
 const GameLobbyPage = lazyWithReload(() => import('./game/pages/GameLobbyPage'))
 const GameRoomPage = lazyWithReload(() => import('./game/pages/GameRoomPage'))
+/* App-wide game chrome. Both live in the game chunk and are mounted only when
+   they can possibly matter, so a visitor who never opens /igra never
+   downloads them (see GameChrome below). */
+const ActiveRoomWidget = lazyWithReload(() => import('./game/components/ActiveRoomWidget'))
+const GameRoomExitGuard = lazyWithReload(() => import('./game/components/GameRoomExitGuard'))
 
 /** Suspense fallback while a route chunk is being fetched. The min-height
  *  matches roughly what a page's first screenful occupies so the layout
@@ -97,6 +113,38 @@ function LegacyClaimNameRedirect() {
     return <Navigate to={`/preuzmi-ime/${token ?? ""}${search}`} replace />
 }
 
+/**
+ * The two pieces of game UI that exist OUTSIDE the game pages:
+ *
+ *  • `GameRoomExitGuard` — on a table, asks "ostani ili izađi?" before a click
+ *    carries a seated player out of the game area.
+ *  • `ActiveRoomWidget` — everywhere else, the small dock back into a room
+ *    they are still a member of.
+ *
+ * Both are gated so the game chunk is never fetched for someone who has
+ * nothing to do with it: the guard only on `/igra/soba/*` (where the chunk is
+ * loaded anyway), the widget only when this tab actually holds a room. The
+ * sticky flag is re-read on every navigation — which is exactly when it can
+ * change from this component's point of view (`activeRoomKey.ts` is a
+ * dependency-free module for precisely this reason).
+ */
+function GameChrome() {
+    const { pathname } = useLocation()
+    const onTable = pathname.startsWith("/igra/soba/")
+    const [sticky, setSticky] = useState(false)
+
+    useEffect(() => {
+        setSticky(readStickyRoomId() !== null)
+    }, [pathname])
+
+    if (!onTable && !sticky) return null
+    return (
+        <Suspense fallback={null}>
+            {onTable ? <GameRoomExitGuard /> : <ActiveRoomWidget />}
+        </Suspense>
+    )
+}
+
 export default function App() {
     // Warm the heaviest "next click" chunk while the browser is idle. From the
     // tournaments list the overwhelmingly common navigation is into a
@@ -139,6 +187,14 @@ export default function App() {
                 {/* Same idea for language: applies the profile's saved locale on
                     login and writes back whatever the navbar picker changes it to. */}
                 <LocaleSync />
+                {/* The scorepad's outbox: closed series waiting to reach the
+                    profile. Mounted here rather than on /blok so that coming
+                    back into signal — or signing in on /prijava, which is a
+                    different route — sends what is queued at that moment. It
+                    is the ONLY mount; see src/blok/BlokOutbox.tsx for why two
+                    would be worse than none, and why a signed-out player still
+                    makes no request. */}
+                <BlokOutbox />
                 <Container maxW="6xl" py={6}>
                 {/* All user-facing routes use Croatian slugs. English slugs
                     (/tournaments, /profile, /calendar, …) are kept around
@@ -176,18 +232,18 @@ export default function App() {
                     {/* Online bela. Both routes require a signed-in user:
                         the game server authenticates the socket with a
                         Firebase ID token, so an anonymous visitor could not
-                        get past `hello` anyway. GameFeatureGate is the
-                        production kill switch (see its own file) — it sits
-                        outside RequireAuth so a signed-out visitor gets
-                        bounced to "/" instead of the login page while the
-                        feature is off. */}
+                        get past `hello` anyway. GameFeatureGate is the ONE
+                        place the production kill switch is acted on (see its
+                        own file) — while the flag is off it renders the
+                        "dolazi uskoro" page in place of these children, so
+                        it must stay OUTSIDE the identity gate: a signed-out
+                        visitor should read why the game isn't there yet, not
+                        be sent to a login form for a feature that is off. */}
                     <Route
                         path="/igra"
                         element={
                             <GameFeatureGate>
-                                <RequireAuth>
-                                    <GameLobbyPage />
-                                </RequireAuth>
+                                <GameIdentityGate><GameLobbyPage /></GameIdentityGate>
                             </GameFeatureGate>
                         }
                     />
@@ -195,14 +251,27 @@ export default function App() {
                         path="/igra/soba/:roomId"
                         element={
                             <GameFeatureGate>
-                                <RequireAuth>
-                                    <GameRoomPage />
-                                </RequireAuth>
+                                <GameIdentityGate><GameRoomPage /></GameIdentityGate>
                             </GameFeatureGate>
                         }
                     />
+                    {/* Bela blok — public on purpose: no RequireAuth, no
+                        feature gate. It works entirely offline against
+                        localStorage, so there is nothing to sign in to. */}
+                    <Route path="/blok" element={<BlokPage />} />
+                    {/* Public share link for one saved "Bela blok" session
+                        (BLOK-HISTORY.md §5.2) — read-only, no sign-in, no
+                        RequireAuth: the whole point is a recipient without
+                        an account can open it. */}
+                    <Route path="/blok/z/:token" element={<SharedBlokPage />} />
                     <Route path="/kalendar" element={<CalendarPage />} />
                     <Route path="/karta" element={<MapPage />} />
+                    {/* KEEP. "Pronađi para" was deliberately taken out of both
+                        navigations (NavBar's capsule and MobileTabBar) — the
+                        page itself is NOT orphaned: /pronadi-para stays
+                        reachable by URL, by the /find-pair legacy alias below
+                        and by any link already in the wild. Do not delete this
+                        route or FindPairPage as "dead code". */}
                     <Route path="/pronadi-para" element={<FindPairPage />} />
                     {/* /profil bounces to /profil/{my-slug} once the backend
                         has synced. /profil/:slug is publicly visible per
@@ -263,6 +332,10 @@ export default function App() {
                 that matters, and keeping it a sibling means the column's
                 min-height math never has to account for it. */}
             <MobileTabBar />
+            {/* Seat-hold chrome: the exit prompt on a table, the "active room"
+                dock everywhere else. Sibling of the tab bar for the same
+                reason — it is position:fixed and only paint order matters. */}
+            <GameChrome />
         </>
     )
 }

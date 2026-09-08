@@ -55,6 +55,55 @@ public class MatchesRepository implements AppRepository<Matches, Long> {
     }
 
     /**
+     * Matches this player might be sitting at right now — conditions 2, 3 and
+     * 4 of {@code BLOK-LINK.md} §8.1, in one query.
+     *
+     * <p>Namely: a match of a live tournament ({@code DRAFT} or
+     * {@code STARTED}) in a round that is not {@code COMPLETED}, where one of
+     * the two pairs is <em>the caller's</em> — this codebase's only notion of
+     * that being {@code submittedByUid} / {@code coSubmittedByUid} (§5) — and
+     * that pair is approved.
+     *
+     * <p>Both pair joins are INNER on purpose: a BYE match has a null
+     * {@code pair2} and is excluded by the join itself rather than by a
+     * clause someone could later drop. The tournament join carries
+     * {@code Tournaments}' own {@code @SQLRestriction("is_deleted = false")},
+     * so a soft-deleted tournament is out too.
+     *
+     * <p>What it deliberately does NOT do is decide which round is
+     * <em>the</em> active one, or exclude already-linked matches. The active
+     * round is "the highest-numbered non-completed round of that tournament",
+     * a property of the tournament and not of any row this query can see — a
+     * player's own match may sit in an older, still-open round while a newer
+     * one has been drawn — so the caller resolves it. See
+     * {@code BlokLinkService.suggestions}.
+     *
+     * <p>Scoped to {@code uid} from end to end: there is no code path here
+     * that returns a match of a tournament the caller is not registered on,
+     * which is what keeps the endpoint from becoming a way to read other
+     * people's draws.
+     */
+    public List<Matches> findLiveCandidateMatchesForUid(String uid) {
+        if (uid == null || uid.isBlank()) return List.of();
+        return list("""
+                select distinct m from Matches m
+                join fetch m.tournament t
+                join fetch m.round r
+                join fetch m.pair1 p1
+                join fetch m.pair2 p2
+                where r.status <> hr.mrodek.apps.bela_turniri.enums.RoundStatus.COMPLETED
+                  and t.status in (hr.mrodek.apps.bela_turniri.enums.TournamentStatus.DRAFT,
+                                   hr.mrodek.apps.bela_turniri.enums.TournamentStatus.STARTED)
+                  and (
+                        (p1.pendingApproval = false
+                         and (p1.submittedByUid = :uid or p1.coSubmittedByUid = :uid))
+                     or (p2.pendingApproval = false
+                         and (p2.submittedByUid = :uid or p2.coSubmittedByUid = :uid))
+                  )
+                """, Parameters.with("uid", uid));
+    }
+
+    /**
      * Every match of a tournament, with round and both pairs already
      * fetched, ordered by round then table. Replaces the
      * "one findByRound() per round, then let the mapper walk the LAZY

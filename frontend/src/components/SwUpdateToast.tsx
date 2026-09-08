@@ -72,7 +72,32 @@ export default function SwUpdateToast() {
             })
         }
 
+        /* ── keeping the offline precache on the CURRENT build ──────────────
+           `public/sw.js` precaches the app shell and the /blok route chunk from
+           `/precache-manifest.json` (written at build time by vite.config.ts's
+           `bela-precache-manifest` plugin), so an installed PWA opened with no
+           signal still reaches the scorepad. The worker cannot notice a deploy
+           on its own: its own bytes never change, so `install` — the only event
+           that would otherwise re-read the manifest — runs once per device, ever.
+
+           So the page asks. One postMessage per load, answered by a ~300-byte
+           manifest fetch, and the worker adds only what it does not already
+           hold; offline it fails silently and keeps the last good precache.
+           `ready` rather than `controller` because a first-ever install has no
+           controller yet — `ready` resolves once a worker is active, which is
+           exactly when there is someone to ask. */
+        function askForPrecache() {
+            navigator.serviceWorker.ready
+                .then((registration) => {
+                    registration.active?.postMessage({ type: "bela:precache" })
+                })
+                .catch(() => {
+                    /* no worker ever became active — nothing to refresh */
+                })
+        }
+
         function onLoad() {
+            askForPrecache()
             navigator.serviceWorker.register("/sw.js").then(wireRegistration).catch((err) => {
                 // Non-fatal — the app still works; only the install prompt and
                 // offline shell (and this update toast) are unavailable.

@@ -7,7 +7,7 @@
 
 import { createBot } from "@bela/bots"
 import type { Bot } from "@bela/bots"
-import type { BotLevel, Seat } from "@bela/protocol"
+import type { Seat } from "@bela/protocol"
 import type { Card, LegalBids, PlayerView, Suit } from "@bela/engine"
 
 export type { Bot } from "@bela/bots"
@@ -15,14 +15,12 @@ export type { Bot } from "@bela/bots"
 /** Seat 0..3 bot display names (README §4 / room UI). */
 export const BOT_NAMES: readonly string[] = ["Bot Ivo", "Bot Ana", "Bot Mate", "Bot Jana"]
 
-export const DEFAULT_BOT_LEVEL: BotLevel = "srednje"
-
 export function botName(seat: Seat): string {
     return BOT_NAMES[seat] ?? `Bot ${seat + 1}`
 }
 
-export function makeBot(level: BotLevel): Bot {
-    return createBot(level)
+export function makeBot(): Bot {
+    return createBot()
 }
 
 export const serverRng = (): number => Math.random()

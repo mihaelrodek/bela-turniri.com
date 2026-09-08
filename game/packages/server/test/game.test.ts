@@ -26,7 +26,8 @@ async function startSoloRoom(
     host: TestClient,
     targetScore: TargetScore = 501,
 ): Promise<string> {
-    host.send({ t: "room.create", name: "Soba", targetScore, private: false })
+    // Several presence tests attach an observer after play starts.
+    host.send({ t: "room.create", name: "Soba", targetScore, private: false, allowSpectators: true })
     const joined = await host.nextOfType("room.joined")
     host.send({ t: "room.ready", ready: true })
     await host.nextOfType("room.state")
@@ -87,7 +88,7 @@ describe("a full game", () => {
                 rateLimits: { messagesPerSecond: 5000, chatPerSecond: 5000 },
             })
             const host = await connect("Igrac")
-            await startSoloRoom(host, 501)
+            const roomId = await startSoloRoom(host, 501)
 
             const view = await playUntilGameOver(host, 0)
             expect(view.phase).toBe("GAME_OVER")
@@ -96,15 +97,49 @@ describe("a full game", () => {
             const winning = view.winner === "A" ? view.score.A : view.score.B
             expect(winning).toBeGreaterThanOrEqual(501)
 
-            // the room is marked FINISHED and the client saw a GAME_OVER event
-            const gameOverEvent = host.received.some(
-                (m) => m.t === "game.events" && m.events.some((e) => e.type === "GAME_OVER"),
-            )
-            expect(gameOverEvent).toBe(true)
-            const finished = host.received.some(
-                (m) => m.t === "room.state" && m.room.status === "FINISHED",
-            )
-            expect(finished).toBe(true)
+            expect(host.received.some((m) => m.t === "game.events" && m.events.some((e) => e.type === "GAME_OVER"))).toBe(true)
+
+            const states = host.received.filter(isGameState)
+            // README §1.7: the deal that crossed the target ended the game
+            // where it was scored, so the table was never left sitting in a
+            // decided DEAL_DONE waiting for a "Sljedeća podjela" that would
+            // only have ended the game anyway.
+            expect(
+                states.filter(
+                    (m) =>
+                        m.view.phase === "DEAL_DONE" &&
+                        (m.view.score.A >= 501 || m.view.score.B >= 501) &&
+                        m.view.score.A !== m.view.score.B,
+                ),
+            ).toEqual([])
+
+            // README §2/§3: every view carries the current deal's points from
+            // COMPLETED tricks — at most the 152 that live in the cards.
+            expect(states.some((m) => m.view.currentDealPoints.A + m.view.currentDealPoints.B > 0)).toBe(true)
+            for (const m of states) {
+                expect(m.view.currentDealPoints.A + m.view.currentDealPoints.B).toBeLessThanOrEqual(152)
+            }
+
+            const room = server.lobby.get(roomId)!
+            expect(room.status).toBe("LOBBY")
+            const before = room.toState()
+            expect(before.seats[0].occupant).toMatchObject({ kind: "PLAYER", ready: false })
+            expect(before.seats.slice(1).every((s) => s.occupant?.kind === "BOT")).toBe(true)
+            host.send({ t: "room.start" })
+            expect((await host.nextOfType("error")).code).toBe("BAD_REQUEST")
+            host.send({ t: "room.ready", ready: true })
+            await host.next((m) => m.t === "room.state" && m.room.seats[0].occupant?.kind === "PLAYER" && m.room.seats[0].occupant.ready)
+            host.send({ t: "room.start" })
+            const restarted = await host.nextOfType("game.state")
+            expect(restarted.view.phase).toBe("BIDDING")
+            expect(restarted.view.score).toEqual({ A: 0, B: 0 })
+            expect(restarted.view.history).toEqual([])
+            expect(restarted.view.dealNo).toBe(1)
+            expect(room.id).toBe(roomId)
+            expect(room.toState().seats.map((s) => s.occupant?.kind)).toEqual(before.seats.map((s) => s.occupant?.kind))
+            expect(room.targetScore).toBe(before.targetScore)
+            expect(room.private).toBe(before.private)
+
         },
         90_000,
     )
@@ -126,6 +161,32 @@ describe("a full game", () => {
         },
         90_000,
     )
+
+    it("blocks humans and bots until declarations have been shown, with a fresh turn timer afterwards", async () => {
+        server = await startTestServer({ timings: { declarationsMs: 100, botThinkMinMs: 100_000, botThinkMaxMs: 100_000 } })
+        const host = await connect("Zvanja")
+        const roomId = await startSoloRoom(host, 501)
+        await host.nextOfType("game.state")
+        const game = server.lobby.get(roomId)!.game!
+        game.state = { ...game.state, dealer: 3, bidding: { ...game.state.bidding, turn: 0 } }
+        host.send({ t: "game.bid", trump: "HERC" })
+        const paused = await host.nextOfType("game.state")
+        expect(paused.declarationsPending).toBe(true)
+        expect(paused.view.declarationsRevealed).toBe(true)
+        expect(paused.view.legalMoves).toEqual([])
+        expect(paused.turnDeadline).toBeNull()
+        const card = paused.view.hand[0]!
+        host.send({ t: "game.play", card })
+        expect((await host.nextOfType("error")).code).toBe("BAD_REQUEST")
+        expect(game.state.trick.cards).toEqual([])
+        const resumed = await host.nextOfType("game.state")
+        expect(resumed.declarationsPending).toBe(false)
+        expect(resumed.view.legalMoves).toContain(card)
+        expect(resumed.turnDeadline).not.toBeNull()
+        host.send({ t: "game.play", card })
+        const played = await host.nextOfType("game.state")
+        expect(played.view.trick.cards).toHaveLength(1)
+    })
 
     it("rejects a move from the wrong seat and keeps playing", async () => {
         server = await startTestServer({
@@ -177,8 +238,11 @@ describe("presence", () => {
         if (slot?.kind === "PLAYER") expect(slot.connected).toBe(true)
     })
 
-    it("lets the bot play for a disconnected human (autoPlayed)", async () => {
-        server = await startTestServer({ timings: { reconnectGraceMs: 30_000 } })
+    it("lets the bot play for a disconnected human (autoPlayed) once the turn deadline passes", async () => {
+        // The bot no longer jumps in the instant the socket dies — the seat is
+        // held and the ordinary turn timer runs first (see seatHold.test.ts),
+        // so this shortens `turnTimeoutMs` rather than waiting it out.
+        server = await startTestServer({ timings: { reconnectGraceMs: 30_000, turnTimeoutMs: 250 } })
         const host = await connect("Igrac")
         const roomId = await startSoloRoom(host, 501)
         const room = server.lobby.get(roomId)
@@ -211,7 +275,7 @@ describe("presence", () => {
         expect(slot?.kind).toBe("PLAYER")
     })
 
-    it("turns the seat into a permanent bot once the grace period expires", async () => {
+    it("dissolves a solo room once the reconnect grace period expires", async () => {
         server = await startTestServer({
             timings: {
                 reconnectGraceMs: 40,
@@ -221,14 +285,9 @@ describe("presence", () => {
         })
         const host = await connect("Igrac")
         const roomId = await startSoloRoom(host, 501)
-        const room = server.lobby.get(roomId)
-        if (!room) throw new Error("room missing")
-
         await host.close()
         clients.length = 0
-        await until(() => room.slotAt(0)?.kind === "BOT", 3000)
-        const slot = room.slotAt(0)
-        expect(slot?.kind).toBe("BOT")
-        if (slot?.kind === "BOT") expect(slot.name).toBe("Bot Ivo")
+        await until(() => server?.lobby.get(roomId) === undefined, 3000)
+        expect(server.roomCount()).toBe(0)
     })
 })

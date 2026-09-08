@@ -19,7 +19,16 @@ import { GLASS, INK, INK_MUTED } from "./tableStyles"
    The dealer speaking fourth may NOT pass ("mus"): `legalBids.canPass` says
    so, and rather than disabling a button with no explanation the panel
    REPLACES it with the reason.
+
+   The row is deliberately SHORT — 46 px buttons, one line of padding. It only
+   exists for a few seconds a deal, and every pixel it takes is a pixel off
+   the felt above it, which is the thing the player is actually looking at.
+   46 px still clears the 44 px tap-target floor.
    ────────────────────────────────────────────────────────────────────── */
+
+/** Button height. Kept at the 44 px accessibility floor + 2, so the row can
+ *  never be trimmed further without breaking a tap target. */
+const ROW_H = "46px"
 
 export default function BiddingPanel({
     view,
@@ -42,14 +51,14 @@ export default function BiddingPanel({
     const canPass = legal.canPass
 
     return (
-        <Box {...GLASS} rounded="l3" px="2" py="2">
-            <Flex gap="1.5" align="stretch">
+        <Box {...GLASS} rounded="l3" px="1.5" py="1.5">
+            <Flex gap="1" align="stretch">
                 {SUITS.map((suit) => (
                     <Button
                         key={suit}
                         flex="1"
-                        h="60px"
-                        minW="56px"
+                        h={ROW_H}
+                        minW="52px"
                         px="0"
                         variant="outline"
                         rounded="l2"
@@ -63,8 +72,8 @@ export default function BiddingPanel({
                         aria-label={t("game.bidding.callSuit", { suit: t(suitKey(suit)) })}
                     >
                         <Flex direction="column" align="center" gap="0.5">
-                            <SuitGlyph suit={suit} size={26} />
-                            <Text fontSize="10px" fontWeight="semibold" textTransform="capitalize" lineHeight="1">
+                            <SuitGlyph suit={suit} size={24} />
+                            <Text fontSize="9px" fontWeight="semibold" textTransform="capitalize" lineHeight="1">
                                 {t(suitKey(suit))}
                             </Text>
                         </Flex>
@@ -73,7 +82,7 @@ export default function BiddingPanel({
 
                 {canPass ? (
                     <Button
-                        h="60px"
+                        h={ROW_H}
                         px="3"
                         variant="outline"
                         rounded="l2"
@@ -88,8 +97,8 @@ export default function BiddingPanel({
                     </Button>
                 ) : (
                     <Flex
-                        h="60px"
-                        px="3"
+                        h={ROW_H}
+                        px="2"
                         align="center"
                         justify="center"
                         rounded="l2"
@@ -97,7 +106,7 @@ export default function BiddingPanel({
                         borderStyle="dashed"
                         borderColor="orange.400"
                     >
-                        <Text fontSize="11px" fontWeight="bold" color="orange.300" textAlign="center" maxW="72px">
+                        <Text fontSize="10px" fontWeight="bold" color="orange.300" textAlign="center" maxW="64px" lineHeight="1.2">
                             {t("game.bidding.mustCall")}
                         </Text>
                     </Flex>

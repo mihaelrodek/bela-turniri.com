@@ -100,13 +100,20 @@ export default function RacuniSection({
     tournamentUuid,
     tournamentSlug,
     canEdit,
+    tournamentStatus,
 }: {
     tournamentUuid: string
     tournamentSlug?: string | null
     /** True for the organiser/admin — unlocks the waiter-management panel. */
     canEdit: boolean
+    /** Inviting a new waiter makes no sense once the tournament is over —
+     *  there is nothing left to bill. Existing waiter access can still be
+     *  revoked, so the panel itself only disappears when there is also
+     *  nobody left to revoke (see the render below). */
+    tournamentStatus?: string | null
 }) {
     const { t } = useTranslation()
+    const isFinished = tournamentStatus === "FINISHED"
     const plural = usePlural()
     const { token, clear } = useWaiterSession(tournamentUuid)
 
@@ -280,7 +287,7 @@ export default function RacuniSection({
     return (
         <VStack align="stretch" gap="4">
             {/* ===== Organiser: waiter management ===== */}
-            {canEdit && (
+            {canEdit && (!isFinished || waiters.length > 0) && (
                 <Box
                     bg="bg.panel"
                     borderWidth="1px"
@@ -313,13 +320,15 @@ export default function RacuniSection({
                                         <FiTrash2 /> {t("tournament.waiter.manage.revokeAll")}
                                     </Button>
                                 )}
-                                <Button
-                                    size="xs"
-                                    colorPalette="blue"
-                                    onClick={() => setInviteOpen(true)}
-                                >
-                                    <FiUserPlus /> {t("tournament.waiter.manage.invite")}
-                                </Button>
+                                {!isFinished && (
+                                    <Button
+                                        size="xs"
+                                        colorPalette="blue"
+                                        onClick={() => setInviteOpen(true)}
+                                    >
+                                        <FiUserPlus /> {t("tournament.waiter.manage.invite")}
+                                    </Button>
+                                )}
                             </HStack>
                         </HStack>
 

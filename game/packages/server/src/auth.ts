@@ -8,12 +8,22 @@
 
    In dev (`GAME_DEV_ALLOW_ANON=1`) a `hello { devName }` without a token yields
    a synthetic `dev:<slug>` user so the UI can be exercised without Firebase.
+
+   The claims are only the STARTING point for a signed-in player: `name` and
+   `picture` come from Google, so a player who uploaded an avatar here would
+   otherwise sit down wearing their Google photo. After verification the
+   user is enriched from this app's own profile (see `profiles.ts`), which
+   never blocks or fails a login — if the backend is unreachable the claims
+   stand as they are.
    ────────────────────────────────────────────────────────────────────── */
 
 import { createRemoteJWKSet, jwtVerify } from "jose"
+import { createHash } from "node:crypto"
 import type { UserInfo } from "@bela/protocol"
 import type { Config } from "./config.js"
 import { ProtocolError } from "./errors.js"
+import { createProfileLookup } from "./profiles.js"
+import type { ProfileLookup } from "./profiles.js"
 
 const JWKS_URL =
     "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
@@ -21,6 +31,7 @@ const JWKS_URL =
 export const FALLBACK_NAME = "Igrač"
 
 export interface HelloCredentials {
+    guest?: { name: string; secret: string } | undefined
     token?: string | undefined
     devName?: string | undefined
 }
@@ -69,7 +80,21 @@ export function devUser(devName: string): UserInfo {
     return { uid: `dev:${slugify(name)}`, name, avatarUrl: null }
 }
 
-export function createAuthenticator(cfg: Config): Authenticator {
+/**
+ * Overlay the app's own profile on top of the token's claims. Only the fields
+ * the user actually set here win — a profile with no avatar must not blank out
+ * the Google one, which is still better than no picture at all.
+ */
+export function withAppProfile(user: UserInfo, profile: { displayName: string | null; avatarUrl: string | null } | null): UserInfo {
+    if (!profile) return user
+    return {
+        ...user,
+        name: profile.displayName ?? user.name,
+        avatarUrl: profile.avatarUrl ?? user.avatarUrl,
+    }
+}
+
+export function createAuthenticator(cfg: Config, profiles: ProfileLookup = createProfileLookup(cfg)): Authenticator {
     // Lazily created: no network call happens unless a real token shows up.
     let jwks: ReturnType<typeof createRemoteJWKSet> | null = null
     const getJwks = (): ReturnType<typeof createRemoteJWKSet> => {
@@ -81,6 +106,13 @@ export function createAuthenticator(cfg: Config): Authenticator {
         async authenticate(creds: HelloCredentials): Promise<UserInfo> {
             const token = str(creds.token)
             if (!token) {
+                if (creds.guest !== undefined) {
+                    const guest = creds.guest
+                    if (!guest || typeof guest.name !== "string" || !guest.name.trim() || guest.name.trim().length > 60 || typeof guest.secret !== "string" || !/^[a-f0-9]{64}$/.test(guest.secret)) {
+                        throw new ProtocolError("UNAUTHENTICATED", "Unesite ime igrača.")
+                    }
+                    return { uid: `guest:${createHash("sha256").update(guest.secret).digest("hex")}`, name: guest.name.trim(), avatarUrl: null, guest: true }
+                }
                 if (cfg.devAllowAnon) {
                     const devName = str(creds.devName)
                     if (devName) return devUser(devName)
@@ -100,7 +132,8 @@ export function createAuthenticator(cfg: Config): Authenticator {
                     audience: projectId,
                     algorithms: ["RS256"],
                 })
-                return userFromClaims(payload as unknown as Record<string, unknown>)
+                const user = userFromClaims(payload as unknown as Record<string, unknown>)
+                return withAppProfile(user, await profiles.get(user.uid))
             } catch (e) {
                 if (e instanceof ProtocolError) throw e
                 throw new ProtocolError("UNAUTHENTICATED", "Neispravan ili istekao token.")

@@ -4,7 +4,113 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="" />
+    <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env.prod.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.prod.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Caddyfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DEPLOY.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEPLOY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/StartupSanityCheck.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/StartupSanityCheck.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserMeController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/UserMeController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/MatchesRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/MatchesRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/RoundsRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/RoundsRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/i18n/messages_hr.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/i18n/messages_hr.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/i18n/messages_sl.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/i18n/messages_sl.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.prod.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.prod.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/App.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/api/userMe.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/userMe.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/color-mode.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/color-mode.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/ErrorBoundary.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ErrorBoundary.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/RacuniSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/RacuniSection.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/cards/madjarice/MadjaricaCard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/cards/madjarice/MadjaricaCard.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/cards/madjarice/SuitGlyph.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/cards/madjarice/SuitGlyph.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/BiddingPanel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/BiddingPanel.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/CreateGameDialog.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/CreateGameDialog.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/DealSummary.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/DealSummary.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/DeclarationsReveal.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/DeclarationsReveal.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/GameOverDialog.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/GameOverDialog.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/GameSettingsSheet.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/GameSettingsSheet.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/Hand.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/Hand.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/JoinByCodeDialog.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/JoinByCodeDialog.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/PlayingCard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/PlayingCard.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/RoomListItem.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/RoomListItem.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/RoomPanel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/RoomPanel.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/ScoreBoard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/ScoreBoard.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/Seat.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/Seat.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/Table.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/Table.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/TrickArea.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/TrickArea.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/TrumpBadge.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/TrumpBadge.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/tableStyles.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/tableStyles.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/hooks/useEventQueue.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/hooks/useEventQueue.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/hooks/useGamePrefs.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/hooks/useGamePrefs.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/hooks/useGameSocket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/hooks/useGameSocket.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/mock/mockGameServer.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/mock/mockGameServer.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/pages/GameLobbyPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/pages/GameLobbyPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/pages/GameRoomPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/pages/GameRoomPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/util/cards.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/util/cards.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/util/seats.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/util/seats.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/hooks/useTournamentData.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/hooks/useTournamentData.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/game.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/tournament.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/tournament.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/game.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/tournament.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/tournament.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/main.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/main.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentDetailsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentDetailsPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/profile/ProfileHeader.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/profile/ProfileHeader.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/profile/sections.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/profile/sections.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/FullscreenRoundBoard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/FullscreenRoundBoard.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/MatchRow.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/MatchRow.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/fullscreenSize.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/bracket/fullscreenSize.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/BracketSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/BracketSection.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/queryClient.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/queryClient.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/system.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/system.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/DESIGN.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/DESIGN.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/createBot.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/evaluate.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/evaluate.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/hardBot.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/randomBot.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/test/evaluate.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/test/evaluate.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/test/helpers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/test/helpers.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/test/heuristicBot.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/test/heuristicBot.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/test/randomBot.test.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/test/simulation.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/test/simulation.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/engine/src/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/engine/src/game.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/engine/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/engine/src/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/engine/src/scoring.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/engine/src/scoring.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/engine/src/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/engine/src/types.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/engine/src/view.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/engine/src/view.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/engine/test/game.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/engine/test/game.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/engine/test/helpers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/engine/test/helpers.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/engine/test/scoring.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/engine/test/scoring.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/engine/test/view.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/engine/test/view.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/protocol/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/protocol/src/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/auth.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/auth.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/bots.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/bots.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/errors.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/errors.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/gameRoom.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/gameRoom.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/lobby.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/lobby.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/room.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/room.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/ws.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/ws.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/test/game.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/game.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/test/helpers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/helpers.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/test/room.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/room.test.ts" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      "Zapisnik povezanog stola je javan" — BLOK-LINK.md §6.2.
+
+      One nullable column on `match_score_links`: which blok SERIES (the
+      client's own `sessionId`, the same string `blok_sessions.session_id`
+      holds) is being played at the linked table.
+
+      Why it is here at all:
+
+        * Linking a blok to a table IS the player's consent to publish that
+          scorepad — the organiser and anyone holding the link must be able
+          to open it, during and after the tournament. The server therefore
+          mints the series' `blok_sessions.share_token` (BLOK-HISTORY.md
+          §5.2) the first time a score is written through an APPROVED link,
+          and it can only find that row if the link says which series it is.
+
+        * It is NOT a foreign key to `blok_sessions`. The blok links the
+          table before it has ever uploaded the series (upload needs the
+          player to save; linking does not), so the row this string names
+          routinely does not exist yet — and may never, if the player never
+          saves. A FK would refuse exactly the ordinary case. The pair
+          (`requested_by_uid`, `session_id`) is what `blok_sessions`'
+          `uq_blok_sessions_user_session` is keyed on, so the lookup is an
+          indexed read anyway, and a series can only ever be resolved for
+          the uid that asked for the link — which is the consent boundary.
+
+        * NULLABLE, with no backfill: links made before this column existed
+          have no series to name, and a link whose client is older than
+          §6.2 never sends one. Both simply carry no shareable record. The
+          service also accepts the id later, on the first score push, so a
+          link that predates the client that knows its series can still
+          adopt one.
+
+      varchar(64) matches `blok_sessions.session_id` exactly; the service
+      treats anything longer or blank as absent rather than failing the score
+      write, since §6.2 makes the token a consequence of the score and never
+      a condition for it.
+    -->
+
+    <changeSet id="2026-09-08-blok-link-session" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="match_score_links" columnName="session_id"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="match_score_links">
+            <!-- The client's series id, or NULL when this link names no series.
+                 Same width and meaning as blok_sessions.session_id. -->
+            <column name="session_id" type="varchar(64)"/>
+        </addColumn>
+
+        <rollback>
+            <dropColumn tableName="match_score_links" columnName="session_id"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

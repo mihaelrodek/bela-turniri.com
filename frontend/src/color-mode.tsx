@@ -7,12 +7,13 @@ import { ThemeProvider, useTheme } from "next-themes"
 // component to export ONLY components, and mixing hooks in here broke fast
 // refresh for ColorModeProvider. Importers: see that file.
 
-/** `bg.canvas` dark value from src/system.ts (Chakra's gray.950 = #111111);
- *  light is plain white, matching manifest.webmanifest's background_color.
- *  Kept here (not imported from system.ts) because that file is a Chakra
- *  system config, not a small constant module — pulling it in for two hex
- *  strings would drag the whole theme build into this tiny component. */
-const THEME_COLOR_DARK = "#111111"
+/** `bg.canvas` dark value from src/system.ts (#141517, one step off Chakra's
+ *  gray.950 as of 2026-09-08); light is plain white, matching
+ *  manifest.webmanifest's background_color. Kept here (not imported from
+ *  system.ts) because that file is a Chakra system config, not a small
+ *  constant module — pulling it in for two hex strings would drag the whole
+ *  theme build into this tiny component. */
+const THEME_COLOR_DARK = "#141517"
 const THEME_COLOR_LIGHT = "#ffffff"
 
 /**
@@ -48,13 +49,16 @@ function ThemeColorSync() {
 }
 
 export function ColorModeProvider({ children }: { children: React.ReactNode }) {
-    // Force light mode as the default on first visit, ignore the OS preference.
-    // Users can still toggle to dark via the moon icon in the navbar; their
-    // choice is persisted in localStorage by next-themes. Without
-    // `enableSystem={false}` the OS preference would override our default and
-    // dark-mode users would land in dark mode whether they wanted to or not.
+    // Dark is the app's default on first visit, ignoring the OS preference —
+    // requested 2026-09-08. Users can still toggle to light via the sun icon
+    // in the navbar; their choice persists in localStorage on this device
+    // (next-themes) and, once signed in, syncs to the profile itself
+    // (see ThemeSync.tsx / api/userMe.ts's updateColorMode) so it follows
+    // them to another browser or device too. `enableSystem={false}` keeps
+    // the OS preference from silently overriding either the default or a
+    // saved choice.
     return (
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
             <ThemeColorSync />
             {children}
         </ThemeProvider>

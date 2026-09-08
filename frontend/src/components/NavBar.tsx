@@ -1,15 +1,16 @@
-import React, { useEffect } from "react"
+import React, { useEffect, type ReactNode } from "react"
 import {
     Box, Flex, HStack, IconButton, Image, Button, Container, Menu, Switch, Text, chakra, useBreakpointValue,
 } from "@chakra-ui/react"
 import { Link as RouterLink, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
-import { FiLogOut, FiMenu, FiMoon, FiSun, FiUser } from "react-icons/fi"
+import {
+    FiCalendar, FiEdit3, FiHome, FiLogOut, FiMap, FiMenu, FiMoon, FiPlay, FiSun, FiUser,
+} from "react-icons/fi"
 import { useAuth } from "../auth/authContextValue"
 import { useColorMode } from "../color-mode-hooks"
 import { updateColorMode } from "../api/userMe"
 import { useInstallPrompt } from "../hooks/useInstallPrompt"
 import { useInvalidateMyProfile, useMyProfile } from "../hooks/useMyProfile"
-import { useGameEnabled } from "../game/hooks/useGameEnabled"
 import { useTranslation } from "../i18n"
 import { InstallAppButton } from "./InstallAppButton"
 import LanguagePicker from "./LanguagePicker"
@@ -44,8 +45,25 @@ const BAR_H = {
  * would have gone the wrong way in dark and read as a hole in the capsule.
  */
 function NavButton({
-                       to, exact, children, onClick,
-                   }: { to: string; exact?: boolean; children: React.ReactNode; onClick?: () => void }) {
+                       to, exact, icon, accent, children, onClick,
+                   }: {
+    to: string
+    exact?: boolean
+    /** Same glyph the mobile tab bar uses for this destination — see NAV_ITEMS. */
+    icon?: ReactNode
+    /**
+     * Painted as filled even when it is not the current page ("Igraj").
+     *
+     * The mobile bar gives that destination a raised disc in its middle slot;
+     * this is the same emphasis at desktop width, so the two navigations keep
+     * agreeing about what stands out. It changes nothing about behaviour — the
+     * active pill still wins when you are actually there, so the accent never
+     * claims you are on a page you are not.
+     */
+    accent?: boolean
+    children: React.ReactNode
+    onClick?: () => void
+}) {
     const resolved = useResolvedPath(to)
     const match = useMatch({ path: resolved.pathname, end: !!exact })
     const isActive = !!match
@@ -53,20 +71,81 @@ function NavButton({
     return (
         <Button
             asChild
-            variant={isActive ? "solid" : "ghost"}
+            /* SOLID means "you are here" and nothing else — 2026-09-08, user
+               report. The accent used to be solid too, so "Igraj" looked
+               exactly like the current page and neither could be read for what
+               it was. `subtle` is a pale brand tint: unmistakably highlighted,
+               unmistakably not the active pill. When you actually ARE on
+               /igra, `isActive` wins and it fills in like every other tab. */
+            variant={isActive ? "solid" : accent ? "subtle" : "ghost"}
             colorPalette="brand"
             size="sm"
             // `full` is a real step on the theme's radii scale (src/system.ts),
             // not a hard-coded corner.
             rounded="full"
             px="3"
-            color={isActive ? undefined : "fg.soft"}
-            _hover={isActive ? undefined : { bg: "bg.muted", color: "fg" }}
+            gap="1.5"
+            color={isActive ? undefined : accent ? "colorPalette.fg" : "fg.soft"}
+            _hover={isActive ? undefined : accent ? { bg: "colorPalette.muted" } : { bg: "bg.muted", color: "fg" }}
             onClick={onClick}
         >
-            <RouterLink to={to}>{children}</RouterLink>
+            <RouterLink to={to}>
+                {/* The icon is decorative here — the link's own text is the
+                    accessible name, so no aria-label and no title. */}
+                {icon && <Box as="span" display="inline-flex" flexShrink="0" aria-hidden="true">{icon}</Box>}
+                {children}
+            </RouterLink>
         </Button>
     )
+}
+
+/**
+ * The five destinations, in order, shared by BOTH navigations.
+ *
+ * The desktop capsule below and `MobileTabBar` render the same list with the
+ * same icons and the same labels, so the two bars read as one navigation seen
+ * at two widths rather than as two different menus. Each bar keeps its own
+ * array (they render very differently), but the CONTENTS must stay in step —
+ * change one, change the other.
+ *
+ * Deliberately absent:
+ *   - "Kreiraj turnir" — an action, not a place. It lives in the /turniri
+ *     toolbar (TournamentsPage) and in that page's empty state.
+ *   - "Pronađi para" — the /pronadi-para page still exists and is still
+ *     reachable by URL; it is only out of the menus for now.
+ *   - "Profil" — the avatar in the top-right corner is the way there.
+ *
+ * "Igraj" is ALWAYS here, including in production while the online-bela kill
+ * switch (game/hooks/useGameEnabled.ts) is off. The flag no longer decides
+ * whether the destination is visible, only whether it is playable: with it
+ * off, /igra renders the "dolazi uskoro" page (src/game/GameFeatureGate.tsx).
+ * Do not reintroduce a `gameEnabled` filter here — a menu that grows an item
+ * a second after load is worse than one that always tells the truth.
+ */
+type NavItem = {
+    to: string
+    label: string
+    icon: ReactNode
+    /** Exact match, so `/turniri` doesn't stay lit on `/turniri/:slug`. */
+    exact?: boolean
+    /** Filled even when it is not the current page — see `NavButton`. */
+    accent?: boolean
+}
+
+function buildNavItems(t: (key: string) => string): NavItem[] {
+    return [
+        { to: "/turniri", label: t("common.nav.turniri"), icon: <FiHome size={16} />, exact: true },
+        { to: "/kalendar", label: t("common.nav.kalendar"), icon: <FiCalendar size={16} /> },
+        // Online bela (src/game), dead centre — the same slot it holds in the
+        // mobile tab bar, where the middle is the thumb's home position. Its
+        // label lives in the `game` namespace, not in `common`.
+        { to: "/igra", label: t("game.nav.igraj"), icon: <FiPlay size={16} />, accent: true },
+        { to: "/karta", label: t("common.nav.karta"), icon: <FiMap size={16} /> },
+        // Bela blok (src/blok) — public offline scorepad, no feature flag, no
+        // auth. Its label lives in the `blok` namespace with the rest of that
+        // subtree.
+        { to: "/blok", label: t("blok.nav"), icon: <FiEdit3 size={16} /> },
+    ]
 }
 
 /**
@@ -444,10 +523,11 @@ export default function NavBar() {
      */
     const isMobile = useBreakpointValue({ base: true, md: false }, { ssr: false }) ?? false
 
-    // Production kill switch for the online bela feature (see
-    // game/hooks/useGameEnabled.ts) — the "Igraj" link stays hidden until
-    // it resolves true, rather than flashing then disappearing.
-    const gameEnabled = useGameEnabled()
+    /* Built on every render rather than once at import time: `useTranslation`
+       only re-renders the component that called it, so the labels have to be
+       recomputed here for a language switch to reach them. Same reasoning as
+       MobileTabBar's buildTabs. */
+    const navItems = buildNavItems(t)
 
     // Bridge for the legacy `bela:profile-updated` window event that
     // PublicProfilePage dispatches after an avatar upload/removal: turn it into
@@ -549,18 +629,17 @@ export default function NavBar() {
                         second row — day-to-day navigation on a phone is the
                         fixed MobileTabBar at the foot of the viewport. */}
                     <NavCapsule tourAnchor={isMobile ? undefined : "nav-items"}>
-                        <NavButton to="/turniri" exact>
-                            {t("common.nav.turniri")}
-                        </NavButton>
-                        <NavButton to="/kalendar">{t("common.nav.kalendar")}</NavButton>
-                        <NavButton to="/turniri/novi">{t("common.nav.kreirajTurnir")}</NavButton>
-                        <NavButton to="/karta">{t("common.nav.karta")}</NavButton>
-                        <NavButton to="/pronadi-para">{t("common.nav.pronadjiPara")}</NavButton>
-                        {/* Online bela (src/game). Its label lives in the
-                            `game` namespace with the rest of that subtree,
-                            not in `common`. Hidden until the production
-                            flag resolves true — see `gameEnabled` above. */}
-                        {gameEnabled && <NavButton to="/igra">{t("game.nav.igraj")}</NavButton>}
+                        {navItems.map((item) => (
+                            <NavButton
+                                key={item.to}
+                                to={item.to}
+                                exact={item.exact}
+                                icon={item.icon}
+                                accent={item.accent}
+                            >
+                                {item.label}
+                            </NavButton>
+                        ))}
                     </NavCapsule>
 
                     {/* One trigger, nothing else: theme, language and install
@@ -577,9 +656,10 @@ export default function NavBar() {
 
                 {/* ====================== Mobile top bar ======================
                     Day-to-day navigation lives in the fixed bottom tab bar
-                    (MobileTabBar) — Turniri / Kalendar / Kreiraj / Karta /
-                    Profil are one tap away there, and are deliberately NOT
-                    duplicated in the menu. What stays in the top bar:
+                    (MobileTabBar) — the same five destinations as the desktop
+                    capsule above (Turniri / Kalendar / Igraj / Karta / Blok)
+                    are one tap away there, and are deliberately NOT duplicated
+                    in the menu. What stays in the top bar:
 
                       - Brand mark (logo + "Bela Turniri") on the left
                       - Auth control on the right: the avatar menu, or

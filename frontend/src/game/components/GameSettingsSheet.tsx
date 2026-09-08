@@ -1,135 +1,44 @@
-/* ──────────────────────────────────────────────────────────────────────────
-   GameSettingsSheet — zvuk / smanji animacije / vrsta karata
-   (game/DESIGN.md §2.10). STUB: the settings agent implements the body; the
-   table renders <GameSettingsSheet open onClose /> behind a gear button.
-   ────────────────────────────────────────────────────────────────────── */
-
-import { Box, Button, Dialog, HStack, Portal, Switch, Text, VStack } from "@chakra-ui/react"
+import { Button, Dialog, HStack, Portal, Text, VStack } from "@chakra-ui/react"
 import { useTranslation } from "../../i18n"
 import { useGamePrefs } from "../hooks/useGamePrefs"
 import PlayingCard from "./PlayingCard"
+import GameOption from "./GameOption"
 
-export default function GameSettingsSheet(props: { open: boolean; onClose: () => void }) {
+export default function GameSettingsSheet({ open, onClose }: {
+    open: boolean
+    onClose: () => void
+}) {
     const { t } = useTranslation()
     const [prefs, setPrefs] = useGamePrefs()
-
     return (
-        <Dialog.Root open={props.open} onOpenChange={(e) => { if (!e.open) props.onClose() }} placement="center">
+        <Dialog.Root open={open} onOpenChange={(e) => { if (!e.open) onClose() }} placement="center" scrollBehavior="inside">
             <Portal>
-                <Dialog.Backdrop />
+                <Dialog.Backdrop backdropFilter="blur(6px)" />
                 <Dialog.Positioner>
-                    <Dialog.Content maxW={{ base: "92%", md: "sm" }}>
-                        <Dialog.Header>
-                            <Dialog.Title fontSize="md">{t("game.settings.title")}</Dialog.Title>
-                        </Dialog.Header>
+                    <Dialog.Content maxW={{ base: "94%", md: "480px" }} rounded="2xl">
+                        <Dialog.Header><Dialog.Title fontSize="2xl">{t("game.settings.title")}</Dialog.Title></Dialog.Header>
                         <Dialog.Body>
-                            <VStack gap="6" align="stretch">
-                                {/* Zvuk switch */}
-                                <HStack justify="space-between" align="center">
-                                    <Text fontSize="sm" fontWeight="500">{t("game.settings.sound")}</Text>
-                                    <Switch.Root
-                                        checked={prefs.sound}
-                                        onCheckedChange={(e) => setPrefs({ sound: e.checked })}
-                                        colorPalette="brand"
-                                        size="md"
-                                    >
-                                        <Switch.HiddenInput />
-                                        <Switch.Control>
-                                            <Switch.Thumb />
-                                        </Switch.Control>
-                                    </Switch.Root>
+                            <VStack gap="3" align="stretch">
+                                <GameOption label={t("game.settings.alwaysReady")} hint={t("game.settings.alwaysReadyHint")}
+                                    checked={prefs.alwaysReady} onChange={(alwaysReady) => setPrefs({ alwaysReady })} />
+                                <GameOption label={t("game.settings.sound")} checked={prefs.sound} onChange={(sound) => setPrefs({ sound })} />
+                                <GameOption label={t("game.settings.reduceMotion")} checked={prefs.reduceMotion} onChange={(reduceMotion) => setPrefs({ reduceMotion })} />
+                                <Text fontSize="sm" fontWeight="semibold" mt="3">{t("game.settings.deckType")}</Text>
+                                <HStack gap="3" align="stretch">
+                                    {(["madjarice", "francuske"] as const).map((deck) => (
+                                        <Button key={deck} flex="1" h="auto" py="4" flexDirection="column" gap="3" colorPalette="brand"
+                                            variant={prefs.deck === deck ? "subtle" : "outline"} aria-pressed={prefs.deck === deck} onClick={() => setPrefs({ deck })}>
+                                            <PlayingCard card="JHERC" size="sm" deck={deck} />
+                                            {t(`game.settings.deck.${deck}`)}
+                                        </Button>
+                                    ))}
                                 </HStack>
-
-                                {/* Smanji animacije switch */}
-                                <VStack gap="2" align="stretch">
-                                    <HStack justify="space-between" align="center">
-                                        <Text fontSize="sm" fontWeight="500">{t("game.settings.reduceMotion")}</Text>
-                                        <Switch.Root
-                                            checked={prefs.reduceMotion}
-                                            onCheckedChange={(e) => setPrefs({ reduceMotion: e.checked })}
-                                            colorPalette="brand"
-                                            size="md"
-                                        >
-                                            <Switch.HiddenInput />
-                                            <Switch.Control>
-                                                <Switch.Thumb />
-                                            </Switch.Control>
-                                        </Switch.Root>
-                                    </HStack>
-                                    <Text fontSize="xs" color="fg.muted">{t("game.settings.reduceMotionHint")}</Text>
-                                </VStack>
-
-                                {/* Vrsta karata selector */}
-                                <VStack gap="3" align="stretch">
-                                    <Text fontSize="sm" fontWeight="500">{t("game.settings.deckType")}</Text>
-                                    <HStack gap="3" role="radiogroup" align="stretch">
-                                        {(["madjarice", "francuske"] as const).map((deck) => (
-                                            <DeckOption
-                                                key={deck}
-                                                label={t(`game.settings.deck.${deck}`)}
-                                                isSelected={prefs.deck === deck}
-                                                isRecommended={deck === "madjarice"}
-                                                onSelect={() => setPrefs({ deck })}
-                                            />
-                                        ))}
-                                    </HStack>
-                                </VStack>
                             </VStack>
                         </Dialog.Body>
-                        <Dialog.Footer>
-                            <Button variant="ghost" onClick={props.onClose}>
-                                {t("game.common.close")}
-                            </Button>
-                        </Dialog.Footer>
+                        <Dialog.Footer><Button colorPalette="brand" onClick={onClose}>{t("game.common.close")}</Button></Dialog.Footer>
                     </Dialog.Content>
                 </Dialog.Positioner>
             </Portal>
         </Dialog.Root>
-    )
-}
-
-function DeckOption({
-    label,
-    isSelected,
-    isRecommended,
-    onSelect,
-}: {
-    label: string
-    isSelected: boolean
-    isRecommended: boolean
-    onSelect: () => void
-}) {
-    const { t } = useTranslation()
-
-    return (
-        <Box
-            as="button"
-            flex="1"
-            role="radio"
-            aria-checked={isSelected}
-            onClick={onSelect}
-            p="3"
-            rounded="md"
-            borderWidth="2px"
-            borderColor={isSelected ? "brand.500" : "border.subtle"}
-            bg={isSelected ? "bg.muted" : "bg.subtle"}
-            transition="all 0.2s"
-            _hover={{ borderColor: "brand.500", bg: "bg.muted" }}
-            cursor="pointer"
-            display="flex"
-            flexDirection="column"
-            alignItems="center"
-            gap="2"
-        >
-            {isRecommended && (
-                <Text fontSize="xs" fontWeight="600" color="brand.500" textTransform="uppercase">
-                    {t("game.settings.recommended")}
-                </Text>
-            )}
-            <Box h="16" display="flex" alignItems="center" justifyContent="center">
-                <PlayingCard card="JHERC" size="sm" />
-            </Box>
-            <Text fontSize="sm" fontWeight="500">{label}</Text>
-        </Box>
     )
 }

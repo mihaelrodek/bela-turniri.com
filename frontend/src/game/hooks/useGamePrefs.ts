@@ -18,12 +18,14 @@ export interface GamePrefs {
     sound: boolean
     /** Manual "Smanji animacije"; combined with `prefers-reduced-motion` by consumers. */
     reduceMotion: boolean
+    alwaysReady: boolean
 }
 
 export const DEFAULT_GAME_PREFS: GamePrefs = {
     deck: "madjarice",
     sound: true,
     reduceMotion: false,
+    alwaysReady: false,
 }
 
 const STORAGE_KEY = "bela:game:prefs:v1"
@@ -40,6 +42,7 @@ function load(): GamePrefs {
             deck: parsed.deck === "francuske" ? "francuske" : "madjarice",
             sound: parsed.sound !== false,
             reduceMotion: parsed.reduceMotion === true,
+            alwaysReady: parsed.alwaysReady === true,
         }
     } catch {
         return DEFAULT_GAME_PREFS
