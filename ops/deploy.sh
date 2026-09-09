@@ -31,6 +31,22 @@
 # onto.
 set -euo pipefail
 
+# ── Run from anywhere ──────────────────────────────────────────────────────
+# Every path in this script is written relative to the repo root, and
+# `docker compose` reads `.env` / `.env.prod` from its WORKING DIRECTORY, not
+# from wherever the compose file lives. Called from `ops/` (which is exactly
+# where a tired hand ends up after `cd ops`), compose therefore starts the
+# stack with EMPTY POSTGRES_*/MINIO_* variables — and the prod profile has no
+# defaults on purpose, so the backend fails on boot and restarts forever while
+# the edge answers 502. That happened on 2026-09-09.
+#
+# So anchor the working directory to the repo root instead of trusting the
+# caller's. `BASH_SOURCE` is used rather than `$0` so this survives being
+# sourced, and the `cd` is checked because a repo mounted read-only or a
+# deleted directory must fail loudly here rather than half-way through a
+# deploy.
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
 cd "$(dirname "$0")/.."
 
 FLAG="ops/maintenance/ENABLED"
