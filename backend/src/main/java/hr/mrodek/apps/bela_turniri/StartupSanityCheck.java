@@ -4,6 +4,8 @@ import io.quarkus.runtime.LaunchMode;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
+import java.util.Optional;
+
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
@@ -53,8 +55,15 @@ public class StartupSanityCheck {
     String minioEndpoint;
 
     /** Shared secret for POST /api/internal/game-results (game/README.md §8.4). */
-    @ConfigProperty(name = "game.results.token", defaultValue = "")
-    String gameResultsToken;
+    /** Optional, not a defaulted String: an empty value is "no value" to
+     *  SmallRye, and a warning check must never be the thing that stops the
+     *  application from booting (see InternalTokenGuard, same fix). */
+    @ConfigProperty(name = "game.results.token")
+    Optional<String> gameResultsTokenConfig;
+
+    private String gameResultsToken() {
+        return gameResultsTokenConfig.orElse("");
+    }
 
     void onStart(@Observes StartupEvent ev) {
         // Only nag in prod — dev/test profiles legitimately use localhost and
@@ -101,12 +110,12 @@ public class StartupSanityCheck {
                     + "(the docker-compose service name) or your managed S3 host.");
         }
 
-        if (gameResultsToken == null || gameResultsToken.isBlank()) {
+        if (gameResultsToken().isBlank()) {
             warnings.add("GAME_RESULTS_TOKEN is unset. POST /api/internal/game-results will "
                     + "reject every report with 401, so no online-game statistics are recorded. "
                     + "Set the same random value on the backend and the game server "
                     + "(openssl rand -base64 32).");
-        } else if (DEV_GAME_RESULTS_TOKEN.equals(gameResultsToken)) {
+        } else if (DEV_GAME_RESULTS_TOKEN.equals(gameResultsToken())) {
             warnings.add("GAME_RESULTS_TOKEN is still the dev default ('"
                     + DEV_GAME_RESULTS_TOKEN
                     + "'), which is committed to the repository. Anyone who can reach "

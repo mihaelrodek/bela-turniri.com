@@ -9,6 +9,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import java.security.MessageDigest;
 
 /**
@@ -46,17 +47,28 @@ public class InternalTokenGuard {
 
     /**
      * Shared secret, {@code GAME_RESULTS_TOKEN} (the name predates the second
-     * endpoint; it is the one internal secret, not a per-endpoint one). No
-     * {@code defaultValue} on purpose: prod must supply it or everything here
-     * refuses. The dev/test fallback lives in {@code application.properties}
-     * under the {@code %dev,test} prefix.
+     * endpoint; it is the one internal secret, not a per-endpoint one). The
+     * dev/test fallback lives in {@code application.properties} under the
+     * {@code %dev,test} prefix; prod supplies it through the environment.
+     *
+     * <p>{@code Optional} on purpose — FIX 2026-09-09, prod outage. This was a
+     * bare {@code String} whose javadoc claimed "prod must supply it or
+     * everything here refuses", but SmallRye converts an ABSENT or EMPTY value
+     * to no value at all for a non-optional String, so an unset
+     * {@code GAME_RESULTS_TOKEN} did not make this class refuse — it made the
+     * whole application fail to start, in a restart loop, with
+     * "Failed to load config value of type class java.lang.String for:
+     * game.results.token" and a 502 on every page. A missing secret for ONE
+     * internal endpoint must never take the site down; the refusal below is
+     * the intended behaviour and now actually happens.
      */
     @ConfigProperty(name = "game.results.token")
-    String expectedToken;
+    Optional<String> expectedToken;
 
     /** Throws 401 unless {@code presented} matches the configured secret. */
     public void require(String presented) {
-        if (expectedToken == null || expectedToken.isBlank()) {
+        String secret = expectedToken.orElse(null);
+        if (secret == null || secret.isBlank()) {
             LOG.error("game.results.token is unset — refusing every /api/internal/* call. "
                     + "Set GAME_RESULTS_TOKEN on the backend and the game server.");
             throw unauthorized();
@@ -66,7 +78,7 @@ public class InternalTokenGuard {
         }
         boolean ok = MessageDigest.isEqual(
                 presented.getBytes(StandardCharsets.UTF_8),
-                expectedToken.getBytes(StandardCharsets.UTF_8));
+                secret.getBytes(StandardCharsets.UTF_8));
         if (!ok) throw unauthorized();
     }
 
