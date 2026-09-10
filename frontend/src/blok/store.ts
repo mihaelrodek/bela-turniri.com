@@ -6,9 +6,11 @@ import {
     BLOK_STORAGE_KEY,
     DEFAULT_DEAL_DIRECTION,
     DEFAULT_GAME_END_RULE,
+    DEFAULT_NEW_GAME_DEALER,
     DEFAULT_TARGET,
     LEGACY_SESSION_ID,
     MAX_SERIES_TARGET,
+    MAX_SIDE_NAME,
     type BlokGame,
     type BlokDealerSeat,
     type BlokDealDirection,
@@ -16,13 +18,14 @@ import {
     type BlokGameEndRule,
     type BlokLink,
     type BlokLinkStatus,
+    type BlokNewGameDealer,
     type BlokRound,
     type BlokShare,
     type BlokSide,
     type BlokStorageV1,
     type BlokSuit,
 } from "./types"
-import { dealerAt, firstDealerFor } from "./dealer"
+import { dealerAt, firstDealerFor, nextGameDealer } from "./dealer"
 
 /* ──────────────────────────────────────────────────────────────────────────
    useBlok — all the state of the paper scorepad. Contract: `BLOK.md` §5.
@@ -147,41 +150,56 @@ function newId(): string {
  * string in a module — against the project rule — and would freeze the
  * Croatian wording into a Slovenian player's saved game.
  */
-export function emptyGame(
-    target: number = DEFAULT_TARGET,
-    names?: Record<BlokSide, string>,
+/**
+ * The table conventions a new game inherits from the one before it — the
+ * agreements that hold for a whole evening rather than for one game.
+ *
+ * An object rather than the nine positional parameters this used to take. The
+ * settings dialog's own `onSave` was changed to an object for exactly this
+ * reason ("a call site of seven bare values is where the wrong two get
+ * swapped"), and a tenth boolean-shaped argument here would have been the
+ * ninth and tenth in a row that read the same at the call site.
+ */
+export interface BlokGameSetup {
+    target?: number
+    names?: Record<BlokSide, string>
     /** The session this game belongs to. A NEW one is minted only when the
      *  caller has none to inherit — BLOK-HISTORY.md §2.1. */
-    sessionId?: string,
+    sessionId?: string
     /** How many won games take the series, or `null`/absent for an open one —
-     *  which is the default. Carried across every game of a session exactly
-     *  like `target` and `names`. */
-    seriesTarget?: number | null,
-    /** How a single game ends — "prolaz" (the default) or "dosta". Carried
-     *  across a session for the same reason as everything above it. */
-    gameEndRule?: BlokGameEndRule,
-    dealer?: BlokDealerSetup,
-    /** Which way the deal goes round the table — a table convention, carried
-     *  across a session exactly like the three settings above it. */
-    dealDirection?: BlokDealDirection,
+     *  which is the default. */
+    seriesTarget?: number | null
+    /** How a single game ends — "prolaz" (the default) or "dosta". */
+    gameEndRule?: BlokGameEndRule
+    dealer?: BlokDealerSetup
+    /** Which way the deal goes round the table. */
+    dealDirection?: BlokDealDirection
+    /** Who deals the first deal of the NEXT game; absent = carry on round. */
+    newGameDealer?: BlokNewGameDealer
     /** Whether the "Sljedeći dijeli" strip is shown; absent = shown. */
-    showDealer?: boolean,
+    showDealer?: boolean
     /** Whether the share control is offered at all; absent = offered. */
-    shareEnabled?: boolean,
-): BlokGame {
+    shareEnabled?: boolean
+}
+
+export function emptyGame(setup: BlokGameSetup = {}): BlokGame {
     return {
         id: newId(),
-        sessionId: sessionId && sessionId !== "" ? sessionId : newId(),
+        sessionId: setup.sessionId && setup.sessionId !== "" ? setup.sessionId : newId(),
         createdAt: Date.now(),
         finishedAt: null,
-        target: sanitizeTarget(target),
-        seriesTarget: sanitizeSeriesTarget(seriesTarget),
-        gameEndRule: sanitizeGameEndRule(gameEndRule),
-        dealer: sanitizeDealerSetup(dealer),
-        dealDirection: sanitizeDealDirection(dealDirection),
-        showDealer: sanitizeShowDealer(showDealer),
-        shareEnabled: sanitizeShareEnabled(shareEnabled),
-        names: { us: names?.us ?? "", them: names?.them ?? "" },
+        target: sanitizeTarget(setup.target ?? DEFAULT_TARGET),
+        seriesTarget: sanitizeSeriesTarget(setup.seriesTarget),
+        gameEndRule: sanitizeGameEndRule(setup.gameEndRule),
+        dealer: sanitizeDealerSetup(setup.dealer),
+        dealDirection: sanitizeDealDirection(setup.dealDirection),
+        newGameDealer: sanitizeNewGameDealer(setup.newGameDealer),
+        showDealer: sanitizeShowDealer(setup.showDealer),
+        shareEnabled: sanitizeShareEnabled(setup.shareEnabled),
+        names: {
+            us: (setup.names?.us ?? "").slice(0, MAX_SIDE_NAME),
+            them: (setup.names?.them ?? "").slice(0, MAX_SIDE_NAME),
+        },
         rounds: [],
     }
 }
@@ -305,6 +323,13 @@ function sanitizeSeriesTarget(value: unknown): number | null {
  * being "prolaz", falling back through `=== "prolaz"` would have silently
  * converted every explicitly-chosen "dosta" game as well.
  */
+/** Who deals the next GAME: `"next"` unless the game says `"winner"`. Absent,
+ *  a typo or a value from a future build all read as `"next"`, which is what
+ *  every game saved before the setting existed did — storage stays `v1`. */
+function sanitizeNewGameDealer(value: unknown): BlokNewGameDealer {
+    return value === "winner" ? "winner" : DEFAULT_NEW_GAME_DEALER
+}
+
 function sanitizeGameEndRule(value: unknown): BlokGameEndRule {
     return value === "dosta" ? "dosta" : DEFAULT_GAME_END_RULE
 }
@@ -540,6 +565,9 @@ function sanitizeGame(value: unknown): BlokGame | null {
         // had said "u lijevo" keeps saying it. Still v1, still nothing
         // rewritten on disk (`sanitizeDealDirection`).
         dealDirection: sanitizeDealDirection(g.dealDirection ?? legacyDealerDirection(g.dealer)),
+        // Absent means "carry on round the table" — what every game saved
+        // before this setting existed did (`sanitizeNewGameDealer`).
+        newGameDealer: sanitizeNewGameDealer(g.newGameDealer),
         // Absent means SHOWN: every game saved before the switch existed had
         // the strip, and only a literal `false` takes it away.
         showDealer: sanitizeShowDealer(g.showDealer),
@@ -894,8 +922,9 @@ function undoLast(): void {
 
 function rename(side: BlokSide, name: string): void {
     // A blank name is not a name: it resets the side to its translated default
-    // rather than leaving an empty header on screen.
-    const trimmed = name.trim()
+    // rather than leaving an empty header on screen. The cap is the store's,
+    // not the dialog's — see `MAX_SIDE_NAME`.
+    const trimmed = name.trim().slice(0, MAX_SIDE_NAME)
     updateCurrent((g) => ({ ...g, names: { ...g.names, [side]: trimmed } }))
 }
 
@@ -970,6 +999,18 @@ function setDealDirection(direction: BlokDealDirection): void {
             },
         }
     })
+}
+
+/**
+ * Who deals the first deal of the NEXT game (BLOK.md §3.3.4).
+ *
+ * Nothing about the game being played changes: deals inside a game follow
+ * `dealDirection` as they always have, and this seat is read only when
+ * `newGame()` builds the next one. That is why — unlike `setDealDirection` —
+ * this one never touches `dealer.first`: there is no sequence to re-derive.
+ */
+function setNewGameDealer(mode: BlokNewGameDealer): void {
+    updateCurrent((g) => ({ ...g, newGameDealer: sanitizeNewGameDealer(mode) }))
 }
 
 /** Show or hide the "Sljedeći dijeli" strip. Purely a display choice: the
@@ -1082,34 +1123,42 @@ function newGame(): void {
     // an approval they already hold. `newGame` is now exactly parallel to
     // `sessionId`: same series, same match, next game. Only "Nova igra" —
     // which closes the series (§5.6) — ends the link.
-    const fresh = emptyGame(
-        playing?.target ?? DEFAULT_TARGET,
-        playing?.names,
-        playing?.sessionId,
+    const fresh = emptyGame({
+        target: playing?.target,
+        names: playing?.names,
+        sessionId: playing?.sessionId,
         // "Do koliko se igra" is part of the same agreement as the points
         // target and the names: every game of one session has to agree on
         // it, or the header's "2 : 1" would be measured against a bar that
         // moved between games.
-        playing?.seriesTarget,
+        seriesTarget: playing?.seriesTarget,
         // And so is "dosta / prolaz" — the table does not change how a
         // game ends between two games of the same evening.
-        playing?.gameEndRule,
-        // The deal carries on where it left off: whoever would have dealt the
-        // next deal of the old game deals the first of the new one. `chosen`
-        // travels with it — a seat that was NAMED stays named, so the next
-        // game's dealer is still a statement rather than a guess.
-        playing
+        gameEndRule: playing?.gameEndRule,
+        // Where the deal picks up (BLOK.md §3.3.4). The rotation carries on
+        // round the table from where the finished game left it — and under
+        // "Novu partiju miješa: pobjednik" it keeps stepping past the losing
+        // pair, so the winners deal. `chosen` travels with it: a seat that was
+        // NAMED stays named, so the next game's dealer is still a statement
+        // rather than a guess.
+        dealer: playing
             ? {
-                first: dealerAt(playing.dealer.first, playing.dealDirection, playing.rounds.length),
+                first: nextGameDealer(
+                    dealerAt(playing.dealer.first, playing.dealDirection, playing.rounds.length),
+                    playing.dealDirection,
+                    playing.newGameDealer,
+                    winnerOf(playing),
+                ),
                 chosen: playing.dealer.chosen,
             }
             : undefined,
-        // Three more table conventions that do not change between two games of
+        // Four more table conventions that do not change between two games of
         // the same evening.
-        playing?.dealDirection,
-        playing?.showDealer,
-        playing?.shareEnabled,
-    )
+        dealDirection: playing?.dealDirection,
+        newGameDealer: playing?.newGameDealer,
+        showDealer: playing?.showDealer,
+        shareEnabled: playing?.shareEnabled,
+    })
     setStorage({
         ...state,
         // `syncedGames` is carried UNTOUCHED: the series score does not change
@@ -1143,17 +1192,18 @@ function discardCurrent(): void {
     // The session survives too, for the same reason the link does: the four
     // people are still at the same table, this one game is being typed in
     // again. Only "Nova igra" ends a series (§5.6).
-    const fresh = emptyGame(
-        playing?.target ?? DEFAULT_TARGET,
-        playing?.names,
-        playing?.sessionId,
-        playing?.seriesTarget,
-        playing?.gameEndRule,
-        playing?.dealer,
-        playing?.dealDirection,
-        playing?.showDealer,
-        playing?.shareEnabled,
-    )
+    const fresh = emptyGame({
+        target: playing?.target,
+        names: playing?.names,
+        sessionId: playing?.sessionId,
+        seriesTarget: playing?.seriesTarget,
+        gameEndRule: playing?.gameEndRule,
+        dealer: playing?.dealer,
+        dealDirection: playing?.dealDirection,
+        newGameDealer: playing?.newGameDealer,
+        showDealer: playing?.showDealer,
+        shareEnabled: playing?.shareEnabled,
+    })
     setStorage({
         ...state,
         // `syncedGames` is forgotten with the deals. Deleting this game can
@@ -1366,20 +1416,20 @@ function resetSession(keepForUpload: boolean): string {
         // table plays survives — target, names, the series length and the
         // end-of-game rule — because the same four people usually start the
         // next evening the same way.
-        current: emptyGame(
-            playing?.target ?? DEFAULT_TARGET,
-            playing?.names,
-            undefined,
-            playing?.seriesTarget,
-            playing?.gameEndRule,
+        current: emptyGame({
+            target: playing?.target,
+            names: playing?.names,
+            seriesTarget: playing?.seriesTarget,
+            gameEndRule: playing?.gameEndRule,
             // A new evening deals from scratch, and nobody has named anybody
             // yet — `chosen: false`, so the first change of direction is free
             // to re-derive the sequence.
-            { first: "self", chosen: false },
-            playing?.dealDirection,
-            playing?.showDealer,
-            playing?.shareEnabled,
-        ),
+            dealer: { first: "self", chosen: false },
+            dealDirection: playing?.dealDirection,
+            newGameDealer: playing?.newGameDealer,
+            showDealer: playing?.showDealer,
+            shareEnabled: playing?.shareEnabled,
+        }),
         // Everything of the closing series goes, INCLUDING any unfinished game
         // still sitting in the archive: `keep` only spares the games that are
         // about to be uploaded, and an unfinished one is never among them.
@@ -1474,6 +1524,7 @@ export const blokActions = {
     setGameEndRule,
     setDealerSetup,
     setDealDirection,
+    setNewGameDealer,
     setShowDealer,
     setShareEnabled,
     newGame,
@@ -1520,6 +1571,8 @@ export interface BlokStore {
     /** Name the dealer by hand at any point — `chosen: true` is what makes that
      *  a decision the direction setting must not overwrite. */
     setDealerSetup(dealer: BlokDealerSetup): void
+    /** Who deals the first deal of the next game — BLOK.md §3.3.4. */
+    setNewGameDealer(mode: BlokNewGameDealer): void
     /** Which way the deal goes round the table — "right" (default) or "left".
      *  Keeps a hand-set dealer where it is; see `setDealDirection`. */
     setDealDirection(direction: BlokDealDirection): void
@@ -1663,6 +1716,7 @@ export function useBlok(): BlokStore {
         setGameEndRule,
         setDealerSetup,
         setDealDirection,
+    setNewGameDealer,
         setShowDealer,
         setShareEnabled,
         newGame,

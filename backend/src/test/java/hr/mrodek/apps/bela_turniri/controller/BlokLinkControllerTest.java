@@ -909,7 +909,7 @@ class BlokLinkControllerTest {
                 "HERC");
         BlokGameDto g = new BlokGameDto(
                 UUID.randomUUID().toString(),
-                1_757_280_000_000L, 1_757_283_600_000L, 1001, "prolaz", "us",
+                1_757_280_000_000L, 1_757_283_600_000L, 1001, "prolaz", "self", "us",
                 new BlokScoresDto(1012, 786), List.of(deal));
         return new SaveBlokSessionRequest(sessionId, 1001, "prolaz",
                 BlokNamesDto.of("", ""), 1_757_280_000_000L, 1_757_283_600_000L, List.of(g));

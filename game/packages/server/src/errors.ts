@@ -23,6 +23,7 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
     ALREADY_STARTED: "Igra je već započela.",
     NOT_ENOUGH_PLAYERS: "Nema dovoljno igrača.",
     ALREADY_IN_GAME: "Već imate sjedalo u drugoj sobi. Vratite se u nju ili je napustite.",
+    NAME_RATE_LIMITED: "Ime za igru možeš promijeniti jednom u sedam dana.",
 }
 
 export class ProtocolError extends Error {

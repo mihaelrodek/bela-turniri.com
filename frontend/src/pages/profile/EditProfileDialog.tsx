@@ -132,6 +132,23 @@ export function EditProfileDialog({
                                     {error && <Field.ErrorText>{error}</Field.ErrorText>}
                                 </Field.Root>
 
+                                {/* Read-only on purpose: the in-game name is written over
+                                    the game socket (`profile.setName`), never this endpoint,
+                                    because the same control has to serve guests who have no
+                                    bearer token. This dialog only SHOWS it, so a signed-in
+                                    player can see that the table calls them something else
+                                    (2026-09-09, user request). */}
+                                <Field.Root>
+                                    <Field.Label>{t("profile.edit.gameNameLabel")}</Field.Label>
+                                    {loadingPhone ? (
+                                        <Skeleton h="9" />
+                                    ) : (
+                                        <Input size="sm" readOnly value={myProfile?.gameName ?? ""}
+                                            placeholder={t("profile.edit.gameNameEmpty")} />
+                                    )}
+                                    <Field.HelperText>{t("profile.edit.gameNameHint")}</Field.HelperText>
+                                </Field.Root>
+
                                 <Field.Root>
                                     <Field.Label>
                                         {t("profile.edit.phoneLabel")}{" "}

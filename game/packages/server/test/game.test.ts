@@ -21,7 +21,7 @@ afterEach(async () => {
     server = null
 })
 
-/** Create a room, ready up, start it — the three empty seats become bots. */
+/** Create a room, explicitly fill the empty seats with bots, ready up, start. */
 async function startSoloRoom(
     host: TestClient,
     targetScore: TargetScore = 501,
@@ -29,6 +29,8 @@ async function startSoloRoom(
     // Several presence tests attach an observer after play starts.
     host.send({ t: "room.create", name: "Soba", targetScore, private: false, allowSpectators: true })
     const joined = await host.nextOfType("room.joined")
+    for (const seat of [1, 2, 3] as const) host.send({ t: "room.addBot", seat })
+    await host.next((m) => m.t === "room.state" && m.room.seats.every((s) => s.occupant !== null))
     host.send({ t: "room.ready", ready: true })
     await host.nextOfType("room.state")
     host.send({ t: "room.start" })
@@ -100,18 +102,27 @@ describe("a full game", () => {
             expect(host.received.some((m) => m.t === "game.events" && m.events.some((e) => e.type === "GAME_OVER"))).toBe(true)
 
             const states = host.received.filter(isGameState)
-            // README §1.7: the deal that crossed the target ended the game
-            // where it was scored, so the table was never left sitting in a
-            // decided DEAL_DONE waiting for a "Sljedeća podjela" that would
-            // only have ended the game anyway.
-            expect(
-                states.filter(
-                    (m) =>
-                        m.view.phase === "DEAL_DONE" &&
-                        (m.view.score.A >= 501 || m.view.score.B >= 501) &&
-                        m.view.score.A !== m.view.score.B,
-                ),
-            ).toEqual([])
+            // README §1.7: a deal the rule DECIDES ends the game where it was
+            // scored, so the table is never left sitting in a decided
+            // DEAL_DONE waiting for a "Sljedeća podjela" that would only have
+            // ended the game anyway.
+            //
+            // The condition is the rule itself, `prolaz`: the CALLING pair
+            // passed, reached the target, and leads after the deal is scored.
+            // This assertion used to read "nobody is at 501 in a DEAL_DONE",
+            // which is a different and stronger claim than §1.7 makes — the
+            // defenders crossing the target on a fall decides nothing, and the
+            // game correctly plays on. It held only because no deal in this
+            // seeded run had happened to produce that state.
+            const decided = states.filter((m) => {
+                if (m.view.phase !== "DEAL_DONE") return false
+                const deal = m.view.dealScore
+                if (deal === null || !deal.passed) return false
+                const caller = deal.callerTeam
+                const other = caller === "A" ? "B" : "A"
+                return m.view.score[caller] >= 501 && m.view.score[caller] > m.view.score[other]
+            })
+            expect(decided).toEqual([])
 
             // README §2/§3: every view carries the current deal's points from
             // COMPLETED tricks — at most the 152 that live in the cards.

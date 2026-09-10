@@ -34,6 +34,10 @@ export const game: GameDict = {
     "rules.withDeclarations": "Z napovedmi",
     "rules.allowBela": "Bela je dovoljena",
     "rules.noBela": "Brez bele",
+    "settings.gameName": "Ime za igro",
+    "settings.gameNameHint": "Ime, ki ga drugi igralci vidijo za mizo. Spremeniš ga lahko enkrat na sedem dni.",
+    "settings.gameNameSaved": "Ime je shranjeno.",
+    "settings.gameNameNext": "Ime lahko znova spremeniš {date}.",
     "settings.alwaysReady": "Vedno pripravljen",
     "settings.alwaysReadyHint": "Samodejno označi pripravljenost, ko sedeš za mizo.",
     /* ─── Navigacija ────────────────────────────────────────── */
@@ -41,6 +45,7 @@ export const game: GameDict = {
 
     /* ─── Skupno ────────────────────────────────────────────── */
     "common.cancel": "Prekliči",
+    "common.save": "Shrani",
 
     /* ─── Stanje povezave ───────────────────────────────────── */
     "connection.connecting": "Povezovanje…",
@@ -103,7 +108,10 @@ export const game: GameDict = {
     "lobby.createRoom": "Nova soba",
     "lobby.create": "Odpri sobo",
     "lobby.join": "Vstopi",
-    "lobby.target": "do {target}",
+    "lobby.target": "{target}",
+    "lobby.playing": "Igra poteka",
+    "lobby.finishMode.prolaz": "Skozi",
+    "lobby.finishMode.dosta": "Dovolj",
     "lobby.private": "Zasebna",
     "lobby.seats": "{taken}/{total} sedežev",
     "lobby.status.LOBBY": "Čaka igralce",
@@ -114,6 +122,9 @@ export const game: GameDict = {
     "lobby.form.name": "Ime sobe",
     "lobby.form.namePlaceholder": "npr. Petek zvečer",
     "lobby.form.target": "Igra se do",
+    "lobby.form.endRule": "Igra se na",
+    "lobby.form.endRule.prolaz": "Skozi",
+    "lobby.form.endRule.dosta": "Dovolj",
     "lobby.form.private": "Zasebna soba",
 
     /* ─── Soba (/igra/soba/:id) ─────────────────────────────── */
@@ -167,7 +178,6 @@ export const game: GameDict = {
     "room.pairAria": "Par {n}",
     "room.addBotCta": "Dodaj bota",
     "room.launch": "Zaženi igro",
-    "room.launchHint": "Čaka se, da so vsi pripravljeni.",
 
     /* ─── Sedež ─────────────────────────────────────────────── */
     "seat.empty": "Prazno",
@@ -325,6 +335,9 @@ export const game: GameDict = {
     "mock.roomName": "Demo soba",
 
     /* ─── Nastavitve igre (game/DESIGN.md §2.10) ───────────── */
+    /* Naslov bloka na vrhu „Postavke igre”: postavke SOBE, uređive dok se
+       partija nije počela i samo domaćinu (game/README.md §3). */
+    "settings.thisGame": "Nastavitve te igre",
     "settings.title": "Nastavitve igre",
     "settings.sound": "Zvok",
     "settings.reduceMotion": "Zmanjšaj animacije",

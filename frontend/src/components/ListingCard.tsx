@@ -175,7 +175,14 @@ export default function ListingCard({
                 }}
             >
                 {/* ── Poster + overlays ─────────────────────────────────── */}
-                <Box position="relative" h={{ base: "150px", md: "170px" }} overflow="hidden">
+                {/* SHORTER ON A PHONE (2026-09-09, user request): at 150px the
+                    list showed one card and a slice of the next, so the second
+                    tournament was never a thing you could read — you had to
+                    scroll to find out it existed. 118px still carries the date
+                    chip, the status pill, the initials and the time, which is
+                    everything this band is for. Desktop keeps its height: there
+                    the poster is doing real work in a grid of three. */}
+                <Box position="relative" h={{ base: "118px", md: "170px" }} overflow="hidden">
                     <Poster item={item} priority={priority} />
 
                     {parts && (
@@ -266,7 +273,9 @@ export default function ListingCard({
                 </Box>
 
                 {/* ── Body ──────────────────────────────────────────────── */}
-                <VStack align="stretch" gap="3" p="4" flex="1" minW="0">
+                {/* Same trim below the band: `gap="3" p="4"` is 28px of air
+                    per card on a screen that wants to show two of them. */}
+                <VStack align="stretch" gap={{ base: "2", md: "3" }} p={{ base: "3", md: "4" }} flex="1" minW="0">
                     {/* Title and location get fixed heights so a one-line and a
                         two-line name occupy the same space and every card in a
                         row lines its footer up with its neighbours. */}

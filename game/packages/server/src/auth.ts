@@ -19,6 +19,7 @@
 
 import { createRemoteJWKSet, jwtVerify } from "jose"
 import { createHash } from "node:crypto"
+import { LIMITS } from "@bela/protocol"
 import type { UserInfo } from "@bela/protocol"
 import type { Config } from "./config.js"
 import { ProtocolError } from "./errors.js"
@@ -69,14 +70,14 @@ export function userFromClaims(claims: Record<string, unknown>): UserInfo {
     const name = str(claims["name"]) ?? str(localPart) ?? FALLBACK_NAME
     return {
         uid,
-        name: name.slice(0, 60),
+        name: name.slice(0, LIMITS.playerNameMax),
         avatarUrl: str(claims["picture"]),
     }
 }
 
 export function devUser(devName: string): UserInfo {
     const trimmed = devName.trim().slice(0, 60)
-    const name = trimmed.length > 0 ? trimmed : FALLBACK_NAME
+    const name = (trimmed.length > 0 ? trimmed : FALLBACK_NAME).slice(0, LIMITS.playerNameMax)
     return { uid: `dev:${slugify(name)}`, name, avatarUrl: null }
 }
 
@@ -85,11 +86,18 @@ export function devUser(devName: string): UserInfo {
  * the user actually set here win — a profile with no avatar must not blank out
  * the Google one, which is still better than no picture at all.
  */
-export function withAppProfile(user: UserInfo, profile: { displayName: string | null; avatarUrl: string | null } | null): UserInfo {
+export function withAppProfile(
+    user: UserInfo,
+    profile: { displayName: string | null; avatarUrl: string | null; gameName?: string | null } | null,
+): UserInfo {
     if (!profile) return user
     return {
         ...user,
-        name: profile.displayName ?? user.name,
+        // The IN-GAME name wins over the account name, which wins over the
+        // token's (2026-09-09). A player who typed a name for the card table
+        // meant it for the card table; the account name is what the rest of
+        // the app calls them.
+        name: (profile.gameName ?? profile.displayName ?? user.name).slice(0, LIMITS.playerNameMax),
         avatarUrl: profile.avatarUrl ?? user.avatarUrl,
     }
 }
@@ -111,7 +119,20 @@ export function createAuthenticator(cfg: Config, profiles: ProfileLookup = creat
                     if (!guest || typeof guest.name !== "string" || !guest.name.trim() || guest.name.trim().length > 60 || typeof guest.secret !== "string" || !/^[a-f0-9]{64}$/.test(guest.secret)) {
                         throw new ProtocolError("UNAUTHENTICATED", "Unesite ime igrača.")
                     }
-                    return { uid: `guest:${createHash("sha256").update(guest.secret).digest("hex")}`, name: guest.name.trim(), avatarUrl: null, guest: true }
+                    // The secret is a per-device random, so its hash is a
+                    // stable uid — which is the only thing a guest has to hang
+                    // an in-game name off. Ask for one: a guest who renamed
+                    // themselves keeps that name even after clearing the name
+                    // out of localStorage, which is what makes the once-a-week
+                    // limit mean anything for them (2026-09-09).
+                    const uid = `guest:${createHash("sha256").update(guest.secret).digest("hex")}`
+                    const guestUser: UserInfo = {
+                        uid,
+                        name: guest.name.trim().slice(0, LIMITS.playerNameMax),
+                        avatarUrl: null,
+                        guest: true,
+                    }
+                    return withAppProfile(guestUser, await profiles.get(uid))
                 }
                 if (cfg.devAllowAnon) {
                     const devName = str(creds.devName)

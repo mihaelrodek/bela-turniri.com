@@ -42,8 +42,15 @@ export type TrickReview = "off" | "leaderPair" | "all"
 export const TRICK_REVIEWS: readonly TrickReview[] = ["off", "leaderPair", "all"]
 export const DEFAULT_TRICK_REVIEW: TrickReview = "off"
 
+/** How a game is won once the target score is reached. */
+export type GameEndRule = "prolaz" | "dosta"
+export const GAME_END_RULES: readonly GameEndRule[] = ["prolaz", "dosta"]
+export const DEFAULT_GAME_END_RULE: GameEndRule = "prolaz"
+
 export interface GameConfig {
     targetScore: TargetScore
+    /** Defaults to `prolaz`. */
+    gameEndRule?: GameEndRule
     /** Defaults to standard declarations. */
     noDeclarations?: boolean
     /** Only configurable when noDeclarations is true; defaults to allowed. */
@@ -236,6 +243,17 @@ export interface PlayerView {
     phase: Phase
     dealNo: number
     dealer: Seat
+    /**
+     * What the game is played to (501/701/1001). Public — it is the room's own
+     * setting, on every player's screen — and the endgame needs it: with the
+     * opponents one deal from the target, passing the bidding is a different
+     * decision from passing it at 0:0 (BOT.md §1).
+     *
+     * Optional so a PlayerView assembled by hand — the bots' unit tests — need
+     * not carry it; read `undefined` as "no target known" and skip any rule
+     * that depends on one.
+     */
+    targetScore?: TargetScore
     /** Own cards, sorted. Empty for spectators. */
     hand: Card[]
     /** How many cards each seat holds. */
@@ -257,6 +275,13 @@ export interface PlayerView {
      * cannot be undone from a browser. Optional (rather than required) so a
      * PlayerView assembled by hand — the bots' simulation sub-views — need not
      * carry it; `undefined` reads the same as `null`.
+     *
+     * The room's `trickReview` setting governs what a PERSON may review on
+     * screen. A bot decision gets the full list unconditionally, via
+     * `viewFor(state, seat, { recallTricks: true })`: a bot is stateless
+     * between moves, and remembering which PUBLIC cards fell, and from whose
+     * hand, is not privileged information — the human it plays for remembers
+     * exactly that. Nothing else in the view widens for a bot.
      */
     trickHistory?: WonTrick[] | null
     /**

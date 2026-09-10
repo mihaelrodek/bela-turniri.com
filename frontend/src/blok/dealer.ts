@@ -1,4 +1,4 @@
-import type { BlokDealerSeat, BlokDealDirection } from "./types"
+import type { BlokDealerSeat, BlokDealDirection, BlokNewGameDealer, BlokSide } from "./types"
 
 /* Seat order for each "smjer kartanja", read from the scorekeeper's own seat
    at the bottom of the drawn table: dealing to the RIGHT hands over to the
@@ -29,4 +29,37 @@ export function firstDealerFor(
     const currentIndex = order.indexOf(current)
     const normalizedOffset = Math.max(0, Math.floor(offset)) % order.length
     return order[(currentIndex - normalizedOffset + order.length) % order.length]
+}
+
+/** Which pair a seat belongs to, from the scorekeeper's chair. */
+export function sideOfDealerSeat(seat: BlokDealerSeat): BlokSide {
+    return seat === "self" || seat === "partner" ? "us" : "them"
+}
+
+/**
+ * Who deals the FIRST deal of the next game (BLOK.md §3.3.4).
+ *
+ * `from` is where the rotation had got to — the seat that would have dealt the
+ * finished game's next deal. Under `"next"` that IS the answer. Under
+ * `"winner"` the rotation keeps stepping the same way until it reaches a seat
+ * of the winning pair, so the losers are skipped rather than the direction
+ * reversed: dealing left with the win on our side, the left-hand opponent is
+ * passed over and the partner deals.
+ *
+ * `winner` null (nobody won it, or the game was abandoned) falls back to
+ * `"next"`: there is no winning pair to step towards, and inventing one would
+ * move the deal on the strength of a game that never finished.
+ */
+export function nextGameDealer(
+    from: BlokDealerSeat,
+    direction: BlokDealDirection,
+    mode: BlokNewGameDealer,
+    winner: BlokSide | null,
+): BlokDealerSeat {
+    if (mode !== "winner" || winner === null) return from
+    for (let step = 0; step < DEALER_SEATS.length; step++) {
+        const seat = dealerAt(from, direction, step)
+        if (sideOfDealerSeat(seat) === winner) return seat
+    }
+    return from
 }

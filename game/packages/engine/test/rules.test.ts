@@ -103,7 +103,7 @@ describe("legalMoves (README §1.5, every branch)", () => {
         expect(legalMoves(state, 0)).toEqual(["9HERC", "7PIK", "ATREF"])
     })
 
-    it("1. holding the led plain suit ⇒ must follow it", () => {
+    it("1. holding the led plain suit ⇒ must follow it (any card when nothing beats the ace)", () => {
         const state = playing({
             trump: "HERC",
             leader: 0,
@@ -111,6 +111,37 @@ describe("legalMoves (README §1.5, every branch)", () => {
             hands: { 1: ["9HERC", "7PIK", "KPIK", "ATREF"] },
         })
         expect(legalMoves(state, 1)).toEqual(["7PIK", "KPIK"])
+    })
+
+    it("1. a plain suit led ⇒ must go OVER the best card of it when able", () => {
+        const state = playing({
+            trump: "HERC",
+            leader: 0,
+            cards: [tc(0, "KPIK")],
+            hands: { 1: ["9HERC", "7PIK", "10PIK", "APIK", "ATREF"] },
+        })
+        // 10 and A beat the king (plain order 7 8 9 J Q K 10 A); the 7 does not.
+        expect(legalMoves(state, 1)).toEqual(["10PIK", "APIK"])
+    })
+
+    it("1. going over applies against one's own partner as well", () => {
+        const state = playing({
+            trump: "HERC",
+            leader: 0,
+            cards: [tc(0, "QPIK"), tc(1, "7PIK")],
+            hands: { 2: ["8PIK", "KPIK"] },
+        })
+        expect(legalMoves(state, 2)).toEqual(["KPIK"])
+    })
+
+    it("1. the trick is already ruffed ⇒ any card of the led suit", () => {
+        const state = playing({
+            trump: "HERC",
+            leader: 0,
+            cards: [tc(0, "QPIK"), tc(1, "7HERC")],
+            hands: { 2: ["8PIK", "KPIK", "APIK", "ATREF"] },
+        })
+        expect(legalMoves(state, 2)).toEqual(["8PIK", "KPIK", "APIK"])
     })
 
     it("1a. trumps led ⇒ must go over the best trump if able", () => {
@@ -144,24 +175,31 @@ describe("legalMoves (README §1.5, every branch)", () => {
         expect(legalMoves(state, 3)).toEqual(["9HERC", "AHERC"])
     })
 
-    it("2a. void and the partner is winning ⇒ anything", () => {
+    it("2a. void and the partner is winning ⇒ still must trump (no partner exception)", () => {
         const state = playing({
             trump: "HERC",
             leader: 0,
             cards: [tc(0, "APIK"), tc(1, "7PIK")],
             hands: { 2: ["9HERC", "QHERC", "ATREF"] },
         })
-        expect(legalMoves(state, 2)).toEqual(["9HERC", "QHERC", "ATREF"])
+        expect(legalMoves(state, 2)).toEqual(["9HERC", "QHERC"])
     })
 
-    it("2a. the partner winning with a trump also frees the hand", () => {
+    it("2a. the partner winning with a trump ⇒ a higher trump when held, else any trump", () => {
         const state = playing({
             trump: "HERC",
             leader: 0,
             cards: [tc(0, "APIK"), tc(1, "10HERC"), tc(2, "7PIK")],
             hands: { 3: ["9HERC", "AKARA"] },
         })
-        expect(legalMoves(state, 3)).toEqual(["9HERC", "AKARA"])
+        expect(legalMoves(state, 3)).toEqual(["9HERC"])
+        const lower = playing({
+            trump: "HERC",
+            leader: 0,
+            cards: [tc(0, "APIK"), tc(1, "10HERC"), tc(2, "7PIK")],
+            hands: { 3: ["8HERC", "AKARA"] },
+        })
+        expect(legalMoves(lower, 3)).toEqual(["8HERC"])
     })
 
     it("2b. void, an opponent is winning, no trump played yet ⇒ must trump", () => {

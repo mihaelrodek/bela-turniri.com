@@ -96,6 +96,18 @@ export interface GameSocketState {
     /** Server's answer to "do I hold a seat anywhere?" (`game.active`). */
     activeSeat: ActiveSeatInfo | null
     /**
+     * The in-game name as the SERVER last confirmed it, and the instant it may
+     * next be changed — both from `profile.name`, both null until the player
+     * actually changes it in this session.
+     *
+     * `me.name` is not the same thing: it is whatever the seat is wearing,
+     * which may be the account name or the guest's typed one. This pair exists
+     * so the settings sheet can say "spremljeno" and, on a refusal, "tek
+     * <datum>" without inventing either.
+     */
+    gameName: string | null
+    gameNameNextChangeAt: number | null
+    /**
      * Epoch ms our seat stops being held while the socket is DOWN, or null.
      *
      * Derived, not received: the hold starts precisely because the server can
@@ -130,6 +142,8 @@ const initialState: GameSocketState = {
     reactions: [],
     error: null,
     activeSeat: null,
+    gameName: null,
+    gameNameNextChangeAt: null,
     holdUntil: null,
     stickyRoomId: typeof window === "undefined" ? null : readStickyRoomId(),
     widgetDismissed: false,
@@ -197,11 +211,32 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
         case "pong":
             return prev
         case "error":
-            return { ...prev, error: { code: msg.code, message: msg.message, ref: msg.ref } }
+            return {
+                ...prev,
+                error: { code: msg.code, message: msg.message, ref: msg.ref },
+                // A direct link can outlive its room. Do not keep rendering a
+                // cached table while the room page handles the terminal error
+                // and returns to the lobby.
+                ...(msg.code === "ROOM_NOT_FOUND"
+                    ? { room: null, yourSeat: null, view: null, turnDeadline: null }
+                    : {}),
+            }
         case "lobby.rooms":
             return { ...prev, rooms: msg.rooms }
         case "game.active":
             return { ...prev, activeSeat: msg.seat }
+        case "profile.name":
+            // Rename ourselves on the spot. The room broadcasts its own copies
+            // of the seats (`renameOccupant` on the server), so the table
+            // catches up on the next `room.state`; `me` is the one thing no
+            // other frame is going to correct.
+            return {
+                ...prev,
+                gameName: msg.name,
+                gameNameNextChangeAt: msg.nextChangeAt > 0 ? msg.nextChangeAt : null,
+                me: prev.me ? { ...prev.me, name: msg.name } : prev.me,
+                error: null,
+            }
         case "room.joined":
         case "room.state":
             return {

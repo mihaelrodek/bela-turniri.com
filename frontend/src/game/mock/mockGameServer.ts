@@ -1,4 +1,4 @@
-import { DEFAULTS } from "@bela/protocol"
+import { DEFAULTS, LIMITS } from "@bela/protocol"
 import { heuristicBot } from "../../../../game/packages/bots/src/heuristicBot"
 import type {
     ChatMessage,
@@ -17,6 +17,7 @@ import type {
     DealScore,
     Declaration,
     GameEvent,
+    GameEndRule,
     Phase,
     PlayerView,
     Seat,
@@ -63,6 +64,8 @@ import {
 const BOT_THINK_MS = 1200
 const DECLARATIONS_MS = 5200
 const NETWORK_MS = 40
+/** The backend's `GameNameService.CHANGE_INTERVAL`, mirrored for the mock. */
+const NAME_CHANGE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
 
 /* Rooms and their games live at MODULE scope, not on the connection: the
    lobby page and the room page each own their own socket, so a room created
@@ -146,6 +149,8 @@ function summary(room: RoomState): RoomSummary {
         code: "",
         status: room.status,
         targetScore: room.targetScore,
+        gameEndRule: room.gameEndRule,
+        noDeclarations: room.noDeclarations,
         private: room.private,
         allowSpectators: room.allowSpectators,
         seatsTaken: room.seatsTaken,
@@ -159,6 +164,7 @@ function summary(room: RoomState): RoomSummary {
 /* ─────────────────────────── the fake deal ─────────────────────────── */
 
 class MockGame {
+    readonly gameEndRule: GameEndRule
     readonly noDeclarations: boolean
     readonly allowBela: boolean
     /** "Gledanje štihova" (game/README.md §1.8) — redacted in `view()` exactly
@@ -192,8 +198,9 @@ class MockGame {
     played: Card[] = []
     events: GameEvent[] = []
 
-    constructor(targetScore: TargetScore, noDeclarations = false, allowBela = true, trickReview: TrickReview = "off") {
+    constructor(targetScore: TargetScore, gameEndRule: GameEndRule = "prolaz", noDeclarations = false, allowBela = true, trickReview: TrickReview = "off") {
         this.targetScore = targetScore
+        this.gameEndRule = gameEndRule
         this.noDeclarations = noDeclarations
         this.allowBela = allowBela
         this.trickReview = trickReview
@@ -272,7 +279,7 @@ class MockGame {
         if (Date.now() < this.declarationsUntil || this.phase !== "PLAYING" || this.trick.turn !== seat) return []
         const trump = this.bidding.trump
         if (!trump) return []
-        return legalMoves(this.hands[seat], this.trick.cards, trump, seat)
+        return legalMoves(this.hands[seat], this.trick.cards, trump)
     }
 
     /** `bela` is the player's answer to "Zovi belu?" — same contract as the
@@ -386,9 +393,14 @@ class MockGame {
         this.phase = "DEAL_DONE"
         this.events.push({ type: "DEAL_SCORED", dealScore })
 
-        const reached = this.score.A >= this.targetScore || this.score.B >= this.targetScore
-        if (reached && this.score.A !== this.score.B) {
-            this.winner = this.score.A > this.score.B ? "A" : "B"
+        const dostaWinner = this.score.A >= this.targetScore || this.score.B >= this.targetScore
+            ? (this.score.A > this.score.B ? "A" : this.score.B > this.score.A ? "B" : null)
+            : null
+        const prolazWinner = passed && this.score[callerTeam] >= this.targetScore && this.score[callerTeam] > this.score[opponents]
+            ? callerTeam
+            : null
+        this.winner = this.gameEndRule === "dosta" ? dostaWinner : prolazWinner
+        if (this.winner !== null) {
             this.phase = "GAME_OVER"
             this.events.push({ type: "GAME_OVER", winner: this.winner, score: { ...this.score } })
         }
@@ -495,36 +507,34 @@ class MockGame {
         }
     }
 
-    /** README §5's bidding heuristic, roughly. */
+    /**
+     * The view a BOT decides from: the same one a person in that seat gets,
+     * except that the completed tricks are always there. The room's
+     * `trickReview` setting governs what a PERSON may look at on screen; a bot
+     * is stateless, so without this it would forget every trick and none of
+     * the signalling in game/BOT.md could work. The server does exactly this
+     * (`viewFor(state, seat, { recallTricks: true })`) and the mock has to
+     * match it, or the bots play differently here than in a real room.
+     */
+    private botView(seat: Seat): PlayerView {
+        return { ...this.view(seat), trickHistory: this.tricks.map((won) => ({ ...won })) }
+    }
+
     botBid(seat: Seat): void {
-        const hand = this.hands[seat]
-        let bestSuit: Suit = "HERC"
-        let bestScore = -1
-        for (const suit of SUITS) {
-            const cards = hand.filter((c) => cardSuit(c) === suit)
-            let score = 0
-            for (const card of cards) {
-                const rank = cardRank(card)
-                if (rank === "J") score += 4
-                else if (rank === "9") score += 3
-                else if (rank === "A") score += 1.5
-                else if (rank === "10") score += 1
-                score += 0.5
-            }
-            if (score > bestScore) {
-                bestScore = score
-                bestSuit = suit
-            }
-        }
-        const mustBid = this.bidding.passes.length === 3
-        if (mustBid || bestScore >= 5.5) this.bid(seat, bestSuit)
-        else this.pass(seat)
+        // The real bot, not a copy of it. This used to be a hand-rolled
+        // re-implementation of "README §5's bidding heuristic, roughly", which
+        // meant the mock's bots called on a different rule from the server's —
+        // and it silently stopped tracking the real one (game/BOT.md §1).
+        const legal = { canPass: this.bidding.passes.length < 3, suits: [...SUITS] }
+        const choice = heuristicBot.chooseBid(this.botView(seat), legal, this.rnd)
+        if (choice === "PASS" && legal.canPass) this.pass(seat)
+        else this.bid(seat, choice === "PASS" ? (SUITS[0] as Suit) : choice)
     }
 
     botPlay(seat: Seat): void {
         const legal = this.legalFor(seat)
         if (legal.length === 0) return
-        this.play(seat, heuristicBot.chooseCard(this.view(seat), legal, this.rnd))
+        this.play(seat, heuristicBot.chooseCard(this.botView(seat), legal, this.rnd))
     }
 }
 
@@ -535,6 +545,8 @@ class MockServer {
     private readonly timers = new Set<ReturnType<typeof setTimeout>>()
     private disposed = false
     private me: UserInfo
+    /** When the in-game name was last changed in THIS mock session, or null. */
+    private nameChangedAt: number | null = null
     private roomId: string | null = null
     private mySeat: Seat | null = null
     private chatSeq = 0
@@ -602,6 +614,7 @@ class MockServer {
             hostUid,
             status: "LOBBY",
             targetScore,
+            gameEndRule: "prolaz",
             private: isPrivate,
             allowSpectators: false,
             noDeclarations: false,
@@ -691,6 +704,7 @@ class MockServer {
                 return
             case "room.create": {
                 const room = this.makeRoom(msg.name, msg.targetScore, msg.private, this.me.uid)
+                room.gameEndRule = msg.gameEndRule ?? "prolaz"
                 room.noDeclarations = msg.noDeclarations === true
                 room.allowBela = !room.noDeclarations || msg.allowBela !== false
                 room.allowSpectators = msg.allowSpectators === true
@@ -802,6 +816,56 @@ class MockServer {
                 this.pushLobby()
                 return
             }
+            case "profile.setName": {
+                /* The in-game name (protocol `profile.setName`). The real
+                   server hands the write to the backend, which owns the
+                   once-a-week clock; the mock keeps that clock in memory so
+                   `/igra?mock=1` shows the refusal too — a second change in
+                   the same session is exactly how the limit is met in real
+                   life. */
+                const name = typeof msg.name === "string" ? msg.name.trim() : ""
+                if (name.length === 0 || name.length > LIMITS.playerNameMax) { this.error("BAD_REQUEST", msg.t); return }
+                if (this.nameChangedAt !== null) {
+                    const nextChangeAt = this.nameChangedAt + NAME_CHANGE_INTERVAL_MS
+                    this.emit({ t: "profile.name", name: this.me.name, nextChangeAt })
+                    this.error("NAME_RATE_LIMITED", msg.t)
+                    return
+                }
+                this.nameChangedAt = Date.now()
+                this.me = { ...this.me, name }
+                const room = this.room()
+                if (room) {
+                    for (const seat of room.seats) {
+                        const occupant = seat.occupant
+                        if (occupant?.kind === "PLAYER" && occupant.user.uid === this.me.uid) occupant.user = this.me
+                    }
+                }
+                this.emit({ t: "profile.name", name, nextChangeAt: this.nameChangedAt + NAME_CHANGE_INTERVAL_MS })
+                if (room) { this.pushRoom(); this.pushLobby() }
+                return
+            }
+            case "room.setOptions": {
+                // The mock mirrors the server's guards (game/README.md §3):
+                // host only, lobby only, absent fields left alone, and the
+                // bela follows the declarations exactly as `room.create` sets
+                // it. A mock that accepts what the server refuses teaches the
+                // UI a room the server never builds.
+                const room = this.room()
+                if (!room) return
+                if (room.hostUid !== this.me.uid) { this.error("NOT_HOST", msg.t); return }
+                // Same code the real server sends (`Room.requireLobby`).
+                if (room.status === "PLAYING") { this.error("ALREADY_STARTED", msg.t); return }
+                if (msg.targetScore !== undefined) room.targetScore = msg.targetScore
+                if (msg.gameEndRule !== undefined) room.gameEndRule = msg.gameEndRule
+                if (msg.allowSpectators !== undefined) room.allowSpectators = msg.allowSpectators
+                if (msg.noDeclarations !== undefined) room.noDeclarations = msg.noDeclarations
+                if (msg.allowBela !== undefined) room.allowBela = msg.allowBela
+                if (msg.trickReview !== undefined) room.trickReview = msg.trickReview
+                if (!room.noDeclarations) room.allowBela = true
+                this.pushRoom()
+                this.pushLobby()
+                return
+            }
             case "room.ready": {
                 const room = this.room()
                 if (!room || this.mySeat === null) return
@@ -818,17 +882,23 @@ class MockServer {
             case "room.start": {
                 const room = this.room()
                 if (!room) return
-                if (room.hostUid !== this.me.uid) {
-                    this.error("NOT_HOST", msg.t)
+                if (this.mySeat === null) {
+                    this.error("BAD_REQUEST", msg.t)
                     return
                 }
-                for (const seat of SEATS) {
-                    if (!room.seats[seat].occupant) {
-                        room.seats[seat] = { seat, occupant: { kind: "BOT", name: botUser(seat) } }
-                    }
+                const humans = room.seats
+                    .map((seat) => seat.occupant)
+                    .filter((occupant) => occupant?.kind === "PLAYER")
+                if (humans.length === 0 || humans.some((occupant) => !occupant.ready)) {
+                    this.error("BAD_REQUEST", msg.t)
+                    return
+                }
+                if (room.seats.some((seat) => seat.occupant === null)) {
+                    this.error("NOT_ENOUGH_PLAYERS", msg.t)
+                    return
                 }
                 room.status = "PLAYING"
-                const game = new MockGame(room.targetScore, room.noDeclarations, room.allowBela, room.trickReview)
+                const game = new MockGame(room.targetScore, room.gameEndRule, room.noDeclarations, room.allowBela, room.trickReview)
                 game.startDeal()
                 games.set(room.id, game)
                 this.pushRoom()

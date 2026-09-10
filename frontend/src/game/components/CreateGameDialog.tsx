@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { Button, Dialog, HStack, Portal, Text, VStack } from "@chakra-ui/react"
 import { FiArrowRight } from "react-icons/fi"
-import { TRICK_REVIEWS } from "@bela/protocol"
-import type { ClientMessage, TargetScore, TrickReview } from "@bela/protocol"
+import { GAME_END_RULES, TRICK_REVIEWS } from "@bela/protocol"
+import type { ClientMessage, GameEndRule, TargetScore, TrickReview } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import GameOption from "./GameOption"
 
@@ -17,6 +17,7 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
 }) {
     const { t } = useTranslation()
     const [targetScore, setTarget] = useState<TargetScore>(1001)
+    const [gameEndRule, setGameEndRule] = useState<GameEndRule>("prolaz")
     const [isPrivate, setPrivate] = useState(false)
     const [allowSpectators, setAllowSpectators] = useState(false)
     const [noDeclarations, setNoDeclarations] = useState(false)
@@ -49,6 +50,23 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
                                         ))}
                                     </HStack>
                                 </VStack>
+                                <HStack gap="2" minH="44px" px="3" py="2" rounded="lg"
+                                    bg="bg.subtle" borderWidth="1px" borderColor="border.subtle"
+                                    justifyContent="space-between">
+                                    <Text fontSize="sm" fontWeight="semibold" flex="1" minW="0">
+                                        {t("game.lobby.form.endRule")}
+                                    </Text>
+                                    <HStack gap="1" flexShrink={0}>
+                                        {GAME_END_RULES.map((value) => (
+                                            <Button key={value} size="xs" px="3" colorPalette="brand"
+                                                variant={gameEndRule === value ? "solid" : "outline"}
+                                                aria-pressed={gameEndRule === value} disabled={busy}
+                                                onClick={() => setGameEndRule(value)}>
+                                                {t(`game.lobby.form.endRule.${value}`)}
+                                            </Button>
+                                        ))}
+                                    </HStack>
+                                </HStack>
                                 {/* These are peer switches, so they share one visual group
                                     and the same spacing instead of reading as sections. */}
                                 <VStack align="stretch" gap="1.5">
@@ -117,7 +135,7 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
                         <Dialog.Footer>
                             <Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>{t("game.common.cancel")}</Button>
                             <Button colorPalette="brand" size="lg" disabled={busy}
-                                onClick={() => onCreate({ targetScore, private: isPrivate, allowSpectators, noDeclarations, allowBela: !noDeclarations || allowBela, trickReview })}>
+                                onClick={() => onCreate({ targetScore, gameEndRule, private: isPrivate, allowSpectators, noDeclarations, allowBela: !noDeclarations || allowBela, trickReview })}>
                                 {t("game.lobby.newGame")} <FiArrowRight />
                             </Button>
                         </Dialog.Footer>

@@ -121,4 +121,10 @@
          still the only real defence. -->
     <include file="db/changelog/blok_link_write_token.xml" relativeToChangelogFile="false"/>
 
+    <!-- "Ime za igru": the name shown above a seat at the online card table,
+         keyed by the game server's own player id so it covers guests
+         (`guest:<64 hex>`) as well as signed-in users, and carrying the
+         changed_at the once-per-7-days rule is measured from. -->
+    <include file="db/changelog/game_names.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>

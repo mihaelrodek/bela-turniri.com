@@ -25,7 +25,10 @@ export const DEFAULT_GAME_PREFS: GamePrefs = {
     deck: "madjarice",
     sound: true,
     reduceMotion: false,
-    alwaysReady: false,
+    // ON for everybody (2026-09-09, user request). Sitting down IS saying you
+    // are ready in a four-seat game people opened on purpose; the switch stays
+    // so anybody who wants the extra beat can turn it off.
+    alwaysReady: true,
 }
 
 const STORAGE_KEY = "bela:game:prefs:v1"
@@ -42,7 +45,10 @@ function load(): GamePrefs {
             deck: parsed.deck === "francuske" ? "francuske" : "madjarice",
             sound: parsed.sound !== false,
             reduceMotion: parsed.reduceMotion === true,
-            alwaysReady: parsed.alwaysReady === true,
+            // Absent reads as the default (true), so an install from before
+            // this change starts ready rather than being silently opted out;
+            // only a stored `false` turns it off.
+            alwaysReady: parsed.alwaysReady !== false,
         }
     } catch {
         return DEFAULT_GAME_PREFS

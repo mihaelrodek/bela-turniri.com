@@ -98,6 +98,9 @@ export const profile = {
     "edit.nameRequired": "Ime ne može biti prazno.",
     "edit.phoneLabel": "Broj telefona",
     "edit.phoneOptional": "(opcionalno)",
+    "edit.gameNameLabel": "Ime za igru",
+    "edit.gameNameEmpty": "Nije postavljeno",
+    "edit.gameNameHint": "Ime koje ostali igrači vide za stolom. Mijenja se u postavkama igre.",
     "edit.phonePlaceholder": "91 234 5678",
     "edit.saveFailed": "Greška pri spremanju.",
 

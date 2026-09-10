@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      "Ime za igru" — the name a player wears at the online card table,
+      separate from the account display name.
+
+      Why its own table and not a column on user_profiles:
+
+        * HALF THE PLAYERS HAVE NO PROFILE ROW AND NEVER WILL. The game server
+          seats guests — people who never signed in — under an id it derives
+          from a secret their browser keeps: `guest:<64 hex>`. A guest has no
+          Firebase account, so `user_profiles` (whose PK *is* the Firebase UID)
+          has nowhere to put their name. Keying on the game server's own uid
+          string covers both kinds of player with one row shape.
+
+        * The once-a-week rule has to key on the same string. For a guest that
+          browser secret is the only stable identity there is, so the limit and
+          the name must live on the same key or the limit is trivially reset.
+
+      `game_uid` is varchar(128): the width `game_result_players.uid` already
+      uses for the same identifiers (§8.3 of game/README.md). A Firebase UID is
+      28 characters and `guest:` + 64 hex is 70, so 128 is headroom, not a
+      guess — and it is a hard cap on what an internal caller can make us store.
+
+      `name` is varchar(16) because the protocol's LIMITS.playerNameMax is 16.
+      The service rejects anything longer rather than truncating; the column
+      width is the second line of defence, not the first.
+
+      Deliberately NOT unique. Two players may both call themselves "Ivan" —
+      this is a label above a seat, not a handle anyone is addressed by, and a
+      uniqueness constraint would turn a cosmetic choice into a land grab.
+
+      No index beyond the primary key: every read and write of this table is a
+      lookup by `game_uid`.
+
+      tableExists / MARK_RAN, like the other tables here, so a database where
+      this was created by hand is a no-op rather than a startup failure.
+    -->
+
+    <changeSet id="2026-09-09-game-names" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="game_names"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="game_names">
+            <!-- The game server's id for the player: a Firebase UID for a
+                 signed-in user, `guest:<64 hex>` for a guest. -->
+            <column name="game_uid" type="varchar(128)">
+                <constraints primaryKey="true" nullable="false"
+                             primaryKeyName="pk_game_names"/>
+            </column>
+
+            <column name="name" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- When the name was last set. The once-per-7-days rule is
+                 measured from here, so it is NOT a plain @UpdateTimestamp:
+                 a write that changes nothing else must still move it, and a
+                 write refused by the rule must not. -->
+            <column name="changed_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <rollback>
+            <dropTable tableName="game_names"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

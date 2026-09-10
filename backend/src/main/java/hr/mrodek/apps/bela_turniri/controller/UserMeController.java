@@ -1,6 +1,7 @@
 package hr.mrodek.apps.bela_turniri.controller;
 
 import hr.mrodek.apps.bela_turniri.dtos.GameStatsDto;
+import hr.mrodek.apps.bela_turniri.services.GameNameService;
 import hr.mrodek.apps.bela_turniri.dtos.MyTournamentParticipationDto;
 import hr.mrodek.apps.bela_turniri.dtos.SyncProfileRequest;
 import hr.mrodek.apps.bela_turniri.dtos.UserProfileDto;
@@ -55,6 +56,7 @@ public class UserMeController {
     @Inject MessageService messages;
     @Inject CurrentUser currentUser;
     @Inject GameStatsService gameStatsService;
+    @Inject GameNameService gameNameService;
 
     @GET
     @Path("/tournaments")
@@ -150,8 +152,16 @@ public class UserMeController {
     @Path("/profile")
     @Transactional   // touch the lazy avatar relation
     public UserProfileDto getProfile() {
-        var p = profileRepo.findByUid(currentUser.requireUid()).orElse(null);
-        if (p == null) return new UserProfileDto(null, null, null, null, null);
+        String uid = currentUser.requireUid();
+        var p = profileRepo.findByUid(uid).orElse(null);
+        // A player can have an in-game name without ever having a profile row:
+        // profiles are created lazily, the game name is written by the game
+        // server, and the two have never depended on each other. Returning an
+        // empty DTO here would hide a name the player can see at the table.
+        if (p == null) {
+            return new UserProfileDto(null, null, null, null, null, null, null,
+                    gameNameService.nameFor(uid));
+        }
         return toDto(p);
     }
 
@@ -303,7 +313,7 @@ public class UserMeController {
      * for posters. Caller must run inside an active transaction so the lazy
      * {@code avatar} association can be resolved.
      */
-    private static UserProfileDto toDto(UserProfile p) {
+    private UserProfileDto toDto(UserProfile p) {
         String avatarUrl = null;
         Resources av = p.getAvatar();
         if (av != null && av.getId() != null) {
@@ -316,7 +326,11 @@ public class UserMeController {
                 p.getSlug(),
                 avatarUrl,
                 p.getColorMode(),
-                p.getLocale());
+                p.getLocale(),
+                // Read-only here — the only writer is the game server's
+                // internal endpoint, because the same rule has to cover guests
+                // who never reach this controller (UserProfileDto.gameName).
+                gameNameService.nameFor(p.getUserUid()));
     }
 
     private MyTournamentParticipationDto toDto(Pairs p) {

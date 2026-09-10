@@ -15,6 +15,11 @@ import type { CommonDict } from "../hr/common"
 export const common: CommonDict = {
     // --- Actions -----------------------------------------------------------
     save: "Shrani",
+    /* Dvije riječi koje su zamijenile on/off prekidače u postavkama
+       (2026-09-09, zahtjev korisnika): prekidač traži da znaš na koju stranu
+       je „upaljeno”, a „Ne / Da” to piše. */
+    no: "Ne",
+    yes: "Da",
     cancel: "Prekliči",
     confirm: "Potrdi",
     delete: "Izbriši",

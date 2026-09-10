@@ -881,6 +881,9 @@ class BlokHistoryControllerTest {
                 1_757_283_600_000L,
                 1001,
                 endRule,
+                // No dealer: these fixtures are about deals and scores, and a
+                // record written before anybody named a chair simply has none.
+                null,
                 winner,
                 new BlokScoresDto(1012, 786),
                 deals);
@@ -907,7 +910,7 @@ class BlokHistoryControllerTest {
     }
 
     private static BlokGameDto withFirstDeal(BlokRoundDto deal) {
-        return new BlokGameDto("g1", 1_757_280_000_000L, null, 1001, null, "us",
+        return new BlokGameDto("g1", 1_757_280_000_000L, null, 1001, null, null, "us",
                 new BlokScoresDto(92, 70), List.of(deal));
     }
 

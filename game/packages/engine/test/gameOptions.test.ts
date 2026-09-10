@@ -36,6 +36,7 @@ describe("declaration options", () => {
 
     it("keeps standard declarations enabled by default", () => {
         const base = newGame({ targetScore: 1001, seed: "defaults" })
+        expect(base.config.gameEndRule).toBe("prolaz")
         const standard = reduce(base, { type: "BID", seat: base.bidding.turn, trump: "HERC" }).state
         const explicit = reduce({ ...base, config: { ...base.config, noDeclarations: false } },
             { type: "BID", seat: base.bidding.turn, trump: "HERC" }).state

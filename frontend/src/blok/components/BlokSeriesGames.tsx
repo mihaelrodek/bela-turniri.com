@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Box, Grid, HStack, Text, VStack } from "@chakra-ui/react"
+import { Box, Grid, Text, VStack } from "@chakra-ui/react"
 import { FiChevronDown, FiChevronRight } from "react-icons/fi"
 
 import SuitGlyph from "../../game/components/SuitGlyph"
@@ -182,13 +182,25 @@ function GameRow({
                     different units, with nothing saying which was which. Split
                     per side, each number sits under its own team's name in the
                     card, and the two quantities stop competing. */}
-                <HStack gap="3" minW="0" align="center">
-                    <Box color="fg.subtle" flexShrink="0" display="flex" aria-hidden="true">
+                <Box position="relative">
+                    {/* ABSOLUTE, so it takes no width (2026-09-09, reported):
+                        in the flow the chevron pushed both totals to the right
+                        and they no longer sat over the deal columns below. The
+                        grid uses exactly the tracks those rows use. */}
+                    <Box
+                        position="absolute"
+                        left="0"
+                        top="50%"
+                        transform="translateY(-50%)"
+                        color="fg.subtle"
+                        display="flex"
+                        aria-hidden="true"
+                    >
                         {open ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
                     </Box>
-                    <Grid templateColumns="1fr 1fr" gap="2" flex="1" minW="0">
-                        {BLOK_SIDES.map((side) => (
-                            <Box key={side} textAlign="center" minW="0">
+                    <Grid templateColumns="1fr 2.5rem 1fr" gap="2" minW="0">
+                        {BLOK_SIDES.map((side, i) => (
+                            <Box key={side} gridColumn={i === 0 ? 1 : 3} textAlign="center" minW="0">
                                 <Text
                                     fontSize="sm"
                                     fontWeight="semibold"
@@ -210,7 +222,7 @@ function GameRow({
                             </Box>
                         ))}
                     </Grid>
-                </HStack>
+                </Box>
             </Box>
 
             {open ? (
@@ -303,7 +315,16 @@ export default function BlokSeriesGames({
                the fixed height into the strip under the action bar, where
                nothing can reach it. The `rem` half caps a tall tablet, where
                28dvh would be more panel than anybody wants at once. */
-            maxH={{ base: "min(28dvh, 14rem)", md: "22rem" }}
+            /* EXACTLY THREE ROWS (2026-09-09, user request), and a fourth
+               scrolls inside rather than growing the card.
+
+               The number is arithmetic, not taste: one row is its two lines of
+               type plus `py="2.5"` and a border — about 3.5rem — and the rows
+               are `gap="2"` apart, so three of them are 3 × 3.5rem + 2 × 0.5rem.
+               A cap in `dvh` was what this used to be, and it let four rows in
+               on a tall phone, which pushed the verdict card off the bottom of
+               the screen and put the page back into scrolling. */
+            maxH="11.5rem"
             overflowY="auto"
             overscrollBehavior="contain"
         >

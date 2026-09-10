@@ -633,27 +633,61 @@ describe("a full deterministic game (README §1.6, §1.7)", () => {
     })
 
     it("keeps playing when the target is reached but the scores are tied", () => {
-        const base = playing({ trump: "HERC", leader: 0, hands: {} })
-        const state: GameState = { ...base, phase: "DEAL_DONE", score: { A: 1001, B: 1001 } }
+        const original = playing({ trump: "HERC", leader: 0, hands: {} })
+        const base: GameState = { ...original, config: { ...original.config, targetScore: 501 } }
+        const state: GameState = { ...base, phase: "DEAL_DONE", score: { A: 550, B: 550 } }
         const step = reduce(state, { type: "NEXT_DEAL" })
         expect(step.state.phase).toBe("BIDDING")
         expect(step.state.winner).toBeNull()
-        expect(step.state.score).toEqual({ A: 1001, B: 1001 })
+        expect(step.state.score).toEqual({ A: 550, B: 550 })
         expect(step.events).toEqual([
             { type: "DEALT", dealNo: state.dealNo + 1, dealer: nextSeat(state.dealer) },
         ])
         for (const seat of SEATS) expect(step.state.hands[seat]).toHaveLength(6)
     })
 
-    it("ends the game as soon as one team is past the target", () => {
+    it("dosta ends the game when one team is past the target", () => {
         const base = playing({ trump: "HERC", leader: 0, hands: {} })
-        const state: GameState = { ...base, phase: "DEAL_DONE", score: { A: 1010, B: 300 } }
+        const state: GameState = {
+            ...base,
+            config: { ...base.config, targetScore: 501, gameEndRule: "dosta" },
+            phase: "DEAL_DONE",
+            score: { A: 502, B: 497 },
+        }
         const done = reduce(state, { type: "NEXT_DEAL" })
         expect(done.state.phase).toBe("GAME_OVER")
         expect(done.state.winner).toBe("A")
         expect(done.events).toEqual([
-            { type: "GAME_OVER", winner: "A", score: { A: 1010, B: 300 } },
+            { type: "GAME_OVER", winner: "A", score: { A: 502, B: 497 } },
         ])
+    })
+
+    it("prolaz is the default and only a passing caller can win", () => {
+        const original = playing({ trump: "HERC", leader: 0, hands: {} })
+        const base: GameState = { ...original, config: { ...original.config, targetScore: 501 } }
+        const scored: DealScore = {
+            dealNo: 1,
+            trump: "HERC",
+            caller: 0,
+            callerTeam: "A",
+            cardPoints: { A: 100, B: 62 },
+            declarationPoints: { A: 0, B: 0 },
+            stiglja: null,
+            passed: true,
+            total: { A: 100, B: 62 },
+        }
+        const won = reduce({ ...base, phase: "DEAL_DONE", score: { A: 550, B: 485 }, dealScore: scored }, { type: "NEXT_DEAL" })
+        expect(won.state.phase).toBe("GAME_OVER")
+        expect(won.state.winner).toBe("A")
+
+        const opponentsCrossed = reduce({
+            ...base,
+            phase: "DEAL_DONE",
+            score: { A: 550, B: 485 },
+            dealScore: { ...scored, caller: 1, callerTeam: "B", total: { A: 62, B: 100 } },
+        }, { type: "NEXT_DEAL" })
+        expect(opponentsCrossed.state.phase).toBe("BIDDING")
+        expect(opponentsCrossed.state.winner).toBeNull()
     })
 
     it("does not end the game before the target is reached", () => {

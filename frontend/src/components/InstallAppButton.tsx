@@ -8,7 +8,7 @@ import {
     Portal,
 } from "@chakra-ui/react"
 import { FiDownload } from "react-icons/fi"
-import { useInstallPrompt } from "../hooks/useInstallPrompt"
+import { useInstallPrompt, type InstallPromptState } from "../hooks/useInstallPrompt"
 import { useTranslation } from "../i18n"
 import IosInstallSteps from "./IosInstallSteps"
 
@@ -34,6 +34,7 @@ import IosInstallSteps from "./IosInstallSteps"
 export function InstallAppButton({
     size = "sm",
     variant = "icon",
+    promptState,
 }: {
     size?: "xs" | "sm" | "md"
     /**
@@ -42,9 +43,13 @@ export function InstallAppButton({
      *             (mobile drawer / menu where it sits among other items).
      */
     variant?: "icon" | "labeled"
+    /** A state captured by an always-mounted parent, so a lazily opened menu
+     *  cannot miss the browser's one-shot beforeinstallprompt event. */
+    promptState?: InstallPromptState
 }) {
     const { t } = useTranslation()
-    const { canInstall, isIos, install } = useInstallPrompt()
+    const localPromptState = useInstallPrompt()
+    const { canInstall, isIos, install } = promptState ?? localPromptState
     const [iosOpen, setIosOpen] = useState(false)
 
     if (!canInstall && !isIos) return null

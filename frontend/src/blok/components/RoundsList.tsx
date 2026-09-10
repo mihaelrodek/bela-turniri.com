@@ -70,10 +70,22 @@ function FooterCell({
             gap="0"
             gridColumn={gridColumn}
             colorPalette={palette}
+            w="full"
+            align="center"
+            justifySelf="stretch"
+            textAlign="center"
             overflow="visible"
             whiteSpace="nowrap"
         >
-            <Text fontSize="2xs" color="fg.subtle" textTransform="uppercase" letterSpacing="0.04em">
+            <Text
+                w="full"
+                fontSize="2xs"
+                color="fg.subtle"
+                textAlign="center"
+                textTransform="uppercase"
+                letterSpacing="0.04em"
+                whiteSpace="nowrap"
+            >
                 {label}
             </Text>
             <Text
@@ -81,6 +93,7 @@ function FooterCell({
                 fontWeight="bold"
                 lineHeight="1.15"
                 color={palette ? "colorPalette.fg" : "fg.ink"}
+                textAlign="center"
                 css={{ fontVariantNumeric: "tabular-nums" }}
             >
                 {value}
@@ -319,7 +332,7 @@ export default function RoundsList({
                 bg="bg.subtle"
             >
                 {BLOK_SIDES.map((side, i) => (
-                    <Box key={side} gridColumn={i === 0 ? 1 : 3} textAlign="center">
+                    <Box key={side} gridColumn={i === 0 ? 1 : 3} w="full" textAlign="center">
                         <Text
                             fontSize="2xs"
                             fontWeight="bold"

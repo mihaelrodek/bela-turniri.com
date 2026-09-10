@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { Box, Button, HStack, IconButton, Text, VStack } from "@chakra-ui/react"
-import { FiPlus, FiShare2 } from "react-icons/fi"
+import { FiArrowRight, FiPlus, FiRotateCcw, FiShare2 } from "react-icons/fi"
 
 import ConfirmDialog from "../../components/ConfirmDialog"
 import { CONTENT_STICKY_TOP, NAVBAR_H } from "../../components/navChrome"
@@ -147,6 +147,7 @@ export default function BlokPage() {
         setGameEndRule,
         setDealerSetup,
         setDealDirection,
+        setNewGameDealer,
         setShowDealer,
         setShareEnabled,
         newGame,
@@ -199,6 +200,11 @@ export default function BlokPage() {
        gained a whole second row, and every pixel of error here becomes a
        phantom scroll in the deal list — the list scrolled even with a screen
        to spare, because the reserve below it was bigger than the bar. */
+    /* Whether the score card's games panel is open. It lives HERE rather than
+       in `BlokHeader` because opening it makes the score card taller, and the
+       verdict card below has to give the room back — see `compact` on
+       `BlokSummary` (2026-09-09, user request). */
+    const [gamesOpen, setGamesOpen] = useState(false)
     const actionBarRef = useRef<HTMLDivElement | null>(null)
     const [barReserve, setBarReserve] = useState<string>(ACTION_BAR_RESERVE)
     useEffect(() => {
@@ -335,6 +341,15 @@ export default function BlokPage() {
                 .filter((g) => g.sessionId === game.sessionId && g.rounds.length > 0)
                 .sort((a, b) => a.createdAt - b.createdAt),
         [archive, game.sessionId],
+    )
+
+    /* As soon as a game is won, its deals leave the active list and appear
+       behind the score card's history chevron. The game remains current in
+       storage until "Sljedeća partija", which keeps undo exact: correcting
+       the deciding deal simply makes it active again. */
+    const visibleSeriesGames = useMemo(
+        () => winner ? [...seriesGames, game] : seriesGames,
+        [seriesGames, winner, game],
     )
 
     const openAdd = useCallback((caller: BlokSide) => {
@@ -671,6 +686,65 @@ export default function BlokPage() {
                     onDirectionChange={setDealDirection}
                 />
             ) : null}
+            {/* WHEN THE GAME IS WON THE BAR CHANGES WHAT IT OFFERS
+                (2026-09-09, user request).
+
+                MI / VI type the next deal, and once a side has won there is no
+                next deal to type — the two things anybody wants are "go back"
+                and "go on". They take the same two boxes, in the same two
+                places, so the thumb does not have to move: undo where MI was,
+                the next game where VI was. It is also what finally makes the
+                arrow under the summary point at something. */}
+            {winner ? (
+                <HStack gap={{ base: "2.5", md: "3" }} w="100%">
+                    <Button
+                        flex="1"
+                        minW="0"
+                        size="lg"
+                        h={{ base: "3.5rem", md: "3.25rem" }}
+                        px={{ base: "2", md: "3" }}
+                        fontSize={actionFontSize}
+                        fontWeight="bold"
+                        lineHeight="1.15"
+                        whiteSpace="normal"
+                        variant="outline"
+                        colorPalette="gray"
+                        /* Spelled out rather than left to the recipe
+                           (2026-09-09, reported): on the light theme the grey
+                           outline all but vanished against the page and the
+                           button read as loose text beside a solid one. A
+                           panel fill and an explicit border make it a box in
+                           both themes. */
+                        bg="bg.panel"
+                        borderColor="border.emphasized"
+                        disabled={game.rounds.length === 0}
+                        onClick={undoLast}
+                    >
+                        <FiRotateCcw />
+                        <Box as="span" minW="0" textAlign="center" wordBreak="break-word" lineClamp={2}>
+                            {t("blok.round.undoLast")}
+                        </Box>
+                    </Button>
+                    <Button
+                        flex="1"
+                        minW="0"
+                        size="lg"
+                        h={{ base: "3.5rem", md: "3.25rem" }}
+                        px={{ base: "2", md: "3" }}
+                        fontSize={actionFontSize}
+                        fontWeight="bold"
+                        lineHeight="1.15"
+                        whiteSpace="normal"
+                        colorPalette="brand"
+                        onClick={seriesWinner !== null ? () => setPending({ kind: "newGame" }) : newGame}
+                    >
+                        <Box as="span" minW="0" textAlign="center" wordBreak="break-word" lineClamp={2}>
+                            {t(seriesWinner !== null ? "blok.menu.newGame" : "blok.winner.nextGame")}
+                        </Box>
+                        <FiArrowRight />
+                    </Button>
+                </HStack>
+            ) : (
             <HStack gap={{ base: "2.5", md: "3" }} w="100%">
                 {BLOK_SIDES.map((side) => (
                     <Button
@@ -707,6 +781,7 @@ export default function BlokPage() {
                     </Button>
                 ))}
             </HStack>
+            )}
         </VStack>
     )
 
@@ -727,9 +802,14 @@ export default function BlokPage() {
                 // Desktop keeps the scoreboard, the buttons and the verdict
                 // together in the left rail, because there the history is a
                 // column of its own rather than the thing you scroll past.
+                /* On md the verdict sits BETWEEN the score and the controls
+                   (2026-09-09, user request). It used to come after them, and
+                   with the buttons now in the action bar its two arrows —
+                   "prethodne partije" up at the score card, "započni novu
+                   igru" down at the controls — both pointed the wrong way. */
                 gridTemplateAreas={{
                     base: `"head" "list"`,
-                    md: `"head list" "actions list" "summary list"`,
+                    md: `"head list" "summary list" "actions list"`,
                 }}
                 gridTemplateRows={{ base: "auto minmax(0, 1fr)", md: "none" }}
                 // EXACT height on a phone, not a minimum: the page must not
@@ -801,9 +881,11 @@ export default function BlokPage() {
                            behind it: on the first game of a series there are no
                            finished games and a control pointing at an empty
                            panel is worse than no control. */
+                        openGames={gamesOpen}
+                        onGamesOpenChange={setGamesOpen}
                         games={
-                            seriesGames.length > 0 ? (
-                                <BlokSeriesGames games={seriesGames} />
+                            visibleSeriesGames.length > 0 ? (
+                                <BlokSeriesGames games={visibleSeriesGames} />
                             ) : null
                         }
                         strip={
@@ -906,34 +988,46 @@ export default function BlokPage() {
                                 {tp("blok.archive.rejected", rejectedSessions.length)}
                             </Text>
                         ) : null}
-                        <RoundsList
-                            rounds={game.rounds}
-                            outcomes={perRound}
-                            names={names}
-                            target={game.target}
-                            onEdit={(round) => setEntry({ mode: "edit", round })}
-                            onDelete={(round) => setPending({ kind: "deleteRound", round })}
-                        />
+                        {!winner ? (
+                            <RoundsList
+                                rounds={game.rounds}
+                                outcomes={perRound}
+                                names={names}
+                                target={game.target}
+                                onEdit={(round) => setEntry({ mode: "edit", round })}
+                                onDelete={(round) => setPending({ kind: "deleteRound", round })}
+                            />
+                        ) : null}
                     </Box>
 
                     {winner ? (
-                        <Box gridArea="summary">
+                        /* THE CARD FILLS WHAT IS LEFT (2026-09-09, user
+                           request). Content-sized, it ended halfway up the
+                           screen with a field of empty page under it, and the
+                           "započni novu igru" arrow pointed into that nothing
+                           instead of at the buttons in the bar. `flex="1"`
+                           here plus `h="100%"` inside stretches it to the
+                           floor of the scroller — which is exactly where the
+                           action bar begins — so the arrow lands on the thing
+                           it names and nothing has to scroll to see it.
+                           `minH="0"` keeps the flex child able to shrink on a
+                           short phone rather than forcing the scrollbar back. */
+                        <Box gridArea="summary" flex="1" minH="0" display="flex">
                             <BlokSummary
                                 winner={winner}
                                 names={names}
                                 totals={totals}
                                 declarations={declarations}
                                 stiglje={stiglje}
-                                seriesTarget={game.seriesTarget}
-                                seriesWins={seriesWins}
                                 seriesWinner={seriesWinner}
-                                canUndo={game.rounds.length > 0}
-                                onUndo={undoLast}
-                                /* The next game INSIDE the series — no dialog:
-                                   nothing is filed, nothing is lost, and the
-                                   running 2 : 1 carries on (§5.6). */
-                                onNextGame={newGame}
-                                onCloseSeries={() => setPending({ kind: "newGame" })}
+                                /* The score card above just grew by three
+                                   rows; this gives the height back so the
+                                   whole screen still fits without scrolling. */
+                                compact={gamesOpen}
+                                /* The same list the score card's chevron
+                                   opens, so the arrow can only point up at
+                                   something that is actually there. */
+                                reviewableGames={visibleSeriesGames.length}
                             />
                         </Box>
                     ) : null}
@@ -1013,44 +1107,56 @@ export default function BlokPage() {
                 seriesTarget={game.seriesTarget}
                 gameEndRule={game.gameEndRule}
                 showDealer={game.showDealer}
+                newGameDealer={game.newGameDealer}
                 dealDirection={game.dealDirection}
                 shareEnabled={game.shareEnabled}
                 // Drives one sentence only: the record of a linked table stays
                 // public whatever the switch says (BLOK-LINK.md §6.2).
                 linked={link !== null}
-                onCancel={() => setTargetOpen(false)}
-                onSave={(next) => {
-                    setTarget(next.target)
-                    setSeriesTarget(next.seriesTarget)
-                    setGameEndRule(next.gameEndRule)
-                    setShowDealer(next.showDealer)
-                    setShareEnabled(next.shareEnabled)
+                onClose={() => setTargetOpen(false)}
+                /* SAVED ON THE TAP, not on a button (2026-09-09, user
+                   request). The dialog has no "Spremi": every control writes
+                   through here the moment it is touched, and the X is only a
+                   way out of a screen whose work is already done.
+
+                   That is safe here because the blok's store IS the save —
+                   `localStorage`, synchronously, with no network in the path.
+                   A phone with no signal keeps every setting; the series is
+                   pushed to the profile later by the outbox
+                   (`useBlokHistoryUpload`) and to a linked table by
+                   `useBlokLinkSync`, exactly as the deals already are. */
+                onChange={(next) => {
+                    if (next.target !== undefined) setTarget(next.target)
+                    if (next.seriesTarget !== undefined) setSeriesTarget(next.seriesTarget)
+                    if (next.gameEndRule !== undefined) setGameEndRule(next.gameEndRule)
+                    if (next.showDealer !== undefined) setShowDealer(next.showDealer)
                     // Through the store rather than as a plain field write: it
                     // is the one setting here whose change can move something
                     // else (who deals now), and `setDealDirection` is where
                     // that decision lives — BLOK.md §3.3.2.
-                    setDealDirection(next.dealDirection)
-                    /* TURNING SHARING OFF REVOKES THE TOKEN — with ONE
-                       exception, and it is the whole reason this is a
-                       condition rather than a line (§3.3.3).
+                    if (next.dealDirection !== undefined) setDealDirection(next.dealDirection)
+                    // Only read when the NEXT game is built, so unlike the
+                    // direction it has no sequence to re-derive here.
+                    if (next.newGameDealer !== undefined) setNewGameDealer(next.newGameDealer)
+                    if (next.shareEnabled !== undefined) {
+                        setShareEnabled(next.shareEnabled)
+                        /* TURNING SHARING OFF REVOKES THE TOKEN — with ONE
+                           exception, and it is the whole reason this is a
+                           condition rather than a line (§3.3.3).
 
-                       A series linked to a tournament table is published for
-                       the organiser under this very token (BLOK-LINK.md §6.2):
-                       the bracket's "vidi zapisnik" is `/blok/z/{token}`, the
-                       same string. Revoking it here would break a link the
-                       player agreed to when they asked for the table, and
-                       would break it for somebody who is not even in this room.
-                       So a live `game.link` — the only signal this client has,
-                       and an honest one, since it is exactly the state in which
-                       the server was told to publish — spares the token; the
-                       switch then only hides the button, and the dialog says so
-                       before the tap. Without a link the token can only have
-                       come from this player's own "Podijeli", and off means
-                       off. */
-                    if (!next.shareEnabled && share?.token != null && link === null) {
-                        void unshare()
+                           A series linked to a tournament table is published
+                           for the organiser under this very token
+                           (BLOK-LINK.md §6.2): the bracket's "vidi zapisnik"
+                           is `/blok/z/{token}`, the same string. Revoking it
+                           here would break a link the player agreed to when
+                           they asked for the table, and would break it for
+                           somebody who is not even in this room. So a live
+                           `game.link` spares the token; the switch then only
+                           hides the button, and the dialog says so. */
+                        if (!next.shareEnabled && share?.token != null && link === null) {
+                            void unshare()
+                        }
                     }
-                    setTargetOpen(false)
                 }}
             />
 

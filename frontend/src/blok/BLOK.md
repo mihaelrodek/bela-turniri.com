@@ -604,7 +604,10 @@ slobodnog polja ni objašnjenja.** Četiri promjene:
    korisnika.** `series.hintOpen` („Serija traje dok je ne zatvoriš
    „Resetiraj”. Rezultat stoji u zaglavlju.”) je uklonjen iz dijaloga **i iz
    oba rječnika**, iz istog razloga kao rečenice pod čipovima pravila:
-   objašnjavao je gumb koji je pritisnut točno iznad njega. `series.hint`
+   objašnjavao je gumb koji je pritisnut točno iznad njega. Isto je 2026-09-09
+   zadesilo i `series.hint` („Seriju dobiva strana koja prva skupi 1 dobivenu
+   igru”) — rečenica se mijenjala sa svakim pritiskom i čitala se kao šum tamo
+   gdje je izbor upravo napravljen. `series.hint`
    (kad je duljina serije odabrana) ostaje — on kaže nešto što čip ne kaže.
 
 Sve što briše podatke ili je nepovratno ide kroz `components/ConfirmDialog.tsx`
@@ -757,6 +760,100 @@ je nekome tko nije ni u ovoj prostoriji.
   Ono što se mijenja je da se **na ekranu, ispod prekidača**, pojavi rečenica
   (`share.linkedNote`) koja kaže da zapisnik povezanog stola ostaje javan. Tamo
   gdje se odluka donosi, a ne u toastu poslije nje.
+
+### 3.3.4 Tko miješa novu partiju — dodano 2026-09-09 (zahtjev korisnika)
+
+Peta postavka za stolom, uz bodove, „igra se do”, „igra se na” i smjer
+kartanja. Odlučuje **samo** tko dijeli PRVU podjelu SLJEDEĆE partije; podjele
+unutar partije i dalje idu po `dealDirection`, kao i dosad.
+
+| Vrijednost | Što radi |
+|---|---|
+| **`"next"`** (zadano) | Rotacija se nastavlja oko stola. Tko bi dijelio sljedeću podjelu završene partije, dijeli prvu podjelu nove. To je ono što je blok oduvijek radio, pa spremljena partija bez polja čita kao ovo. |
+| **`"winner"`** | Dijeli **par koji je dobio** partiju. Rotacija se ne okreće — nastavlja istim smjerom, ali **preskače** sjedala para koji je izgubio, dok ne dođe do pobjednika. |
+
+Primjer iz kojeg je pravilo napisano: dijelim ja, mi dobijemo partiju, smjer je
+**lijevo**. Pod `"next"` novu partiju miješa lijevi protivnik; pod `"winner"`
+on se preskače i miješa **moj partner**.
+
+Partija koju nitko nije dobio (nedovršena) pada natrag na `"next"` — nema
+pobjednika prema kojem bi se koračalo, a pomicati dijeljenje na temelju partije
+koja nije završila bilo bi izmišljanje.
+
+**Tko je dijelio se ZAPISUJE.** `dealer.first` svake partije putuje u zapisnik
+serije (`BlokHistoryGameDto.dealer`, backend `BlokGameDto.dealer`, u jsonb —
+bez migracije). To je jedina stvar o partiji koju njezine podjele ne mogu
+reproducirati: svi kasniji dijelitelji izvode se iz tog jednog sjedala i smjera.
+Šalje se `null` kad nitko nije imenovao dijelitelja — nagađanje bloka nije
+činjenica o večeri i ne zapisuje se kao takva.
+
+**Postavke se spremaju na dodir, ne na gumb** (2026-09-09, zahtjev korisnika).
+Dijalog više nema „Spremi” ni „Odustani”; jedini izlaz je **X** u gornjem
+desnom kutu, a svaka kontrola upisuje promjenu istog trena. To je ovdje sigurno
+jer je blokov store i jest spremanje: `localStorage`, sinkrono, bez mreže na
+putu. Telefon bez signala zadrži svaku postavku; serija ide na profil kasnije
+preko outboxa (`useBlokHistoryUpload`), a na povezani stol preko
+`useBlokLinkSync` — isto kao i same podjele.
+
+**„Otvorena” se zove „Neograničeno”**, a prekidač dijeljenja „Omogući
+dijeljenje partije poveznicom” — oboje 2026-09-09, jer je prvo ime tražilo da
+pogodiš što je otvoreno, a drugo nije reklo što se dijeli ni kome.
+
+**Postavke su sada šest redaka, ne šest odjeljaka.** „Igra se na”, „Smjer
+kartanja” i ova nova dijele oblik s prekidačima uz njih: naslov lijevo,
+kontrola desno, jedan redak po dogovoru (`SegmentedChoice`, 2026-09-09).
+Prije su segmentirane postavke imale naslov iznad kontrole preko cijele širine —
+tri retka za jednu riječ značenja, tri puta — pa je dijalog izgledao kao dvije
+vrste postavki iako drži samo jednu.
+
+### 3.3.5 Dva putokaza na sažetku partije — dodano 2026-09-09 (zahtjev korisnika)
+
+Kartica sažetka nosi dva reda sivog teksta sa strelicom, i oba pokazuju na nešto
+što je **već na ekranu**:
+
+- **gore, strelica prema gore** — „pogledaj prethodne partije”, prema chevronu
+  na kartici rezultata iza kojeg žive odigrane partije serije. Prikazuje se čim
+  ima što gledati (`reviewableGames > 0`, ista lista koju chevron otvara), dakle
+  već čim prva partija završi — završena tekuća partija je u toj listi;
+- **dolje, na podu kartice, strelica prema dolje** — „započni novu igru”.
+
+Na telefonu se kartica **rasteže** do poda prostora koji joj je ostao, dakle do
+same trake s gumbima (2026-09-09, zahtjev korisnika). Prije je bila visoka
+koliko i sadržaj, pa je završavala na pola ekrana i strelica je pokazivala u
+prazno umjesto na gumbe. Presuda i brojke drže svoju prirodnu visinu na vrhu,
+a uputa ide `mt="auto"` na dno — bez klizanja, koliko god telefon bio visok.
+
+Oboje su putokazi, ne kontrole: bez okvira, bez boje, jedan redak. Razlog je da
+su i chevron i gumb dotad bili otkrivi samo pokušajem.
+
+**Panel odigranih partija drži TOČNO TRI reda** (2026-09-09, zahtjev
+korisnika), a četvrta se kliže unutar njega umjesto da raste kartica. Broj je
+aritmetika, ne ukus: jedan red su njegova dva reda sloga plus `py="2.5"` i
+obrub, oko 3.5rem, a redovi su razmaknuti `gap="2"` — dakle 3 × 3.5rem +
+2 × 0.5rem. Prije je granica bila u `dvh` i na visokom telefonu puštala četvrti
+red, što je karticu s presudom guralo s dna ekrana i vraćalo klizanje.
+
+Kad je taj panel **otvoren**, kartica s presudom se crta **zbijeno**
+(`BlokSummary compact`): manji razmaci i slog, ništa skriveno. Kartica
+REZULTATA se pri tome ne dira — probano 2026-09-09 i odmah vraćeno: brojka koju
+čovjek čita mijenjala je veličinu pod prstom svaki put kad bi otvorio chevron,
+a to je gora greška od tijesnog ekrana. Sažetak koji
+izbaci broj da bi stao je sažetak kojem se ne može vjerovati. Zato stanje
+panela drži STRANICA, a ne `BlokHeader` — kartica ispod mora znati da je ona
+gore upravo narasla.
+
+**Dva gumba su u DONJOJ TRACI, ne na kartici** (2026-09-09, zahtjev korisnika).
+Čim partija ima pobjednika, MI/VI gumbi nemaju što raditi — nema sljedeće
+podjele za upisati — pa ta ista dva okvira preuzimaju jedina dva smisla koja
+preostaju: **„Poništi zadnju rundu” na mjestu MI**, **„Sljedeća partija” (ili
+„Nova igra” kad je serija gotova) na mjestu VI**. Palac se ne mora seliti, a
+kartica sažetka ostaje ono što jest — presuda i brojke. To je ujedno i ono na
+što strelica ispod sažetka konačno pokazuje.
+
+**Pobjednik se zove svojim imenom.** Ako je ekipa upisala ime, piše „Perhaj i
+Galinec su pobijedili”, a ne „Mi smo pobijedili” (`winner.named`,
+`series.wonNamed`). MI/VI ostaje ono na što se vraća bezimena strana, jer većina
+stolova nikad ništa ne upiše.
 
 ### 3.4 Serija partija — dodano 2026-09-08
 
@@ -1311,7 +1408,7 @@ iz same partije (arhivirana partija je možda igrana na drugi cilj).
 `side.us`, `side.them`, `side.rename`, `side.renameTitle`,
 `target.label` („DO”), `target.title`, `target.points` („Bodovi”),
 `series.playTo`, `series.open`, `series.games` (plural),
-`series.hint`, `series.badgeTarget`,
+`series.hint` (obrisan 2026-09-09), `series.badgeTarget`,
 `dealer.first`, `dealer.next` (i natpis prekidača u „Postavke” — §3.3.2),
 `dealer.self`, `dealer.rightOpponent`, `dealer.partner`, `dealer.leftOpponent`,
 `dealer.direction`, `dealer.right`, `dealer.left`,
@@ -1328,7 +1425,7 @@ naslov čestitke, rečenica je objašnjenje u imenu gumba i ispod naslova),
 `entry.added` (plural), `entry.clearAll`, `entry.trump`, `entry.backspace`,
 `entry.invalid`,
 `winner.us`, `winner.them`, `winner.nextGame` („Sljedeća partija” — §3.7),
-`summary.total`, `summary.declarations`, `summary.stiglje`,
+`summary.total`, `summary.points`, `summary.declarations`, `summary.stiglje`,
 `menu.title`, `menu.newGame` (radnja koja ZATVARA seriju — §3.7),
 `menu.target`, `menu.delete`,
 `archive.empty`, `archive.pending` (plural), `archive.rejected` (plural — §3.8),

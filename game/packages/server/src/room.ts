@@ -18,6 +18,7 @@
 
 import type {
     ActiveSeatInfo,
+    GameEndRule,
     RoomOccupant,
     RoomState,
     RoomStatus,
@@ -29,7 +30,7 @@ import type {
     TrickReview,
     UserInfo,
 } from "@bela/protocol"
-import { DEFAULT_TRICK_REVIEW } from "@bela/protocol"
+import { DEFAULT_GAME_END_RULE, DEFAULT_TRICK_REVIEW } from "@bela/protocol"
 import type { Timings } from "./config.js"
 import { ProtocolError } from "./errors.js"
 import { botName } from "./bots.js"
@@ -97,7 +98,32 @@ export const SEAT_FILL_ORDER: readonly Seat[] = [0, 2, 1, 3]
 /** Spectators + seated members; a hard cap so one room cannot soak the process. */
 const MAX_MEMBERS = 24
 
+/**
+ * The one rule tying the two declaration switches together, written down once
+ * so `room.create` and `room.setOptions` cannot drift apart.
+ *
+ * "Bez zvanja" is what `allowBela` qualifies: with declarations ON the bela is
+ * a declaration like any other and ALWAYS counts, so `allowBela: false` sent
+ * against a room that scores declarations means nothing and is not stored.
+ * Only a room that turned declarations off gets to say "…but keep the bela"
+ * (the default) or "not even the bela".
+ */
+function belaCounts(noDeclarations: boolean, allowBela: boolean | undefined): boolean {
+    return !noDeclarations || allowBela !== false
+}
+
+/** Fields of `room.setOptions` — every one optional, absent = leave alone. */
+export interface RoomOptionsPatch {
+    targetScore?: TargetScore
+    gameEndRule?: GameEndRule
+    allowSpectators?: boolean
+    noDeclarations?: boolean
+    allowBela?: boolean
+    trickReview?: TrickReview
+}
+
 export interface RoomInit {
+    gameEndRule?: GameEndRule
     allowSpectators?: boolean
     noDeclarations?: boolean
     allowBela?: boolean
@@ -118,11 +144,16 @@ export class Room {
     readonly code: string
     readonly createdAt: number
     private: boolean
-    readonly allowSpectators: boolean
-    readonly noDeclarations: boolean
-    readonly allowBela: boolean
-    /** "Gledanje štihova" — fixed at creation, same for the whole room. */
-    readonly trickReview: TrickReview
+    // Not readonly: the host may still retune these in the LOBBY via
+    // `setOptions` (README §3). They are the DEAL's rules, so `requireLobby`
+    // there keeps them frozen for as long as a game is running — `GameRoom`
+    // copies them into the engine config once, at `room.start`.
+    allowSpectators: boolean
+    noDeclarations: boolean
+    allowBela: boolean
+    gameEndRule: GameEndRule
+    /** "Gledanje štihova" — same for the whole room, editable until the deal starts. */
+    trickReview: TrickReview
     readonly timings: Timings
     name: string
     hostUid: string
@@ -148,7 +179,8 @@ export class Room {
         this.private = init.private
         this.allowSpectators = init.allowSpectators === true
         this.noDeclarations = init.noDeclarations === true
-        this.allowBela = !this.noDeclarations || init.allowBela !== false
+        this.allowBela = belaCounts(this.noDeclarations, init.allowBela)
+        this.gameEndRule = init.gameEndRule ?? DEFAULT_GAME_END_RULE
         this.trickReview = init.trickReview ?? DEFAULT_TRICK_REVIEW
         this.createdAt = Date.now()
         this.seats = [null, null, null, null]
@@ -309,6 +341,8 @@ export class Room {
             code: this.private && includePrivateCode ? this.code : "",
             status: this.status,
             targetScore: this.targetScore,
+            gameEndRule: this.gameEndRule,
+            noDeclarations: this.noDeclarations,
             private: this.private,
             allowSpectators: this.allowSpectators,
             seatsTaken: this.seatsTaken(),
@@ -338,7 +372,6 @@ export class Room {
         return {
             ...this.toSummary(true),
             hostUid: this.hostUid,
-            noDeclarations: this.noDeclarations,
             allowBela: this.allowBela,
             trickReview: this.trickReview,
             seats: [this.seatInfo(0), this.seatInfo(1), this.seatInfo(2), this.seatInfo(3)],
@@ -474,16 +507,11 @@ export class Room {
         this.conns.delete(conn)
         conn.roomId = null
         if (user && leavingSeat !== null && !this.hasConnFor(user.uid)) {
-            /* A bela table with fewer than two people has nobody left to play
-               against. Do not leave a one-player game running against bots or
-               advertise four bots as a live public game: end the whole room
-               immediately. Dropped sockets still use the reconnect hold;
-               this rule applies only to an explicit exit. */
-            if (this.status === "PLAYING" && this.otherHumanCount(user.uid) < 2) {
-                conn.send({ t: "room.left" })
-                this.dissolveAfterPlayersLeft()
-                return
-            }
+            // Every active table gets the same reconnect window, including a
+            // single player with three bots. A refresh and an app setting
+            // change must never destroy the room merely because nobody else
+            // happens to be connected. If the player does not return, the
+            // hold-expiry path below dissolves an unsustainable room.
             this.holdOrRelease(user.uid, "left")
         }
         conn.send({ t: "room.left" })
@@ -701,6 +729,25 @@ export class Room {
         this.broadcastState()
     }
 
+    /**
+     * A player changed their in-game name (`profile.setName`). Their seat and
+     * their spectator entry both carry a COPY of the `UserInfo` taken when
+     * they sat down, so the new name has to be written into those copies or
+     * the table keeps showing the old one until they rejoin.
+     *
+     * Nothing else about the room moves; the caller broadcasts.
+     */
+    renameOccupant(uid: string, name: string): void {
+        for (const slot of this.seats) {
+            if (slot && slot.kind === "PLAYER" && slot.uid === uid) {
+                slot.user = { ...slot.user, name }
+            }
+        }
+        for (const c of this.conns) {
+            if (c.user?.uid === uid) c.user = { ...c.user, name }
+        }
+    }
+
     setPrivate(conn: Connection, isPrivate: boolean): void {
         this.requireHost(conn)
         this.private = isPrivate
@@ -708,10 +755,56 @@ export class Room {
         this.lobby.changed()
     }
 
+    /**
+     * `room.setOptions` — the host retunes the room's own rules while it is
+     * still in the LOBBY (README §3).
+     *
+     * Two guards, and both matter. HOST ONLY, like every other room-wide
+     * switch (`setPrivate`, `addBot`): these are settings everyone at the table
+     * plays under. LOBBY ONLY, unlike `setPrivate`: the target score, the end
+     * rule and the declaration switches are the *deal's* rules and `GameRoom`
+     * has already copied them into the engine config — changing them mid-game
+     * would leave the room advertising one game and the engine scoring another.
+     *
+     * Only the fields PRESENT in the patch are written, so a client can flip
+     * one switch without restating the other five. Values are validated in
+     * `ws.ts` (same place `room.create` validates its own), so anything that
+     * gets here is already of the right shape.
+     */
+    setOptions(conn: Connection, patch: RoomOptionsPatch): void {
+        this.requireHost(conn)
+        this.requireLobby()
+        if (patch.targetScore !== undefined) this.targetScore = patch.targetScore
+        if (patch.gameEndRule !== undefined) this.gameEndRule = patch.gameEndRule
+        if (patch.allowSpectators !== undefined) this.allowSpectators = patch.allowSpectators
+        if (patch.trickReview !== undefined) this.trickReview = patch.trickReview
+        // The declaration pair is resolved TOGETHER through the same rule
+        // `room.create` uses, whichever half of it the patch carries: a room
+        // that scores declarations always counts the bela.
+        const noDeclarations = patch.noDeclarations ?? this.noDeclarations
+        const allowBela = patch.allowBela ?? this.allowBela
+        this.noDeclarations = noDeclarations
+        this.allowBela = belaCounts(noDeclarations, allowBela)
+        log.info("room.options", {
+            room: this.id,
+            target: this.targetScore,
+            gameEndRule: this.gameEndRule,
+            allowSpectators: this.allowSpectators,
+            noDeclarations: this.noDeclarations,
+            allowBela: this.allowBela,
+            trickReview: this.trickReview,
+        })
+        this.broadcastState()
+        // `targetScore`, `gameEndRule`, `noDeclarations` and `allowSpectators`
+        // all live on the public `RoomSummary` too, so the lobby rows have to
+        // be redrawn — same fan-out `setPrivate` triggers.
+        this.lobby.changed()
+    }
+
     /* ───────────────────────── start / finish ───────────────────────── */
 
     start(conn: Connection): void {
-        this.requireHost(conn)
+        const user = this.requireUser(conn)
         this.requireLobby()
         const humans = this.humanSeats()
         if (humans.length === 0) {
@@ -720,14 +813,20 @@ export class Room {
                 "Za početak igre potreban je barem jedan igrač za stolom.",
             )
         }
+        if (this.seatOfUid(user.uid) === null) {
+            throw new ProtocolError("BAD_REQUEST", "Samo igrač za stolom može pokrenuti igru.")
+        }
         for (const s of humans) {
             const slot = this.seats[s]
             if (slot?.kind === "PLAYER" && !slot.ready) {
                 throw new ProtocolError("BAD_REQUEST", "Nisu svi igrači spremni.")
             }
         }
-        for (const s of SEATS) {
-            if (!this.seats[s]) this.seats[s] = this.makeBotSlot(s)
+        if (this.seats.some((slot) => slot === null)) {
+            throw new ProtocolError(
+                "NOT_ENOUGH_PLAYERS",
+                "Za početak igre moraju biti popunjena sva četiri mjesta.",
+            )
         }
         if (!this.allowSpectators) {
             for (const member of [...this.conns]) {

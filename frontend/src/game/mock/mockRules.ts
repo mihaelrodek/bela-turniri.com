@@ -68,31 +68,34 @@ export function trickPoints(cards: TrickCard[], trump: Suit): number {
  * README §1.5. `hand` is the player's remaining cards, `trick` what is on the
  * table so far (empty = this seat leads).
  */
-export function legalMoves(hand: Card[], trick: TrickCard[], trump: Suit, seat: Seat): Card[] {
+export function legalMoves(hand: Card[], trick: TrickCard[], trump: Suit): Card[] {
     if (trick.length === 0) return [...hand]
 
     const led = cardSuit(trick[0].card)
     const ofLed = hand.filter((c) => cardSuit(c) === led)
     const trumps = hand.filter((c) => cardSuit(c) === trump)
-    const currentWinner = trickWinner(trick, trump)
-    const bestTrumpDown = trick
-        .filter((c) => cardSuit(c.card) === trump)
-        .reduce<number>((max, c) => Math.max(max, cardStrength(c.card, trump)), -1)
+    const trumped = trick.some((c) => cardSuit(c.card) === trump)
+    // Strength of the card currently holding the trick, inside its own suit.
+    const winnerSeat = trickWinner(trick, trump)
+    const winningCard = trick.find((c) => c.seat === winnerSeat)!.card
+    const winningStrength = cardStrength(winningCard, trump)
 
-    // 1. Holding the led suit means following it.
+    // 1. Holding the led suit means following it — and going OVER the card
+    //    that holds the trick when able, in every suit and over the partner
+    //    too. Once a plain lead has been ruffed nothing of the suit can win,
+    //    so any card of it will do.
     if (ofLed.length > 0) {
-        if (led !== trump) return ofLed
-        // In trump you must go over the highest trump down, if you can.
-        const higher = ofLed.filter((c) => cardStrength(c, trump) > bestTrumpDown)
+        if (led !== trump && trumped) return ofLed
+        const higher = ofLed.filter((c) => cardStrength(c, trump) > winningStrength)
         return higher.length > 0 ? higher : ofLed
     }
 
-    // 2. Void in the led suit. Partner already holding the trick frees you.
-    if (teamOf(currentWinner) === teamOf(seat) && currentWinner !== seat) return [...hand]
-
-    // Otherwise trump if you hold one, over the best trump down when possible.
+    // 2. Void in the led suit: a trump is compulsory whoever holds the trick
+    //    (no partner exception — engine rule change 2026-09-09), a higher one
+    //    when the trick is already ruffed and you hold one.
     if (trumps.length > 0) {
-        const higher = trumps.filter((c) => cardStrength(c, trump) > bestTrumpDown)
+        if (!trumped) return trumps
+        const higher = trumps.filter((c) => cardStrength(c, trump) > winningStrength)
         return higher.length > 0 ? higher : trumps
     }
     return [...hand]

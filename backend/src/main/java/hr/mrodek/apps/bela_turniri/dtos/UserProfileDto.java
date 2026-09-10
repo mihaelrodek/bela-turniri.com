@@ -38,23 +38,40 @@ public record UserProfileDto(
          * rejected server-side. Null means the user hasn't picked one.
          */
         @Size(max = 5, message = "validation.profile.locale.max")
-        String locale
+        String locale,
+
+        /**
+         * "Ime za igru" — the name this player wears at the online card table,
+         * or {@code null} when they have never set one and the account's own
+         * display name is used instead.
+         *
+         * <p>READ-ONLY here, like {@code avatarUrl}, and for a sharper reason:
+         * the only write path is the game server's internal endpoint
+         * ({@code PUT /internal/profiles/{uid}/game-name}), because the same
+         * name and the same once-a-week limit have to cover GUESTS, who have
+         * no account and therefore never reach this controller at all. A
+         * second writer here would be a second clock on the same rule.
+         *
+         * <p>It is returned so the profile page can show what the player is
+         * called at a table, which is not always what their account is called.
+         */
+        String gameName
 ) {
     /** Two-arg convenience for callers that only manage phone fields. */
     public UserProfileDto(String phoneCountry, String phone) {
-        this(phoneCountry, phone, null, null, null, null, null);
+        this(phoneCountry, phone, null, null, null, null, null, null);
     }
 
     public UserProfileDto(String phoneCountry, String phone, String displayName, String slug) {
-        this(phoneCountry, phone, displayName, slug, null, null, null);
+        this(phoneCountry, phone, displayName, slug, null, null, null, null);
     }
 
     public UserProfileDto(String phoneCountry, String phone, String displayName, String slug, String avatarUrl) {
-        this(phoneCountry, phone, displayName, slug, avatarUrl, null, null);
+        this(phoneCountry, phone, displayName, slug, avatarUrl, null, null, null);
     }
 
     public UserProfileDto(String phoneCountry, String phone, String displayName, String slug,
                           String avatarUrl, String colorMode) {
-        this(phoneCountry, phone, displayName, slug, avatarUrl, colorMode, null);
+        this(phoneCountry, phone, displayName, slug, avatarUrl, colorMode, null, null);
     }
 }

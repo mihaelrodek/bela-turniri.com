@@ -5,6 +5,7 @@ import { FiLogIn, FiPlus, FiSearch, FiSettings, FiUsers } from "react-icons/fi"
 import type { RoomStatus, RoomSummary } from "@bela/protocol"
 import type { CreateGameOptions } from "../components/CreateGameDialog"
 import EmptyState from "../../components/EmptyState"
+import { MOBILE_TABBAR_CLEARANCE } from "../../components/navChrome"
 import { useDocumentHead } from "../../hooks/useDocumentHead"
 import { useTranslation } from "../../i18n"
 import { showError } from "../../toaster"
@@ -161,7 +162,7 @@ export default function GameLobbyPage() {
     const blocked = active !== null
 
     return (
-        <Box maxW="1040px" mx="auto" pb="8">
+        <Box maxW="1040px" mx="auto" pb={{ base: "32", md: "8" }}>
             <VStack gap="6" align="stretch">
                 <HStack justify="space-between" gap="3">
                     <HStack gap="2" minW="0">
@@ -192,23 +193,23 @@ export default function GameLobbyPage() {
                         onLeave={() => socket.leaveRoom()}
                     />
                 )}
-                <VStack align="stretch" gap="1.5">
-                    {/* Only "Nova igra" up here — 2026-09-08, user request. The
-                        code dialog is still the way into a private room, but it
-                        is reached by TAPPING that room in the list below, where
-                        the code is being asked for something you can see. A
-                        standing button asked for a code with no room in sight. */}
-                    <HStack gap="3" wrap="wrap">
-                        <Button colorPalette="brand" onClick={() => setCreateOpen(true)} disabled={!connected || blocked}><FiPlus />{t("game.lobby.newGame")}</Button>
-                    </HStack>
-                    {blocked && <Text fontSize="sm" color="fg.muted">{t("game.lobby.blockedByActive")}</Text>}
-                </VStack>
+                {blocked && <Text fontSize="sm" color="fg.muted">{t("game.lobby.blockedByActive")}</Text>}
 
                 <HStack justify="space-between" gap="2">
                     <Heading textStyle="title">{t("game.lobby.heading")}</Heading>
-                    <Badge size="lg" variant="subtle" colorPalette="brand" rounded="full">
-                        {socket.rooms.length}
-                    </Badge>
+                    <HStack gap="3">
+                        <Button
+                            display={{ base: "none", md: "inline-flex" }}
+                            colorPalette="brand"
+                            onClick={() => setCreateOpen(true)}
+                            disabled={!connected || blocked}
+                        >
+                            <FiPlus />{t("game.lobby.newGame")}
+                        </Button>
+                        <Badge size="lg" variant="subtle" colorPalette="brand" rounded="full">
+                            {socket.rooms.length}
+                        </Badge>
+                    </HStack>
                 </HStack>
 
                 <InputGroup startElement={<FiSearch />}>
@@ -217,6 +218,13 @@ export default function GameLobbyPage() {
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder={t("game.lobby.searchPlaceholder")}
                         aria-label={t("game.lobby.searchAria")}
+                        /* Spelled out (2026-09-09, reported): the default
+                           border is a hairline that disappears against the
+                           light theme's page, and a search field nobody can
+                           see the edges of reads as a stray caption. */
+                        bg="bg.panel"
+                        borderColor="border.emphasized"
+                        rounded="lg"
                     />
                 </InputGroup>
 
@@ -242,6 +250,30 @@ export default function GameLobbyPage() {
                     </SimpleGrid>
                 )}
             </VStack>
+
+            <Box
+                display={{ base: "flex", md: "none" }}
+                position="fixed"
+                left="50%"
+                bottom={`calc(${MOBILE_TABBAR_CLEARANCE} + 12px)`}
+                transform="translateX(-50%)"
+                zIndex="910"
+                justifyContent="center"
+                pointerEvents="none"
+            >
+                <Button
+                    size="lg"
+                    px="6"
+                    rounded="l3"
+                    colorPalette="brand"
+                    shadow="lg"
+                    pointerEvents="auto"
+                    onClick={() => setCreateOpen(true)}
+                    disabled={!connected || blocked}
+                >
+                    <FiPlus />{t("game.lobby.newGame")}
+                </Button>
+            </Box>
 
             {createOpen && <CreateGameDialog
                 open={createOpen}

@@ -17,6 +17,11 @@
 export const common = {
     // --- Actions -----------------------------------------------------------
     save: "Spremi",
+    /* Dvije riječi koje su zamijenile on/off prekidače u postavkama
+       (2026-09-09, zahtjev korisnika): prekidač traži da znaš na koju stranu
+       je „upaljeno”, a „Ne / Da” to piše. */
+    no: "Ne",
+    yes: "Da",
     cancel: "Odustani",
     confirm: "Potvrdi",
     delete: "Obriši",

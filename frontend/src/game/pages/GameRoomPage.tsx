@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
+import { CHAT_ENABLED } from "../chatEnabled"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Box, Button, Flex, HStack, IconButton, Spinner, Text } from "@chakra-ui/react"
 import { FiArrowLeft, FiSettings } from "react-icons/fi"
@@ -335,9 +336,13 @@ export default function GameRoomPage() {
             return
         }
         showError(t(`game.error.${socket.error.code}`))
-        /* Both refusals mean "this room is not going to let you in": there is
-           nothing to wait for on the room screen, so go back to the list. */
-        if (socket.error.code === "SPECTATORS_DISABLED" || socket.error.code === "ROOM_FULL") {
+        /* These refusals are terminal for this URL: there is nothing to wait
+           for on the room screen, so go back to the list. ROOM_NOT_FOUND is
+           especially important for old shared links, which otherwise leave
+           the page spinning on "Ulazim u sobu…" forever. */
+        if (socket.error.code === "ROOM_NOT_FOUND" ||
+            socket.error.code === "SPECTATORS_DISABLED" ||
+            socket.error.code === "ROOM_FULL") {
             navigate(`/igra${mock ? "?mock=1" : ""}`, { replace: true })
         }
         socket.clearError()
@@ -526,7 +531,13 @@ export default function GameRoomPage() {
         >
             {inLobbyPhase ? (
                 <>
-                    <Box flex="1" overflowY="auto">
+                    {/* `display: flex` so the panel can fill this box and put
+                        its controls on the floor of it (2026-09-09, user
+                        request): "Privatna", "Spreman" and "Pokreni igru"
+                        belong at the bottom of the screen, under the four
+                        seats, not floating halfway up with a screen of empty
+                        room beneath them. */}
+                    <Box flex="1" overflowY="auto" display="flex" flexDirection="column">
                         {/* No end-of-game strip above the room. A finished
                             game is announced ONCE, in the middle of the
                             screen (GameOverDialog, rendered below for both
@@ -547,13 +558,17 @@ export default function GameRoomPage() {
                             onSettings={() => setSettingsOpen(true)}
                         />
                     </Box>
-                    <Box position="absolute" top="0" right="0" zIndex={11}>
-                        <ChatToggle
-                            open={chatOpen}
-                            unread={unread}
-                            onToggle={() => setChatOpen((v) => !v)}
-                        />
-                    </Box>
+                    {CHAT_ENABLED ? (
+                        <Box position="absolute" top="0" right="0" zIndex={11}>
+                            {CHAT_ENABLED ? (
+                                <ChatToggle
+                                    open={chatOpen}
+                                    unread={unread}
+                                    onToggle={() => setChatOpen((v) => !v)}
+                                />
+                            ) : null}
+                        </Box>
+                    ) : null}
                 </>
             ) : (
                 view && (
@@ -604,11 +619,13 @@ export default function GameRoomPage() {
                                     aria-label={t("game.tricks.open")} title={t("game.tricks.open")}
                                     onClick={() => setTricksOpen((value) => !value)}>{t("game.tricks.title")}</Button>
                             )}
-                            <ChatToggle
-                                open={chatOpen}
-                                unread={unread}
-                                onToggle={() => setChatOpen((v) => !v)}
-                            />
+                            {CHAT_ENABLED ? (
+                                <ChatToggle
+                                    open={chatOpen}
+                                    unread={unread}
+                                    onToggle={() => setChatOpen((v) => !v)}
+                                />
+                            ) : null}
                             <IconButton
                                 size="xs"
                                 variant="ghost"
@@ -796,13 +813,15 @@ export default function GameRoomPage() {
                             />
                         </Box>
 
-                        <Chat
-                            open={chatOpen}
-                            messages={socket.chat}
-                            disabled={socket.status !== "open"}
-                            onSend={(text) => socket.send({ t: "chat.send", text })}
-                            onClose={() => setChatOpen(false)}
-                        />
+                        {CHAT_ENABLED ? (
+                            <Chat
+                                open={chatOpen}
+                                messages={socket.chat}
+                                disabled={socket.status !== "open"}
+                                onSend={(text) => socket.send({ t: "chat.send", text })}
+                                onClose={() => setChatOpen(false)}
+                            />
+                        ) : null}
 
                         <DealSummary
                             open={view.phase === "DEAL_DONE" && idle}
@@ -838,7 +857,16 @@ export default function GameRoomPage() {
                 />
             )}
 
-            <GameSettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+            <GameSettingsSheet
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+                /* The room's own settings ride at the top of the sheet while
+                   it is still a lobby (game/README.md §3). The sheet decides
+                   whether to draw them; this only supplies the facts. */
+                room={room}
+                isHost={socket.me?.uid != null && room?.hostUid === socket.me.uid}
+                onChangeOptions={(patch) => socket.send({ t: "room.setOptions", ...patch })}
+            />
 
             <ConfirmDialog
                 open={exitOpen}

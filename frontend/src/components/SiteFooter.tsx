@@ -44,7 +44,18 @@ export default function SiteFooter(props: BoxProps) {
     // /igra* is the same deal: the game table is a `100dvh - chrome` column
     // with the hand docked at its bottom edge, and MobileTabBar hides there
     // for exactly this reason too.
-    if (pathname.startsWith("/turniri/novi") || pathname.startsWith("/igra")) return null
+    // `/blok` joins them (2026-09-09, reported): the blok sizes itself to
+    // `100dvh - chrome` on a phone precisely so the PAGE does not scroll and
+    // only the deal list inside it does. A footer under that column makes the
+    // document taller than the viewport all the same, and because the score
+    // card is `position: sticky` the result was the worst of both — a drag
+    // started anywhere outside the inner scroller slid the whole screen up
+    // UNDER the pinned card, revealing nothing but the footer.
+    if (
+        pathname.startsWith("/turniri/novi")
+        || pathname.startsWith("/igra")
+        || pathname.startsWith("/blok")
+    ) return null
 
     return (
         <Box

@@ -273,7 +273,12 @@ export default function SharedBlokPage() {
                             alignItems="end"
                             gap={{ base: "2", md: "4" }}
                         >
-                            <VStack align="start" gap="1" minW="0" colorPalette="green">
+                            {/* Both columns centred in their own half
+                                (2026-09-09, user request): pushed to the outer
+                                edges they drifted apart on a wide screen and
+                                the "vs" between them stopped reading as the
+                                thing that joins them. */}
+                            <VStack align="center" gap="1" minW="0" textAlign="center" colorPalette="green">
                                 <Text
                                     fontSize="sm"
                                     fontWeight="bold"
@@ -292,7 +297,7 @@ export default function SharedBlokPage() {
                             <Text color="fg.subtle" fontSize="sm" pb="2">
                                 {t("pages.blokShare.vs")}
                             </Text>
-                            <VStack align="end" gap="1" minW="0" textAlign="end" colorPalette="red">
+                            <VStack align="center" gap="1" minW="0" textAlign="center" colorPalette="red">
                                 <Text
                                     fontSize="sm"
                                     fontWeight="bold"

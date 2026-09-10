@@ -3,7 +3,6 @@
 import type { Card, GameState, LegalBids, Seat, Suit, TrickCard } from "./types"
 import { SUITS, EngineError } from "./types"
 import { cardPoints, cardStrength, cardSuit, sortHand } from "./cards"
-import { partnerOf } from "./seats"
 
 /**
  * Index of the winning card inside a completed or partial trick.
@@ -82,24 +81,31 @@ export function legalMoves(state: GameState, seat: Seat): Card[] {
     const winningCard = winning.card
 
     const ofLead = hand.filter((c) => cardSuit(c) === lead)
+    const winningIsTrump = cardSuit(winningCard) === trump
 
-    // 1. Holding the led suit: must follow it.
+    // 1. Holding the led suit: must follow it, and must go OVER the card that
+    //    currently holds the trick if able ("mora se ići preko") — in every
+    //    suit, not only in trump, and over one's own partner too. The
+    //    obligation lapses only when the trick has already been ruffed: no
+    //    card of a plain led suit can beat a trump, so any card of the suit
+    //    will do then.
     if (ofLead.length > 0) {
-        if (lead !== trump) return ofLead
-        // Trumps were led: must go over the current best trump if able.
+        if (lead !== trump && winningIsTrump) return ofLead
         const higher = ofLead.filter(
             (c) => cardStrength(c, trump) > cardStrength(winningCard, trump),
         )
         return higher.length > 0 ? higher : ofLead
     }
 
-    // 2. Void in the led suit.
-    if (partnerOf(seat) === winning.seat) return hand.slice() // partner is winning → anything
-
+    // 2. Void in the led suit: holding a trump means playing a trump, whoever
+    //    holds the trick — there is NO partner exception (rule change
+    //    2026-09-09; the previous "partner is winning → anything" was reported
+    //    twice as wrong). If the trick is already ruffed, a higher trump is
+    //    compulsory when held; otherwise any trump, even a lower one.
     const trumps = hand.filter((c) => cardSuit(c) === trump)
     if (trumps.length === 0) return hand.slice() // no trumps → anything
 
-    if (cardSuit(winningCard) === trump) {
+    if (winningIsTrump) {
         const higher = trumps.filter(
             (c) => cardStrength(c, trump) > cardStrength(winningCard, trump),
         )

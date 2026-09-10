@@ -190,6 +190,9 @@ public class BlokHistoryService {
 
     private static final Set<String> SIDES = Set.of("us", "them");
     private static final Set<String> TRUMPS = Set.of("HERC", "KARA", "PIK", "TREF");
+    /** The four chairs, named as the blok names them (BLOK.md §3.3.4). */
+    private static final Set<String> DEALER_SEATS =
+            Set.of("self", "partner", "leftOpponent", "rightOpponent");
 
     /**
      * How a game ends — {@code BLOK-HISTORY.md} §5.5. Under {@code dosta} the
@@ -622,6 +625,7 @@ public class BlokHistoryService {
                 epochOrNull(g.finishedAt()),
                 gameTarget,
                 endRule(g.gameEndRule()),
+                dealerSeat(g.dealer()),
                 side(g.winner(), true),
                 totals(g.totals()),
                 List.copyOf(rounds));
@@ -646,6 +650,20 @@ public class BlokHistoryService {
         String s = raw.trim();
         if (!SIDES.contains(s)) throw ApiCodes.badRequest("INVALID_SIDE");
         return s;
+    }
+
+    /**
+     * The seat that dealt a game's first deal, or null (BLOK.md §3.3.4).
+     *
+     * <p>Nullable on purpose and unrecognised values are dropped rather than
+     * refused: this is a label on a record the server never acts on, and an
+     * upload carrying real deals must not fail over the name of a chair.
+     * Records written before the field existed simply have none.
+     */
+    private static String dealerSeat(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim();
+        return DEALER_SEATS.contains(s) ? s : null;
     }
 
     /**

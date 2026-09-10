@@ -106,6 +106,7 @@ export const blok = {
 
     /* ─── Sažetak (kraj igre) ────────────────────────────────────────── */
     "summary.total": "Ukupno",
+    "summary.points": "Bodovi",
     "summary.declarations": "Zvanja",
     "summary.stiglje": "Štiglje",
 
@@ -263,12 +264,11 @@ export const blok = {
     // „Igra se do” (`series.playTo` na kraju datoteke). `series.custom`
     // („Vlastiti broj igara”) je obrisan s poljem koje je imenovao — čipovi su
     // cijeli izbor (v. `TargetDialog`).
-    "series.open": "Otvorena",
+    "series.open": "Neograničeno",
     "series.games.one": "{n} dobivena igra",
     "series.games.two": "{n} dobivene igre",
     "series.games.few": "{n} dobivene igre",
     "series.games.other": "{n} dobivenih igara",
-    "series.hint": "Seriju dobiva strana koja prva skupi {games}.",
     // `series.hintOpen` je obrisan 2026-09-08 (zahtjev korisnika): rečenica je
     // objašnjavala gumb „Otvorena” koji je bio pritisnut točno iznad nje — isti
     // šum kao `rule.dostaHint` / `rule.prolazHint`. Pod „Otvorena” sada ispod
@@ -449,6 +449,22 @@ export const blok = {
        obrisani. Ista dva ključa nose i čipovi u dijalogu i sredinji gumb u
        listu djelitelja — jedna vrijednost, jedno ime. */
     "dealer.direction": "Smjer kartanja",
+    /* Tko miješa PRVU podjelu SLJEDEĆE partije — BLOK.md §3.3.4. Ne dira
+       podjele UNUTAR partije; one i dalje idu po `dealer.direction`.
+       „Sljedeći” = rotacija ide dalje oko stola; „Pobjednik” = rotacija ide
+       dalje istim smjerom, ali preskače par koji je izgubio. */
+    /* Dvije upute na kartici sažetka partije — strelica pokazuje na ono što je
+       već na ekranu (partije serije gore iza chevrona, gumb dolje). */
+    /* Kad je ekipa upisala svoje ime, zove se njime; MI/VI je ono na što se
+       vraća bezimena strana. */
+    "winner.named": "{name} su pobijedili",
+    "series.wonNamed": "{name} su dobili seriju",
+    "summary.reviewGames": "pogledaj prethodne partije",
+    "summary.startNextGame": "započni novu igru",
+    "summary.startNewSeries": "započni novu seriju",
+    "dealer.newGame": "Novu partiju miješa",
+    "dealer.newGameNext": "Sljedeći",
+    "dealer.newGameWinner": "Pobjednik",
     "dealer.right": "Desno",
     "dealer.left": "Lijevo",
 
@@ -505,7 +521,7 @@ export const blok = {
     "newGame.confirmUnfinished": "Tekuća partija nije dovršena i ne sprema se.",
     "newGame.signedOutNote": "Povijest blokova čuva se samo prijavljenim igračima.",
     "newGame.saved": "Serija je spremljena u Blok na tvom profilu.",
-    "share.enable": "Omogući dijeljenje",
+    "share.enable": "Omogući dijeljenje partije poveznicom",
     "share.linkedNote":
         "Zapisnik povezanog stola ostaje javan — organizator ga otvara iz ždrijeba.",
 }

@@ -16,6 +16,7 @@ describe("room visibility and rules", () => {
         const joined = await host.nextOfType("room.joined")
         expect(joined.room.code).toBe("")
         expect(joined.room.allowSpectators).toBe(false)
+        expect(joined.room.gameEndRule).toBe("prolaz")
         expect(joined.room.noDeclarations).toBe(false)
         expect(joined.room.allowBela).toBe(true)
         await watcher.next((m) => m.t === "lobby.rooms" && m.rooms.some((r) => r.id === joined.room.id))
@@ -27,6 +28,7 @@ describe("room visibility and rules", () => {
         const listed = await watcher.next((m) => m.t === "lobby.rooms" && m.rooms[0]?.private === true)
         if (listed.t !== "lobby.rooms") throw new Error("expected lobby")
         expect(listed.rooms[0]?.id).toBe(joined.room.id)
+        expect(listed.rooms[0]?.gameEndRule).toBe("prolaz")
         expect(listed.rooms[0]?.code).toBe("")
 
         watcher.send({ t: "room.join", roomId: joined.room.id })
@@ -54,6 +56,7 @@ describe("room visibility and rules", () => {
         const joined = await host.nextOfType("room.joined")
         expect(joined.room.noDeclarations).toBe(true)
         expect(joined.room.allowBela).toBe(false)
+        await fillWithBots(host)
         host.send({ t: "room.ready", ready: true })
         await host.next((m) => m.t === "room.state" && m.room.seats[0].occupant?.kind === "PLAYER" && m.room.seats[0].occupant.ready)
         host.send({ t: "room.start" })
@@ -75,6 +78,9 @@ describe("room visibility and rules", () => {
         expect((await host.nextOfType("error")).code).toBe("BAD_REQUEST")
         expect(server.roomCount()).toBe(0)
         host.send({ t: "room.create", targetScore: 501, private: false, allowSpectators: "yes" as unknown as boolean })
+        expect((await host.nextOfType("error")).code).toBe("BAD_REQUEST")
+        expect(server.roomCount()).toBe(0)
+        host.send({ t: "room.create", targetScore: 501, private: false, gameEndRule: "krivo" as "prolaz" })
         expect((await host.nextOfType("error")).code).toBe("BAD_REQUEST")
         expect(server.roomCount()).toBe(0)
     })
@@ -347,7 +353,7 @@ describe("room seats", () => {
         expect(state.room.seats[2]?.occupant).toBeNull()
     })
 
-    it("only the host may add bots or start", async () => {
+    it("only the host may add bots, but any ready seated player may start", async () => {
         server = await startTestServer()
         const host = await connect("Domacin")
         host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false })
@@ -360,8 +366,17 @@ describe("room seats", () => {
         guest.send({ t: "room.addBot", seat: 1 })
         expect((await guest.nextOfType("error")).code).toBe("NOT_HOST")
 
+        host.send({ t: "room.addBot", seat: 1 })
+        host.send({ t: "room.addBot", seat: 3 })
+        await host.next((m) => m.t === "room.state" && m.room.seats.every((slot) => slot.occupant !== null))
+
+        host.send({ t: "room.ready", ready: true })
+        await host.next((m) => m.t === "room.state" && m.room.seats[0].occupant?.kind === "PLAYER" && m.room.seats[0].occupant.ready)
+        guest.send({ t: "room.ready", ready: true })
+        await guest.next((m) => m.t === "room.state" && m.room.seats.every((slot) => slot.occupant?.kind !== "PLAYER" || slot.occupant.ready))
         guest.send({ t: "room.start" })
-        expect((await guest.nextOfType("error")).code).toBe("NOT_HOST")
+        const playing = await guest.next((m) => m.t === "room.state" && m.room.status === "PLAYING")
+        expect(playing.t).toBe("room.state")
     })
 
     it("adds and removes bots", async () => {
@@ -415,13 +430,20 @@ describe("room start", () => {
         expect(err.code).toBe("NOT_ENOUGH_PLAYERS")
     })
 
-    it("fills every empty seat with a strong bot and deals", async () => {
+    it("refuses to start until all four seats are filled", async () => {
         server = await startTestServer()
         const host = await connect("Domacin")
         host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false })
         await host.nextOfType("room.joined")
         host.send({ t: "room.ready", ready: true })
         await host.nextOfType("room.state")
+        host.send({ t: "room.start" })
+
+        const refused = await host.nextOfType("error")
+        expect(refused.code).toBe("NOT_ENOUGH_PLAYERS")
+        expect(refused.message).toContain("sva četiri mjesta")
+
+        await fillWithBots(host)
         host.send({ t: "room.start" })
 
         const playing = await host.next(

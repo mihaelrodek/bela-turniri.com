@@ -36,11 +36,13 @@ afterEach(async () => {
     server = null
 })
 
-/** Create a room, ready up, start it — the three empty seats become bots. */
+/** Create a room, explicitly fill the empty seats with bots, ready up, start. */
 async function startBotRoom(host: TestClient): Promise<string> {
     // These lifecycle tests use a spectator to observe state after the player leaves.
     host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false, allowSpectators: true })
     const joined = await host.nextOfType("room.joined")
+    for (const seat of [1, 2, 3] as const) host.send({ t: "room.addBot", seat })
+    await host.next((m) => m.t === "room.state" && m.room.seats.every((s) => s.occupant !== null))
     host.send({ t: "room.ready", ready: true })
     await host.nextOfType("room.state")
     host.send({ t: "room.start" })
@@ -62,8 +64,10 @@ async function startSupportedRoom(host: TestClient): Promise<string> {
         if (seated.yourSeat === null) throw new Error(`${name} was not seated`)
         player.send({ t: "room.ready", ready: true })
     }
+    host.send({ t: "room.addBot", seat: 3 })
     host.send({ t: "room.ready", ready: true })
     await host.next((m) => m.t === "room.state" && m.yourSeat === 0
+        && m.room.seats.every((s) => s.occupant !== null)
         && m.room.seats.filter((s) => s.occupant?.kind === "PLAYER" && s.occupant.ready).length === 3)
     host.send({ t: "room.start" })
     await host.next((m) => m.t === "room.state" && m.room.status === "PLAYING")
@@ -71,22 +75,26 @@ async function startSupportedRoom(host: TestClient): Promise<string> {
 }
 
 describe("dissolving games without enough people", () => {
-    it("removes a one-player game when its only person explicitly leaves", async () => {
-        server = await startTestServer({ timings: { botThinkMinMs: 100_000, botThinkMaxMs: 100_000 } })
+    it("keeps a one-player bot game for the reconnect window after an explicit leave", async () => {
+        server = await startTestServer({
+            timings: { reconnectGraceMs: 30_000, botThinkMinMs: 100_000, botThinkMaxMs: 100_000 },
+        })
         const host = await connect("Igrac")
         const roomId = await startBotRoom(host)
 
         host.send({ t: "room.leave" })
         await host.nextOfType("room.left")
-        const inactive = await host.next((m) => m.t === "game.active" && m.seat === null)
+        const room = server.lobby.get(roomId)
 
-        expect(inactive.t).toBe("game.active")
-        expect(server.lobby.get(roomId)).toBeUndefined()
-        expect(server.roomCount()).toBe(0)
+        expect(room?.status).toBe("PLAYING")
+        expect(room?.slotAt(0)).toMatchObject({ kind: "PLAYER", connected: false })
+        expect(room?.holdFor("dev:igrac")?.until ?? 0).toBeGreaterThan(Date.now())
     })
 
-    it("removes a two-player game when either person explicitly leaves", async () => {
-        server = await startTestServer({ timings: { botThinkMinMs: 100_000, botThinkMaxMs: 100_000 } })
+    it("keeps a two-player game for the reconnect window when one person explicitly leaves", async () => {
+        server = await startTestServer({
+            timings: { reconnectGraceMs: 30_000, botThinkMinMs: 100_000, botThinkMaxMs: 100_000 },
+        })
         const host = await connect("Igrac")
         host.send({ t: "room.create", name: "Dvoje", targetScore: 501, private: false })
         const joined = await host.nextOfType("room.joined")
@@ -95,19 +103,23 @@ describe("dissolving games without enough people", () => {
         // Seat 2 — joining really does make the second arrival the host's
         // partner now, which is the whole point of `SEAT_FILL_ORDER`.
         expect((await partner.nextOfType("room.joined")).yourSeat).toBe(2)
+        host.send({ t: "room.addBot", seat: 1 })
+        host.send({ t: "room.addBot", seat: 3 })
         partner.send({ t: "room.ready", ready: true })
         host.send({ t: "room.ready", ready: true })
         await host.next((m) => m.t === "room.state"
+            && m.room.seats.every((s) => s.occupant !== null)
             && m.room.seats.filter((s) => s.occupant?.kind === "PLAYER" && s.occupant.ready).length === 2)
         host.send({ t: "room.start" })
         await host.next((m) => m.t === "room.state" && m.room.status === "PLAYING")
 
         host.send({ t: "room.leave" })
         await host.nextOfType("room.left")
-        await partner.nextOfType("room.left")
 
-        expect(server.lobby.get(joined.room.id)).toBeUndefined()
-        expect(server.roomCount()).toBe(0)
+        const room = server.lobby.get(joined.room.id)
+        expect(room?.status).toBe("PLAYING")
+        expect(room?.slotAt(0)).toMatchObject({ kind: "PLAYER", connected: false })
+        expect(room?.holdFor("dev:igrac")?.until ?? 0).toBeGreaterThan(Date.now())
     })
 
     it("removes a solo game when a dropped player's reconnect grace expires", async () => {
@@ -398,6 +410,34 @@ describe("game.active", () => {
         expect(joined.room.id).toBe(roomId)
         expect(joined.yourSeat).toBe(0)
         expect(room.holdFor("dev:igrac")).toBeNull()
+    })
+
+    it("starts a fresh full reconnect window after every successful reconnect", async () => {
+        server = await startTestServer({
+            timings: { reconnectGraceMs: 30_000, botThinkMinMs: 100_000, botThinkMaxMs: 100_000 },
+        })
+        const first = await connect("Igrac")
+        const roomId = await startBotRoom(first)
+        const room = server.lobby.get(roomId)!
+
+        await first.close()
+        clients.length = 0
+        await until(() => room.holdFor("dev:igrac")?.reason === "disconnect")
+        const firstUntil = room.holdFor("dev:igrac")!.until
+
+        const second = await connect("Igrac")
+        await second.nextOfType("room.joined")
+        expect(room.holdFor("dev:igrac")).toBeNull()
+
+        await sleep(10)
+        await second.close()
+        clients.length = 0
+        await until(() => room.holdFor("dev:igrac")?.reason === "disconnect")
+        const secondUntil = room.holdFor("dev:igrac")!.until
+
+        expect(secondUntil).toBeGreaterThan(firstUntil)
+        expect(secondUntil).toBeGreaterThan(Date.now() + 29_000)
+        expect(room.slotAt(0)).toMatchObject({ kind: "PLAYER", connected: false })
     })
 })
 

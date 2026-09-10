@@ -9,10 +9,11 @@
    trump, KARA is led, the bot is void in KARA and holds both a trump and a
    heart.
 
-   Result: `legalMoves` is correct. It offers the heart ONLY when the bot's own
-   partner is winning the trick — which §1.5 explicitly allows — and offers
-   nothing but trumps whenever an opponent is winning. The reported hand is
-   therefore case (a): a legal, and in fact conventional, discard.
+   History: the first version of §1.5 let a void player play ANYTHING while his
+   own partner held the trick, so the heart was legal then. The rule was
+   changed on 2026-09-09 (reported twice as wrong): a void player who holds a
+   trump plays a trump, whoever is winning. The heart is now illegal in every
+   layout below.
    ────────────────────────────────────────────────────────────────────── */
 
 import { describe, expect, it } from "vitest"
@@ -66,20 +67,24 @@ describe("engine legalMoves — the reported discard (README §1.5)", () => {
         ], 1)
         // 10TREF is the best trump so far; only trumps above it are legal.
         expect(legalMoves(overtrumped, 2)).toEqual(["ATREF"])
+
+        const cannotOvertrump = state(["9HERC", "7TREF"], [
+            { seat: 1, card: "7KARA" },
+            { seat: 3, card: "10TREF" },
+        ], 1)
+        // No trump above the 10 — the lower trump is still compulsory.
+        expect(legalMoves(cannotOvertrump, 2)).toEqual(["7TREF"])
     })
 
-    it("my PARTNER is winning → anything is legal, so the heart discard is a LEGAL play", () => {
+    it("my PARTNER is winning → the trump is STILL compulsory; the heart discard is illegal", () => {
         const s = state(HAND, [
             { seat: 0, card: "AKARA" }, // partner leads and holds the trick
             { seat: 1, card: "8KARA" },
         ], 0)
-        const legal = legalMoves(s, 2)
-        expect(legal).toEqual(HAND)
-        expect(legal).toContain("9HERC") // the "wrong" discard the report describes
-        expect(legal).toContain("7TREF") // the trump it kept back — also legal
+        expect(legalMoves(s, 2)).toEqual(["7TREF"])
     })
 
-    it("partner led but an opponent overtook → the trump is compulsory again", () => {
+    it("partner led but an opponent overtook → the trump is compulsory", () => {
         const s = state(HAND, [
             { seat: 0, card: "8KARA" },
             { seat: 1, card: "AKARA" }, // opponent takes over

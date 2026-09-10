@@ -11,6 +11,7 @@
 import type {
     Card,
     GameEvent,
+    GameEndRule,
     PlayerView,
     Seat,
     Suit,
@@ -21,6 +22,7 @@ import type {
 export type {
     Card,
     GameEvent,
+    GameEndRule,
     PlayerView,
     Seat,
     Suit,
@@ -40,9 +42,22 @@ export type Reaction = (typeof REACTIONS)[number]
  *  chips. */
 export const TRICK_REVIEWS: readonly TrickReview[] = ["off", "leaderPair", "all"]
 export const DEFAULT_TRICK_REVIEW: TrickReview = "off"
+export const GAME_END_RULES: readonly GameEndRule[] = ["prolaz", "dosta"]
+export const DEFAULT_GAME_END_RULE: GameEndRule = "prolaz"
 
 export const LIMITS = {
     roomNameMax: 40,
+    /**
+     * The longest a player's display name may be — 16 characters
+     * (2026-09-09, user request), punctuation and spaces included.
+     *
+     * It is a table constraint rather than a form one: four names have to fit
+     * around a drawn table on a phone, and a name that arrives from a Firebase
+     * token or an old guest record has to obey it just as a typed one does.
+     * Enforced on the server (`connection.ts`), mirrored by `maxLength` on the
+     * inputs so the cap is visible while typing rather than after sending.
+     */
+    playerNameMax: 16,
     chatMax: 300,
     /** Minimum gap between two reactions from the same user. */
     reactionCooldownMs: 3000,
@@ -115,6 +130,9 @@ export interface RoomSummary {
     code: string
     status: RoomStatus
     targetScore: TargetScore
+    gameEndRule: GameEndRule
+    /** Whether declaration scoring is disabled for this room. */
+    noDeclarations: boolean
     private: boolean
     /** Whether people without a seat may join once the game is in progress. */
     allowSpectators: boolean
@@ -138,7 +156,6 @@ export interface RoomSummary {
 export interface RoomState extends RoomSummary {
     /** Members-only: the lobby summary carries no uid at all. */
     hostUid: string
-    noDeclarations: boolean
     allowBela: boolean
     /** Who may review completed tricks (README §1.8). Chosen when the room is
      *  created, applies to the whole room, and is shown to everyone in it —
@@ -196,6 +213,9 @@ export type ErrorCode =
     /** You already hold a seat in another room. One game at a time: go back to
      *  it, or leave it, before opening or joining another (README §3.2). */
     | "ALREADY_IN_GAME"
+    /** The in-game name may only be changed once a week; `nextChangeAt` on the
+     *  `profile.name` reply says when. */
+    | "NAME_RATE_LIMITED"
 
 /* ───────────────────────── client → server ───────────────────────── */
 
@@ -205,8 +225,41 @@ export type ClientMessage =
     | { t: "lobby.subscribe" }
     | { t: "lobby.unsubscribe" }
     /** `name` optional — the server generates a two-word Croatian name when absent/blank. */
-    | { t: "room.create"; name?: string; targetScore: TargetScore; private: boolean; allowSpectators?: boolean; noDeclarations?: boolean; allowBela?: boolean; trickReview?: TrickReview }
+    | { t: "room.create"; name?: string; targetScore: TargetScore; gameEndRule?: GameEndRule; private: boolean; allowSpectators?: boolean; noDeclarations?: boolean; allowBela?: boolean; trickReview?: TrickReview }
     | { t: "room.setPrivate"; private: boolean }
+    /**
+     * Change the room's own settings while it is still in the LOBBY — host
+     * only, refused once a game is running (2026-09-09, user request: the
+     * settings sheet shows "postavke ove igre" first, and they must be
+     * editable until the deal starts).
+     *
+     * Every field is OPTIONAL and absent means "leave it alone", so the client
+     * can send one switch without restating the other five. `private` is
+     * deliberately NOT here: it already has `room.setPrivate` and its own
+     * control on the room screen, and two ways to write one flag is how the
+     * two get out of step.
+     */
+    | {
+        t: "room.setOptions"
+        targetScore?: TargetScore
+        gameEndRule?: GameEndRule
+        allowSpectators?: boolean
+        noDeclarations?: boolean
+        allowBela?: boolean
+        trickReview?: TrickReview
+    }
+    /**
+     * Set this player's IN-GAME name ("ime za igru") — 2026-09-09, user
+     * request. Separate from the account's display name, and the only way any
+     * player changes what is written above their seat.
+     *
+     * It goes over this socket rather than to the app's REST API because a
+     * GUEST has no account and no bearer token: their identity exists only
+     * here, as the uid the server derives from the secret their browser keeps.
+     * One path for both kinds of player is also the only way the once-a-week
+     * limit can mean anything — see `NAME_RATE_LIMITED`.
+     */
+    | { t: "profile.setName"; name: string }
     | { t: "room.join"; roomId: string }
     | { t: "room.joinByCode"; code: string }
     | { t: "room.leave" }
@@ -242,6 +295,13 @@ export type ServerMessage =
     | { t: "hello.ok"; user: UserInfo; v: number }
     | { t: "pong" }
     | { t: "error"; code: ErrorCode; message: string; ref?: ClientMessageType }
+    /**
+     * The player's in-game name after a `profile.setName`, and when it may
+     * next be changed (epoch ms). Sent to the one connection that asked; the
+     * new name reaches everybody else through the room state, because that is
+     * where a seat's name is read from.
+     */
+    | { t: "profile.name"; name: string; nextChangeAt: number }
     | { t: "lobby.rooms"; rooms: RoomSummary[] }
     | { t: "room.joined"; room: RoomState; yourSeat: Seat | null }
     | { t: "room.state"; room: RoomState; yourSeat: Seat | null }
@@ -273,7 +333,8 @@ const CLIENT_TYPES: ReadonlySet<string> = new Set<ClientMessageType>([
     "room.create", "room.join", "room.leave", "room.sit", "room.stand",
     "room.addBot", "room.removeBot", "room.ready", "room.start",
     "game.bid", "game.pass", "game.play", "game.nextDeal", "chat.send",
-    "room.joinByCode", "chat.react", "room.setPrivate",
+    "room.joinByCode", "chat.react", "room.setPrivate", "room.setOptions",
+    "profile.setName",
 ])
 
 /** Structural check that a parsed JSON value is *shaped* like a ClientMessage (type field only). */

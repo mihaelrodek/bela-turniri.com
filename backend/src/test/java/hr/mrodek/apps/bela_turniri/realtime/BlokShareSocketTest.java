@@ -531,6 +531,6 @@ class BlokShareSocketTest {
         return new BlokGameDto(
                 UUID.randomUUID().toString(),
                 1_757_280_000_000L, 1_757_283_600_000L, 1001, "prolaz",
-                winner, new BlokScoresDto(1012, 786), deals);
+                "self", winner, new BlokScoresDto(1012, 786), deals);
     }
 }

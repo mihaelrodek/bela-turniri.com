@@ -80,7 +80,7 @@ export class GameRoom {
         // `trickReview` travels in the engine config because `viewFor(state,
         // seat)` — the only place the redaction can be enforced — has nothing
         // but the state to read it from. It changes no rule of play.
-        this.state = newGame({ targetScore: room.targetScore, seed: newSeed(), noDeclarations: room.noDeclarations, allowBela: room.allowBela, trickReview: room.trickReview })
+        this.state = newGame({ targetScore: room.targetScore, gameEndRule: room.gameEndRule, seed: newSeed(), noDeclarations: room.noDeclarations, allowBela: room.allowBela, trickReview: room.trickReview })
     }
 
     /** First broadcast + first timer, right after `room.start`. */
@@ -335,7 +335,16 @@ export class GameRoom {
         // Acting for a human (timeout or disconnect) is what `autoPlayed` marks.
         const autoPlayed = slot?.kind === "PLAYER"
         const bot = this.bot
-        const view = viewFor(st, seat)
+        // `recallTricks` — the bot's memory, not the room's review setting
+        // (README §1.8). A bot is stateless between moves, so without the
+        // seat-attributed history it could not remember who discarded what two
+        // tricks ago; those cards fell face up in front of everyone, so it is
+        // recall, not hidden information. This also holds when the bot acts
+        // FOR a human (timeout or disconnect, the `autoPlayed` flag): the
+        // person it stands in for would have remembered the same public play.
+        // Nothing else widens — the view that reaches a BROWSER is built in
+        // `stateMessage`, and that one keeps the `trickReview` rule.
+        const view = viewFor(st, seat, { recallTricks: true })
 
         try {
             if (st.phase === "BIDDING") {

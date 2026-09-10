@@ -32,10 +32,12 @@ afterEach(async () => {
     server = null
 })
 
-/** Create a room, ready up, start it — the three empty seats become bots. */
+/** Create a room, explicitly fill the empty seats with bots, ready up, start. */
 async function startSoloRoom(host: TestClient, name = "Prva"): Promise<string> {
     host.send({ t: "room.create", name, targetScore: 501, private: false })
     const joined = await host.nextOfType("room.joined")
+    for (const seat of [1, 2, 3] as const) host.send({ t: "room.addBot", seat })
+    await host.next((m) => m.t === "room.state" && m.room.seats.every((s) => s.occupant !== null))
     host.send({ t: "room.ready", ready: true })
     await host.nextOfType("room.state")
     host.send({ t: "room.start" })
@@ -60,8 +62,10 @@ async function startSupportedRoom(host: TestClient, name = "Prva"): Promise<stri
     host.send({ t: "room.create", name, targetScore: 501, private: false })
     const joined = await host.nextOfType("room.joined")
     await addSupportPlayers(joined.room.id)
+    host.send({ t: "room.addBot", seat: 3 })
     host.send({ t: "room.ready", ready: true })
     await host.next((m) => m.t === "room.state"
+        && m.room.seats.every((s) => s.occupant !== null)
         && m.room.seats.filter((s) => s.occupant?.kind === "PLAYER" && s.occupant.ready).length === 3)
     host.send({ t: "room.start" })
     await host.next((m) => m.t === "room.state" && m.room.status === "PLAYING")
@@ -144,8 +148,15 @@ describe("a seated player may not start or join a second game", () => {
 
         host.send({ t: "room.leave" })
         await host.nextOfType("room.left")
+        expect(server.lobby.get(roomId)!.holdFor("dev:igrac")).not.toBeNull()
+
+        // The first leave now always preserves a running seat for reconnect,
+        // including a solo bot game. Leaving once more from the lobby is the
+        // explicit forfeit that makes the player free to create another room.
+        host.send({ t: "room.leave" })
+        await host.nextOfType("room.left")
         await host.next((m) => m.t === "game.active" && m.seat === null)
-        expect(server.lobby.get(roomId)).toBeUndefined()
+        expect(server.lobby.get(roomId)!.seatOfUid("dev:igrac")).toBeNull()
 
         host.send({ t: "room.create", name: "Druga", targetScore: 1001, private: false })
         const joined = await host.nextOfType("room.joined")
@@ -202,8 +213,10 @@ describe("returning to your own room still works", () => {
         host.send({ t: "room.create", name: "Moja", targetScore: 501, private: true })
         const joined = await host.nextOfType("room.joined")
         await addSupportPlayers(joined.room.id, joined.room.code)
+        host.send({ t: "room.addBot", seat: 3 })
         host.send({ t: "room.ready", ready: true })
         await host.next((m) => m.t === "room.state"
+            && m.room.seats.every((s) => s.occupant !== null)
             && m.room.seats.filter((s) => s.occupant?.kind === "PLAYER" && s.occupant.ready).length === 3)
         host.send({ t: "room.start" })
         await host.next((m) => m.t === "room.state" && m.room.status === "PLAYING")
@@ -243,6 +256,8 @@ describe("gledanje štihova rides with the room", () => {
         const joined = await host.nextOfType("room.joined")
         expect(joined.room.trickReview).toBe("off")
 
+        for (const seat of [1, 2, 3] as const) host.send({ t: "room.addBot", seat })
+        await host.next((m) => m.t === "room.state" && m.room.seats.every((s) => s.occupant !== null))
         host.send({ t: "room.ready", ready: true })
         await host.nextOfType("room.state")
         host.send({ t: "room.start" })
@@ -259,6 +274,8 @@ describe("gledanje štihova rides with the room", () => {
         const joined = await host.nextOfType("room.joined")
         expect(joined.room.trickReview).toBe("all")
 
+        for (const seat of [1, 2, 3] as const) host.send({ t: "room.addBot", seat })
+        await host.next((m) => m.t === "room.state" && m.room.seats.every((s) => s.occupant !== null))
         host.send({ t: "room.ready", ready: true })
         await host.nextOfType("room.state")
         host.send({ t: "room.start" })
@@ -274,6 +291,32 @@ describe("gledanje štihova rides with the room", () => {
         expect(first?.plays).toHaveLength(4)
         expect(first?.plays.map((p) => p.card)).toEqual(first?.cards)
         expect(first?.plays[0]?.seat).toBe(first?.leader)
+    })
+
+    it("keeps the bots' full recall out of the broadcast", async () => {
+        // Bots decide from `viewFor(state, seat, { recallTricks: true })` —
+        // memory of public play, not a review (README §1.8). The frame that
+        // reaches a browser is built separately and must still obey `off`, so
+        // let a whole deal run with bots and check every state we were sent.
+        server = await startTestServer({ timings: { turnTimeoutMs: 30 } })
+        const host = await connect("Igrac")
+        host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false })
+        await host.nextOfType("room.joined")
+        for (const seat of [1, 2, 3] as const) host.send({ t: "room.addBot", seat })
+        await host.next((m) => m.t === "room.state" && m.room.seats.every((s) => s.occupant !== null))
+        host.send({ t: "room.ready", ready: true })
+        await host.nextOfType("room.state")
+        host.send({ t: "room.start" })
+        await host.nextOfType("game.state")
+
+        // Several tricks in — enough that a history would exist to leak.
+        await host.next((m) => m.t === "game.state" && m.view.played.length >= 12, 4000)
+        const states = host.received.filter((m) => m.t === "game.state")
+        expect(states.length).toBeGreaterThan(1)
+        for (const m of states) {
+            if (m.t !== "game.state") continue
+            expect(m.view.trickHistory ?? null).toBeNull()
+        }
     })
 
     it("rejects a malformed trickReview before creating a room", async () => {

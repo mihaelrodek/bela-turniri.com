@@ -1,7 +1,7 @@
 import { Badge, Box, HStack, Text, VStack } from "@chakra-ui/react"
 import { FiChevronRight, FiEye, FiLock } from "react-icons/fi"
 import type { RoomOccupant, RoomSummary } from "@bela/protocol"
-import { useTranslation, usePlural } from "../../i18n"
+import { useTranslation } from "../../i18n"
 import PlayerAvatar from "./PlayerAvatar"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -67,7 +67,6 @@ export default function RoomListItem({
     onClick: () => void
 }) {
     const { t } = useTranslation()
-    const plural = usePlural()
 
     /* Full and closed to newcomers. `joinable` comes from the server's own
        admission predicate, so this can never claim a room is full while it
@@ -75,7 +74,6 @@ export default function RoomListItem({
        OWN room stays open to us whatever it says. */
     const full = !room.joinable && !mine
     const blocked = disabled || full
-    const freeSeats = 4 - room.seatsTaken
     const names = room.occupants.map((o) => o?.name ?? t("game.lobby.emptySeat")).join(", ")
 
     return (
@@ -91,60 +89,58 @@ export default function RoomListItem({
             rounded="xl"
             borderWidth="1px"
             borderColor={mine ? "brand.400" : "border.subtle"}
-            bg="bg.panel"
-            p="3"
+            bg="bg"
+            p="2.5"
             minH="44px"
-            opacity={blocked ? 0.5 : 1}
             cursor={blocked ? "not-allowed" : "pointer"}
             transition="background-color 0.15s ease, border-color 0.15s ease"
             _hover={blocked ? undefined : { borderColor: "brand.400", boxShadow: "md", transform: "translateY(-2px)" }}
             aria-label={t("game.lobby.enterAria", { name: room.name })}
             title={disabled ? t("game.lobby.blockedRoom") : full ? t("game.lobby.fullBlocked") : undefined}
         >
-            <HStack justify="space-between" gap="3">
-                <VStack align="start" gap="1.5" flex="1" minW="0">
-                    <HStack gap="2" minW="0">
-                        <Text fontWeight="semibold" lineClamp={1}>{room.name}</Text>
-                        {room.private && (
-                            <Badge size="sm" variant="subtle" colorPalette="gray"
-                                aria-label={t("game.lobby.privateAria")} title={t("game.lobby.privateAria")}>
-                                <FiLock size={12} /> {t("game.lobby.private")}
+            <HStack justify="space-between" gap="2">
+                <VStack align="stretch" gap="2" flex="1" minW="0">
+                    <HStack justify="space-between" align="start" gap="3">
+                        <HStack gap="2" minW="0">
+                            <Text fontWeight="semibold" lineClamp={1}>{room.name}</Text>
+                            {room.private && (
+                                <Badge size="sm" variant="subtle" colorPalette="gray"
+                                    aria-label={t("game.lobby.privateAria")} title={t("game.lobby.privateAria")}>
+                                    <FiLock size={12} /> {t("game.lobby.private")}
+                                </Badge>
+                            )}
+                        </HStack>
+                        <HStack gap="1.5" justify="end" wrap="wrap" flexShrink={{ base: 1, sm: 0 }} maxW={{ base: "68%", sm: "none" }}>
+                            {room.status === "PLAYING" && (
+                                <Badge size="sm" variant="solid" colorPalette="orange">
+                                    {t("game.lobby.playing")}
+                                </Badge>
+                            )}
+                            <Badge size="sm" variant="subtle" colorPalette="gray">
+                                {t(`game.lobby.finishMode.${room.gameEndRule}`)}
                             </Badge>
-                        )}
-                    </HStack>
-                    <HStack gap="2" wrap="wrap">
-                        <Badge size="sm" variant="subtle" colorPalette="gray">
-                            {t("game.lobby.target", { target: room.targetScore })}
-                        </Badge>
-                        {full && (
-                            <Badge size="sm" variant="solid" colorPalette="orange">
-                                {t("game.lobby.full")}
+                            <Badge size="sm" variant="subtle" colorPalette={room.noDeclarations ? "orange" : "gray"}>
+                                {t(room.noDeclarations ? "game.rules.noDeclarations" : "game.rules.withDeclarations")}
                             </Badge>
-                        )}
-                        {/* A full table you may still watch is a different
-                            offer from a full table that turns you away. */}
-                        {room.seatsTaken >= 4 && room.allowSpectators && (
                             <Badge size="sm" variant="subtle" colorPalette="brand">
-                                <FiEye size={12} /> {t("game.room.spectatorsAllowed")}
+                                {room.targetScore}
                             </Badge>
-                        )}
+                        </HStack>
                     </HStack>
                     {/* Who is in there, in seat order — four faces, no text.
                         The names live in `occupantsAria` and in each slot's own
                         label, so nothing is lost to anyone who cannot see the
                         avatars. */}
-                    <HStack gap="2" aria-label={t("game.lobby.occupantsAria", { names })}>
+                    <HStack gap="1.5" aria-label={t("game.lobby.occupantsAria", { names })}>
                         {room.occupants.map((occupant, i) => (
                             <Occupant key={i} occupant={occupant} emptyLabel={t("game.lobby.emptySeat")} />
                         ))}
+                        {room.seatsTaken >= 4 && room.allowSpectators && (
+                            <Badge size="sm" variant="subtle" colorPalette="brand" ml="1">
+                                <FiEye size={12} /> {t("game.room.spectatorsAllowed")}
+                            </Badge>
+                        )}
                     </HStack>
-                    <Text fontSize="xs" color="fg.muted">
-                        {freeSeats > 0
-                            ? plural("game.lobby.freeSeats", freeSeats)
-                            : room.allowSpectators
-                                ? t("game.lobby.spectateHint")
-                                : t("game.lobby.fullBlocked")}
-                    </Text>
                 </VStack>
                 <Box color="fg.muted" flexShrink={0} aria-hidden="true">
                     <FiChevronRight size={20} />

@@ -31,6 +31,13 @@ export type UserProfile = {
     colorMode?: "light" | "dark" | null
     /** BCP-47 base tag ("hr" | "sl"); null until the user picks one. */
     locale?: string | null
+    /**
+     * "Ime za igru" — the name this user wears at the card table, null when
+     * they never set one. READ-ONLY here: it is written over the game socket
+     * (`profile.setName`), because the same control has to serve guests, who
+     * have no bearer token to reach this endpoint with.
+     */
+    gameName?: string | null
 }
 
 export type GameStatCategory = {

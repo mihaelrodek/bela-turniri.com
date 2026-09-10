@@ -35,11 +35,46 @@ export type BlokDealerSeat = "self" | "rightOpponent" | "partner" | "leftOpponen
    Stored values written before this rename are read forward in `store.ts`
    (`sanitizeDealDirection`): `"clockwise"` → `"left"`, `"counterclockwise"` →
    `"right"`. Nothing is rewritten on disk, so `BLOK_STORAGE_KEY` stays `v1`. */
+/**
+ * The longest a side's name may be — 32 characters (2026-09-09, user request).
+ *
+ * Enforced in the STORE, not only on the input: the rename dialog is one way
+ * in, and a name that arrived any other way (a restored `localStorage`, a
+ * linked table) must not be able to overflow the score card either. Counted in
+ * characters as typed, punctuation included.
+ */
+export const MAX_SIDE_NAME = 32
+
 export type BlokDealDirection = "right" | "left"
 
 /** Chip order in "Postavke"; the default is first. */
 export const DEAL_DIRECTIONS: readonly BlokDealDirection[] = ["right", "left"]
 export const DEFAULT_DEAL_DIRECTION: BlokDealDirection = "right"
+
+/* ──────────── tko miješa novu partiju (BLOK.md §3.3.4) ────────────
+   Who deals the FIRST deal of the NEXT game of a series. Deals INSIDE a game
+   always follow `BlokDealDirection`; this decides only where the next game
+   picks the rotation up.
+
+     • `"next"`    — carry straight on round the table. Whoever would have
+                     dealt the next deal of the finished game deals the first
+                     of the new one. This is what the blok has always done, so
+                     it is the default and a stored game without the field
+                     reads as this.
+     • `"winner"`  — the pair that WON the game deals it. The rotation still
+                     moves in the same direction; it just keeps stepping until
+                     it lands on a seat of the winning pair, skipping the
+                     losers. A game nobody won (no winner yet) falls back to
+                     `"next"` — there is nothing to skip towards.
+
+   Example, dealing to the LEFT, and the one the setting was written from: I
+   dealt game one and we won it. Under `"next"` the left-hand opponent deals
+   game two; under `"winner"` he is skipped and my PARTNER deals. */
+export type BlokNewGameDealer = "next" | "winner"
+
+/** Chip order in "Postavke"; the default is first. */
+export const NEW_GAME_DEALERS: readonly BlokNewGameDealer[] = ["next", "winner"]
+export const DEFAULT_NEW_GAME_DEALER: BlokNewGameDealer = "next"
 
 export interface BlokDealerSetup {
     /**
@@ -334,6 +369,20 @@ export interface BlokGame {
      * no migration.
      */
     dealDirection: BlokDealDirection
+    /**
+     * Who deals the first deal of the NEXT game — `"next"` (the default) or
+     * `"winner"`. BLOK.md §3.3.4.
+     *
+     * The fifth table convention, and it sits beside the other four for the
+     * same reason: it is agreed once for the evening, out loud, and inherited
+     * by `newGame()`, `discardCurrent()` and `resetSession()` exactly like
+     * them. It changes nothing INSIDE a game — deals there follow
+     * `dealDirection` as they always have.
+     *
+     * Absent on read means `"next"`, which is what every game saved before the
+     * setting existed did, so storage stays `v1` with no migration.
+     */
+    newGameDealer: BlokNewGameDealer
     /**
      * Whether the "Sljedeći dijeli" strip above the MI/VI buttons is shown —
      * `true` by default (BLOK.md §3.3.2).

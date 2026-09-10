@@ -175,13 +175,17 @@ prikazuju** — ni preko `PlayerView`, ni u događaju.
 Prvi štih otvara `next(dealer)`; svaki sljedeći otvara pobjednik prethodnog.
 Legalan potez (`legalMoves(state, seat)`), gdje je `L` boja prve karte, `T` adut:
 
-1. **Imaš `L`** → moraš igrati `L`.
-   - Ako je `L === T` (aduti vode): moraš igrati **jači adut od trenutno
-     najjačeg u štihu** ako ga imaš ("u adutu se mora ići preko"); inače bilo koji adut.
+1. **Imaš `L`** → moraš igrati `L`, i to **jaču kartu od one koja trenutno
+   drži štih** ako je imaš ("mora se ići preko") — u svakoj boji, ne samo u
+   adutu, i preko vlastitog partnera. Jačina: ne-adut `7 8 9 J Q K 10 A`,
+   adut `7 8 Q K 10 A 9 J`. Nemaš jaču → bilo koja karta boje `L`.
+   - Ako je štih **već presječen adutom**, a `L` nije adut, obveza „preko”
+     otpada (nijedna karta boje `L` ne može nadjačati adut) → bilo koja `L`.
 2. **Nemaš `L`**:
-   - Ako tvoj **partner trenutno drži štih** → smiješ igrati **bilo što**.
-   - Inače, ako imaš adut → **moraš adutirati**; ako je već adut u štihu, moraš
-     igrati **jači adut** ako ga imaš, inače bilo koji adut.
+   - Ako imaš adut → **moraš adutirati**, bez obzira na to tko drži štih —
+     **nema iznimke za partnera** (promjena 2026-09-09; prijašnje „partner drži
+     štih → bilo što” dvaput je prijavljeno kao krivo). Ako je već adut u štihu,
+     moraš igrati **jači adut** ako ga imaš, inače bilo koji adut (i manji).
    - Ako nemaš adut → bilo što.
 
 Pobjednik štiha: najjači adut ako ima aduta; inače najjača karta boje `L`.
@@ -197,12 +201,17 @@ Pobjednik štiha: najjači adut ako ima aduta; inače najjača karta boje `L`.
 - Nema zaokruživanja bodova (varijanta "zaokruži na desetice" se NE koristi).
 
 ### 1.7 Kraj igre
-- Cilj: `targetScore` (default **1001**, opcija 501). Igra završava **na kraju
-  podjele** u kojoj je bar jedan tim `≥ target`. Pobjeđuje tim s više bodova;
-  kod izjednačenja igra se još jedna podjela.
+- Cilj: `targetScore` (default **1001**, opcije 501/701/1001) i pravilo
+  `gameEndRule` (default **`prolaz`**):
+  - **prolaz** — partiju dobiva par koji u podjeli koju je zvao prođe, dosegne
+    cilj i nakon obračuna vodi u ukupnom rezultatu;
+  - **dosta** — čim nakon obračuna barem jedan par dosegne cilj, pobjeđuje par
+    s višim ukupnim rezultatom.
+  Kod oba pravila izjednačenje na cilju ili iznad njega znači još jednu
+  podjelu.
 - **Gdje se to događa (odluka, 2026-09-08).** "Kraj podjele" znači **trenutak
   obračuna**, a ne sljedeća akcija: `reduce` na četvrtoj karti osmog štiha
-  obračuna podjelu i, ako je cilj dosegnut i rezultat nije izjednačen, odmah
+  obračuna podjelu i, ako odabrano pravilo daje pobjednika, odmah
   postavlja `phase: "GAME_OVER"` i emitira `DEAL_SCORED` pa `GAME_OVER` u
   istom nizu događaja. Prije je igra završavala tek na `NEXT_DEAL`, pa je
   `DEAL_DONE` izgledao jednako i kad iduće podjele nema — klijent je nudio
@@ -215,7 +224,7 @@ Pobjednik štiha: najjači adut ako ima aduta; inače najjača karta boje `L`.
     bi lažni `DEAL_DONE` u protokolu. Ovako je `DEAL_DONE` jednoznačan:
     **slijedi još jedna podjela**. Engine ostaje deterministički — isti seed +
     iste akcije daju isto stanje, samo je akcija manje.
-  - `NEXT_DEAL` i dalje provjerava isti uvjet i završava igru ako mu netko
+  - `NEXT_DEAL` i dalje provjerava isto pravilo i završava igru ako mu netko
     preda već odlučen `DEAL_DONE` (ručno složeno stanje, test, budući server
     koji korigira rezultat između podjela). Izjednačenje na cilju ne završava
     ništa — igra se još jedna podjela, koliko god oba tima bila preko cilja.
@@ -258,9 +267,26 @@ svakom dovršenom štihu tekuće podjele.
   partija s `off` i s `all` daje bit-po-bit isto stanje (test
   „visibility rule, not a rule of play"). Ali redakcija smije živjeti **samo**
   u `viewFor(state, seat)`, a `state` je jedini ulaz te funkcije — pa
-  postavka putuje u `state.config`, isto kao `noDeclarations`. Alternativa
-  (treći argument `viewFor`-u) značila bi da svaki pozivatelj mora pamtiti
-  pravilo sobe i da ga jedan zaboravljeni poziv može procuriti.
+  postavka putuje u `state.config`, isto kao `noDeclarations`. Da je pravilo
+  sobe treći argument `viewFor`-u, svaki bi ga pozivatelj morao pamtiti i jedan
+  zaboravljeni poziv bi ga procurio; ovako je zadano stanje uvijek redaktirano.
+- **Botovi uvijek pamte sve — `viewFor(state, seat, { recallTricks: true })`
+  (2026-09-09).** Postavka sobe kaže što smije pregledavati **čovjek**: to je
+  pomagalo u sučelju. Bot nije čovjek koji nešto naknadno gleda — on je
+  **bez pamćenja** između poteza (`chooseCard(view, legal, rng)` ne nosi ništa
+  iz prošlog poziva), pa bi sa zadanim `off` vidio samo `lastTrick` i ravni,
+  bezsjedalni `played`: ne bi mogao znati tko je bacio što prije dva štiha —
+  a to svaki igrač za stolom pamti besplatno. Koje su **javne** karte pale i
+  iz čije ruke nije skrivena informacija, pa je ovo pamćenje, ne varanje.
+  - Zastavicu postavlja **samo** `actForSeat` u `packages/server/src/gameRoom.ts`,
+    i to i kad bot igra **umjesto čovjeka** (istek poteza ili prekid veze,
+    `autoPlayed`) — čovjek kojeg mijenja pamtio bi istu javnu igru.
+  - Ne širi **ništa** drugo: tuđe ruke, talon i zvanja para koji je izgubio
+    natjecanje ostaju redaktirani i botu kao i čovjeku. Zadana vrijednost je
+    točno današnje ponašanje, pa okvir koji ide u preglednik (`stateMessage`)
+    i dalje sluša `trickReview`. Testovi: `packages/engine/test/trickReview.test.ts`
+    („recallTricks (bot memory)") i `packages/server/test/oneGame.test.ts`
+    („keeps the bots' full recall out of the broadcast").
 - `lastTrick` **nije** dio ovog pravila: to je štih koji je upravo pokupljen s
   otvorenog stola i UI ga animira; njega vide svi, uvijek.
 
@@ -337,7 +363,10 @@ newGame(config: GameConfig): GameState            // odmah dijeli prvu podjelu (
 reduce(state, action): { state: GameState; events: GameEvent[] }   // baca EngineError na ilegalnu akciju
 legalMoves(state, seat): Card[]                   // [] ako nije na potezu / nije PLAYING
 legalBids(state, seat): { canPass: boolean; suits: Suit[] }
-viewFor(state, seat: Seat | null): PlayerView     // REDAKTIRANO stanje (tuđe karte → samo broj); null = promatrač
+interface ViewOptions { recallTricks?: boolean }  // §1.8; SAMO za odluke botova
+viewFor(state, seat: Seat | null, opts?: ViewOptions): PlayerView
+                                                  // REDAKTIRANO stanje (tuđe karte → samo broj); null = promatrač
+                                                  // bez `opts` = točno kao prije; `recallTricks` dira SAMO trickHistory
 // PlayerView.currentDealPoints: Record<Team, number> — "bodovi mješanja", zbroj
 // karata iz **dovršenih** štihova tekuće podjele. Nije tajna: te su karte pale
 // otvoreno pred sva četiri igrača, pa ih svatko može zbrojiti i sam. Iz njega
@@ -349,8 +378,11 @@ viewFor(state, seat: Seat | null): PlayerView     // REDAKTIRANO stanje (tuđe k
 // s ukupnim rezultatom partije (`score`) malim ispod.
 // PlayerView.trickHistory?: WonTrick[] | null — dovršeni štihovi tekuće
 // podjele, redom, SA sjedalima (§1.8). `null` = ovo sjedalo ne smije
-// pregledavati, i tada podatka u okviru nema. Opcionalno polje jer
-// `@bela/bots` sam sastavlja PlayerView za svoje simulacije.
+// pregledavati, i tada podatka u okviru nema. Postavka sobe `trickReview`
+// vrijedi za ČOVJEKA; odluka bota gradi se s `{ recallTricks: true }` i uvijek
+// dobiva punu listu — pamćenje javno odigranih karata nije povlaštena
+// informacija (§1.8). Opcionalno polje jer `@bela/bots` sam sastavlja
+// PlayerView za svoje simulacije.
 // PlayerView.declarations: Partial<Record<Seat, Declaration[]>> — svoja uvijek,
 // plus zvanja para koji BODUJE nakon izbora aduta. Zvanja para koji propada
 // nikad ne izlaze iz enginea (§1.4, tablica vidljivosti).
@@ -415,7 +447,7 @@ Ključni tokovi:
   provjera koju `assertCanJoin` primjenjuje), pa predvorje odbija punu sobu
   **unaprijed** i ne može tvrditi „puna” dok sjedalo još postoji. Šifra
   privatne sobe nije dio te procjene i provjerava se zasebno.
-- **Soba**: `room.create {name, targetScore, private, allowSpectators?, noDeclarations?, allowBela?,
+- **Soba**: `room.create {name, targetScore, gameEndRule?, private, allowSpectators?, noDeclarations?, allowBela?,
   trickReview?}` → `room.joined {room}`; `allowSpectators` je zadano `false` i
   vrijedi **cijelo vrijeme**, ne tek od početka partije: tko ne može sjesti u
   sobu bez gledatelja, taj se **odbija** (`ROOM_FULL` prije početka,
@@ -424,12 +456,59 @@ Ključni tokovi:
   izlaz iz stolice je `room.leave`. (Uklanjanje gledatelja pri `room.start`
   ostaje kao obrana, ali ih po ovim pravilima više ne može ni biti.)
   `trickReview` (§1.8) je `off` ako ga
-  nema, fiksira se pri stvaranju sobe i putuje u `RoomState.trickReview`
+  nema, bira se pri stvaranju sobe (i mijenja `room.setOptions` dok je soba u
+  `LOBBY`) te putuje u `RoomState.trickReview`
   (dakle vidi ga svatko u sobi) te u `GameConfig` pokrenute partije;
   `room.join {roomId}`; `room.sit {seat}` (premještanje unutar stola);
   `room.stand`; `room.addBot {seat}`;
-  `room.removeBot {seat}`; `room.ready {ready}`; `room.start` (host; prazna sjedala
-  se pune botovima); `room.leave`. Server emitira `room.state` svima u sobi.
+  `room.removeBot {seat}`; `room.ready {ready}`; `room.start` (može pokrenuti bilo
+  koji igrač za stolom kada su sva četiri mjesta popunjena i svi ljudski igrači
+  spremni; botove domaćin dodaje prije pokretanja); `room.leave`. Server emitira
+  `room.state` svima u sobi.
+- **Postavke sobe**: `room.setOptions {targetScore?, gameEndRule?, allowSpectators?,
+  noDeclarations?, allowBela?, trickReview?}` — domaćin mijenja pravila **već
+  otvorene** sobe (2026-09-09). Postavke su prvo što lista sheet „postavke ove
+  igre”, pa moraju biti promjenjive dok se čeka četvrti, a ne samo u dijalogu za
+  stvaranje.
+  - **Svako polje je neobavezno i izostanak znači „ne diraj”**, pa klijent šalje
+    jedan prekidač bez ponavljanja ostalih pet. Vrijednost koja *jest* poslana,
+    a nije valjana, vraća `BAD_REQUEST` — ne tiho se ispravlja, jer bi prekidač
+    kod domaćina ostao prikazivati postavku koju soba nikad nije primila.
+  - **Samo domaćin** (`NOT_HOST`), kao i za svaki drugi prekidač cijele sobe.
+  - **Samo u `LOBBY`** (`ALREADY_STARTED`): ovo su pravila *podjele*, a
+    `GameRoom` ih je pri `room.start` već prepisao u `GameConfig` — promjena u
+    tijeku partije ostavila bi sobu koja oglašava jednu igru i engine koji
+    boduje drugu. `private` zato ovdje **nije**: privatnost nije pravilo
+    podjele, mijenja se i tijekom igre i već ima `room.setPrivate` (dva puta za
+    upis iste zastavice je način da se te dvije razidu).
+  - `noDeclarations` i `allowBela` rješavaju se **zajedno**, istim pravilom koje
+    primjenjuje `room.create` (`belaCounts` u `room.ts`): uz uključena zvanja
+    bela je zvanje kao i svako drugo i **uvijek** se broji, pa `allowBela: false`
+    sam za sebe ne mijenja ništa. Samo soba bez zvanja bira „…ali belu zovi”
+    (zadano) ili „ni belu”.
+  - Nakon promjene soba emitira `room.state` svima u sobi **i** osvježi
+    predvorje (`targetScore`, `gameEndRule`, `noDeclarations` i
+    `allowSpectators` stoje i na javnom `RoomSummary`) — isti fan-out koji radi
+    `room.setPrivate`. Rate-limit je opći, po vezi (`LIMITS.messagesPerSecond`).
+  - Testovi: `packages/server/test/roomOptions.test.ts`.
+- **Ime za igru**: `profile.setName {name}` → `profile.name {name, nextChangeAt}`
+  (2026-09-09). Ime koje igrač nosi **za stolom**, odvojeno od imena računa.
+  - **Ide preko socketa, ne preko REST-a**, jer isti kontrolnik mora posluživati
+    i gosta: gost nema bearer token, njegov identitet postoji samo kao uid koji
+    je ovaj server izveo iz tajne u pregledniku (`guest:<sha256(secret)>`) — a
+    upravo se protiv tog uid-a mjeri ograničenje.
+  - **Jedna promjena u sedam dana.** Pravilo drži backend
+    (`GameNameService.CHANGE_INTERVAL`), koji ima sat i redak; server ga samo
+    prenosi. Odbijenica je `NAME_RATE_LIMITED`.
+  - **Prije odbijenice server pošalje `profile.name` s nepromijenjenim imenom i
+    s `nextChangeAt`**: `error` okvir nema gdje nositi vrijeme, a klijent koji je
+    čuo samo „ne” ne može reći kad da se vrati.
+  - Pohranjeno ime **nadjačava** ime računa i ime koje gost tipka (`withAppProfile`
+    u `auth.ts`) — inače bi gost brisanjem `localStorage`-a zaobišao ograničenje.
+  - Nakon uspjeha soba prepisuje svoje kopije sjedala (`renameOccupant`) i emitira
+    `room.state` + osvježi predvorje; nema zasebne poruke za ostale.
+  - Testovi: `packages/server/test/gameName.test.ts`, `guest.test.ts`,
+    `profiles.test.ts`.
 - **Igra**: `game.bid {trump}` / `game.pass` / `game.play {card, bela?}` / `game.nextDeal`
   → server emitira `game.state {view}` + `game.events {events}`. `view` je uvijek
   `PlayerView` iz `viewFor`, pa uz `score` (ukupno kroz partiju) nosi i
@@ -619,83 +698,114 @@ potez šalje **bez `bela` zastavice**, a bez odgovora se bela prijavljuje
 (§1.4) — 20 bodova je dobitak na velikoj većini podjela. Isti put prolazi i
 potez koji bot odigra umjesto čovjeka kojemu je istekao timer ili je otišao
 (§3.1), pa je pravilo jedno za sve „nitko nije odgovorio” slučajeve.
-- Heuristika. Zvanje: ocjena boje = J 4 + 9 3 + A 1.5 +
-  10 1 + 0.5 po dodatnoj karti; zovi ako ≥ 5.5 (djelitelj: najbolja boja bez
-  praga). Igra: ako partner drži štih → dodaj bode, ali **nikad kartom koja mu
-  uzima štih** (v. niže); ako mogu uzeti štih → uzmi najjeftinijom kartom koja
-  pobjeđuje (osim ako je štih siromašan i trošim J/9 aduta); inače baci
-  najjeftiniju. Nikad ne "loži" (ne daje bodove) protivniku kad ima izbor.
+- **Heuristika: `game/BOT.md`.** Botova logika je zaseban normativni dokument,
+  jer je prerasla ovaj odjeljak: što bot misli, zašto, i iz kojeg nepisanog
+  pravila bele to dolazi (izvor je korisnikov dokument s trikovima, primijenjen
+  2026-09-09). Ukratko: zvanje se ocjenjuje po **cijeloj ruci**
+  (`handTricks`) uz minimum u samoj adutskoj boji; odbacivanje na štih koji
+  nosi NAŠ par je **poruka** suigraču (`signalDiscard`), a ta se poruka i
+  **čita** (`partnerSignal`); otvaranje ide po redoslijedu iz BOT.md §5.
+  Mijenjaš li heuristiku, prvo BOT.md pa kod.
 
-  **Ne pretiče se vlastiti suigrač.** Kad štih drži MOJ suigrač, `legalMoves`
-  mi po §1.5 dopušta da ga i preserem i nadadutim (kad sam prazan u boji, cijela
-  ruka je legalna) — odluka je botova, ne enginea. Bot zato prvo odbaci sve
-  karte koje bi uzele štih (`wouldWinTrick`) pa tek onda bira: najvrjedniju ako
-  sam zadnji, najjeftiniju inače. Bodovi ionako idu našem paru, pa uzimanje
-  suigračevog štiha samo potroši kartu koja bi uzela NEKI DRUGI štih (klasično:
-  adut J bačen na suigračev as). Filtar otpada samo kad pravila ne ostavljaju
-  izbor — npr. suigrač je izašao adutom i §1.5 me tjera preko njega.
+- **Bot pamti sve odigrano.** `gameRoom.actForSeat` gradi pogled s
+  `viewFor(st, seat, { recallTricks: true })`, pa bot uvijek ima
+  seat-atribuiranu povijest štihova bez obzira na sobnu opciju `trickReview`
+  (§1.8). To nije povlaštena informacija — čovjek za stolom pamti iste javno
+  odigrane karte — a bez toga signalizacija iz §2 BOT.md ne bi bila moguća jer
+  je bot bez stanja. Sve ostalo ostaje skriveno i botu: tuđe ruke, talon,
+  zvanja para koji je izgubio natjecanje zvanja.
 
-  **Otvaranje štiha** (redoslijed pravila, `heuristicBot.leadCard`):
-  1. **adut — ali samo kad vađenje aduta ima svrhu** (`evaluate.shouldDrawTrumps`,
-     prepravljeno 2026-09-08 jer je prva verzija pravila izlazila adutom na
-     SVAKO otvaranje dok god je bot imao ijedan adut). Adut se vadi zbog jedne
-     jedine stvari: da se protivnicima uzmu aduti kako bi naši visoki štihovi
-     prošli nepresječeni. Zato mora vrijediti SVE:
-     - **zvao je moj par.** Tim koji je zvao brani obećane bodove; obrana nema
-       što čistiti put zvaču;
-     - imam adut u ruci;
-     - ili držim **najjači adut koji je još u igri** (`isMasterCard` — otvaranje
-       je tada siguran štih), ili je **suigrač zvao na jake karte** i dečko je po
-       zvanjima na našoj strani (`shouldDrawTrumpsForPartner`). Bez jednog od ta
-       dva mali adut samo hrani protivnički J;
-     - **protivnici još mogu imati adut** (`trumpOutlook`): od 8 aduta odbiju se
-       moji i svi već odigrani (`view.played` + tekući štih), a protivnik koji je
-       pokazao prazninu u adutu (seat-atribuirano: tekući štih, `lastTrick`, i
-       `trickHistory` kad ga soba daje) računa se kao nula. `opponentMax === 0`
-       znači *dokazano* nemaju — dalje vađenje čupa adute VLASTITOM suigraču.
-       Uz to `opponentExpected ≥ 1`: ostatak se dijeli po broju karata u rukama,
-       pa kad je vjerojatnije da je zadnji adut suigračev nego protivnički,
-       staje se. To je granica koja pravilu daje kraj — u praksi 2–3 izlaska
-       adutom po podjeli, ne osam;
-     - **imamo što ubrati poslije** (`hasWinnersToCash`): barem jedna karta u
-       ruci koja je najjača preostala u svojoj boji (as, 10 kad je as pao, vrh
-       aduta). Vađenje aduta bez ičega za ubrati je točno ono "ide do kraja i
-       ništa ne napravi s tim". Kod varijante s najjačim adutom je uvjet
-       automatski ispunjen — taj adut sam je štih.
+- **Mjerenje 2026-09-09.** Seeded self-play, novi bot protiv prethodnog, svaki
+  seed odigran u **obje** postave sjedala (bez toga harness daje 46 % za dva
+  IDENTIČNA bota — postava sjedala sama nosi tu razliku). Tri odvojena skupa
+  seedova, 800 partija do 501 po skupu:
 
-     Karta kojom se vadi (`trumpDrawCard`): **najjači adut ako ga imam**,
-     inače **najslabiji** — u podigravanju suigrač drži vrh, pa mu nema smisla
-     tjerati vlastitu 10/A pod dečka. Mus se i dalje izvodi iz pogleda, bez
-     novog polja u protokolu: `caller === dealer && bidding.passes.length === 3`
-     (bidding kreće od `next(dealer)`, djelitelj govori zadnji, a `applyBid`
-     čuva `passes`) i isključuje podigravanje. Ostaje i iznimka po zvanjima: ako
-     je suigrač **zvanjem dokazao da nema dečka** — trump niz koji ZAVRŠAVA na
-     10 ili POČINJE na babi bi po §1.4 maksimalnosti progutao dečka da ga ima —
-     a nemam ga ni ja, ne podigravam;
-  2. **as se ne troši u prazno**: goli as se otvara samo ako iza njega u ruci
-     stoji 10 iste boje, ili ga **protivnik više ne može presjeći** (nema aduta
-     u igri, ili ga po `trumpOutlook` nitko od protivnika ne može imati —
-     suigračev adut nam ne smeta), ili as ionako ne preživljava (protivnik je
-     pokazao prazninu u toj boji, ≤2 karte te boje su još nepoznate, ili je kraj
-     podjele). Inače as ostaje u ruci i izuzet je iz pravila 3;
-  3. inače najniža karta najkraće ne-adutske boje;
-  4. najslabija karta koju imam (u praksi: ruka od samih aduta).
+  | skup seedova | pobjede isporučenog bota |
+  |---|---|
+  | prvi (na kojem je ugađano) | 59,4 % |
+  | drugi (neviđen) | 60,5 % |
+  | treći (neviđen) | 60,5 % |
 
-  Pravilo 2 vrijedi SAMO pri otvaranju — as odigran drugi/treći da uzme štih
-  nije diran. Mjereno (seeded self-play, oba rasporeda sjedala po seedu):
-  nova heuristika protiv prethodne **53,9 % od 12 000 partija do 501**
-  (šum oko 50 % je ±0,9 pp) i 54,9 % od 3 000 partija do 1001; protiv nasumičnog
-  legalnog igrača (test-baseline iz `simulation.test.ts`) 81,5 % naspram
-  78,5 % za prethodnu. Doprinose obje polovice promjene zasebno
-  (~+1,7 pp filtar "ne pretječi suigrača", ~+1,3 pp ograničeno vađenje aduta).
-  Otvaranja adutom u ulozi **suigrača zvača** padaju s 32 % na 20 %, a otvaranja
-  adutom kad protivnici dokazano nemaju aduta a bot ima što drugo odigrati —
-  s 46 na 0.
+  Protivnik je bot od **prije oba današnja zahvata**, a mjereno je pod **novim**
+  §1.5, za koji stari bot nije pisan — dio te razlike je taj nesklad, ne sama
+  heuristika. Mjereno samo protiv bota od neposredno prije ove promjene (dakle
+  već s ispravljenim §1.5), dobitak je 56,5 / 53,6 / 54,4 % po istim skupovima
+  seedova.
+
+  Doprinosi, mjereni pojedinačno na istom harnessu (50,0 % = nema razlike):
+  - **zvanje** je cijeli dobitak. Najveći dio nije nova ocjena ruke nego to što
+    je stari prag bio prestrog: sam spust `suitStrength ≥ 5.5` na `≥ 5.0` daje
+    54,6 %. Ocjena cijele ruke uz minimum u adutu dodaje na to još ~1 pp.
+    Stari prag je značio da je **34,3 % svih zvanja bilo na „mus”** — trećina
+    podjela odlučena prisilnim zvanjem djelitelja na ruci koju nitko nije htio;
+    sada je to 5,4 %, uz porast padova s 25,5 % na 29,0 %;
+  - **igra** (signalizacija, punjenje, otvaranje) mjeri se **neutralno**
+    (50,0 %). Zadržana je jer ispravlja konkretne prijavljene greške, ne zato
+    što jača bota;
+  - pozicijske korekcije praga (suigrač prvi na igri, bez dečka pod protivnikom,
+    spašavanje suigrača iz musa) su unutar šuma na tri skupa seedova. Zadržane
+    su jer su izravno iz dokumenta.
+
+  **Drugi krug istog dana** — preostala pravila iz BOT.md (obrambena otvaranja,
+  čitanje protivničkih zvanja, izbor A/10 po zvaču, devetka na suigračev niski
+  adut, brojanje prolaza, istjerivanje zadnjeg aduta). Zajedno **51,0 %** na
+  ista tri skupa seedova (51,0 / 51,5 / 50,5), dakle mali ali dosljedan
+  dobitak. Pojedinačno, na istih 2400 partija:
+
+  | pravilo | mjera | ishod |
+  |---|---|---|
+  | obrambena otvaranja | 50,6 % | ušlo |
+  | protivnička zvanja usmjeravaju otvaranje | 50,3 % | ušlo |
+  | prolaz nosi potkovanu 10 | 50,2 % | ušlo |
+  | istjerivanje zadnjeg aduta | 50,0 % | ušlo |
+  | A/10 po zvaču + devetka na niski adut | 49,9 % | ušlo (rijetko se okidaju) |
+  | „zadnja boja koju nitko nema” | 49,3 % | **izvan**, BOT.md §11 |
+  | „vrati aduta” | 49,6 % | **izvan**, BOT.md §11 |
+
+  Obrambena otvaranja su morala biti **sužena na četiri oblika ruke** iz
+  dokumenta; verzija koja se okidala na svako obrambeno otvaranje koštala je
+  pola postotnog boda. Pravilo „K ili Q na suigračevu malu kartu” pokazalo se
+  suvišnim: ispravljeni §1.5 ga već prisiljava, pa se funkcija nije okinula
+  nijednom u 800 partija.
+
+  **Treći krug (isti dan), na izričit zahtjev.** Četiri pravila koja je
+  mjerenje bilo izbacilo vraćena su u bota, plus ciljanje štiglje koje dotad
+  nije bilo napisano. Cijena je izmjerena i stoji u BOT.md §11: sva četiri
+  zajedno **45,8 %** protiv verzije prije njih, a bez „dečka u glavu” 49,3 % —
+  dakle dečko je gotovo cijela razlika (−3,5 pp sam). Regresijski guard protiv
+  nasumičnog igrača pao je s 27/30 na 25/30 (prag je 18/30). Ciljanje štiglje
+  mjeri se neutralno i po prirodi je rijetko (štiglja pada u oko 0,4 % podjela).
+  Jedino blefiranje ostaje neimplementirano.
+
+  **Četvrti krug: zaključivanje (BOT.md §11).** Bot je dotad brojao što je
+  VIĐENO, ali ne i što je REČENO. Dodano: zvanja **imenuju točne karte**, pa se
+  svaka karta iz vidljivog zvanja locira u tu ruku; adutsko otvaranje se čita
+  kao rečenica (zvač izašao asom → ima dečka i devetku; K ili Q → nema dečka);
+  bela se veže uz **sjedalo** koje je odigralo K ili Q, jer je u pogledu samo
+  tim. Sve to ulazi u jedno mjesto — procjenu mogu li protivnici presjeći — pa
+  svako pitanje nizvodno dobiva točniji odgovor. Uz to bot sad i **šalje** belu
+  po konvenciji (kralj, a s devetkom baba).
+
+  Mjereno **50,7 %** (50,7 / 50,6 / 50,7 po skupovima), pozitivno na sva tri.
+  Regresijski guard se vratio s 25/30 na 26/30.
+
+  Probano i obrisano: „najjača karta protiv protivnika” umjesto obične najjače,
+  −0,5 do −0,9 pp u svakoj kombinaciji. Razlog je poučan: pod ispravljenim §1.5
+  partnerova jača karta pri **vođenju** nije prednost nego teret, jer ga pravila
+  tjeraju da prijeđe preko mene i potroši je na moj štih.
+
+  Što je nestalo iz ponašanja (brojano na 60 seedanih partija u self-playu):
+  odbacivanja **golog asa** 29 → **0**; otvaranja solo kartom 440 → 272.
+  Karata od ≥10 bodova upunjenih u suigračev štih koji protivnik onda ukrade:
+  **0** — to je bila prijava „bot bezveze puni s jakim kartama”. Preostali
+  „darovi” protivniku dolaze isključivo iz **vođenja** asa (namjeran rizik koji
+  `shouldSpendAce` odvaguje), a ne iz odbacivanja.
+
 - **Regresijski guard.** `packages/bots/test/simulation.test.ts` drži lokalni
   *test-baseline*: nasumičan legalan igrač (pasira kad smije, u musu zove
   najjaču boju). To NIJE bot — ne izvozi se i ne smije se ugraditi u server —
   nego fiksno mjerilo protiv kojega bot mora dobiti **≥ 60 % od 30 seedanih
-  partija** (zadnje mjereno 27/30 = 90,0 %). To je jedini detektor regresije
+  partija** (zadnje mjereno 27/30 = 90,0 %; prije ove promjene 26/30 = 86,7 %). To je jedini detektor regresije
   koji botovska heuristika ima; ne briši ga bez zamjene.
 
 ## 6. UI (`frontend/src/game/`)

@@ -17,7 +17,7 @@ import type {
     Team,
     TrickCard,
 } from "./types"
-import { SEATS, SUITS, EngineError } from "./types"
+import { DEFAULT_GAME_END_RULE, SEATS, SUITS, EngineError } from "./types"
 import { cardRank, cardSuit, fullDeck, sortHand } from "./cards"
 import { createRng, nextInt, shuffle } from "./rng"
 import { nextSeat, seatFrom, teamOf } from "./seats"
@@ -104,25 +104,39 @@ function startDeal(
 }
 
 /**
- * README §1.7: the game is over at the END OF THE DEAL in which at least one
- * team is at or past the target — and only then, so a deal is never cut short.
- * A level score buys another deal, however far past the target both teams are.
+ * Decide a game only after a complete deal. Under `dosta`, reaching the target
+ * is enough and the higher total wins. Under `prolaz` (the default), the team
+ * that called must pass, reach the target and lead on the running total.
+ * A level score always buys another deal, however far past the target both
+ * teams are.
  *
  * Returns the winner, or null when the game goes on.
  */
-function gameWinner(target: number, score: Record<Team, number>): Team | null {
-    if (score.A < target && score.B < target) return null
+function gameWinner(config: GameConfig, score: Record<Team, number>, dealScore: GameState["dealScore"]): Team | null {
+    const target = config.targetScore
     if (score.A === score.B) return null
-    return score.A > score.B ? "A" : "B"
+    if ((config.gameEndRule ?? "prolaz") === "dosta") {
+        if (score.A < target && score.B < target) return null
+        return score.A > score.B ? "A" : "B"
+    }
+    if (!dealScore?.passed) return null
+    const caller = dealScore.callerTeam
+    const other: Team = caller === "A" ? "B" : "A"
+    if (score[caller] < target || score[caller] <= score[other]) return null
+    return caller
 }
 
 export function newGame(config: GameConfig): GameState {
     const seeded = createRng(config.seed)
+    const normalizedConfig: GameConfig = {
+        ...config,
+        gameEndRule: config.gameEndRule ?? DEFAULT_GAME_END_RULE,
+    }
     // The very first dealer comes out of the RNG; afterwards the deal rotates.
     const pick = nextInt(seeded, 4)
     const dealer = seatFrom(pick.value)
     return startDeal(
-        { config, score: { A: 0, B: 0 }, history: [] },
+        { config: normalizedConfig, score: { A: 0, B: 0 }, history: [] },
         1,
         dealer,
         pick.rng,
@@ -344,7 +358,7 @@ function applyPlay(
         // NEXT_DEAL (README §1.7). DEAL_DONE therefore means exactly one
         // thing — "another deal follows" — and nothing has to ask the player
         // for a deal that is never going to be played.
-        const winner = gameWinner(state.config.targetScore, score)
+        const winner = gameWinner(next.config, score, dealScore)
         next = {
             ...next,
             phase: winner === null ? "DEAL_DONE" : "GAME_OVER",
@@ -370,7 +384,7 @@ function applyNextDeal(state: GameState): { state: GameState; events: GameEvent[
     // hand the reducer — a saved game, a test, a future server that adjusts a
     // score between deals — and "one team is past the target" must mean the
     // same thing wherever the state came from.
-    const winner = gameWinner(state.config.targetScore, state.score)
+    const winner = gameWinner(state.config, state.score, state.dealScore)
     if (winner !== null) {
         return {
             state: { ...state, phase: "GAME_OVER", winner },

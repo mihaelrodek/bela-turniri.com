@@ -84,7 +84,28 @@ function visibleDeclarations(
     return out
 }
 
-export function viewFor(state: GameState, seat: Seat | null): PlayerView {
+/** Knobs the CALLER decides, as opposed to the room rules that live in `state`. */
+export interface ViewOptions {
+    /**
+     * Include every completed trick with seat attribution regardless of the
+     * room's `trickReview` setting. For BOT decisions only (README §1.8).
+     *
+     * `trickReview` governs what a PERSON may look up on screen — it is a UI
+     * affordance, and the redaction that enforces it is the whole point of
+     * `mayReviewTricks`. A bot is not a person looking things up: it is
+     * stateless (`chooseCard(view, legal, rng)` carries no memory between
+     * calls), so without this it cannot remember who discarded what two
+     * tricks ago — something every human at the table remembers for free.
+     * Which PUBLIC cards fell, and from whose hand, is not privileged
+     * information, so handing it back is recall, not cheating.
+     *
+     * It widens NOTHING else: hands, the stock and the losing pair's
+     * declarations stay redacted for bots exactly as they are for humans.
+     */
+    readonly recallTricks?: boolean
+}
+
+export function viewFor(state: GameState, seat: Seat | null, opts?: ViewOptions): PlayerView {
     const tricks = completedTricksInOrder(state)
     const revealed = state.bidding.trump !== null
 
@@ -113,6 +134,7 @@ export function viewFor(state: GameState, seat: Seat | null): PlayerView {
         phase: state.phase,
         dealNo: state.dealNo,
         dealer: state.dealer,
+        targetScore: state.config.targetScore,
         hand: seat === null ? [] : state.hands[seat].slice(),
         handSizes,
         bidding: { ...state.bidding, passes: state.bidding.passes.slice() },
@@ -121,8 +143,12 @@ export function viewFor(state: GameState, seat: Seat | null): PlayerView {
         currentDealPoints: currentDealPoints(state),
         lastTrick: tricks.length === 0 ? null : ((tricks[tricks.length - 1] as WonTrick) ?? null),
         // The whole review, or nothing at all. Hiding it in the UI instead
-        // would leave it in the frame for anyone with devtools.
-        trickHistory: mayReviewTricks(state, seat) ? tricks.map(copyTrick) : null,
+        // would leave it in the frame for anyone with devtools. `recallTricks`
+        // is the bot's memory, not a review — see ViewOptions.
+        trickHistory:
+            opts?.recallTricks === true || mayReviewTricks(state, seat)
+                ? tricks.map(copyTrick)
+                : null,
         declarations,
         declarationPoints: declarationPoints(state),
         declarationsRevealed: revealed,

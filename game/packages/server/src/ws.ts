@@ -33,6 +33,7 @@ import type { Config, RateLimits, Timings } from "./config.js"
 import { handleChat, handleReaction } from "./chat.js"
 import { DEFAULT_MESSAGES, isProtocolError, ProtocolError } from "./errors.js"
 import { newConnId } from "./ids.js"
+import type { ProfileLookup } from "./profiles.js"
 import type { Lobby } from "./lobby.js"
 import { log } from "./log.js"
 import type { Room } from "./room.js"
@@ -179,6 +180,8 @@ export interface HubDeps {
     rates: RateLimits
     auth: Authenticator
     lobby: Lobby
+    /** Where the in-game name is read and written — see `profile.setName`. */
+    profiles: ProfileLookup
 }
 
 export class Hub {
@@ -272,7 +275,11 @@ export class Hub {
             return
         }
         try {
-            this.dispatch(conn, msg)
+            // AWAITED, not fire-and-forget: `dispatch` became async for
+            // `profile.setName`, which calls the backend, and a ProtocolError
+            // thrown after that await would sail straight past this catch and
+            // become an unhandled rejection instead of an `error` frame.
+            await this.dispatch(conn, msg)
         } catch (e) {
             if (isProtocolError(e)) {
                 conn.error(e.code, e.message, msg.t)
@@ -328,7 +335,7 @@ export class Hub {
         this.deps.lobby.sendActiveSeat(conn)
     }
 
-    private dispatch(conn: Conn, msg: ClientMessage): void {
+    private async dispatch(conn: Conn, msg: ClientMessage): Promise<void> {
         switch (msg.t) {
             case "hello":
             case "ping":
@@ -354,6 +361,9 @@ export class Hub {
                 if (!isTargetScore(msg.targetScore)) {
                     throw new ProtocolError("BAD_REQUEST", "Neispravan cilj (501, 701 ili 1001).")
                 }
+                if (msg.gameEndRule !== undefined && msg.gameEndRule !== "prolaz" && msg.gameEndRule !== "dosta") {
+                    throw new ProtocolError("BAD_REQUEST", "Neispravno pravilo završetka igre.")
+                }
                 if (msg.trickReview !== undefined && !isTrickReview(msg.trickReview)) {
                     throw new ProtocolError("BAD_REQUEST", "Neispravna postavka gledanja štihova.")
                 }
@@ -365,6 +375,7 @@ export class Hub {
                 const room = this.deps.lobby.create(conn, {
                     name: msg.name,
                     targetScore: msg.targetScore,
+                    gameEndRule: msg.gameEndRule,
                     private: msg.private === true,
                     allowSpectators: msg.allowSpectators === true,
                     noDeclarations: msg.noDeclarations === true,
@@ -448,10 +459,90 @@ export class Hub {
                 return
             }
 
+            case "profile.setName": {
+                /* The in-game name, for a signed-in player and a guest alike
+                   (protocol `profile.setName`). It lands here rather than on
+                   the app's REST API because a guest has no bearer token —
+                   their identity exists only as the uid this server derived
+                   from their browser's secret, and that same uid is what the
+                   once-a-week limit is measured against.
+
+                   The rule itself lives in the backend, which owns the clock
+                   and the row; this only carries the answer back. */
+                if (typeof msg.name !== "string") throw new ProtocolError("BAD_REQUEST")
+                const trimmed = msg.name.trim()
+                if (trimmed.length === 0 || trimmed.length > LIMITS.playerNameMax) {
+                    throw new ProtocolError("BAD_REQUEST", "Ime za igru mora imati 1 do 16 znakova.")
+                }
+                if (!conn.user) throw new ProtocolError("UNAUTHENTICATED")
+
+                const result = await this.deps.profiles.setGameName(conn.user.uid, trimmed)
+                if (!result.ok) {
+                    if (result.error === "RATE_LIMITED") {
+                        // Send the standing name back with the instant it may
+                        // next change BEFORE the refusal: the error frame has
+                        // nowhere to carry a timestamp, and a client that only
+                        // hears "no" cannot tell the player when to come back.
+                        // The name is unchanged on purpose — it is what the
+                        // seat is still wearing.
+                        if (result.nextChangeAt !== undefined) {
+                            conn.send({ t: "profile.name", name: conn.user.name, nextChangeAt: result.nextChangeAt })
+                        }
+                        throw new ProtocolError("NAME_RATE_LIMITED")
+                    }
+                    if (result.error === "BAD_REQUEST") throw new ProtocolError("BAD_REQUEST")
+                    throw new ProtocolError("BAD_REQUEST", "Ime trenutačno nije moguće promijeniti.")
+                }
+
+                // The name lives on this connection's `UserInfo`, which is what
+                // seats are rendered from — so every other connection sees it
+                // through the room's own state rather than a message of its own.
+                conn.user = { ...conn.user, name: result.name }
+                conn.send({ t: "profile.name", name: result.name, nextChangeAt: result.nextChangeAt })
+                const room = this.roomOf(conn)
+                if (room) {
+                    room.renameOccupant(conn.user.uid, result.name)
+                    room.broadcastState()
+                    this.deps.lobby.changed()
+                }
+                return
+            }
+
             case "room.setPrivate":
                 if (typeof msg.private !== "boolean") throw new ProtocolError("BAD_REQUEST")
                 this.requireRoom(conn).setPrivate(conn, msg.private)
                 return
+
+            case "room.setOptions": {
+                // Same shape checks as `room.create`, with one difference: here
+                // EVERY field may be absent and absent means "leave it alone".
+                // A present-but-wrong value is still refused rather than
+                // coerced — a silently ignored `targetScore` would leave the
+                // host's switch showing a setting the room never took.
+                if ((msg.noDeclarations !== undefined && typeof msg.noDeclarations !== "boolean") ||
+                    (msg.allowBela !== undefined && typeof msg.allowBela !== "boolean") ||
+                    (msg.allowSpectators !== undefined && typeof msg.allowSpectators !== "boolean")) {
+                    throw new ProtocolError("BAD_REQUEST", "Neispravne postavke zvanja.")
+                }
+                if (msg.targetScore !== undefined && !isTargetScore(msg.targetScore)) {
+                    throw new ProtocolError("BAD_REQUEST", "Neispravan cilj (501, 701 ili 1001).")
+                }
+                if (msg.gameEndRule !== undefined && msg.gameEndRule !== "prolaz" && msg.gameEndRule !== "dosta") {
+                    throw new ProtocolError("BAD_REQUEST", "Neispravno pravilo završetka igre.")
+                }
+                if (msg.trickReview !== undefined && !isTrickReview(msg.trickReview)) {
+                    throw new ProtocolError("BAD_REQUEST", "Neispravna postavka gledanja štihova.")
+                }
+                this.requireRoom(conn).setOptions(conn, {
+                    targetScore: msg.targetScore,
+                    gameEndRule: msg.gameEndRule,
+                    allowSpectators: msg.allowSpectators,
+                    noDeclarations: msg.noDeclarations,
+                    allowBela: msg.allowBela,
+                    trickReview: msg.trickReview,
+                })
+                return
+            }
 
             case "room.ready":
                 this.requireRoom(conn).setReady(conn, msg.ready === true)

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
-import type { Card, GameState } from "@bela/engine"
+import type { Card, GameState, LegalBids } from "@bela/engine"
 import { declarationPoints, legalMoves, reduce, viewFor } from "@bela/engine"
+import { handTricks, suitStrength, weakestCard } from "../src/evaluate"
 import { heuristicBot } from "../src/heuristicBot"
 import { view } from "./helpers"
 
@@ -32,6 +33,87 @@ describe("heuristicBot.chooseBid (README §5)", () => {
     })
 })
 
+/* The 2026-09-09 bidding rule (BOT.md §1): two separate questions. WHICH suit
+   is about the trump holding alone (`suitStrength`, gated by
+   MIN_TRUMP_STRENGTH); WHETHER to call is about the whole hand
+   (`handTricks`), the plain aces included. */
+describe("heuristicBot.chooseBid — the whole-hand rule (BOT.md §1)", () => {
+    const allSuits: LegalBids = { canPass: true, suits: ["HERC", "KARA", "PIK", "TREF"] }
+
+    /** Three plain aces and a long, weak TREF: a fine hand with nothing to
+     *  name. Every suit scores 1.5 or below on the trump question. */
+    const acesButNoTrumps: Card[] = ["AHERC", "AKARA", "APIK", "7TREF", "8TREF", "QTREF"]
+
+    it("passes below MIN_TRUMP_STRENGTH even when the plain suits are strong", () => {
+        const v = view({ seat: 0, hand: acesButNoTrumps })
+        // The whole-hand score clears the threshold twice over — and it is
+        // still a pass, because naming a suit this hand does not hold is a
+        // fall with the bidding already over.
+        expect(handTricks(acesButNoTrumps, "HERC")).toBeGreaterThan(2)
+        expect(suitStrength(acesButNoTrumps, "HERC")).toBeLessThan(4.5)
+        expect(heuristicBot.chooseBid(v, allSuits, noRng)).toBe("PASS")
+    })
+
+    it("calls on the jack with a card beside it and a plain ace", () => {
+        // "dečko i mala u adutu te strani as" — suitStrength 4.5 exactly, and
+        // 1.8 expected tricks against a threshold of 1.0 in this seat.
+        const hand: Card[] = ["JHERC", "7HERC", "APIK", "7PIK", "8TREF", "9TREF"]
+        const v = view({ seat: 0, hand, dealer: 3 }) // dealer 3 → I open the play
+        expect(suitStrength(hand, "HERC")).toBe(4.5)
+        expect(handTricks(hand, "HERC")).toBeCloseTo(1.8, 10)
+        expect(heuristicBot.chooseBid(v, allSuits, noRng)).toBe("HERC")
+    })
+
+    it("still calls in a mus, where neither threshold applies", () => {
+        // The same hand that passes above: on a mus there is no choice, so the
+        // trump-strength gate is skipped along with the trick threshold.
+        const v = view({ seat: 3, hand: acesButNoTrumps })
+        expect(
+            heuristicBot.chooseBid(v, { canPass: false, suits: ["HERC", "KARA", "PIK", "TREF"] }, noRng),
+        ).toBe("HERC")
+    })
+
+    it("calls anyway in the endgame, rather than let the opponents choose the trump", () => {
+        // 420 + one ordinary deal carries them past 501 while we stay short:
+        // "tad se mora zvati i ne dozvoliti protivniku da bira aduta."
+        const v = view({
+            seat: 0, // team A
+            hand: acesButNoTrumps,
+            targetScore: 501,
+            score: { A: 300, B: 420 },
+        })
+        expect(heuristicBot.chooseBid(v, allSuits, noRng)).toBe("HERC")
+    })
+
+    it("does not fire the endgame exception at an ordinary score", () => {
+        const level = view({
+            seat: 0,
+            hand: acesButNoTrumps,
+            targetScore: 501,
+            score: { A: 0, B: 0 },
+        })
+        expect(heuristicBot.chooseBid(level, allSuits, noRng)).toBe("PASS")
+
+        // …nor when we are one deal from the target ourselves: passing does not
+        // hand them the game, so the ordinary rule stands.
+        const bothClose = view({
+            seat: 0,
+            hand: acesButNoTrumps,
+            targetScore: 501,
+            score: { A: 450, B: 420 },
+        })
+        expect(heuristicBot.chooseBid(bothClose, allSuits, noRng)).toBe("PASS")
+    })
+
+    it("ignores the endgame rule entirely when no target is known", () => {
+        // A hand-built view may carry no `targetScore`; the score-aware rule is
+        // then simply skipped rather than guessed at.
+        const v = view({ seat: 0, hand: acesButNoTrumps, score: { A: 300, B: 420 } })
+        expect(v.targetScore).toBeUndefined()
+        expect(heuristicBot.chooseBid(v, allSuits, noRng)).toBe("PASS")
+    })
+})
+
 describe("heuristicBot.chooseCard — priority branches (README §5)", () => {
     it("branch 1: partner holds the trick and I'm last → the most valuable card that does NOT take it off him", () => {
         const v = view({
@@ -53,7 +135,7 @@ describe("heuristicBot.chooseCard — priority branches (README §5)", () => {
         expect(heuristicBot.chooseCard(v, ["JHERC", "10TREF", "7TREF"], noRng)).toBe("10TREF")
     })
 
-    it("never overtrumps a trick my own partner already holds", () => {
+    it("forced to ruff my own partner (§1.5, void with trumps) → the weakest trump", () => {
         const v = view({
             seat: 0,
             hand: ["JHERC", "7HERC", "8TREF"],
@@ -67,9 +149,104 @@ describe("heuristicBot.chooseCard — priority branches (README §5)", () => {
                 ],
             },
         })
-        // I am void in PIK, so `legalMoves` would let me ruff my own partner
-        // with either trump. The bot discards instead.
-        expect(heuristicBot.chooseCard(v, ["JHERC", "7HERC", "8TREF"], noRng)).toBe("8TREF")
+        // Void in PIK with trumps in hand: the engine offers only the trumps,
+        // every one of which takes the trick off him. The trick is ours
+        // either way, so the jack stays home.
+        expect(heuristicBot.chooseCard(v, ["JHERC", "7HERC"], noRng)).toBe("7HERC")
+    })
+
+    it("third to play: fills partner's safe trick, but never with a BARE ace", () => {
+        // Partner led the trump jack; the fourth player cannot beat it, so the
+        // trick is ours and every point I add is banked. The ace still stays
+        // home — it is a trick of its own, and the user's rule is that an ace
+        // goes only when its own 10 is behind it (BOT.md §2.3).
+        const bare = view({
+            seat: 0,
+            hand: ["APIK", "7TREF"],
+            handSizes: { 0: 2, 1: 2, 2: 1, 3: 2 },
+            trick: {
+                leader: 2,
+                turn: 0,
+                cards: [{ seat: 2, card: "JHERC" }, { seat: 3, card: "7HERC" }],
+            },
+        })
+        expect(heuristicBot.chooseCard(bare, ["APIK", "7TREF"], noRng)).toBe("7TREF")
+
+        // With the 10 of the suit at home the ace is spendable: eleven points
+        // are banked and my own 10 inherits the suit.
+        const backed = view({
+            seat: 0,
+            hand: ["APIK", "10PIK", "KTREF"],
+            handSizes: { 0: 3, 1: 3, 2: 2, 3: 3 },
+            trick: {
+                leader: 2,
+                turn: 0,
+                cards: [{ seat: 2, card: "JHERC" }, { seat: 3, card: "7HERC" }],
+            },
+        })
+        expect(heuristicBot.chooseCard(backed, ["APIK", "10PIK", "KTREF"], noRng)).toBe("APIK")
+    })
+
+    it("third to play: does NOT feed an ace while the fourth player could still ruff", () => {
+        // Partner holds with the ace of PIK — the master of the suit — but
+        // HERC (trump) is unaccounted for and seat 1 has shown nothing.
+        const v = view({
+            seat: 0,
+            hand: ["AKARA", "7TREF"],
+            trick: {
+                leader: 2,
+                turn: 0,
+                cards: [{ seat: 2, card: "APIK" }, { seat: 3, card: "8PIK" }],
+            },
+        })
+        expect(heuristicBot.chooseCard(v, ["AKARA", "7TREF"], noRng)).toBe("7TREF")
+    })
+
+    it("fills partner's safe trick with the ten, keeping an ace that is a sure trick of its own", () => {
+        // Last to play; partner holds. Every trump is gone, so APIK — the
+        // master of an untouched suit — wins a whole trick later. The ten goes.
+        const v = view({
+            seat: 0,
+            hand: ["APIK", "10TREF", "7TREF"],
+            played: ["7HERC", "8HERC", "9HERC", "10HERC", "JHERC", "QHERC", "KHERC", "AHERC"],
+            trick: {
+                leader: 1,
+                turn: 0,
+                cards: [
+                    { seat: 1, card: "7KARA" },
+                    { seat: 2, card: "AKARA" },
+                    { seat: 3, card: "8KARA" },
+                ],
+            },
+        })
+        expect(heuristicBot.chooseCard(v, ["APIK", "10TREF", "7TREF"], noRng)).toBe("10TREF")
+    })
+
+    it("second to play with the master of the led suit takes the trick with it, not with a provisional nine", () => {
+        const v = view({
+            seat: 0,
+            hand: ["9PIK", "APIK", "7TREF"],
+            trick: { leader: 3, turn: 0, cards: [{ seat: 3, card: "7PIK" }] },
+        })
+        expect(heuristicBot.chooseCard(v, ["9PIK", "APIK"], noRng)).toBe("APIK")
+    })
+
+    it("opening quietly never leads a bare ten from the shortest suit", () => {
+        const v = view({
+            seat: 0,
+            hand: ["10PIK", "7TREF", "8TREF", "9TREF"],
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 1 },
+        })
+        expect(heuristicBot.chooseCard(v, ["10PIK", "7TREF", "8TREF", "9TREF"], noRng)).toBe("7TREF")
+    })
+
+    it("opens with the ace on the first round of a suit it holds little of", () => {
+        const v = view({
+            seat: 0,
+            hand: ["APIK", "7PIK", "7TREF", "8TREF"],
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 1 },
+        })
+        expect(heuristicBot.chooseCard(v, ["APIK", "7PIK", "7TREF", "8TREF"], noRng)).toBe("APIK")
     })
 
     it("gives up the non-beating rule only when the rules leave no choice", () => {
@@ -81,6 +258,23 @@ describe("heuristicBot.chooseCard — priority branches (README §5)", () => {
             trick: { leader: 2, turn: 0, cards: [{ seat: 2, card: "AHERC" }] },
         })
         expect(heuristicBot.chooseCard(v, ["JHERC", "9HERC"], noRng)).toBe("9HERC")
+    })
+
+    it("partner opened the trump 8 → the NINE, not the cheaper queen (BOT.md §9)", () => {
+        // §1.5 makes me go over him and every legal card does, so the old rule
+        // took the weakest of them — the queen, three points against the
+        // nine's fourteen. But the queen is only provisionally safe: the 10,
+        // the ace and the jack all beat it, while the nine falls to the jack
+        // alone. He opened low because he wants the trumps drawn.
+        const legal: Card[] = ["9HERC", "QHERC"]
+        const v = view({
+            seat: 0,
+            hand: ["9HERC", "QHERC", "7PIK"],
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 2 },
+            trick: { leader: 2, turn: 0, cards: [{ seat: 2, card: "8HERC" }] },
+        })
+        expect(weakestCard(legal, "HERC")).toBe("QHERC") // what it used to play
+        expect(heuristicBot.chooseCard(v, legal, noRng)).toBe("9HERC")
     })
 
     it("branch 2: partner holds the trick, I'm not last → cheapest legal card", () => {
@@ -139,24 +333,44 @@ describe("heuristicBot.chooseCard — leading a trick", () => {
         expect(heuristicBot.chooseCard(v, ["7PIK", "10PIK", "APIK", "8TREF"], noRng)).toBe("APIK")
     })
 
-    it("keeps a bare ace back and leads something cheap instead (fault 2)", () => {
+    it("keeps a bare ace back after the first round of its suit and leads something cheap instead (fault 2)", () => {
         const v = view({
             seat: 0,
-            hand: ["7PIK", "APIK", "8TREF"], // no 10PIK behind the ace
+            hand: ["7PIK", "APIK", "8TREF"],
+            played: ["8PIK", "9PIK", "KPIK", "7KARA"], // PIK has been round once; somebody was void
             bidding: { turn: 1, passes: [], trump: "HERC", caller: 1 },
             trick: { leader: 0, turn: 0, cards: [] },
         })
         expect(heuristicBot.chooseCard(v, ["7PIK", "APIK", "8TREF"], noRng)).toBe("8TREF")
     })
 
-    it("leads the lowest card of the shortest non-trump suit absent an ace", () => {
+    it("opens quietly from a suit it holds more than one of, not the singleton", () => {
+        // TREF is the shortest suit, and the old rule led its 8 for exactly
+        // that reason. A singleton is led hoping somebody ruffs it, and the
+        // document prices that hope at 2:1 against (`isThinLead`), so the
+        // lowest card of the suit it actually holds goes instead.
         const v = view({
             seat: 0,
-            hand: ["7PIK", "8PIK", "9PIK", "8TREF"], // TREF length 1 is shortest
+            hand: ["7PIK", "8PIK", "9PIK", "8TREF"],
             bidding: { turn: 1, passes: [], trump: "HERC", caller: 1 },
             trick: { leader: 0, turn: 0, cards: [] },
         })
-        expect(heuristicBot.chooseCard(v, ["7PIK", "8PIK", "9PIK", "8TREF"], noRng)).toBe("8TREF")
+        expect(heuristicBot.chooseCard(v, ["7PIK", "8PIK", "9PIK", "8TREF"], noRng)).toBe("7PIK")
+    })
+
+    it("leads a singleton anyway when every plain card it holds is one", () => {
+        // Both plain cards are singletons, so there is no un-thin lead. The
+        // fallback must stay OFF the trumps: a trump led here would be a draw
+        // that `shouldDrawTrumps` has just refused.
+        const hand: Card[] = ["7HERC", "8HERC", "7PIK", "8TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            dealer: 3,
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 2 },
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+        expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("7PIK")
     })
 
     it("draws trumps with its cheapest trump when the partner called (fault 3)", () => {
@@ -265,7 +479,7 @@ describe("heuristicBot.chooseCard — leading a trick", () => {
             bidding: { turn: 2, passes: [3, 0, 1], trump: "HERC", caller: 2 }, // forced dealer call
             trick: { leader: 0, turn: 0, cards: [] },
         })
-        expect(heuristicBot.chooseCard(v, ["7HERC", "AHERC", "APIK", "8TREF"], noRng)).toBe("8TREF")
+        expect(heuristicBot.chooseCard(v, ["7HERC", "AHERC", "APIK", "8TREF"], noRng)).not.toMatch(/HERC$/)
     })
 
     it("does not draw trumps for an opponent's call", () => {
@@ -276,7 +490,7 @@ describe("heuristicBot.chooseCard — leading a trick", () => {
             bidding: { turn: 2, passes: [], trump: "HERC", caller: 1 }, // opponent called
             trick: { leader: 0, turn: 0, cards: [] },
         })
-        expect(heuristicBot.chooseCard(v, ["7HERC", "AHERC", "APIK", "8TREF"], noRng)).toBe("8TREF")
+        expect(heuristicBot.chooseCard(v, ["7HERC", "AHERC", "APIK", "8TREF"], noRng)).not.toMatch(/HERC$/)
     })
 
     it("does not draw trumps when the partner's declarations deny the jack and I have none", () => {
@@ -291,7 +505,7 @@ describe("heuristicBot.chooseCard — leading a trick", () => {
             declarationsRevealed: true,
             trick: { leader: 0, turn: 0, cards: [] },
         })
-        expect(heuristicBot.chooseCard(v, ["7HERC", "AHERC", "APIK", "8TREF"], noRng)).toBe("8TREF")
+        expect(heuristicBot.chooseCard(v, ["7HERC", "AHERC", "APIK", "8TREF"], noRng)).not.toMatch(/HERC$/)
     })
 
     it("falls back to the weakest card when only trumps remain", () => {
@@ -302,6 +516,21 @@ describe("heuristicBot.chooseCard — leading a trick", () => {
             trick: { leader: 0, turn: 0, cards: [] },
         })
         expect(heuristicBot.chooseCard(v, ["7HERC", "JHERC"], noRng)).toBe("7HERC")
+    })
+
+    it("as the caller's partner with the bela, leads the trump KING (BOT.md §11)", () => {
+        // The sending half of the convention `readSeatFromLeads` reads back:
+        // the king says "bela here, and no jack". It outranks drawing trumps,
+        // which would otherwise open with the cheap 7 from this same hand.
+        const hand: Card[] = ["KHERC", "QHERC", "7PIK", "8TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            dealer: 3,
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 2 }, // partner called
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+        expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("KHERC")
     })
 })
 

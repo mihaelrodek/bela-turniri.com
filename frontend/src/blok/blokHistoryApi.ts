@@ -1,6 +1,6 @@
 import { http } from "../api/http"
 import { isRecordableGame, totalsOf, winnerOf } from "./store"
-import type { BlokGame, BlokGameEndRule, BlokSide } from "./types"
+import type { BlokDealerSeat, BlokGame, BlokGameEndRule, BlokSide } from "./types"
 
 /* ──────────────────────────────────────────────────────────────────────────
    "Povijest blokova na profilu", PHONE side — the one call the scorepad makes
@@ -72,6 +72,20 @@ export type BlokHistoryGameDto = {
      * because the setting can be changed between two games of one evening.
      */
     gameEndRule: BlokGameEndRule
+    /**
+     * The seat that dealt this game's FIRST deal — BLOK.md §3.3.4.
+     *
+     * It travels because it is the one thing about a game the deals cannot
+     * reproduce. Every later dealer of the game is derived from it and the
+     * direction, so recording this one seat records the whole rotation; and
+     * from the next game's point of view it is the fact the rotation carries
+     * on FROM, whether it simply steps round the table or steps past the pair
+     * that lost.
+     *
+     * `null` when nobody ever named a dealer — the blok was only guessing, and
+     * a guess is not worth writing down as a fact about the evening.
+     */
+    dealer: BlokDealerSeat | null
     winner: BlokSide | null
     totals: Record<BlokSide, number>
     rounds: BlokHistoryRoundDto[]
@@ -97,6 +111,7 @@ function toGameDto(game: BlokGame): BlokHistoryGameDto {
         finishedAt: game.finishedAt,
         target: game.target,
         gameEndRule: game.gameEndRule,
+        dealer: game.dealer.chosen ? game.dealer.first : null,
         winner: winnerOf(game),
         totals: totalsOf(game),
         rounds: game.rounds.map((round) => ({

@@ -29,13 +29,17 @@ export const game = {
     "room.visibility": "Vidljivost igre",
     "room.private": "Privatna",
     "room.public": "Javna",
-    "room.waitingReady": "Čeka spremnost",
+    "room.waitingReady": "Nije spreman",
     "bot.label": "Bot",
     "rules.title": "Pravila podjele",
     "rules.noDeclarations": "Bez zvanja",
     "rules.withDeclarations": "Sa zvanjima",
     "rules.allowBela": "Bela je dopuštena",
     "rules.noBela": "Bez bele",
+    "settings.gameName": "Ime za igru",
+    "settings.gameNameHint": "Ime koje ostali igrači vide za stolom. Možeš ga promijeniti jednom u sedam dana.",
+    "settings.gameNameSaved": "Ime je spremljeno.",
+    "settings.gameNameNext": "Ime možeš ponovno promijeniti {date}.",
     "settings.alwaysReady": "Uvijek spreman",
     "settings.alwaysReadyHint": "Automatski označi spremnost kada sjedneš za stol.",
     /* ─── Navigacija ────────────────────────────────────────── */
@@ -43,6 +47,7 @@ export const game = {
 
     /* ─── Zajedničko ────────────────────────────────────────── */
     "common.cancel": "Odustani",
+    "common.save": "Spremi",
 
     /* ─── Stanje veze ───────────────────────────────────────── */
     "connection.connecting": "Spajanje…",
@@ -113,7 +118,10 @@ export const game = {
     "lobby.createRoom": "Nova soba",
     "lobby.create": "Otvori sobu",
     "lobby.join": "Uđi",
-    "lobby.target": "do {target}",
+    "lobby.target": "{target}",
+    "lobby.playing": "Igra se",
+    "lobby.finishMode.prolaz": "Prolaz",
+    "lobby.finishMode.dosta": "Dosta",
     "lobby.private": "Privatna",
     "lobby.seats": "{taken}/{total} sjedala",
     "lobby.status.LOBBY": "Čeka igrače",
@@ -124,6 +132,9 @@ export const game = {
     "lobby.form.name": "Naziv sobe",
     "lobby.form.namePlaceholder": "npr. Petak navečer",
     "lobby.form.target": "Igra se do",
+    "lobby.form.endRule": "Igra se na",
+    "lobby.form.endRule.prolaz": "Prolaz",
+    "lobby.form.endRule.dosta": "Dosta",
     "lobby.form.private": "Privatna soba",
 
     /* ─── Soba (/igra/soba/:id) ─────────────────────────────── */
@@ -185,7 +196,6 @@ export const game = {
     "room.pairAria": "Par {n}",
     "room.addBotCta": "Dodaj bota",
     "room.launch": "Pokreni igru",
-    "room.launchHint": "Čeka se da svi budu spremni.",
 
     /* ─── Sjedalo ───────────────────────────────────────────── */
     "seat.empty": "Prazno",
@@ -350,6 +360,9 @@ export const game = {
     "mock.roomName": "Demo soba",
 
     /* ─── Postavke igre (game/DESIGN.md §2.10) ──────────────── */
+    /* Naslov bloka na vrhu „Postavke igre”: postavke SOBE, uređive dok se
+       partija nije počela i samo domaćinu (game/README.md §3). */
+    "settings.thisGame": "Postavke ove igre",
     "settings.title": "Postavke igre",
     "settings.sound": "Zvuk",
     "settings.reduceMotion": "Smanji animacije",

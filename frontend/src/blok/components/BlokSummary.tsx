@@ -1,7 +1,9 @@
-import { Box, Button, Card, Grid, HStack, Icon, Separator, Text } from "@chakra-ui/react"
-import { FiArrowRight, FiAward, FiPlusCircle, FiRotateCcw } from "react-icons/fi"
+import { Card, Grid, HStack, Icon, Separator, Text, VStack } from "@chakra-ui/react"
+import type { StackProps } from "@chakra-ui/react"
+import { FiArrowDown, FiArrowUp, FiAward } from "react-icons/fi"
+import type { IconType } from "react-icons"
 
-import { usePlural, useTranslation } from "../../i18n"
+import { useTranslation } from "../../i18n"
 import { BLOK_SIDES, type BlokSide } from "../types"
 import { sidePalette, sideWinnerKey } from "./blokSide"
 
@@ -62,23 +64,89 @@ function SummaryRow({
 }) {
     return (
         <>
-            <Text fontSize="sm" color="fg.muted">
+            {/* Centred in its own half (2026-09-09, user request). Pushed to
+                the outer edges the two columns drifted apart as the card got
+                wider, and the label between them stopped looking like it
+                belonged to either. */}
+            <Text
+                colorPalette={sidePalette("us")}
+                textAlign="center"
+                fontSize={emphasize ? "lg" : "md"}
+                fontWeight={emphasize ? "bold" : "medium"}
+                color={emphasize ? "colorPalette.fg" : "fg.ink"}
+                css={{ fontVariantNumeric: "tabular-nums" }}
+            >
+                {values.us}
+            </Text>
+            <Text textAlign="center" fontSize="xs" color="fg.muted" fontWeight="semibold">
                 {label}
             </Text>
-            {BLOK_SIDES.map((side) => (
-                <Text
-                    key={side}
-                    colorPalette={sidePalette(side)}
-                    textAlign="right"
-                    fontSize={emphasize ? "md" : "sm"}
-                    fontWeight={emphasize ? "bold" : "medium"}
-                    color={emphasize ? "colorPalette.fg" : "fg.ink"}
-                    css={{ fontVariantNumeric: "tabular-nums" }}
-                >
-                    {values[side]}
-                </Text>
-            ))}
+            <Text
+                colorPalette={sidePalette("them")}
+                textAlign="center"
+                fontSize={emphasize ? "lg" : "md"}
+                fontWeight={emphasize ? "bold" : "medium"}
+                color={emphasize ? "colorPalette.fg" : "fg.ink"}
+                css={{ fontVariantNumeric: "tabular-nums" }}
+            >
+                {values.them}
+            </Text>
         </>
+    )
+}
+
+/**
+ * A grey caption with an arrow, pointing at something that is already on
+ * screen: the games of this series above, the button that starts the next one
+ * below. One row, no border, no colour — a signpost, not a control.
+ */
+function Hint({
+    icon,
+    label,
+    above = false,
+    mt,
+    mb,
+    pt,
+}: {
+    icon: IconType
+    label: string
+    /** Arrow above the words rather than below them, so the whole thing reads
+     *  in the direction it points. */
+    above?: boolean
+    /** Spacing only — this thing has no other geometry worth exposing. */
+    mt?: StackProps["mt"]
+    mb?: StackProps["mb"]
+    pt?: StackProps["pt"]
+}) {
+    const arrow = <Icon as={icon} boxSize="4" color="fg.muted" aria-hidden="true" />
+    return (
+        <VStack gap="0" w="full" mt={mt} mb={mb} pt={pt}>
+            {above ? arrow : null}
+            {/* Bigger and bold (2026-09-09, user request): these two lines are
+                the only instructions on the card, and at `xs` in `fg.subtle`
+                they read as a caption on the numbers above rather than as the
+                thing to do next. */}
+            <Text
+                /* A step down again now that it is upper case (2026-09-09):
+                   capitals are wider, and at `sm` the block grew tall enough
+                   to push its own arrow off the bottom of the card. */
+                fontSize={{ base: "xs", md: "sm" }}
+                fontWeight="bold"
+                color="fg.muted"
+                textAlign="center"
+                lineHeight="1.3"
+                /* Upper case in CSS, not in the dictionaries (2026-09-09, user
+                   request): the Croatian and Slovenian strings stay readable
+                   sentences, and a locale whose casing rules differ is free to
+                   override the transform rather than carry a shouted copy of
+                   its own text. */
+                textTransform="uppercase"
+                letterSpacing="0.04em"
+            >
+                {label}
+            </Text>
+            {above ? null : arrow}
+        </VStack>
     )
 }
 
@@ -88,13 +156,9 @@ export default function BlokSummary({
     totals,
     declarations,
     stiglje,
-    seriesTarget,
-    seriesWins,
     seriesWinner,
-    canUndo,
-    onUndo,
-    onNextGame,
-    onCloseSeries,
+    reviewableGames,
+    compact = false,
 }: {
     winner: BlokSide
     names: Record<BlokSide, string>
@@ -103,126 +167,123 @@ export default function BlokSummary({
     declarations: Record<BlokSide, number>
     /** How many deals a side swept all eight tricks. */
     stiglje: Record<BlokSide, number>
-    /** Won games that take the series, or null for an open-ended one — the
-     *  default, in which nothing but "Resetiraj" ends the evening. */
-    seriesTarget: number | null
-    /** Games won per side in this session — counted, never stored. */
-    seriesWins: Record<BlokSide, number>
     /** Who has taken the series, or null while it is still running — always
      *  null for an open-ended series, which is the default. */
     seriesWinner: BlokSide | null
-    canUndo: boolean
-    onUndo: () => void
-    /** Start the NEXT game inside this series — the running 2 : 1 continues.
-     *  No dialog and no confirmation: nothing is filed and nothing is lost. */
-    onNextGame: () => void
-    /** Close the series: file it, series score back to 0:0, empty pad — the
-     *  menu's "Nova igra" (§5.6). The page owns the confirmation, exactly as it
-     *  does for the menu's own item. */
-    onCloseSeries: () => void
+    /**
+     * How many games of this series can be reviewed behind the score card's
+     * chevron — the just-finished one included.
+     *
+     * Only ever compared to zero: above zero the card points UP at them. The
+     * count rather than a boolean because the caller already has the list, and
+     * a `hasSomething` prop is a boolean somebody has to keep in step with the
+     * panel it describes.
+     */
+    reviewableGames: number
+    /**
+     * Draw tighter, because the score card above is showing its games panel
+     * and the screen has to hold both (2026-09-09, user request).
+     *
+     * Padding and type only — nothing is hidden. A summary that drops a number
+     * to fit is a summary you cannot trust, and the three lines it carries are
+     * the whole reason the card exists.
+     */
+    compact?: boolean
 }) {
     const { t } = useTranslation()
-    const tp = usePlural()
 
     // `seriesWinner` is already null for an open series (`seriesWinnerFrom`),
     // so this is the whole of "the evening is over" — no second condition.
     const seriesDone = seriesWinner !== null
     const verdictSide = seriesWinner ?? winner
-    // The running record is worth a line as soon as there is one, target or
-    // not: it is what the table is actually keeping score of.
-    const playedGames = seriesWins.us + seriesWins.them
+    /** Did this side type a name for itself? An empty string is the default. */
+    const named = names[verdictSide].trim() !== ""
 
     return (
         <Card.Root
-            colorPalette={sidePalette(verdictSide)}
             variant="outline"
             rounded="xl"
-            bg="colorPalette.subtle"
-            borderColor="colorPalette.emphasized"
-            shadow="raised"
+            bg="bg.panel"
+            borderColor="border.emphasized"
+            shadow="card"
+            /* Fills the height its wrapper gives it (see `BlokPage`), and
+               `w="100%"` because a flex child does not stretch sideways on
+               its own. On md the wrapper is a grid item of its own row, so
+               100% is simply that row — no change there. */
+            h="100%"
+            w="100%"
+            display="flex"
+            flexDirection="column"
         >
-            <Card.Body px={{ base: "4", md: "5" }} py={{ base: "4", md: "5" }}>
-                <HStack gap="2.5" align="center">
-                    <Icon as={FiAward} boxSize="6" color="colorPalette.fg" />
-                    <Box minW="0">
-                        <Text
-                            fontSize={{ base: "lg", md: "xl" }}
-                            fontWeight="bold"
-                            lineHeight="1.2"
-                            color="colorPalette.fg"
-                        >
-                            {t(
+            <Card.Body
+                px={{ base: "4", md: "5" }}
+                py={compact ? "2" : { base: "4", md: "5" }}
+                flex="1"
+                minH="0"
+                display="flex"
+                flexDirection="column"
+            >
+                {/* TWO SIGNPOSTS, POINTING AT THINGS THAT ARE ALREADY THERE
+                    (2026-09-09, user request).
+
+                    The games of this series live behind a chevron on the score
+                    card ABOVE, and the next game starts from the button BELOW.
+                    Both were discoverable only by trying them. A line of grey
+                    text with an arrow costs one row each and says where to
+                    look — which is all a person needs the first time and all
+                    they will read the tenth.
+
+                    The arrow points at the thing, so it is drawn on the side
+                    the thing is on: up here, down at the foot of the card. */}
+                {reviewableGames > 0 ? (
+                    <Hint icon={FiArrowUp} label={t("blok.summary.reviewGames")} above mb={compact ? "1" : "3"} />
+                ) : null}
+                {/* Left, not centred (2026-09-09, user request): a pair name
+                    can be long enough to wrap, and a centred two-line verdict
+                    made the medal beside it look detached from the words. */}
+                <HStack gap="2.5" align="center" justify="flex-start">
+                    <Icon as={FiAward} boxSize={compact ? "5" : "6"} color="brand.fg" />
+                    <Text
+                        fontSize={compact ? "md" : { base: "lg", md: "xl" }}
+                        fontWeight="bold"
+                        lineHeight="1.2"
+                        color="fg.ink"
+                        textAlign="left"
+                    >
+                        {/* A pair that typed its own name is called by it:
+                            "Perhaj i Galinec su pobijedili", not "Mi smo
+                            pobijedili" (2026-09-09, user request). The MI/VI
+                            wording is what a nameless side falls back to, and
+                            it stays the default because most tables never type
+                            anything. */}
+                        {named
+                            ? t(
+                                seriesDone ? "blok.series.wonNamed" : "blok.winner.named",
+                                { name: names[verdictSide] },
+                            )
+                            : t(
                                 seriesDone
                                     ? (verdictSide === "us"
                                         ? "blok.series.won.us"
                                         : "blok.series.won.them")
                                     : sideWinnerKey(verdictSide),
                             )}
-                        </Text>
-                        {/* The verdict key is fixed wording ("Mi smo
-                            pobijedili"); a renamed side would otherwise never
-                            appear here, so the name rides along underneath.
-                            Wraps rather than truncates for the same reason the
-                            header does — a pair name is the point. */}
-                        <Text fontSize="sm" color="fg.muted" lineClamp={2} wordBreak="break-word">
-                            {names[verdictSide]}
-                        </Text>
-                    </Box>
+                    </Text>
                 </HStack>
 
-                {/* Where the series stands, worded three ways: won, it says
-                    what the "Resetiraj" below is for; running towards a
-                    target, it is the score AND what it is played to; running
-                    open-ended, it is just the score, because there is nothing
-                    to measure it against. The game count goes through the
-                    plural family — Slovenian's dual makes "2 dobljeni igri" a
-                    different word from "3 dobljene igre". */}
-                {seriesDone || playedGames > 0 ? (
-                    <Text mt="2" fontSize="sm" color="fg.muted">
-                        {seriesDone
-                            ? t("blok.series.finish")
-                            : seriesTarget !== null
-                                ? t("blok.series.progress", {
-                                    usWins: seriesWins.us,
-                                    themWins: seriesWins.them,
-                                    games: tp("blok.series.games", seriesTarget),
-                                })
-                                : t("blok.series.running", {
-                                    usWins: seriesWins.us,
-                                    themWins: seriesWins.them,
-                                })}
-                    </Text>
-                ) : null}
+                <Separator my={compact ? "2" : "4"} borderColor="border.subtle" />
 
-                <Button
-                    mt="3"
-                    size="sm"
-                    variant="outline"
-                    colorPalette="gray"
-                    alignSelf="flex-start"
-                    disabled={!canUndo}
-                    onClick={onUndo}
-                >
-                    <FiRotateCcw /> {t("blok.round.undoLast")}
-                </Button>
-
-                <Separator my="4" borderColor="colorPalette.emphasized" />
-
-                <Grid templateColumns="1fr auto auto" columnGap="4" rowGap="2" alignItems="center">
-                    {/* Column heads: the names, so the two numeric rails are
-                        readable without counting back up to the scoreboard. */}
-                    <Box />
-                    {BLOK_SIDES.map((side) => (
+                <Grid templateColumns="minmax(0, 1fr) auto minmax(0, 1fr)" columnGap="3" rowGap={compact ? "0.5" : "2.5"} alignItems="center">
+                    {BLOK_SIDES.map((side, index) => (
                         <Text
                             key={side}
-                            textAlign="right"
+                            gridColumn={index === 0 ? 1 : 3}
+                            textAlign="center"
                             fontSize="2xs"
                             fontWeight="bold"
                             textTransform="uppercase"
                             letterSpacing="0.08em"
                             color="fg.subtle"
-                            minW="3.5rem"
-                            maxW="7rem"
                             wordBreak="break-word"
                             lineClamp={2}
                             title={names[side]}
@@ -231,20 +292,31 @@ export default function BlokSummary({
                         </Text>
                     ))}
 
-                    <SummaryRow label={t("blok.summary.total")} values={totals} emphasize />
+                    <SummaryRow label={t("blok.summary.points")} values={totals} emphasize />
                     <SummaryRow label={t("blok.summary.declarations")} values={declarations} />
                     <SummaryRow label={t("blok.summary.stiglje")} values={stiglje} />
                 </Grid>
 
-                {seriesDone ? (
-                    <Button mt="4" size="lg" w="100%" colorPalette="brand" onClick={onCloseSeries}>
-                        <FiPlusCircle /> {t("blok.menu.newGame")}
-                    </Button>
-                ) : (
-                    <Button mt="4" size="lg" w="100%" colorPalette="brand" onClick={onNextGame}>
-                        <FiArrowRight /> {t("blok.winner.nextGame")}
-                    </Button>
-                )}
+                {/* THE TWO BUTTONS MOVED TO THE ACTION BAR (2026-09-09, user
+                    request): once a game is won, "Poništi zadnju rundu" takes
+                    the MI box and "Sljedeća partija" takes the VI box, at the
+                    bottom of the screen where the thumb already is. They are
+                    not repeated here — one action, one place — and what is
+                    left on this card is the verdict and the numbers.
+
+                    Which is also what the arrow below now points at. */}
+                {/* The arrow points past the card at the action bar, where
+                    the two buttons now live. */}
+                {/* `mt="auto"` is what puts it on the floor of the card: the
+                    verdict and the numbers keep their natural height at the
+                    top, and this sits just above the action bar it points at,
+                    however tall the phone is. */}
+                <Hint
+                    icon={FiArrowDown}
+                    label={t(seriesDone ? "blok.summary.startNewSeries" : "blok.summary.startNextGame")}
+                    mt="auto"
+                    pt={compact ? "1.5" : "3"}
+                />
             </Card.Body>
         </Card.Root>
     )

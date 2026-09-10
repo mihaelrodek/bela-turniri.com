@@ -1,6 +1,6 @@
 import { Box, Text } from "@chakra-ui/react"
 import { Link as RouterLink, useLocation } from "react-router-dom"
-import { FiCalendar, FiEdit3, FiHome, FiMap, FiPlay } from "react-icons/fi"
+import { FiCalendar, FiEdit3, FiHome, FiMap } from "react-icons/fi"
 import { useTranslation } from "../i18n"
 import type { ReactNode } from "react"
 
@@ -45,6 +45,35 @@ import type { ReactNode } from "react"
  * are unaffected here.
  */
 
+/**
+ * Two cards, fanned — the centre tab's mark (2026-09-09, user request).
+ *
+ * Drawn here rather than pulled from an icon pack: the bar already uses
+ * Feather, which has no playing card, and importing a second pack for one
+ * glyph costs a chunk of icons nothing else needs. It is `currentColor` and
+ * `stroke`-based like every Feather icon beside it, so it inherits the disc's
+ * contrast colour and the same 2px weight.
+ */
+export function CardsIcon({ size = 26 }: { size?: number }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+        >
+            {/* The back card, tilted; the front one upright over it. */}
+            <rect x="3.2" y="6.4" width="10" height="14" rx="2" transform="rotate(-16 8.2 13.4)" />
+            <rect x="10.5" y="4" width="10.5" height="15" rx="2" />
+        </svg>
+    )
+}
+
 type TabDef = {
     to: string
     label: string
@@ -74,7 +103,7 @@ function buildTabs(t: (key: string) => string): TabDef[] {
         // Online bela (src/game) — centre slot, see the header comment. The
         // bar hides itself on /igra* (`hidden` below), so this tab hands the
         // game its own full screen.
-        { to: "/igra", label: t("game.nav.igraj"), icon: <FiPlay size={20} />, matchPrefixes: ["/igra"] },
+        { to: "/igra", label: t("game.nav.igraj"), icon: <CardsIcon />, matchPrefixes: ["/igra"] },
         { to: "/karta", label: t("common.nav.karta"), icon: <FiMap size={20} /> },
         // Bela blok (src/blok) — public offline scorepad, meant to be opened
         // one-handed at a real table, so mobile is its primary surface. Its own
@@ -209,15 +238,31 @@ export default function MobileTabBar() {
                        on the shape. */
                     if (index === CENTRE_INDEX) {
                         return (
-                            <Box key={tab.to} display="flex" justifyContent="center">
+                            <Box
+                                key={tab.to}
+                                display="flex"
+                                flexDirection="column"
+                                alignItems="center"
+                                justifyContent="flex-end"
+                                gap="2px"
+                                py="2"
+                            >
                                 <Box
                                     asChild
                                     display="flex"
-                                    flexDirection="column"
                                     alignItems="center"
                                     justifyContent="center"
-                                    boxSize="56px"
-                                    mt="-22px"
+                                    /* BIGGER, AND LIFTED ONLY UPWARDS
+                                       (2026-09-09, user request). The label
+                                       sits BELOW the disc, in line with every
+                                       other tab's label, so the negative
+                                       margin has to be paid back below it —
+                                       otherwise the word falls past the bar's
+                                       own padding and off the screen, which is
+                                       what happened the first time. */
+                                    boxSize="60px"
+                                    mt="-26px"
+                                    mb="-4px"
                                     rounded="full"
                                     bg="brand.solid"
                                     color="brand.contrast"
@@ -239,6 +284,19 @@ export default function MobileTabBar() {
                                         {tab.icon}
                                     </RouterLink>
                                 </Box>
+                                {/* Named like every other destination. The
+                                    disc was the only unlabelled thing in the
+                                    bar — a green circle you had to press to
+                                    find out what it did. */}
+                                <Text
+                                    fontSize="11px"
+                                    lineHeight="1"
+                                    fontWeight="bold"
+                                    color={active ? "brand.fg" : "fg.muted"}
+                                    aria-hidden="true"
+                                >
+                                    {tab.label}
+                                </Text>
                             </Box>
                         )
                     }

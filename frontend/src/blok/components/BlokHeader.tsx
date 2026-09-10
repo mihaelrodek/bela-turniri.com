@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from "react"
+import { Fragment, type ReactNode } from "react"
 import { Box, Card, Flex, HStack, Text } from "@chakra-ui/react"
 import { FiChevronDown, FiChevronUp, FiEdit2 } from "react-icons/fi"
 
@@ -135,6 +135,12 @@ function SideTotal({
             ) : null}
 
             <Text
+                /* NEVER changes with the games panel (2026-09-09, user
+                   request). Making the score smaller while the panel was open
+                   did buy the room, but the number people are reading moved
+                   and resized under them every time they tapped a chevron —
+                   which is a worse fault than a tight screen. The verdict card
+                   below gives the height back instead (`BlokSummary compact`). */
                 fontSize={{ base: "5xl", sm: "6xl", md: "7xl" }}
                 fontWeight="bold"
                 lineHeight="1"
@@ -246,6 +252,8 @@ export default function BlokHeader({
     menu,
     share,
     games,
+    openGames,
+    onGamesOpenChange,
     strip,
 }: {
     names: Record<BlokSide, string>
@@ -289,6 +297,10 @@ export default function BlokHeader({
      * game, and storing it would be storing a preference nobody set.
      */
     games?: ReactNode
+    /** Is the games panel open? Held by the page — see the note by
+     *  `gamesOpen` below. */
+    openGames: boolean
+    onGamesOpenChange: (open: boolean) => void
     /**
      * The tournament-link status strip (`BlokLinkStrip`), under the totals.
      *
@@ -304,7 +316,11 @@ export default function BlokHeader({
     const { t } = useTranslation()
     const tp = usePlural()
     const nameFontSize = sideNameFontSize(Math.max(names.us.length, names.them.length))
-    const [gamesOpen, setGamesOpen] = useState(false)
+    /* Held by the PAGE since 2026-09-09: opening this panel makes the score
+       card taller, and the verdict card below has to know so it can give the
+       room back (`BlokSummary compact`). A local `useState` could not tell it. */
+    const gamesOpen = openGames
+    const setGamesOpen = onGamesOpenChange
 
     /* One quiet line for everything the table agreed on before dealing: what
        is being played to, how a game ends, and how long the series is (when it
@@ -316,7 +332,10 @@ export default function BlokHeader({
        one sentence about a single GAME ("do 1001, i to na prolaz"), so they
        stay adjacent; the series length is about the evening and comes last. */
     const agreement = [
-        `${t("blok.target.label")} ${target}`,
+        // Just the number (2026-09-09, user request). "DO 1001 · PROLAZ" said
+        // the same thing twice: the line IS the agreement, and nobody reads a
+        // score card wondering what 1001 might be counting.
+        String(target),
         // Dedicated inline labels keep the compact agreement explicit in
         // each locale and consistently capitalised.
         t(gameEndRule === "prolaz" ? "blok.rule.prolazInline" : "blok.rule.dostaInline"),
@@ -433,7 +452,7 @@ export default function BlokHeader({
                     <Box display="flex" justifyContent="center" mt="0">
                         <Box
                             as="button"
-                            onClick={() => setGamesOpen((v) => !v)}
+                            onClick={() => setGamesOpen(!gamesOpen)}
                             aria-expanded={gamesOpen}
                             aria-label={t(gamesOpen ? "blok.games.hide" : "blok.games.show")}
                             title={t(gamesOpen ? "blok.games.hide" : "blok.games.show")}

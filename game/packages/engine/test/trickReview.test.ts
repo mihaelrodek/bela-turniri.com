@@ -191,3 +191,120 @@ describe("trick review is a visibility rule, not a rule of play", () => {
         expect(next.config.trickReview).toBe("leaderPair")
     })
 })
+
+/* ──────────────────────────────────────────────────────────────────────────
+   `recallTricks` — the BOT's memory, not a review (README §1.8).
+
+   `trickReview` decides what a PERSON may look up on screen. A bot is
+   stateless between moves, so it is handed the seat-attributed history
+   unconditionally; those cards fell face up in front of all four players, so
+   this is recall, not hidden information. The tests below pin both halves:
+   the human path is untouched, and the option widens NOTHING else.
+   ────────────────────────────────────────────────────────────────────── */
+
+/** A deal (HERC trump) whose declarations land on BOTH teams, so "the losing
+ *  pair's are still missing" is a claim with teeth. */
+function dealtWithDeclarationsOnBothTeams(): GameState {
+    for (let i = 0; i < 400; i++) {
+        const state = dealt(`recall-decl-${i}`)
+        const scoring = state.declarationsScoringTeam
+        if (scoring === null) continue
+        const losing = SEATS.filter((s) => teamOf(s) !== scoring)
+        const winning = SEATS.filter((s) => teamOf(s) === scoring)
+        const lost = losing.reduce<number>((n, s) => n + state.declarations[s].length, 0)
+        const won = winning.reduce<number>((n, s) => n + state.declarations[s].length, 0)
+        if (lost > 0 && won > 0) return state
+    }
+    throw new Error("no seed produced declarations on both teams")
+}
+
+describe("viewFor — recallTricks (bot memory)", () => {
+    it("leaves the human path alone: no option still means null under 'off'", () => {
+        const state = playTricks(dealt("recall-human"), 3)
+        for (const seat of SEATS) expect(viewFor(state, seat).trickHistory, `seat ${seat}`).toBeNull()
+        expect(viewFor(state, null).trickHistory).toBeNull()
+        // An explicitly false option is the same thing — the default is not
+        // "whatever the caller happened to pass".
+        expect(viewFor(state, 0, { recallTricks: false }).trickHistory).toBeNull()
+        expect(viewFor(state, 0, {}).trickHistory).toBeNull()
+    })
+
+    it("hands a bot every completed trick, attributed and in play order, under 'off'", () => {
+        const state = playTricks(dealt("recall-full"), 4)
+        const history = viewFor(state, 0, { recallTricks: true }).trickHistory as WonTrick[]
+        expect(history).toHaveLength(4)
+        expect(history.map((t) => t.no)).toEqual([1, 2, 3, 4])
+        for (const trick of history) {
+            expect(trick.plays).toHaveLength(4)
+            expect(trick.plays.map((p) => p.card)).toEqual(trick.cards)
+            expect(trick.plays[0]?.seat).toBe(trick.leader)
+            expect(new Set(trick.plays.map((p) => p.seat)).size).toBe(4)
+        }
+        // Same list for every seat and for a spectator's view: it is public play.
+        for (const seat of SEATS) {
+            expect(viewFor(state, seat, { recallTricks: true }).trickHistory).toEqual(history)
+        }
+        expect(viewFor(state, null, { recallTricks: true }).trickHistory).toEqual(history)
+    })
+
+    it("hands out copies, so a bot cannot edit the game's own tricks", () => {
+        const state = playTricks(dealt("recall-copies"), 2)
+        const history = viewFor(state, 0, { recallTricks: true }).trickHistory as WonTrick[]
+        history[0]!.plays[0]!.card = "AHERC"
+        history[0]!.cards.push("AHERC")
+        const stored = [...state.tricksWon.A, ...state.tricksWon.B].find((t) => t.no === 1) as WonTrick
+        expect(stored.cards).toHaveLength(4)
+        expect(stored.plays[0]?.card).not.toBe(history[0]?.plays[0]?.card)
+        // ...and the state itself is untouched by the call.
+        const snapshot = structuredClone(state)
+        viewFor(state, 0, { recallTricks: true })
+        expect(state).toEqual(snapshot)
+    })
+
+    it("widens nothing else: still only this seat's hand", () => {
+        const state = playTricks(dealt("recall-hand"), 2)
+        for (const seat of SEATS) {
+            const view = viewFor(state, seat, { recallTricks: true })
+            expect(view.hand).toEqual(state.hands[seat])
+            expect(Object.keys(view)).not.toContain("hands")
+            expect(Object.keys(view)).not.toContain("stock")
+            expect(Object.keys(view)).not.toContain("rng")
+        }
+        expect(viewFor(state, null, { recallTricks: true }).hand).toEqual([])
+    })
+
+    it("widens nothing else: the losing pair's declarations stay gone", () => {
+        const state = dealtWithDeclarationsOnBothTeams()
+        const scoring = state.declarationsScoringTeam
+        for (const seat of SEATS) {
+            const view = viewFor(state, seat, { recallTricks: true })
+            for (const other of SEATS) {
+                if (teamOf(other) === scoring || other === seat) {
+                    expect(view.declarations[other], `seat ${seat} → ${other}`)
+                        .toEqual(state.declarations[other])
+                } else {
+                    expect(view.declarations[other], `seat ${seat} → ${other}`).toBeUndefined()
+                }
+            }
+        }
+        // The same view is what a bot decides from, so check the wire form too:
+        // not one card of an opponent's lost declaration may appear in it.
+        const winner = SEATS.find((s) => teamOf(s) === scoring) as Seat
+        const view = viewFor(state, winner, { recallTricks: true })
+        const wire = JSON.stringify(view)
+        const own = new Set<string>(view.hand)
+        for (const loser of SEATS.filter((s) => teamOf(s) !== scoring)) {
+            for (const declaration of state.declarations[loser]) {
+                for (const card of declaration.cards) {
+                    if (own.has(card)) continue
+                    expect(wire.includes(card), `${card} leaked from seat ${loser}`).toBe(false)
+                }
+            }
+        }
+    })
+
+    it("changes nothing at all when the room already allows the review", () => {
+        const state = playTricks(dealt("recall-all", "all"), 3)
+        expect(viewFor(state, 0, { recallTricks: true })).toEqual(viewFor(state, 0))
+    })
+})

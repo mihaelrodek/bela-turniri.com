@@ -16,6 +16,8 @@ import type { Duplex } from "node:stream"
 import { WebSocketServer } from "ws"
 import { LIMITS } from "@bela/protocol"
 import { createAuthenticator } from "./auth.js"
+import { createProfileLookup } from "./profiles.js"
+import type { ProfileLookup } from "./profiles.js"
 import type { Authenticator } from "./auth.js"
 import { loadConfig, resolveTimings } from "./config.js"
 import type { Config, EnvLike, RateLimits, Timings } from "./config.js"
@@ -40,6 +42,8 @@ export interface ServerOptions {
     rateLimits?: Partial<RateLimits>
     /** Injectable for tests; defaults to the Firebase JWKS verifier. */
     authenticator?: Authenticator
+    /** Injectable for tests; defaults to the backend-backed profile channel. */
+    profiles?: ProfileLookup
 }
 
 export interface GameServer {
@@ -87,8 +91,12 @@ export async function createServer(options: ServerOptions = {}): Promise<GameSer
     const timings = resolveTimings(options.timings)
     const rates = resolveRates(options.rateLimits)
     const lobby = new Lobby(timings)
-    const auth = options.authenticator ?? createAuthenticator(cfg)
-    const hub = new Hub({ cfg, timings, rates, auth, lobby })
+    // One lookup for both directions: the authenticator reads profiles through
+    // it on every hello, and the hub writes the in-game name through it — so a
+    // write invalidates the very cache the next read consults.
+    const profiles = options.profiles ?? createProfileLookup(cfg)
+    const auth = options.authenticator ?? createAuthenticator(cfg, profiles)
+    const hub = new Hub({ cfg, timings, rates, auth, lobby, profiles })
 
     const httpServer = createHttpServer((req: IncomingMessage, res: ServerResponse) => {
         const path = pathnameOf(req.url)

@@ -3,13 +3,14 @@ import {
     Box, Flex, HStack, IconButton, Image, Button, Container, Menu, Switch, Text, chakra, useBreakpointValue,
 } from "@chakra-ui/react"
 import { Link as RouterLink, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
+import { CardsIcon } from "./MobileTabBar"
 import {
-    FiCalendar, FiEdit3, FiHome, FiLogOut, FiMap, FiMenu, FiMoon, FiPlay, FiSun, FiUser,
+    FiCalendar, FiEdit3, FiHome, FiLogOut, FiMap, FiMenu, FiMoon, FiSun, FiUser,
 } from "react-icons/fi"
 import { useAuth } from "../auth/authContextValue"
 import { useColorMode } from "../color-mode-hooks"
 import { updateColorMode } from "../api/userMe"
-import { useInstallPrompt } from "../hooks/useInstallPrompt"
+import { useInstallPrompt, type InstallPromptState } from "../hooks/useInstallPrompt"
 import { useInvalidateMyProfile, useMyProfile } from "../hooks/useMyProfile"
 import { useTranslation } from "../i18n"
 import { InstallAppButton } from "./InstallAppButton"
@@ -139,7 +140,9 @@ function buildNavItems(t: (key: string) => string): NavItem[] {
         // Online bela (src/game), dead centre — the same slot it holds in the
         // mobile tab bar, where the middle is the thumb's home position. Its
         // label lives in the `game` namespace, not in `common`.
-        { to: "/igra", label: t("game.nav.igraj"), icon: <FiPlay size={16} />, accent: true },
+        // The same card mark the mobile bar's centre disc carries — the two
+        // bars are one navigation seen at two widths (MobileTabBar's header).
+        { to: "/igra", label: t("game.nav.igraj"), icon: <CardsIcon size={16} />, accent: true },
         { to: "/karta", label: t("common.nav.karta"), icon: <FiMap size={16} /> },
         // Bela blok (src/blok) — public offline scorepad, no feature flag, no
         // auth. Its label lives in the `blok` namespace with the rest of that
@@ -249,8 +252,8 @@ function ThemeSwitch() {
  * bordered row must disappear too — otherwise browsers that can't install
  * would show an empty divider strip at the bottom of the menu.
  */
-function InstallMenuRow() {
-    const { canInstall, isIos } = useInstallPrompt()
+function InstallMenuRow({ promptState }: { promptState: InstallPromptState }) {
+    const { canInstall, isIos } = promptState
     if (!canInstall && !isIos) return null
     return (
         <Box
@@ -260,7 +263,7 @@ function InstallMenuRow() {
             borderColor="border.subtle"
             onClick={(e) => e.stopPropagation()}
         >
-            <InstallAppButton size="sm" variant="labeled" />
+            <InstallAppButton size="sm" variant="labeled" promptState={promptState} />
         </Box>
     )
 }
@@ -274,7 +277,7 @@ function InstallMenuRow() {
  * you'd have to reopen it to see the result. stopPropagation on the row keeps
  * the menu open for the same reason.
  */
-function PreferencesSection() {
+function PreferencesSection({ installPrompt }: { installPrompt: InstallPromptState }) {
     const { t } = useTranslation()
     return (
         <>
@@ -303,7 +306,7 @@ function PreferencesSection() {
                     <LanguagePicker />
                 </Box>
             </Box>
-            <InstallMenuRow />
+            <InstallMenuRow promptState={installPrompt} />
         </>
     )
 }
@@ -369,6 +372,10 @@ function UserAvatar({
  */
 function GuestMenu({ tourAnchor }: { tourAnchor?: string }) {
     const { t } = useTranslation()
+    /* The guest menu body is mounted lazily by Chakra. Listen for the
+       one-shot install event here, while the hamburger trigger is always on
+       screen, then pass the captured prompt into the menu row. */
+    const installPrompt = useInstallPrompt()
     return (
         <Menu.Root>
             <Menu.Trigger asChild>
@@ -385,7 +392,7 @@ function GuestMenu({ tourAnchor }: { tourAnchor?: string }) {
             </Menu.Trigger>
             <Menu.Positioner>
                 <Menu.Content minW="220px">
-                    <PreferencesSection />
+                    <PreferencesSection installPrompt={installPrompt} />
                 </Menu.Content>
             </Menu.Positioner>
         </Menu.Root>
@@ -402,6 +409,7 @@ function UserMenu({ tourAnchor, compact }: { tourAnchor?: string; compact?: bool
     const { data: profile } = useMyProfile()
     const navigate = useNavigate()
     const { t } = useTranslation()
+    const installPrompt = useInstallPrompt()
 
     async function onSignOut() {
         try {
@@ -461,7 +469,7 @@ function UserMenu({ tourAnchor, compact }: { tourAnchor?: string; compact?: bool
                     <Menu.Item value="profile" onSelect={() => navigate("/profil")}>
                         <FiUser /> {t("common.nav.profil")}
                     </Menu.Item>
-                    <PreferencesSection />
+                    <PreferencesSection installPrompt={installPrompt} />
                     <Menu.Item
                         value="logout"
                         onSelect={onSignOut}

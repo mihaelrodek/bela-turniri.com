@@ -84,6 +84,9 @@ export const profile: ProfileDict = {
     "edit.nameRequired": "Ime ne sme biti prazno.",
     "edit.phoneLabel": "Telefonska številka",
     "edit.phoneOptional": "(neobvezno)",
+    "edit.gameNameLabel": "Ime za igro",
+    "edit.gameNameEmpty": "Ni nastavljeno",
+    "edit.gameNameHint": "Ime, ki ga drugi igralci vidijo za mizo. Spremeniš ga v nastavitvah igre.",
     "edit.phonePlaceholder": "31 234 567",
     "edit.saveFailed": "Napaka pri shranjevanju.",
 

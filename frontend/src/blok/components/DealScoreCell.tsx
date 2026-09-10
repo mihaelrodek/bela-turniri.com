@@ -71,11 +71,19 @@ export default function DealScoreCell({
     const gutter = compact ? "2.25rem" : "2.75rem"
 
     return (
-        <Box colorPalette={sidePalette(side)} minW="0" textAlign="center">
+        <Box
+            colorPalette={sidePalette(side)}
+            minW="0"
+            w="full"
+            textAlign="center"
+            justifySelf="stretch"
+        >
             <Grid
                 templateColumns={`${gutter} auto ${gutter}`}
                 alignItems="center"
                 justifyContent="center"
+                justifySelf="center"
+                mx="auto"
                 columnGap="1.5"
                 minH={compact ? "5" : "6"}
             >
@@ -104,6 +112,7 @@ export default function DealScoreCell({
                 fontSize="2xs"
                 color="fg.muted"
                 lineHeight="1.15"
+                textAlign="center"
                 css={{ fontVariantNumeric: "tabular-nums" }}
             >
                 Σ {runningTotal}

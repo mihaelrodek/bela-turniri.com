@@ -21,17 +21,41 @@
        every hello would be the most common request of all.
    ────────────────────────────────────────────────────────────────────── */
 
+import { LIMITS } from "@bela/protocol"
 import type { Config } from "./config.js"
 import { log } from "./log.js"
 
 export interface AppProfile {
     displayName: string | null
     avatarUrl: string | null
+    /**
+     * "Ime za igru" — the name this player chose for the card table, or null
+     * when they never set one. It WINS over `displayName` (see
+     * `withAppProfile` in auth.ts): a player who typed a name for the table
+     * meant it for the table.
+     */
+    gameName: string | null
 }
+
+/** Why a `setGameName` did not go through. */
+export type SetGameNameError = "RATE_LIMITED" | "BAD_REQUEST" | "UNAVAILABLE"
+
+export type SetGameNameResult =
+    | { ok: true; name: string; nextChangeAt: number }
+    | { ok: false; error: SetGameNameError; nextChangeAt?: number }
 
 export interface ProfileLookup {
     /** The app's own profile for `uid`, or null when unknown/unavailable. Never rejects. */
     get(uid: string): Promise<AppProfile | null>
+    /**
+     * Write the in-game name for `uid`, through the same internal channel.
+     *
+     * Unlike `get` this is a USER ACTION, so it does not swallow failures into
+     * null — the player tapped "Spremi" and is owed an answer. It still never
+     * rejects: every outcome, including the backend being down, comes back as
+     * a result the caller can turn into a message.
+     */
+    setGameName(uid: string, name: string): Promise<SetGameNameResult>
 }
 
 const HIT_TTL_MS = 5 * 60_000
@@ -43,22 +67,37 @@ interface CacheEntry {
     expiresAt: number
 }
 
-/** Only real Firebase uids have a profile — dev and guest users never do. */
+/**
+ * Which uids are worth asking the backend about.
+ *
+ * It used to be "real Firebase uids only" — dev and guest users have no
+ * profile. GUESTS ARE NOW ASKED TOO (2026-09-09): they cannot have a profile,
+ * but they can have an in-game name, which is stored against this very uid
+ * precisely so the once-a-week limit has something stable to hold on to. A
+ * guest with no name costs one request per `MISS_TTL_MS`, which the cache
+ * already absorbs.
+ *
+ * `dev:` uids stay out: they exist only in local development and there is
+ * nothing behind them.
+ */
 function isLookupCandidate(uid: string): boolean {
-    return !uid.startsWith("dev:") && !uid.startsWith("guest:")
+    return !uid.startsWith("dev:")
 }
 
 function parseProfile(body: unknown): AppProfile | null {
     if (typeof body !== "object" || body === null) return null
-    const raw = body as { displayName?: unknown; avatarUrl?: unknown }
+    const raw = body as { displayName?: unknown; avatarUrl?: unknown; gameName?: unknown }
     const displayName = typeof raw.displayName === "string" && raw.displayName.trim().length > 0
         ? raw.displayName.trim().slice(0, 60)
         : null
     const avatarUrl = typeof raw.avatarUrl === "string" && raw.avatarUrl.trim().length > 0
         ? raw.avatarUrl.trim()
         : null
-    if (displayName === null && avatarUrl === null) return null
-    return { displayName, avatarUrl }
+    const gameName = typeof raw.gameName === "string" && raw.gameName.trim().length > 0
+        ? raw.gameName.trim().slice(0, LIMITS.playerNameMax)
+        : null
+    if (displayName === null && avatarUrl === null && gameName === null) return null
+    return { displayName, avatarUrl, gameName }
 }
 
 export function createProfileLookup(cfg: Config): ProfileLookup {
@@ -119,5 +158,59 @@ export function createProfileLookup(cfg: Config): ProfileLookup {
             inflight.set(uid, request)
             return request
         },
+
+        async setGameName(uid, name) {
+            if (!isLookupCandidate(uid) || !cfg.gameResultsToken) {
+                return { ok: false, error: "UNAVAILABLE" }
+            }
+            const url = `${cfg.backendInternalUrl.replace(/\/+$/, "")}`
+                + `/internal/profiles/${encodeURIComponent(uid)}/game-name`
+            try {
+                const res = await fetch(url, {
+                    method: "PUT",
+                    headers: {
+                        "X-Internal-Token": cfg.gameResultsToken,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ name }),
+                    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+                })
+                const body: unknown = await res.json().catch(() => null)
+
+                if (res.ok) {
+                    const raw = body as { gameName?: unknown; nextChangeAt?: unknown }
+                    const saved = typeof raw?.gameName === "string" ? raw.gameName : name
+                    // The cached profile now names the wrong player: drop it
+                    // rather than patch it, so the next read is the truth.
+                    cache.delete(uid)
+                    return { ok: true, name: saved, nextChangeAt: parseInstant(raw?.nextChangeAt) }
+                }
+
+                const err = body as { code?: unknown; details?: { nextChangeAt?: unknown } }
+                if (res.status === 409 && err?.code === "GAME_NAME_RATE_LIMITED") {
+                    // `details.nextChangeAt` is [iso, epochMillis] — the second
+                    // entry exists so nobody has to parse a date here.
+                    const detail = err.details?.nextChangeAt
+                    const millis = Array.isArray(detail) ? detail[1] : undefined
+                    return { ok: false, error: "RATE_LIMITED", nextChangeAt: parseInstant(millis) }
+                }
+                if (res.status === 400) return { ok: false, error: "BAD_REQUEST" }
+                log.warn("profile.setName.failed", { uid, status: res.status })
+                return { ok: false, error: "UNAVAILABLE" }
+            } catch (e) {
+                log.warn("profile.setName.threw", { uid, err: e })
+                return { ok: false, error: "UNAVAILABLE" }
+            }
+        },
     }
+}
+
+/** An epoch-ms number, or a string holding one, or 0 when it is neither. */
+function parseInstant(value: unknown): number {
+    if (typeof value === "number" && Number.isFinite(value)) return value
+    if (typeof value === "string") {
+        const n = Number(value)
+        if (Number.isFinite(n)) return n
+    }
+    return 0
 }

@@ -52,6 +52,22 @@ public record BlokGameDto(
          * failing the upload.
          */
         String gameEndRule,
+        /**
+         * The seat that dealt this game's FIRST deal, as the blok names them:
+         * {@code "self"} | {@code "partner"} | {@code "leftOpponent"} |
+         * {@code "rightOpponent"}, or null when nobody named a dealer.
+         *
+         * <p>The one thing about a game its deals cannot reproduce. Every
+         * later dealer is derived from this seat and the table's direction, so
+         * the single value records the whole rotation — and it is what the
+         * NEXT game's rotation carries on from (BLOK.md §3.3.4).
+         *
+         * <p>The server does not act on it: like {@code gameEndRule} it is a
+         * label on a record, stored in the jsonb payload and handed back
+         * unchanged. Absent on older records, which is why it is nullable and
+         * needs no migration.
+         */
+        String dealer,
         /** {@code "us"} | {@code "them"} | null (unfinished). */
         String winner,
         BlokScoresDto totals,

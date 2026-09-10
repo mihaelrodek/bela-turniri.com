@@ -1,5 +1,5 @@
 import { useId, useState } from "react"
-import { Box, Grid, HStack, Text, VStack } from "@chakra-ui/react"
+import { Box, Grid, Text, VStack } from "@chakra-ui/react"
 import { FiChevronDown, FiChevronRight } from "react-icons/fi"
 import { scoreManualDeal } from "@bela/engine"
 import DealScoreCell from "../blok/components/DealScoreCell"
@@ -186,13 +186,27 @@ export function BlokGamesList({
                                 It used to read "1 : 0 … 1149 : 543" — two
                                 score pairs in different units sharing a line,
                                 with nothing to say which was which. */}
-                            <HStack gap="2" minW="0" align="center">
-                                <Box color="fg.subtle" flexShrink="0" display="flex" aria-hidden="true">
+                            <Box position="relative">
+                                {/* ABSOLUTE, so it takes no width (2026-09-09,
+                                    reported): in the flow it pushed both
+                                    totals to the right and they no longer sat
+                                    over the team names and the deal columns
+                                    below them. The grid now uses exactly the
+                                    tracks those rows use. */}
+                                <Box
+                                    position="absolute"
+                                    left="0"
+                                    top="50%"
+                                    transform="translateY(-50%)"
+                                    color="fg.subtle"
+                                    display="flex"
+                                    aria-hidden="true"
+                                >
                                     {open ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
                                 </Box>
-                                <Grid templateColumns="1fr 1fr" gap="2" flex="1" minW="0">
-                                    {(["us", "them"] as const).map((side) => (
-                                        <Box key={side} textAlign="center" minW="0">
+                                <Grid templateColumns="1fr 2.5rem 1fr" gap="2" minW="0">
+                                    {(["us", "them"] as const).map((side, i) => (
+                                        <Box key={side} gridColumn={i === 0 ? 1 : 3} textAlign="center" minW="0">
                                             <Text
                                                 fontSize="lg"
                                                 fontWeight="bold"
@@ -214,7 +228,7 @@ export function BlokGamesList({
                                         </Box>
                                     ))}
                                 </Grid>
-                            </HStack>
+                            </Box>
                         </Box>
                         <VStack
                             id={panelId}

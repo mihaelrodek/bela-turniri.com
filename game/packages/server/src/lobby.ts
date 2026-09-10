@@ -7,7 +7,7 @@
    ────────────────────────────────────────────────────────────────────── */
 
 import { LIMITS } from "@bela/protocol"
-import type { ActiveSeatInfo, RoomSummary, TargetScore, TrickReview } from "@bela/protocol"
+import type { ActiveSeatInfo, GameEndRule, RoomSummary, TargetScore, TrickReview } from "@bela/protocol"
 import type { Timings } from "./config.js"
 import { ProtocolError } from "./errors.js"
 import { newRoomCode, newRoomId } from "./ids.js"
@@ -18,6 +18,7 @@ import type { RoomHost } from "./room.js"
 import type { Connection } from "./ws.js"
 
 export interface CreateRoomInput {
+    gameEndRule?: GameEndRule
     allowSpectators?: boolean
     noDeclarations?: boolean
     allowBela?: boolean
@@ -148,6 +149,7 @@ export class Lobby implements RoomHost {
             name,
             host: user,
             targetScore: input.targetScore,
+            gameEndRule: input.gameEndRule,
             private: input.private,
             allowSpectators: input.allowSpectators,
             noDeclarations: input.noDeclarations,

@@ -9,7 +9,6 @@ import {
     Menu,
     Portal,
     Separator,
-    Switch,
     Text,
     VStack,
 } from "@chakra-ui/react"
@@ -19,14 +18,17 @@ import {
     FiPlusCircle,
     FiSettings,
     FiTrash2,
+    FiX,
 } from "react-icons/fi"
 
 import { usePlural, useTranslation } from "../../i18n"
 import {
     BLOK_SIDES,
+    MAX_SIDE_NAME,
     SERIES_TARGETS,
     TARGETS,
     type BlokDealDirection,
+    type BlokNewGameDealer,
     type BlokGameEndRule,
     type BlokSide,
 } from "../types"
@@ -221,7 +223,10 @@ export function RenameDialog({
             <Portal>
                 <Dialog.Backdrop />
                 <Dialog.Positioner>
-                    <Dialog.Content maxW={{ base: "92%", md: "sm" }}>
+                    {/* Wider than "sm" (2026-09-09, user request): six rows of
+                        label-plus-control need room, and "NOVU PARTIJU MIJEŠA"
+                        beside two words was wrapping to two lines. */}
+                    <Dialog.Content maxW={{ base: "95%", md: "md" }}>
                         <Dialog.Header>
                             <Dialog.Title>{t("blok.side.renameTitle")}</Dialog.Title>
                         </Dialog.Header>
@@ -243,7 +248,7 @@ export function RenameDialog({
                                             // `name_us` / `name_them`
                                             // (BLOK-HISTORY.md §3.1), which is
                                             // the real ceiling.
-                                            maxLength={40}
+                                            maxLength={MAX_SIDE_NAME}
                                             autoFocus={side === focusSide}
                                             onChange={(e) =>
                                                 setDraft((d) => ({ ...d, [side]: e.target.value }))
@@ -275,43 +280,33 @@ export function RenameDialog({
 
 
 /**
- * A setting with exactly TWO named readings, as one switch row.
+ * A two-way setting, on ONE ROW: heading left, the two faces right.
  *
- * "Igra se na prolaz / dosta" and "smjer kartanja desno / lijevo" were two
- * full-width buttons each, which is four buttons and two more sections in a
- * dialog a phone already scrolls. A switch is the right control for a pair
- * where one side is the default — but a bare switch would leave the user
- * guessing which of the two words "on" stands for, so the ACTIVE word is
- * printed next to it and changes as it is flipped. Same one-row shape and the
- * same heading styling as the plain switches around it, so the dialog still
- * reads as one list of settings.
+ * It used to be a heading with a full-width segment under it — three rows of
+ * dialog for one word of meaning, three times over. The switches beside it
+ * ("Sljedeći dijeli", "Omogući dijeljenje") had always been one row each, so
+ * the dialog read as two different kinds of setting when it holds only one:
+ * table agreements, each a label and a control. Now all six line up
+ * (2026-09-09, user request).
+ *
+ * The label is allowed to WRAP rather than truncate — "NOVU PARTIJU MIJEŠA"
+ * beside "Sljedeći / Pobjednik" is the tightest row in here, and a clipped
+ * heading is worse than a two-line one. The segment never shrinks.
  */
-function ChoiceSwitchRow({
+function SegmentedChoice<T extends string>({
     label,
     value,
-    checked,
-    onCheckedChange,
+    options,
+    onValueChange,
 }: {
     label: string
-    /** The reading that is active RIGHT NOW, spelled out. */
-    value: string
-    checked: boolean
-    onCheckedChange: (checked: boolean) => void
+    value: T
+    options: readonly { value: T; label: string }[]
+    onValueChange: (value: T) => void
 }) {
     return (
-        <Switch.Root
-            checked={checked}
-            onCheckedChange={(e) => onCheckedChange(e.checked)}
-            colorPalette="brand"
-            display="flex"
-            alignItems="center"
-            justifyContent="space-between"
-            gap="4"
-            w="full"
-            minH="44px"
-        >
-            <Switch.HiddenInput />
-            <Switch.Label
+        <HStack gap="3" w="full" minH="44px" align="center" justify="space-between">
+            <Text
                 flex="1"
                 minW="0"
                 fontSize="2xs"
@@ -321,19 +316,40 @@ function ChoiceSwitchRow({
                 color="fg.subtle"
             >
                 {label}
-            </Switch.Label>
-            {/* Part of the label for a screen reader — it is read with the
-                heading, not as a stray word between the two. */}
-            <Switch.Label fontSize="sm" fontWeight="semibold" color="fg" flexShrink={0}>
-                {value}
-            </Switch.Label>
-            <Switch.Control flexShrink={0}>
-                <Switch.Thumb />
-            </Switch.Control>
-        </Switch.Root>
+            </Text>
+            <HStack
+                role="group"
+                aria-label={label}
+                gap="1"
+                p="1"
+                flexShrink={0}
+                rounded="xl"
+                bg="bg.subtle"
+                borderWidth="1px"
+                borderColor="border.subtle"
+            >
+                {options.map((option) => {
+                    const selected = option.value === value
+                    return (
+                        <Button
+                            key={option.value}
+                            type="button"
+                            size="sm"
+                            px="3"
+                            rounded="lg"
+                            colorPalette="brand"
+                            variant={selected ? "solid" : "ghost"}
+                            aria-pressed={selected}
+                            onClick={() => onValueChange(option.value)}
+                        >
+                            {option.label}
+                        </Button>
+                    )
+                })}
+            </HStack>
+        </HStack>
     )
 }
-
 
 /* ─────────────────────────── target ─────────────────────────── */
 
@@ -401,6 +417,18 @@ function ChoiceSwitchRow({
  * under the same token (BLOK-LINK.md §6.2), so turning sharing off can hide the
  * button but must never pull that record out from under the bracket.
  */
+/** What one tap in "Postavke" changes. Every field optional: a control sends
+ *  only its own, and everything else is left where it was. */
+export interface BlokSettingsPatch {
+    target?: number
+    seriesTarget?: number | null
+    gameEndRule?: BlokGameEndRule
+    showDealer?: boolean
+    dealDirection?: BlokDealDirection
+    newGameDealer?: BlokNewGameDealer
+    shareEnabled?: boolean
+}
+
 export function TargetDialog({
     open,
     target,
@@ -408,10 +436,11 @@ export function TargetDialog({
     gameEndRule,
     showDealer,
     dealDirection,
+    newGameDealer,
     shareEnabled,
     linked,
-    onSave,
-    onCancel,
+    onChange,
+    onClose,
 }: {
     open: boolean
     target: number
@@ -423,66 +452,48 @@ export function TargetDialog({
     showDealer: boolean
     /** Which way the deal goes round the table — "right" (default) or "left". */
     dealDirection: BlokDealDirection
+    /** Who deals the first deal of the NEXT game — BLOK.md §3.3.4. */
+    newGameDealer: BlokNewGameDealer
     /** Is the share control offered at all? True by default — BLOK.md §3.3.3. */
     shareEnabled: boolean
     /** True while this series is linked to a tournament table. Only adds the
      *  sentence saying that record stays public whatever this switch says. */
     linked: boolean
-    /** One object, not seven positional arguments: this dialog saves a whole
-     *  agreement at once, and a call site of seven bare values is where the
-     *  wrong two get swapped. */
-    onSave: (next: {
-        target: number
-        seriesTarget: number | null
-        gameEndRule: BlokGameEndRule
-        showDealer: boolean
-        dealDirection: BlokDealDirection
-        shareEnabled: boolean
-    }) => void
-    onCancel: () => void
+    /** Applied the moment a control is touched — see the header note. */
+    onChange: (patch: BlokSettingsPatch) => void
+    onClose: () => void
 }) {
     const { t } = useTranslation()
     const tp = usePlural()
-    /** The points target as a NUMBER, seeded from the game. With the free field
-     *  gone there is no text to parse, and — the point of it being seeded
-     *  rather than defaulted — a stored 900 stays 900 unless a chip is tapped. */
-    const [value, setValue] = useState<number>(target)
-    /** null = open-ended. A number, not a string: with the free field gone the
-     *  only values that exist are the four chips. */
-    const [series, setSeries] = useState<number | null>(seriesTarget)
-    const [rule, setRule] = useState<BlokGameEndRule>(gameEndRule)
-    /** Does the "Sljedeći dijeli" strip show — on by default. */
-    const [tracker, setTracker] = useState<boolean>(showDealer)
-    const [direction, setDirection] = useState<BlokDealDirection>(dealDirection)
-    /** Is the share control offered — on by default. */
-    const [sharing, setSharing] = useState<boolean>(shareEnabled)
-
-    useEffect(() => {
-        if (open) {
-            setValue(target)
-            setSeries(seriesTarget)
-            setRule(gameEndRule)
-            setTracker(showDealer)
-            setDirection(dealDirection)
-            setSharing(shareEnabled)
-        }
-    }, [open, target, seriesTarget, gameEndRule, showDealer, dealDirection, shareEnabled])
 
     return (
         <Dialog.Root
             open={open}
-            onOpenChange={(e) => { if (!e.open) onCancel() }}
+            onOpenChange={(e) => { if (!e.open) onClose() }}
             placement="center"
-            // Three sections of chips no longer fit a small phone in landscape
-            // — scroll the body rather than the page behind the dialog.
             scrollBehavior="inside"
         >
             <Portal>
                 <Dialog.Backdrop />
                 <Dialog.Positioner>
-                    <Dialog.Content maxW={{ base: "92%", md: "sm" }}>
+                    {/* Wider than "sm" (2026-09-09, user request): six rows of
+                        label-plus-control need room, and "NOVU PARTIJU MIJEŠA"
+                        beside two words was wrapping to two lines. */}
+                    <Dialog.Content maxW={{ base: "95%", md: "md" }}>
                         <Dialog.Header>
                             <Dialog.Title>{t("blok.target.title")}</Dialog.Title>
+                            {/* The only way out, and there is nothing to
+                                confirm on the way (see the header note). */}
+                            <Dialog.CloseTrigger asChild>
+                                <IconButton
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label={t("common.close")}
+                                    onClick={onClose}
+                                >
+                                    <FiX />
+                                </IconButton>
+                            </Dialog.CloseTrigger>
                         </Dialog.Header>
                         <Dialog.Body>
                             <Text
@@ -501,22 +512,19 @@ export function TargetDialog({
                                         key={preset}
                                         flex="1"
                                         size="lg"
-                                        variant={value === preset ? "solid" : "outline"}
+                                        variant={target === preset ? "solid" : "outline"}
                                         colorPalette="brand"
                                         // Nothing is pressed when the game is
-                                        // playing to a number that is not one of
-                                        // the three. That is deliberate: see the
-                                        // header note — a stored 900 must not be
-                                        // shown, or saved, as 1001.
-                                        aria-pressed={value === preset}
-                                        onClick={() => setValue(preset)}
+                                        // playing to a number that is not one
+                                        // of the three — a stored 900 must not
+                                        // be shown, or saved, as 1001.
+                                        aria-pressed={target === preset}
+                                        onClick={() => onChange({ target: preset })}
                                     >
                                         {preset}
                                     </Button>
                                 ))}
                             </HStack>
-
-                            <Separator my="4" />
 
                             <Separator my="4" />
 
@@ -530,114 +538,67 @@ export function TargetDialog({
                             >
                                 {t("blok.series.playTo")}
                             </Text>
-                            <HStack gap="2" mb="2">
+                            {/* No sentence under the chips (2026-09-09, user
+                                request). "Seriju dobiva strana koja prva skupi
+                                1 dobivenu igru" is the pressed button read back
+                                as a paragraph, and it moved every time somebody
+                                tapped — noise where a choice had just been made. */}
+                            <HStack gap="2">
                                 {/* First, and wider than the digits: this is
                                     what a blok does by default and what the
                                     other three opt OUT of. */}
+                                {/* The word takes whatever the digits do not
+                                    (2026-09-09: "Neograničeno" was overflowing
+                                    its box). `flex="1" minW="0"` plus a step
+                                    down in type keeps it on one line; the
+                                    three digits stop stretching and become as
+                                    wide as a digit needs. */}
                                 <Button
-                                    flex="1.6"
+                                    flex="1"
+                                    minW="0"
+                                    px="2"
                                     size="lg"
-                                    variant={series === null ? "solid" : "outline"}
+                                    fontSize={{ base: "sm", md: "md" }}
+                                    variant={seriesTarget === null ? "solid" : "outline"}
                                     colorPalette="brand"
-                                    aria-pressed={series === null}
-                                    onClick={() => setSeries(null)}
+                                    aria-pressed={seriesTarget === null}
+                                    onClick={() => onChange({ seriesTarget: null })}
                                 >
                                     {t("blok.series.open")}
                                 </Button>
                                 {SERIES_TARGETS.map((preset) => (
                                     <Button
                                         key={preset}
-                                        flex="1"
+                                        flex="0 0 auto"
+                                        minW="2.75rem"
+                                        px="0"
                                         size="lg"
-                                        variant={series === preset ? "solid" : "outline"}
+                                        variant={seriesTarget === preset ? "solid" : "outline"}
                                         colorPalette="brand"
-                                        aria-pressed={series === preset}
-                                        // The face is a bare digit; what it MEANS
-                                        // is "the series goes to N won games", and
-                                        // that goes through the plural family.
+                                        aria-pressed={seriesTarget === preset}
+                                        // The face is a bare digit; what it
+                                        // MEANS is "the series goes to N won
+                                        // games", and that goes through the
+                                        // plural family.
                                         aria-label={tp("blok.series.games", preset)}
-                                        onClick={() => setSeries(preset)}
+                                        onClick={() => onChange({ seriesTarget: preset })}
                                     >
                                         {preset}
                                     </Button>
                                 ))}
                             </HStack>
-                            {/* Only the sentence that says where a series with
-                                a TARGET ends. `series.hintOpen` — "Serija traje
-                                dok je ne zatvoriš „Resetiraj”…" — is deleted
-                                from both dictionaries (user request,
-                                2026-09-08): "Otvorena" is already pressed right
-                                above it, and a paragraph explaining the button
-                                you just chose is the same kind of noise the
-                                rule hints were. */}
-                            {series === null ? null : (
-                                <Text fontSize="xs" color="fg.muted">
-                                    {t("blok.series.hint", {
-                                        games: tp("blok.series.games", series),
-                                    })}
-                                </Text>
-                            )}
 
                             <Separator my="4" />
 
-                            {/* AFTER the series, not before it — the two
-                                numbers ("do 1001", "do 2 dobivene") belong
-                                together, and this is the qualifier on the first
-                                of them. Swapped 2026-09-08 at the user's
-                                request.
-
-                                A SWITCH, not two buttons: there are exactly two
-                                readings and one is the default, which is what a
-                                switch is for. The active word is printed beside
-                                it, so nobody has to work out what "on" means —
-                                which is the one real risk of using a switch for
-                                a named pair. */}
-                            <ChoiceSwitchRow
+                            <SegmentedChoice
                                 label={t("blok.rule.title")}
-                                value={t(rule === "prolaz" ? "blok.rule.prolaz" : "blok.rule.dosta")}
-                                checked={rule === "prolaz"}
-                                onCheckedChange={(next) => setRule(next ? "prolaz" : "dosta")}
+                                value={gameEndRule}
+                                options={[
+                                    { value: "prolaz", label: t("blok.rule.prolaz") },
+                                    { value: "dosta", label: t("blok.rule.dosta") },
+                                ]}
+                                onValueChange={(rule) => onChange({ gameEndRule: rule })}
                             />
-
-                            <Separator my="4" />
-
-                            {/* The switch carries its own heading rather than
-                                sitting under one: label left, control right,
-                                44px of row — one line for a setting that would
-                                otherwise cost three on a phone that is already
-                                scrolling. Styled like the headings around it so
-                                the sections still read as a list. */}
-                            <Switch.Root
-                                checked={tracker}
-                                onCheckedChange={(e) => setTracker(e.checked)}
-                                colorPalette="brand"
-                                display="flex"
-                                alignItems="center"
-                                justifyContent="space-between"
-                                gap="4"
-                                w="full"
-                                minH="44px"
-                            >
-                                <Switch.HiddenInput />
-                                <Switch.Label
-                                    flex="1"
-                                    minW="0"
-                                    fontSize="2xs"
-                                    fontWeight="bold"
-                                    textTransform="uppercase"
-                                    letterSpacing="0.08em"
-                                    color="fg.subtle"
-                                >
-                                    {/* The same words the strip itself uses —
-                                        one key, so the switch can never end up
-                                        naming something the screen does not
-                                        call by that name. */}
-                                    {t("blok.dealer.next")}
-                                </Switch.Label>
-                                <Switch.Control flexShrink={0}>
-                                    <Switch.Thumb />
-                                </Switch.Control>
-                            </Switch.Root>
 
                             <Separator my="4" />
 
@@ -645,84 +606,84 @@ export function TargetDialog({
                                 direction is what the table agreed, not what the
                                 tracker displays, and hiding a setting behind
                                 another setting is how people stop finding it. */}
-                            <ChoiceSwitchRow
+                            <SegmentedChoice
                                 label={t("blok.dealer.direction")}
-                                value={t(direction === "right" ? "blok.dealer.right" : "blok.dealer.left")}
-                                checked={direction === "right"}
-                                onCheckedChange={(next) => setDirection(next ? "right" : "left")}
+                                value={dealDirection}
+                                options={[
+                                    { value: "left", label: t("blok.dealer.left") },
+                                    { value: "right", label: t("blok.dealer.right") },
+                                ]}
+                                onValueChange={(direction) => onChange({ dealDirection: direction })}
                             />
 
                             <Separator my="4" />
 
-                            {/* Same one-row shape as the tracker switch above:
-                                the label IS the heading. Off means the share
-                                button is not offered and a token this player
-                                issued is revoked — the page does the revoking,
-                                on save. */}
-                            <Switch.Root
-                                checked={sharing}
-                                onCheckedChange={(e) => setSharing(e.checked)}
-                                colorPalette="brand"
-                                display="flex"
-                                alignItems="center"
-                                justifyContent="space-between"
-                                gap="4"
-                                w="full"
-                                minH="44px"
-                            >
-                                <Switch.HiddenInput />
-                                <Switch.Label
-                                    flex="1"
-                                    minW="0"
-                                    fontSize="2xs"
-                                    fontWeight="bold"
-                                    textTransform="uppercase"
-                                    letterSpacing="0.08em"
-                                    color="fg.subtle"
-                                >
-                                    {t("blok.share.enable")}
-                                </Switch.Label>
-                                <Switch.Control flexShrink={0}>
-                                    <Switch.Thumb />
-                                </Switch.Control>
-                            </Switch.Root>
-                            {/* Only while a table link exists, and only then:
-                                the organiser opens this series' logbook from
-                                the bracket under the very same token
-                                (BLOK-LINK.md §6.2), so this switch can hide the
-                                button but will not take that record away.
-                                Saying it here, where the choice is made, rather
-                                than in a toast after it. */}
+                            {/* Where the deal picks up for the NEXT game
+                                (BLOK.md §3.3.4). It sits directly under the
+                                direction because it does not replace it — the
+                                rotation still moves the same way, "Pobjednik"
+                                only keeps it stepping until it reaches the
+                                pair that won. */}
+                            <SegmentedChoice
+                                label={t("blok.dealer.newGame")}
+                                value={newGameDealer}
+                                options={[
+                                    { value: "next", label: t("blok.dealer.newGameNext") },
+                                    { value: "winner", label: t("blok.dealer.newGameWinner") },
+                                ]}
+                                onValueChange={(mode) => onChange({ newGameDealer: mode })}
+                            />
+
+                            <Separator my="4" />
+
+                            {/* SECOND FROM LAST (2026-09-09, user request):
+                                whether the tracker strip shows is the smallest
+                                of these agreements and the one changed least
+                                often, so it sits at the end of the list rather
+                                than in the middle of the ones about how the
+                                deal actually goes round. */}
+                            {/* NE / DA rather than a switch (2026-09-09, user request): a
+                                switch asks you to know which side means on. Two
+                                words say it, and the row now has the same shape as
+                                the settings above it. */}
+                            <SegmentedChoice
+                                label={t("blok.dealer.next")}
+                                value={showDealer ? "yes" : "no"}
+                                options={[
+                                    { value: "no", label: t("common.no") },
+                                    { value: "yes", label: t("common.yes") },
+                                ]}
+                                onValueChange={(v) => onChange({ showDealer: v === "yes" })}
+                            />
+
+                            <Separator my="4" />
+
+                            {/* Off means the share button is not offered and a
+                                token this player issued is revoked — the page
+                                does the revoking. */}
+                            {/* Same NE / DA shape. Off means the share button is not
+                                offered and a token this player issued is revoked —
+                                the page does the revoking. */}
+                            <SegmentedChoice
+                                label={t("blok.share.enable")}
+                                value={shareEnabled ? "yes" : "no"}
+                                options={[
+                                    { value: "no", label: t("common.no") },
+                                    { value: "yes", label: t("common.yes") },
+                                ]}
+                                onValueChange={(v) => onChange({ shareEnabled: v === "yes" })}
+                            />
+                            {/* Only while a table link exists: the organiser
+                                opens this series' logbook from the bracket
+                                under the very same token (BLOK-LINK.md §6.2),
+                                so this switch can hide the button but will not
+                                take that record away. */}
                             {linked ? (
                                 <Text mt="2" fontSize="xs" color="fg.muted">
                                     {t("blok.share.linkedNote")}
                                 </Text>
                             ) : null}
                         </Dialog.Body>
-                        <Dialog.Footer gap="2">
-                            <Button variant="ghost" onClick={onCancel}>
-                                {t("common.cancel")}
-                            </Button>
-                            {/* No `disabled` guard any more: with the free field
-                                gone the value can only be a chip or the number
-                                the game already had, and both are valid by
-                                construction. */}
-                            <Button
-                                colorPalette="brand"
-                                onClick={() =>
-                                    onSave({
-                                        target: value,
-                                        seriesTarget: series,
-                                        gameEndRule: rule,
-                                        showDealer: tracker,
-                                        dealDirection: direction,
-                                        shareEnabled: sharing,
-                                    })
-                                }
-                            >
-                                {t("common.save")}
-                            </Button>
-                        </Dialog.Footer>
                     </Dialog.Content>
                 </Dialog.Positioner>
             </Portal>
