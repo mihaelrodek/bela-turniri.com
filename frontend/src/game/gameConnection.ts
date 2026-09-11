@@ -11,6 +11,7 @@ import type {
     ServerMessage,
     UserInfo,
 } from "@bela/protocol"
+import { wsOrigin } from "../platform"
 import { readStickyRoomId, writeStickyRoomId } from "./activeRoomKey"
 import { readGuest } from "./hooks/guestIdentity"
 import type {
@@ -48,7 +49,8 @@ import type {
    matter how many components are looking.
 
    Public URL is /ws/game; the Vite dev proxy and Caddy both forward it to the
-   Node game server on 8285.
+   Node game server on 8285. The origin in front of that path comes from
+   ../platform: the current page on the web, the real host in a native shell.
    ────────────────────────────────────────────────────────────────────── */
 
 /** 1 s, 2 s, 4 s, 8 s, then a 15 s ceiling — README §3's reconnect budget. */
@@ -235,6 +237,15 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
                 gameName: msg.name,
                 gameNameNextChangeAt: msg.nextChangeAt > 0 ? msg.nextChangeAt : null,
                 me: prev.me ? { ...prev.me, name: msg.name } : prev.me,
+                error: null,
+            }
+        case "profile.avatar":
+            // Same shape as the rename above: the table catches up through the
+            // room's own `room.state`, and `me` is the one copy no other frame
+            // will correct.
+            return {
+                ...prev,
+                me: prev.me ? { ...prev.me, avatarPreset: msg.preset } : prev.me,
                 error: null,
             }
         case "room.joined":
@@ -433,8 +444,7 @@ function scheduleReconnect(): void {
 }
 
 function socketUrl(): string {
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:"
-    return `${proto}//${window.location.host}/ws/game`
+    return `${wsOrigin}/ws/game`
 }
 
 /** The production transport: a plain WebSocket that parses frames for us. */
@@ -486,7 +496,19 @@ async function greet(mine: GameTransport): Promise<void> {
     }
     if (transport !== mine) return
     const guest = authUid ? null : readGuest()
-    mine.send({ t: "hello", v: PROTOCOL_VERSION, token, ...(guest ? { guest } : {}) })
+    // The stored record calls the face `avatar`; the wire calls it
+    // `avatarPreset`. Mapped here rather than renamed on either side: the
+    // storage key is the browser's own and the frame is the protocol's, and
+    // the guest object is spread onto the wire so an unmapped extra field
+    // would just travel as noise.
+    mine.send({
+        t: "hello",
+        v: PROTOCOL_VERSION,
+        token,
+        ...(guest
+            ? { guest: { name: guest.name, secret: guest.secret, ...(guest.avatar ? { avatarPreset: guest.avatar } : {}) } }
+            : {}),
+    })
 }
 
 /** Everything that must happen (again) after every successful greet. */

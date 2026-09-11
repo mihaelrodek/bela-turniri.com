@@ -13,6 +13,8 @@ import { useAuth } from "../auth/authContextValue"
 import { showError } from "../toaster"
 import { useTranslation } from "../i18n"
 import { errorMessage } from "../utils/apiError"
+import { rememberAnonRegistration } from "../utils/anonSelfReg"
+import { DEFAULT_DIAL_CODE, joinPhone } from "../utils/phone"
 import type { PairShort } from "../types/pairs"
 
 /** The one queue kind this hook pushes — see hooks/useOfflineQueue. */
@@ -72,6 +74,21 @@ export function useTournamentPairsEditor({
     const [selfRegSubmitting, setSelfRegSubmitting] = useState(false)
     const [selfRegError, setSelfRegError] = useState<string | null>(null)
 
+    /* Signing in is BETTER (own registrations, edit/withdraw, notifications)
+       but it is not required. An anonymous visitor gets this nudge first and
+       can walk past it — see SelfRegisterNudgeDialog. */
+    const [selfRegNudgeOpen, setSelfRegNudgeOpen] = useState(false)
+
+    /* Phone, anonymous-only: split into dial code + local part exactly like
+       the profile editor, so one number has one stored shape app-wide. */
+    const [selfRegPhoneCountry, setSelfRegPhoneCountry] = useState(DEFAULT_DIAL_CODE)
+    const [selfRegPhone, setSelfRegPhone] = useState("")
+
+    /* The claim link handed back for an anonymous registration. Held in state
+       rather than toasted: it is the only handle the visitor has on a pair
+       that belongs to no account, and a toast that scrolls away would lose it. */
+    const [selfRegClaim, setSelfRegClaim] = useState<{ claimUrl: string; name: string } | null>(null)
+
     /**
      * Single-flight guard for the pair-list bulk save. Without it the
      * name-input onBlur and the Plati click race each other when the user
@@ -96,13 +113,32 @@ export function useTournamentPairsEditor({
             setSelfRegError(tr("tournament.selfReg.nameRequired"))
             return
         }
+        // Anonymous only: without a number the organiser has a row they can
+        // neither confirm nor chase, and the backend refuses it anyway.
+        const phone = user ? null : joinPhone(selfRegPhoneCountry, selfRegPhone)
+        if (!user && !phone) {
+            setSelfRegError(tr("tournament.selfReg.phoneRequired"))
+            return
+        }
         try {
             setSelfRegSubmitting(true)
             setSelfRegError(null)
-            const created = await selfRegisterPair(uuid, name)
+            const created = await selfRegisterPair(uuid, name, phone)
             setPairs((ps) => [...ps, created])
             setSelfRegOpen(false)
             setSelfRegName("")
+            setSelfRegPhone("")
+            if (!user && created.claimUrl) {
+                // Receipt on this device, so the pairs list can still mark the
+                // row as theirs after a reload.
+                rememberAnonRegistration({
+                    tournamentUuid: uuid,
+                    pairId: created.id,
+                    claimUrl: created.claimUrl,
+                    name: created.name,
+                })
+                setSelfRegClaim({ claimUrl: created.claimUrl, name: created.name })
+            }
         } catch (e) {
             const data = (e as { response?: { data?: unknown } })?.response?.data
             const code = typeof data === "string" ? data : ""
@@ -110,6 +146,10 @@ export function useTournamentPairsEditor({
                 setSelfRegError(tr("tournament.selfReg.alreadyStarted"))
             } else if (code === "ALREADY_REGISTERED") {
                 setSelfRegError(tr("tournament.selfReg.alreadyRegistered"))
+            } else if (code === "CONTACT_PHONE_REQUIRED") {
+                setSelfRegError(tr("tournament.selfReg.phoneRequired"))
+            } else if (code === "RATE_LIMITED") {
+                setSelfRegError(tr("tournament.selfReg.rateLimited"))
             } else {
                 setSelfRegError(errorMessage(e, tr("tournament.selfReg.error")))
             }
@@ -365,6 +405,14 @@ export function useTournamentPairsEditor({
         // self-registration
         selfRegOpen,
         setSelfRegOpen,
+        selfRegNudgeOpen,
+        setSelfRegNudgeOpen,
+        selfRegPhoneCountry,
+        setSelfRegPhoneCountry,
+        selfRegPhone,
+        setSelfRegPhone,
+        selfRegClaim,
+        setSelfRegClaim,
         presets,
         selfRegName,
         setSelfRegName,

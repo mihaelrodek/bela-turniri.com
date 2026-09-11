@@ -196,6 +196,15 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:mihael.rodek1@gmail.com}
 
+      # Native push (FCM) for the iOS/Android apps, alongside Web Push above.
+      # Service account for the SAME Firebase project as FIREBASE_PROJECT_ID;
+      # inline JSON wins over the file path. If both are unset the backend
+      # boots, still accepts device tokens, sends nothing over FCM, and WARNs
+      # once at startup. See DEPLOY.md -> "Native push (FCM)".
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
+      FIREBASE_SERVICE_ACCOUNT_FILE: ${FIREBASE_SERVICE_ACCOUNT_FILE:-}
+      FCM_ANDROID_CHANNEL_ID: ${FCM_ANDROID_CHANNEL_ID:-bela}
+
       # Outgoing e-mail (Resend). If RESEND_API_KEY is unset the backend
       # boots and the contact form still stores every message - it just
       # sends no notification (EmailService WARNs about it at boot).
@@ -259,6 +268,10 @@ services:
         VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
         VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
         VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID}
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+        VITE_CARTO_API_KEY: ${VITE_CARTO_API_KEY:-}
+        VITE_MAP_TILE_URL: ${VITE_MAP_TILE_URL:-}
+        VITE_MAP_TILE_ATTRIBUTION: ${VITE_MAP_TILE_ATTRIBUTION:-}
     image: bela-edge:latest
     container_name: bela-edge
     <<: *default-logging
@@ -298,6 +311,13 @@ services:
       # ./ops/game-flag/ENABLED` - Caddy's /game-status.json reflects it
       # instantly, the SPA polls that to show/hide "Igraj" without a redeploy.
       - ./ops/game-flag:/game-flag:ro
+      # Universal Links (iOS) / App Links (Android) verification files
+      # (read-only). Same bind-mount trick as the two above - editing the
+      # placeholder Apple Team ID / Android SHA-256 fingerprint in
+      # ./ops/well-known/ takes effect immediately, no image rebuild, no
+      # Caddy reload (see the Caddyfile's `/.well-known/*` handlers and
+      # DEPLOY.md "Universal / App Links").
+      - ./ops/well-known:/well-known:ro
     networks:
       - bela_internal
 

@@ -36,6 +36,7 @@ import { formatDateShort, formatTime } from "../utils/format"
 import { positiveAmount } from "../components/listingShared"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 import { MAP_TARGET_PARAM } from "../utils/mapLink"
+import { mapTiles } from "../utils/mapTiles"
 import { useTranslation, usePlural } from "../i18n"
 
 /** Stable empty default for the query's `data` — a fresh `[]` literal each
@@ -929,10 +930,13 @@ export default function MapPage() {
                         scrollWheelZoom
                         style={{ height: "100%", width: "100%" }}
                     >
-                        {/* CARTO Voyager — neutral, readable, free, no attribution issues */}
+                        {/* Basemap (CARTO Voyager by default — keyless, neutral,
+                            readable) resolved in utils/mapTiles.ts, which lets a
+                            keyed provider be swapped in via env vars. */}
                         <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                            attribution={mapTiles.attribution}
+                            url={mapTiles.url}
+                            maxZoom={mapTiles.maxZoom}
                         />
 
                         {placed.map((t) => {

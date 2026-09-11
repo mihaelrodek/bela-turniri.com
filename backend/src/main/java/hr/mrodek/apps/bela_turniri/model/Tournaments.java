@@ -115,8 +115,10 @@ public class Tournaments {
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
 
-    @Column(name = "winner_name")
-    private String winnerName;   // <- NEW
+    // length matches the varchar(200) Liquibase created (tournaments.xml);
+    // without it Hibernate assumes 255 and dev-mode schema validation complains.
+    @Column(name = "winner_name", length = 200)
+    private String winnerName;
 
     /**
      * Silver-place pair name, set by the organiser from the Parovi tab

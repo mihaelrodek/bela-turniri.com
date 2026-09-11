@@ -13,6 +13,7 @@
 
 import type { RawData, WebSocket } from "ws"
 import {
+    isAvatarPreset,
     isClientMessage,
     isReaction,
     isSeat,
@@ -504,6 +505,41 @@ export class Hub {
                     room.renameOccupant(conn.user.uid, result.name)
                     room.broadcastState()
                     this.deps.lobby.changed()
+                }
+                return
+            }
+
+            case "profile.setAvatar": {
+                /* The picked face (protocol `profile.setAvatar`). Same socket
+                   as `profile.setName` and for the same reason — a guest has
+                   no bearer token — but with one important difference:
+
+                   THIS IS CONNECTION-LOCAL, EVEN FOR A SIGNED-IN PLAYER. The
+                   backend's internal channel exposes a write for the in-game
+                   name (`PUT /internal/profiles/{uid}/game-name`) and nothing
+                   for the avatar, and inventing an endpoint here is not this
+                   server's call. So the pick reaches the table immediately and
+                   survives for as long as the socket does; on the next `hello`
+                   a signed-in player falls back to whatever their profile row
+                   says (they change that on the profile screen, which does
+                   have a REST write). A guest keeps theirs because their
+                   browser stores it and sends it with every greeting.
+                   FOLLOW-UP: an internal avatar write would close this. */
+                if (!isAvatarPreset(msg.preset)) {
+                    throw new ProtocolError("BAD_REQUEST", "Nepoznat avatar.")
+                }
+                if (!conn.user) throw new ProtocolError("UNAUTHENTICATED")
+                const preset = msg.preset
+
+                conn.user = { ...conn.user, avatarPreset: preset }
+                conn.send({ t: "profile.avatar", preset })
+                const avatarRoom = this.roomOf(conn)
+                if (avatarRoom) {
+                    avatarRoom.restyleOccupant(conn.user.uid, preset)
+                    avatarRoom.broadcastState()
+                    // No `lobby.changed()`, unlike a rename: the public
+                    // `RoomOccupant` carries a name and nothing else
+                    // (README §3), so the lobby list has nothing to redraw.
                 }
                 return
             }

@@ -40,6 +40,27 @@ export type Reaction = (typeof REACTIONS)[number]
  *  and their meaning are the engine's (`TrickReview`); the list is repeated
  *  here so nothing has to import the engine's RUNTIME just to render three
  *  chips. */
+/**
+ * The pickable avatar faces, MIRRORED from
+ * `frontend/src/components/avatars/avatarArt.ts` (which owns the drawings).
+ *
+ * **APPEND-ONLY.** Never reorder, rename or remove an entry. Two things read
+ * this list positionally: a guest with no pick is given a face by hashing
+ * their uid into an index (`avatarPresetForUid` in the server), so a
+ * reordered list re-faces every guest at once; and a stored `avatarPreset`
+ * that is no longer in the list silently degrades to initials.
+ *
+ * It lives in the protocol rather than in the server because THREE parties
+ * need the same 16 names: the server (validating `profile.setAvatar` and the
+ * guest's `hello`), the browser mock server, and the client. The art itself
+ * stays on the frontend — this is only the vocabulary.
+ */
+export const AVATAR_PRESETS = [
+    "kralj", "baba", "decko", "dida", "baka", "gazda", "konobar", "cura",
+    "momak", "kibic", "gospon", "sudac", "teta", "profa", "mornar", "seka",
+] as const
+export type AvatarPreset = (typeof AVATAR_PRESETS)[number]
+
 export const TRICK_REVIEWS: readonly TrickReview[] = ["off", "leaderPair", "all"]
 export const DEFAULT_TRICK_REVIEW: TrickReview = "off"
 export const GAME_END_RULES: readonly GameEndRule[] = ["prolaz", "dosta"]
@@ -88,6 +109,16 @@ export interface UserInfo {
     uid: string
     name: string
     avatarUrl: string | null
+    /**
+     * Picked face (`AVATAR_PRESETS`), or null when the player has none.
+     *
+     * It sits NEXT TO `avatarUrl`, not instead of it: an uploaded photo is
+     * still the truest picture of a person and keeps winning. The preset is
+     * what everyone else gets — the whole point of the set is that a seat is
+     * never a grey circle with two letters in it, and a guest with no account
+     * always has one (the server assigns one from their uid).
+     */
+    avatarPreset?: string | null
 }
 
 export type RoomStatus = "LOBBY" | "PLAYING" | "FINISHED"
@@ -220,7 +251,15 @@ export type ErrorCode =
 /* ───────────────────────── client → server ───────────────────────── */
 
 export type ClientMessage =
-    | { t: "hello"; v: number; token?: string; devName?: string; guest?: { name: string; secret: string } }
+    /**
+     * `guest.avatarPreset` is the face the guest picked on the identity screen
+     * before they had an account to hang it on — it travels with the greeting
+     * because there is nowhere else to put it: a guest has no profile row, and
+     * the browser's `bela.guest` record is the only place it is stored. Absent
+     * or unrecognised, the server assigns one from the guest's uid, so a seat
+     * is never faceless (README §3 "Auth").
+     */
+    | { t: "hello"; v: number; token?: string; devName?: string; guest?: { name: string; secret: string; avatarPreset?: string } }
     | { t: "ping" }
     | { t: "lobby.subscribe" }
     | { t: "lobby.unsubscribe" }
@@ -260,6 +299,16 @@ export type ClientMessage =
      * limit can mean anything — see `NAME_RATE_LIMITED`.
      */
     | { t: "profile.setName"; name: string }
+    /**
+     * Pick the face this player wears at the table. `preset` must be one of
+     * `AVATAR_PRESETS`; anything else is `BAD_REQUEST` rather than silently
+     * ignored, so a client cannot think it changed a face that never changed.
+     *
+     * Same reason as `profile.setName` for riding this socket: a guest has no
+     * bearer token and no account, and their face has to reach the seats they
+     * are sitting on right now.
+     */
+    | { t: "profile.setAvatar"; preset: string }
     | { t: "room.join"; roomId: string }
     | { t: "room.joinByCode"; code: string }
     | { t: "room.leave" }
@@ -302,6 +351,18 @@ export type ServerMessage =
      * where a seat's name is read from.
      */
     | { t: "profile.name"; name: string; nextChangeAt: number }
+    /**
+     * The player's face after a `profile.setAvatar`, confirmed to the one
+     * connection that asked; everybody else sees it through the room state,
+     * exactly as with a rename.
+     *
+     * A SEPARATE frame rather than a field on `profile.name`: that message
+     * exists to carry the once-a-week name clock (`nextChangeAt`), the avatar
+     * has no such rule, and reusing it would force a made-up timestamp that
+     * the client's reducer reads as "the name just changed". One message, one
+     * meaning.
+     */
+    | { t: "profile.avatar"; preset: string }
     | { t: "lobby.rooms"; rooms: RoomSummary[] }
     | { t: "room.joined"; room: RoomState; yourSeat: Seat | null }
     | { t: "room.state"; room: RoomState; yourSeat: Seat | null }
@@ -334,7 +395,7 @@ const CLIENT_TYPES: ReadonlySet<string> = new Set<ClientMessageType>([
     "room.addBot", "room.removeBot", "room.ready", "room.start",
     "game.bid", "game.pass", "game.play", "game.nextDeal", "chat.send",
     "room.joinByCode", "chat.react", "room.setPrivate", "room.setOptions",
-    "profile.setName",
+    "profile.setName", "profile.setAvatar",
 ])
 
 /** Structural check that a parsed JSON value is *shaped* like a ClientMessage (type field only). */
@@ -353,6 +414,10 @@ export function isTargetScore(x: unknown): x is TargetScore {
 
 export function isReaction(x: unknown): x is Reaction {
     return typeof x === "string" && (REACTIONS as readonly string[]).includes(x)
+}
+
+export function isAvatarPreset(x: unknown): x is AvatarPreset {
+    return typeof x === "string" && (AVATAR_PRESETS as readonly string[]).includes(x)
 }
 
 export function isTrickReview(x: unknown): x is TrickReview {

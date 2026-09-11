@@ -102,6 +102,14 @@ export const pages: PagesDict = {
     "tournaments.empty.finishedEmptyDescription": "Zaključeni turnirji se bodo pojavili tukaj.",
     "tournaments.loadMore": "Naloži več ({count})",
 
+    // "Zaključeni turnirji" search group — glej opombo v hr/pages.ts. Dual
+    // (`two`) je pravi slovenski dvojinski primer, ne le kopija `few`.
+    "tournaments.searchFinished.resultsCount.one": "{n} rezultat",
+    "tournaments.searchFinished.resultsCount.two": "{n} rezultata",
+    "tournaments.searchFinished.resultsCount.few": "{n} rezultati",
+    "tournaments.searchFinished.resultsCount.other": "{n} rezultatov",
+    "tournaments.searchFinished.showMore": "Prikaži več ({count})",
+
     "tournaments.loadErrorFallback": "Nalaganje turnirjev ni uspelo.",
     "tournaments.loadFinishedErrorFallback": "Nalaganje zaključenih turnirjev ni uspelo.",
 

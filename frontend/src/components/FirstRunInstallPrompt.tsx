@@ -12,6 +12,7 @@ import {
 import { FiDownload, FiX } from "react-icons/fi"
 import { useInstallPrompt } from "../hooks/useInstallPrompt"
 import { useTranslation } from "../i18n"
+import { isNative } from "../platform"
 import IosInstallSteps from "./IosInstallSteps"
 
 /**
@@ -96,6 +97,10 @@ export default function FirstRunInstallPrompt() {
         // because the iOS dialog has a different button (see render below).
     }
 
+    // Nonsensical inside the native shells: the app already IS the "install"
+    // — there is no beforeinstallprompt to fire and no Safari Share menu to
+    // point iOS at, since this is running as a real installed app already.
+    if (isNative) return null
     if (dismissed || installed) return null
     if (!canInstall && !isIos) return null
 

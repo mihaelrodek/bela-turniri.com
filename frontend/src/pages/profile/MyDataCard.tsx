@@ -3,7 +3,9 @@ import { Box, Button, Card, chakra, Heading, HStack, IconButton, SimpleGrid, Tex
 import { isAxiosError } from "axios"
 import { FiEdit2, FiGlobe, FiPhone, FiTrash2, FiUser } from "react-icons/fi"
 import type { PublicProfile } from "../../api/publicProfile"
-import { deleteAvatar, uploadAvatar } from "../../api/userMe"
+import { deleteAvatar, updateProfile, uploadAvatar } from "../../api/userMe"
+import AvatarChooserDialog from "../../components/avatars/AvatarChooserDialog"
+import type { AvatarId } from "../../components/avatars/avatarArt"
 import ConfirmDialog from "../../components/ConfirmDialog"
 import DetailTile from "../../components/DetailTile"
 import { showError } from "../../toaster"
@@ -19,6 +21,10 @@ import { EditProfileDialog } from "./EditProfileDialog"
    seconds between picking a file and confirming/cancelling the crop, so it
    loads lazily and is only mounted (see `cropFile &&` below) while a file is
    actually being cropped. */
+/** Sentinel for "a clear is in flight" — `pickingAvatar` doubles as the busy
+ *  flag, and `null` there already means "nothing in flight". */
+const CLEARING = "\u0000clearing" as const
+
 const AvatarCropDialog = lazyWithReload(() => import("../../components/AvatarCropDialog"))
 
 /**
@@ -47,11 +53,17 @@ export function MyDataCard({
     const invalidateMyProfile = useInvalidateMyProfile()
     // Replaced window.confirm() — see ConfirmDialog mounted at the bottom.
     const [removeAvatarOpen, setRemoveAvatarOpen] = useState(false)
+    // The pencil on the avatar opens this; it is the single entry point to
+    // "what should my face be", characters and photo together.
+    const [chooserOpen, setChooserOpen] = useState(false)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
     // The file just picked, waiting in AvatarCropDialog for a crop before
     // anything is uploaded. Null both before a pick and after the dialog
     // closes — see `onAvatarChosen` and `onCropCancel`.
     const [cropFile, setCropFile] = useState<File | null>(null)
+    // The id currently being saved, so a second click on another face while
+    // one is in flight is ignored rather than firing a second overlapping PUT.
+    const [pickingAvatar, setPickingAvatar] = useState<AvatarId | typeof CLEARING | null>(null)
 
     function onPickAvatar() {
         fileInputRef.current?.click()
@@ -114,6 +126,46 @@ export function MyDataCard({
         }
     }
 
+    /**
+     * Persists a picked character. `phoneCountry`/`phone` are echoed back
+     * unchanged — see the WHY-comment on `updateProfile` in `api/userMe.ts`:
+     * the endpoint rewrites both from the body on every PUT, so a
+     * preset-only payload would silently blank the saved phone number.
+     */
+    /**
+     * Store a character, or — with `null` — clear the stored one so the photo
+     * underneath becomes current again. Clearing goes over the same PUT with
+     * an empty string, which is what `AvatarPresetService.applyFromRequest`
+     * reads as "the user let go of their character".
+     */
+    async function onPickAvatarPreset(id: AvatarId | null) {
+        if (pickingAvatar) return
+        try {
+            setPickingAvatar(id ?? CLEARING)
+            await updateProfile(
+                { phoneCountry: profile.phoneCountry, phone: profile.phone, avatarPreset: id ?? "" },
+                // The picker only ever sends ids from AVATAR_IDS, so 400
+                // INVALID_AVATAR_PRESET is unreachable in practice — silenced
+                // here so a hypothetical stale client shows ONE readable
+                // toast below instead of the raw wire code.
+                { silentErrorStatuses: [400] },
+            )
+            await invalidateMyProfile()
+            await onProfileChanged()
+        } catch (err) {
+            console.warn("Postavljanje lika nije uspjelo", err)
+            const data = (err as { response?: { data?: unknown } })?.response?.data
+            const code = typeof data === "string" ? data : ""
+            if (code === "INVALID_AVATAR_PRESET") {
+                showError(t("profile.avatar.invalidPreset"))
+            } else if (!isAxiosError(err)) {
+                showError(t("profile.avatar.pickFailed"), errorMessage(err))
+            }
+        } finally {
+            setPickingAvatar(null)
+        }
+    }
+
     return (
         <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
             <Card.Body p={{ base: "4", md: "5" }}>
@@ -137,7 +189,7 @@ export function MyDataCard({
                                     colorPalette="blue"
                                     variant="solid"
                                     loading={uploading}
-                                    onClick={onPickAvatar}
+                                    onClick={() => setChooserOpen(true)}
                                 >
                                     <FiEdit2 />
                                 </IconButton>
@@ -199,8 +251,27 @@ export function MyDataCard({
                             }
                         />
                     </SimpleGrid>
+
                 </VStack>
             </Card.Body>
+
+            <AvatarChooserDialog
+                open={chooserOpen}
+                onClose={() => setChooserOpen(false)}
+                avatarUrl={profile.avatarUrl}
+                avatarPreset={profile.avatarPreset}
+                name={profile.displayName}
+                busy={uploading || pickingAvatar !== null}
+                onPickPreset={(id) => void onPickAvatarPreset(id)}
+                // "Koristi ovu fotografiju": drop the character and the photo
+                // that was there all along shows again.
+                onUsePhoto={() => void onPickAvatarPreset(null)}
+                // The file input and the remove-confirm both live in this card
+                // already; the dialog only asks for them. Closing it first
+                // keeps two modals from stacking.
+                onUploadPhoto={() => { setChooserOpen(false); onPickAvatar() }}
+                onRemovePhoto={() => { setChooserOpen(false); setRemoveAvatarOpen(true) }}
+            />
 
             <ConfirmDialog
                 open={removeAvatarOpen}

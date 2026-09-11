@@ -53,12 +53,16 @@ describe("createProfileLookup", () => {
         const first = await lookup.get("firebase-uid-1")
         const second = await lookup.get("firebase-uid-1")
 
-        // `gameName` is the third field since 2026-09-09; absent from the
-        // body means the player never set an in-game name.
+        // `gameName` is the third field since 2026-09-09 and `avatarPreset`
+        // the fourth since 2026-09-11; absent from the body means the player
+        // never set an in-game name / never picked a drawn face. `AppProfile`
+        // normalises both to null so a caller never has to tell "missing"
+        // apart from "cleared".
         expect(first).toEqual({
             displayName: "Mihael",
             avatarUrl: "/api/resources/7/image",
             gameName: null,
+            avatarPreset: null,
         })
         expect(second).toEqual(first)
         expect(fetchMock).toHaveBeenCalledTimes(1)

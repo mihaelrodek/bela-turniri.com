@@ -27,6 +27,7 @@ import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
 import jakarta.validation.Validator;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -398,11 +399,18 @@ public class TournamentController {
 
     /* ===================== Read ===================== */
 
+    /** Below this many trimmed characters {@code q} is ignored rather than
+     *  filtered on — a 1-character search would ILIKE-scan the whole table
+     *  for a match on almost everything, which isn't a "search" so much as
+     *  a slow way to list everything. */
+    private static final int MIN_QUERY_LENGTH = 2;
+
     @GET
     public List<TournamentCardDto> list(
             @QueryParam("status") @DefaultValue("upcoming") String status,
             @QueryParam("offset") @DefaultValue("0") int offset,
-            @QueryParam("limit") @DefaultValue("0") int limit) {
+            @QueryParam("limit") @DefaultValue("0") int limit,
+            @QueryParam("q") String q) {
         // "finished" means explicit TournamentStatus.FINISHED — date isn't
         // the source of truth (a tournament that started today and is still
         // being scored is in progress, not finished). The other bucket
@@ -414,12 +422,17 @@ public class TournamentController {
         if (offset < 0 || limit < 0) {
             throw new BadRequestException(messages.t("tournament.list.negativePaging"));
         }
+        // `q` (name-or-location, case-insensitive) is only wired to the
+        // finished bucket today — that's the one the SPA's search box can't
+        // already see client-side (only the first page is loaded). Upcoming
+        // keeps its instant client-side filter over the fully-loaded list.
+        String query = q != null && q.trim().length() >= MIN_QUERY_LENGTH ? q.trim() : null;
         final List<Tournaments> items;
         if ("finished".equalsIgnoreCase(status)) {
             if (limit > 0) {
-                items = tournamentsRepo.findFinishedPaged(Math.max(0, offset), limit);
+                items = tournamentsRepo.findFinishedPaged(Math.max(0, offset), limit, query);
             } else {
-                items = tournamentsRepo.findFinishedPaged(0, Integer.MAX_VALUE);
+                items = tournamentsRepo.findFinishedPaged(0, Integer.MAX_VALUE, query);
             }
         } else {
             items = tournamentsRepo.findNotFinishedOrderByStartAtAsc();
@@ -445,9 +458,11 @@ public class TournamentController {
     @GET
     @Path("/count")
     public Map<String, Long> count(
-            @QueryParam("status") @DefaultValue("finished") String status) {
+            @QueryParam("status") @DefaultValue("finished") String status,
+            @QueryParam("q") String q) {
         if ("finished".equalsIgnoreCase(status)) {
-            return Map.of("total", tournamentsRepo.countFinished());
+            String query = q != null && q.trim().length() >= MIN_QUERY_LENGTH ? q.trim() : null;
+            return Map.of("total", tournamentsRepo.countFinished(query));
         }
         // Other buckets aren't paged today so they don't need a count.
         return Map.of("total", 0L);
@@ -506,7 +521,14 @@ public class TournamentController {
         String base = publicBaseUrl.replaceAll("/+$", "");
         String ref = (t.getSlug() != null && !t.getSlug().isBlank())
                 ? t.getSlug() : t.getUuid().toString();
-        String url = base + "/turniri/" + ref;
+        // Straight to the PAIRS section, not the tournament's landing page
+        // (2026-09-10): the code is printed and hung at the venue, and a player
+        // who scans it there wants the pair list — to see whether they are in
+        // it, and to register if they are not. `/parovi` is a real route
+        // (SECTION_SLUG in frontend/src/utils/tournamentSection.ts, and Caddy's
+        // rule 5 covers /turniri/<slug>/<section>), so the link unfurls and
+        // renders exactly like the bare page.
+        String url = base + "/turniri/" + ref + "/parovi";
         int px = QrCodeRenderer.clampSize(size);
 
         String etag = "\"" + qrEtag(url, px) + "\"";
@@ -580,21 +602,45 @@ public class TournamentController {
     }
 
     /**
-     * Any logged-in user can self-register a pair against a tournament that
-     * hasn't started yet. The pair is created with {@code pendingApproval=true}
-     * and {@code submittedByUid=current user} so the organizer can confirm
-     * or reject it.
+     * Anyone can self-register a pair against a tournament that hasn't started
+     * yet — signing in is not required. The pair is created with
+     * {@code pendingApproval=true} so the organizer confirms or rejects it;
+     * {@code submittedByUid} is the caller when there is one and null
+     * otherwise, in which case a contact phone is mandatory and the reply
+     * carries a claim URL. See {@link SelfRegistrationService}.
+     *
+     * <p>Deliberately NOT {@code @Authenticated}: with
+     * {@code quarkus.http.auth.proactive=false} the annotation is the only
+     * thing that would reject an anonymous caller, and a signed-in caller's
+     * token is still resolved without it (that is how {@code CurrentUser}
+     * distinguishes the two paths).
      */
     @POST
     @Path("/{uuid}/pairs/self-register")
-    @Authenticated
     @Transactional
     public Response selfRegisterPair(
             @PathParam("uuid") String uuid,
-            @Valid SelfRegisterPairRequest body
+            @Valid SelfRegisterPairRequest body,
+            @HeaderParam("X-Forwarded-For") String forwardedFor,
+            @Context io.vertx.core.http.HttpServerRequest httpRequest
     ) {
-        PairDto created = selfRegistrationService.selfRegister(access.load(uuid), body);
+        PairDto created = selfRegistrationService.selfRegister(
+                access.load(uuid), body, clientIp(forwardedFor, httpRequest));
         return Response.status(Response.Status.CREATED).entity(created).build();
+    }
+
+    /**
+     * First hop of {@code X-Forwarded-For} — the original client as Caddy saw
+     * it — falling back to the socket address in local dev, where nothing sits
+     * in front of Quarkus. Only ever used as a throttle key; the header is
+     * attacker-controlled, so it is capped and never stored.
+     */
+    private static String clientIp(String forwardedFor, io.vertx.core.http.HttpServerRequest req) {
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            String first = forwardedFor.split(",")[0].trim();
+            if (!first.isEmpty()) return first.length() > 45 ? first.substring(0, 45) : first;
+        }
+        return (req != null && req.remoteAddress() != null) ? req.remoteAddress().hostAddress() : null;
     }
 
     /** Organizer approves a pending self-registered pair. Owner-or-admin only. */

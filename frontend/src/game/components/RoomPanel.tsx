@@ -150,7 +150,8 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                                     rounded="lg" bg="bg.subtle" minH={{ base: "52px", md: "64px" }}>
                                     <HStack gap={{ base: "1.5", md: "2" }} minW="0">
                                         <PlayerAvatar size="sm" empty={!occupant} name={occupant?.kind === "PLAYER" ? occupant.user.name : occupant?.name}
-                                            avatarUrl={occupant?.kind === "PLAYER" ? occupant.user.avatarUrl : undefined} />
+                                            avatarUrl={occupant?.kind === "PLAYER" ? occupant.user.avatarUrl : undefined}
+                                            avatarPreset={occupant?.kind === "PLAYER" ? occupant.user.avatarPreset : undefined} />
                                         <VStack flex="1" align="start" gap="0" minW="0">
                                             <Text fontSize="sm" fontWeight="semibold" lineClamp={1}>
                                                 {occupant?.kind === "PLAYER" ? occupant.user.name : occupant?.name ?? t("game.room.waitingSeat")}

@@ -10,6 +10,7 @@ import {
 import { FiDownload } from "react-icons/fi"
 import { useInstallPrompt, type InstallPromptState } from "../hooks/useInstallPrompt"
 import { useTranslation } from "../i18n"
+import { isNative } from "../platform"
 import IosInstallSteps from "./IosInstallSteps"
 
 /**
@@ -52,6 +53,9 @@ export function InstallAppButton({
     const { canInstall, isIos, install } = promptState ?? localPromptState
     const [iosOpen, setIosOpen] = useState(false)
 
+    // Same reasoning as FirstRunInstallPrompt: nothing to install from
+    // inside the thing that's already installed.
+    if (isNative) return null
     if (!canInstall && !isIos) return null
 
     // One label for both platforms keeps the button width consistent and

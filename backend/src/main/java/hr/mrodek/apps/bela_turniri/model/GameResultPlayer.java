@@ -45,7 +45,9 @@ public class GameResultPlayer {
     private short seat;
 
     /** {@code "A"} or {@code "B"} — CHAR(1) in the schema. */
-    @Column(name = "team", nullable = false, length = 1)
+    // columnDefinition, not length: the schema column is CHAR(1) and a plain
+    // length=1 makes Hibernate expect VARCHAR(1), which dev-mode validation flags.
+    @Column(name = "team", nullable = false, columnDefinition = "char(1)")
     private String team;
 
     /** Firebase UID, or null for a bot. */

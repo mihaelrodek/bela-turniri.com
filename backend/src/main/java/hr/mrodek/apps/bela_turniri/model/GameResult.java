@@ -59,7 +59,9 @@ public class GameResult {
     private short targetScore;
 
     /** {@code "A"} or {@code "B"} — CHAR(1) in the schema. */
-    @Column(name = "winner_team", nullable = false, length = 1)
+    // columnDefinition, not length: the schema column is CHAR(1) and a plain
+    // length=1 makes Hibernate expect VARCHAR(1), which dev-mode validation flags.
+    @Column(name = "winner_team", nullable = false, columnDefinition = "char(1)")
     private String winnerTeam;
 
     @Column(name = "score_a", nullable = false)

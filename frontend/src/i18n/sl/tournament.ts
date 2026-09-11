@@ -78,7 +78,7 @@ export const tournament: TournamentDict = {
     "tile.notSpecified": "Ni navedeno",
 
     "qr.cardTitle": "Koda QR",
-    "qr.cardHint": "S skeniranjem se odpre stran tega turnirja. Prenesi jo in obesi na prizorišču.",
+    "qr.cardHint": "S skeniranjem se odpre seznam parov tega turnirja. Prenesi kodo in jo obesi na prizorišču.",
 
     openInGoogleMaps: "Odpri v Google Zemljevidih",
     openInMaps: "Odpri v zemljevidih",
@@ -147,6 +147,7 @@ export const tournament: TournamentDict = {
     "pairs.nameLabel": "Ime para",
     "pairs.matchHistory": "Zgodovina tekem",
     "pairs.submittedBy": "Prijavil:",
+    "pairs.contactPhone": "Kontakt:",
     "pairs.pendingApproval": "Čaka odobritev",
     /* W/L stays as in Croatian — it is the international shorthand there
        too, not a Croatian word. */
@@ -224,6 +225,26 @@ export const tournament: TournamentDict = {
     "selfReg.alreadyStarted": "Turnir se je že začel.",
     "selfReg.alreadyRegistered": "Par s tem imenom si že prijavil.",
     "selfReg.error": "Napaka pri prijavi.",
+    "selfReg.rateLimited": "Preveč prijav s te naprave. Poskusi znova čez eno uro.",
+
+    // Prijava brez računa — nudge, telefonska številka in povezava za prevzem.
+    "selfReg.nudge.title": "Prijavi se ali nadaljuj brez računa",
+    "selfReg.nudge.intro": "Par lahko prijaviš tudi brez računa, z računom pa je lažje:",
+    "selfReg.nudge.benefitList": "Vse svoje prijave vidiš na enem mestu.",
+    "selfReg.nudge.benefitEdit": "Prijavo lahko urediš ali umakneš.",
+    "selfReg.nudge.benefitNotify": "Dobiš obvestilo, ko te organizator potrdi.",
+    "selfReg.nudge.signIn": "Prijavi se",
+    "selfReg.nudge.continueAnonymously": "Nadaljuj brez prijave",
+    "selfReg.phoneLabel": "Telefonska številka",
+    "selfReg.phoneCountryLabel": "Klicna številka",
+    "selfReg.phonePlaceholder": "41 234 567",
+    "selfReg.phoneHint": "Organizator te bo poklical na to številko.",
+    "selfReg.phoneRequired": "Vnesi telefonsko številko.",
+    "selfReg.claim.title": "Prijava je poslana",
+    "selfReg.claim.pending": "Par „{name}\" čaka na potrditev organizatorja.",
+    "selfReg.claim.saveLink": "Shrani to povezavo — z njo lahko prijavo pozneje prevzameš na svoj račun.",
+    "selfReg.claim.copy": "Kopiraj povezavo",
+    "selfReg.claim.copied": "Kopirano!",
 
     // ═══════════════════════ Žreb ═══════════════════════
     /* Kratka oblika — pill v stolpcu z mizami, glej hr. */

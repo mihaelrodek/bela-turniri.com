@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      "Odaberi lika" — a drawn character instead of an uploaded photo.
+
+      Most people never upload an avatar, so most profiles render as a grey
+      circle with initials. The sixteen faces live in the FRONTEND
+      (frontend/src/components/avatars/avatarArt.ts); all the backend ever
+      stores is WHICH one, as its id string.
+
+      Why a plain varchar and not an FK to a lookup table: the drawings are
+      code, not data. There is nothing to join to, nothing an organiser can
+      add, and a lookup table would mean two places to keep in step instead of
+      one. The id is validated against AvatarPresetService.PRESETS on the way
+      in, so the column can only hold something the renderer knows.
+
+      varchar(32) matches the DTO's @Size. The longest id today is 8
+      characters; this is a cap on nonsense, not a real limit.
+
+      Nullable, because null is a real state and means two different things
+      that the app does not need to tell apart: "never had one assigned" and
+      "explicitly cleared". Both render as initials.
+
+      APPEND-ONLY, like the frontend list: renaming an id orphans every profile
+      that picked it, and the row would then render as initials again with no
+      way to notice.
+    -->
+
+    <changeSet id="2026-09-10-avatar-preset" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="user_profiles" columnName="avatar_preset"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="user_profiles">
+            <column name="avatar_preset" type="varchar(32)"/>
+        </addColumn>
+
+        <rollback>
+            <dropColumn tableName="user_profiles" columnName="avatar_preset"/>
+        </rollback>
+    </changeSet>
+
+    <!--
+      Backfill: give every existing profile a face, the same one the Java side
+      would have picked.
+
+      The assignment is a deterministic function of the Firebase UID — see
+      AvatarPresetService.defaultFor for why it is not random. The two
+      implementations have to agree exactly, which is the whole reason the hash
+      is MD5 and not Java's String.hashCode(): hashCode is not reproducible in
+      SQL, MD5 is available identically in both.
+
+        SQL   : (('x' || substr(md5(uid),1,7))::bit(28)::bigint % 16)
+        Java  : Long.parseLong(md5Hex(uid).substring(0, 7), 16) % 16
+
+      28 bits rather than 32 on purpose: Postgres casts bit(32) to a SIGNED
+      32-bit integer, so a hash whose top bit is set comes out negative and the
+      modulo would land on a negative index. 28 bits is always non-negative.
+      AvatarPresetServiceTest pins the two against each other for a sample of
+      uids so this comment cannot quietly become false.
+
+      The literal preset list is spelled out here rather than referenced,
+      because a migration must keep meaning what it meant on the day it ran
+      even after the Java list grows. That is also why growing PRESETS later is
+      safe: rows written by this changeset keep the face they were given, and
+      only profiles created afterwards see the wider list.
+
+      Rows that already have an uploaded photo (avatar_resource_id is not null)
+      are skipped — a photo wins over a preset everywhere a DTO is built
+      (AvatarPresetService.presetFor), so a preset on such a row would be dead
+      data that surfaces the day the photo is removed.
+
+      Idempotent by its own WHERE clause: re-running writes nothing, and a
+      profile row re-created later gets the same face from defaultFor.
+    -->
+
+    <changeSet id="2026-09-10-avatar-preset-backfill" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="user_profiles" columnName="avatar_preset"/>
+        </preConditions>
+
+        <sql dbms="postgresql">
+            update user_profiles
+            set avatar_preset = (array[
+                'kralj','baba','decko','dida','baka','gazda','konobar','cura',
+                'momak','kibic','gospon','sudac','teta','profa','mornar','seka'
+            ])[(('x' || substr(md5(user_uid), 1, 7))::bit(28)::bigint % 16) + 1]
+            where avatar_preset is null
+              and avatar_resource_id is null;
+        </sql>
+
+        <rollback>
+            <!-- Only undoes what this changeset did: rows still carrying the
+                 face it computed, and no photo. A preset the user chose later
+                 is left alone. -->
+            <sql dbms="postgresql">
+                update user_profiles
+                set avatar_preset = null
+                where avatar_resource_id is null
+                  and avatar_preset = (array[
+                      'kralj','baba','decko','dida','baka','gazda','konobar','cura',
+                      'momak','kibic','gospon','sudac','teta','profa','mornar','seka'
+                  ])[(('x' || substr(md5(user_uid), 1, 7))::bit(28)::bigint % 16) + 1];
+            </sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

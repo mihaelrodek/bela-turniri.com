@@ -4,6 +4,8 @@ import { LIMITS, TRICK_REVIEWS } from "@bela/protocol"
 import type { ClientMessage, RoomState, TargetScore } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import { formatDate } from "../../utils/format"
+import AvatarPicker from "../../components/avatars/AvatarPicker"
+import { type AvatarId } from "../../components/avatars/avatarArt"
 import { useGamePrefs } from "../hooks/useGamePrefs"
 import { useGameSocket } from "../hooks/useGameSocket"
 import { readGuest, saveGuest } from "../hooks/guestIdentity"
@@ -77,6 +79,41 @@ function GameNameSetting() {
                         ? t("game.settings.gameNameSaved")
                         : t("game.settings.gameNameHint")}
             </Text>
+        </VStack>
+    )
+}
+
+/**
+ * The face this player wears at the table, changeable from inside the game so
+ * a guest who picked one on the way in — and a signed-in player who never
+ * visited their profile — can change their mind without leaving the room.
+ *
+ * Unlike the name there is NO once-a-week rule and no round trip to wait on:
+ * `profile.setAvatar` is answered with `profile.avatar` and the table redraws
+ * from the room state, so the picker is applied on tap and reads the truth
+ * back out of `me`.
+ */
+function GameAvatarSetting() {
+    const { t } = useTranslation()
+    // Passive for the same reason as the name control below: the settings
+    // sheet must never be the reason a socket exists.
+    const { me, send } = useGameSocket({ passive: true })
+
+    function pick(id: AvatarId) {
+        send({ t: "profile.setAvatar", preset: id })
+        // A guest's face lives in their own browser and rides along on the
+        // next `hello`; without this the pick would last only as long as the
+        // socket. (For a signed-in player the game server keeps it on the
+        // connection — see the note in `ws.ts`.)
+        if (readGuest()) saveGuest(readGuest()?.name ?? "", id)
+    }
+
+    return (
+        <VStack align="stretch" gap="1.5">
+            <Text fontSize="sm" fontWeight="semibold">{t("game.settings.avatar")}</Text>
+            <AvatarPicker value={me?.avatarPreset ?? null} onChange={pick} size="40px"
+                label={t("game.settings.avatar")} />
+            <Text fontSize="xs" color="fg.muted">{t("game.settings.avatarHint")}</Text>
         </VStack>
     )
 }
@@ -211,6 +248,7 @@ export default function GameSettingsSheet({ open, onClose, room, isHost = false,
                                     <RoomSettings room={room} onChange={onChangeOptions} />
                                 ) : null}
                                 <GameNameSetting />
+                                <GameAvatarSetting />
                                 <Separator my="1" />
                                 <GameOption label={t("game.settings.alwaysReady")} hint={t("game.settings.alwaysReadyHint")}
                                     checked={prefs.alwaysReady} onChange={(alwaysReady) => setPrefs({ alwaysReady })} />

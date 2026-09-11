@@ -1,6 +1,7 @@
 package hr.mrodek.apps.bela_turniri.services;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import hr.mrodek.apps.bela_turniri.repository.PushDeviceRepository;
 import hr.mrodek.apps.bela_turniri.repository.PushSubscriptionRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
 import io.quarkus.runtime.StartupEvent;
@@ -75,6 +76,17 @@ import java.util.function.Function;
  * {@code sendAsync().get()} with no deadline), so we drive the async form
  * ourselves and cancel the request when it overruns {@link #SEND_TIMEOUT_SECONDS}.
  *
+ * <h2>Two delivery paths, one fan-out</h2>
+ * <p>Since the native shells shipped, {@code sendToUser} serves BOTH:
+ * {@code push_subscriptions} (browsers, VAPID Web Push, everything described
+ * above) and {@code push_devices} (installed iOS/Android apps, FCM v1 via
+ * {@link FcmSender}). Both sets of rows are materialised on the caller's
+ * thread, both are sent on the same daemon pool after the same commit hook,
+ * and both use the same 8 s deadline. A user with a browser subscription and
+ * a phone gets both — that is the intended behaviour, not a duplicate.
+ * Neither branch can fail the other: each send is individually wrapped, and a
+ * deployment with only one of the two configured simply skips the other.
+ *
  * <p>Failures are logged at WARN with the uid and the endpoint HOST only —
  * the full endpoint URL is a bearer token and must never reach the logs.
  *
@@ -104,6 +116,11 @@ public class PushService {
     @Inject PushSubscriptionCleaner cleaner;
     @Inject UserProfileRepository profileRepo;
     @Inject MessageService messages;
+
+    /* --- native (FCM) half: additive, never in the web-push branch's way --- */
+    @Inject PushDeviceRepository deviceRepo;
+    @Inject FcmSender fcm;
+    @Inject PushDeviceCleaner deviceCleaner;
 
     /**
      * Lets us detect an in-flight JTA transaction and hook after-commit
@@ -168,9 +185,24 @@ public class PushService {
         }
     }
 
-    /** Whether the service is configured and able to deliver pushes. */
+    /**
+     * Whether WEB push is configured and able to deliver.
+     *
+     * <p>Deliberately unchanged and web-only: {@code GET /push/public-key}
+     * reports it to the browser, which is asking "can I subscribe with
+     * pushManager?", and a configured FCM does not make that true.
+     */
     public boolean isReady() {
         return webPush != null;
+    }
+
+    /**
+     * Whether ANY delivery path is configured — web push, native push, or
+     * both. This, not {@link #isReady()}, is what the fan-out gates on: with
+     * only FCM configured a native user must still get their notification.
+     */
+    private boolean canDeliver() {
+        return isReady() || fcm.isEnabled();
     }
 
     /** Public VAPID key in base64url, served unauthenticated to subscribers. */
@@ -189,17 +221,29 @@ public class PushService {
     public void sendToUser(String userUid, PushPayload payload) {
         if (userUid == null || userUid.isBlank()) return;
         if (payload == null) return;
-        if (!isReady()) return;
+        if (!canDeliver()) return;
         try {
             // Read on the caller's thread/transaction and detach immediately:
             // the background sender has no persistence context of its own.
-            List<Target> targets = subRepo.findByUserUid(userUid).stream()
+            // Both halves are materialised here for exactly that reason.
+            List<Target> targets = isReady()
+                    ? subRepo.findByUserUid(userUid).stream()
                     .map(s -> new Target(s.getId(), s.getEndpoint(), s.getP256dh(), s.getAuth()))
-                    .toList();
-            if (targets.isEmpty()) return;
+                    .toList()
+                    : List.of();
 
-            String json = objectMapper.writeValueAsString(toMap(payload));
-            dispatch(userUid, targets, json);
+            List<DeviceTarget> devices = fcm.isEnabled()
+                    ? deviceRepo.findByUserUid(userUid).stream()
+                    .map(d -> new DeviceTarget(d.getId(), d.getToken(), d.getPlatform()))
+                    .toList()
+                    : List.<DeviceTarget>of();
+
+            if (targets.isEmpty() && devices.isEmpty()) return;
+
+            // The web branch needs the payload as its wire JSON; the native
+            // branch builds its own FCM message from the record itself.
+            String json = targets.isEmpty() ? null : objectMapper.writeValueAsString(toMap(payload));
+            dispatch(userUid, targets, json, devices, payload);
         } catch (Exception e) {
             LOG.warnf(e, "Push: could not queue notification for uid %s", userUid);
         }
@@ -228,7 +272,9 @@ public class PushService {
         if (userUid == null || userUid.isBlank()) return;
         if (payloadFactory == null) return;
         // Cheap exit before the profile query: nothing would be sent anyway.
-        if (!isReady()) return;
+        // canDeliver(), not isReady() — a deployment with FCM but no VAPID
+        // keys still has native recipients to serve.
+        if (!canDeliver()) return;
         sendToUser(userUid, payloadFactory.apply(recipientLocale(userUid)));
     }
 
@@ -264,9 +310,14 @@ public class PushService {
      * rollback, rolling back, preparing, …) means the data behind the
      * notification may never land, so the push is dropped.
      */
-    private void dispatch(String userUid, List<Target> targets, String json) {
+    private void dispatch(String userUid,
+                          List<Target> targets, String json,
+                          List<DeviceTarget> devices, PushPayload payload) {
         Runnable task = () -> {
+            // Web push first, then native — but each device/subscription is
+            // wrapped so that one failing path cannot skip the other.
             for (Target t : targets) sendOne(userUid, t, json);
+            for (DeviceTarget d : devices) sendOneNative(userUid, d, payload);
         };
 
         int status;
@@ -364,6 +415,34 @@ public class PushService {
         }
     }
 
+    /**
+     * One FCM delivery. Mirrors {@link #sendOne} exactly: success stamps
+     * lastSeenAt, a "gone" verdict deletes the row, everything else is logged
+     * and left alone for the next notification to retry.
+     *
+     * <p>Wrapped in its own try/catch so a native failure can never abort the
+     * loop and skip the remaining devices — or, in the other order, the web
+     * subscriptions.
+     */
+    private void sendOneNative(String userUid, DeviceTarget device, PushPayload payload) {
+        try {
+            FcmSender.Result result = fcm.send(device.token(), device.platform(), payload);
+            switch (result) {
+                case OK -> deviceCleaner.markSeen(device.id());
+                case DEAD_TOKEN -> {
+                    LOG.infof("Push: dropping dead device %d (platform %s)",
+                            device.id(), device.platform());
+                    deviceCleaner.deleteById(device.id());
+                }
+                // FAILED / DISABLED: keep the row, try again next time.
+                default -> { }
+            }
+        } catch (Exception e) {
+            // FcmSender does not throw, but a mock or a future refactor might.
+            LOG.warnf(e, "Push: native send failed for uid %s (device %d)", userUid, device.id());
+        }
+    }
+
     private java.security.PublicKey decodePublicKey(String b64url) throws Exception {
         byte[] raw = Base64.getUrlDecoder().decode(padBase64(b64url));
         var params = org.bouncycastle.jce.ECNamedCurveTable.getParameterSpec("secp256r1");
@@ -395,10 +474,21 @@ public class PushService {
     private record Target(Long id, String endpoint, String p256dh, String auth) {}
 
     /**
+     * A native registration flattened out of the persistence context, for the
+     * same reason as {@link Target}: the background sender runs after the
+     * caller's transaction and has no persistence context of its own.
+     */
+    private record DeviceTarget(Long id, String token, String platform) {}
+
+    /**
      * Wire shape of a single push. The frontend service worker reads these
      * three fields from {@code event.data.json()} and forwards them to
      * {@code showNotification}; {@code url} is stamped onto the notification's
      * data so {@code notificationclick} can open the right page.
+     *
+     * <p>The FCM message {@link FcmSender} builds carries the SAME field names
+     * in its {@code data} map, so the native tap-handler can reuse the web
+     * deep-link logic verbatim. Renaming a field here changes both clients.
      */
     public record PushPayload(
             String title,

@@ -24,6 +24,9 @@ public interface PairMapper {
             @Mapping(target = "pendingApproval",  source = "pendingApproval"),
             @Mapping(target = "coSubmittedByUid", source = "coSubmittedByUid"),
             @Mapping(target = "claimToken",       source = "claimToken"),
+            // contactPhone is deliberately NOT mapped here: this basic shape has
+            // no viewer to gate on, and a null is the only safe default for a
+            // number only the organiser may see. Use toDtoEnriched(..., true).
     })
     PairDto toDto(Pairs entity);
 
@@ -56,6 +59,11 @@ public interface PairMapper {
             @Mapping(target = "pendingApproval",     ignore = true),
             @Mapping(target = "claimToken",          ignore = true),
             @Mapping(target = "coSubmittedByUid",    ignore = true),
+            // Same trap as the fields above, one step worse: the organiser's
+            // pair editor never receives contactPhone for a row it did not
+            // originate, so an auto-mapped null here would erase the only way
+            // to reach an anonymously registered pair on the next bulk save.
+            @Mapping(target = "contactPhone",        ignore = true),
             @Mapping(target = "createdAt",           ignore = true),
             @Mapping(target = "updatedAt",           ignore = true)
     })
@@ -76,6 +84,20 @@ public interface PairMapper {
      */
     default PairDto toDtoEnriched(Pairs e, Map<String, UserProfile> profilesByUid,
                                    boolean includeClaimToken) {
+        return toDtoEnriched(e, profilesByUid, includeClaimToken, false);
+    }
+
+    /**
+     * As above, with the organiser-only contact phone.
+     *
+     * <p>{@code includeContactPhone} must be the caller's
+     * {@code TournamentAccess.canManage} result and nothing else. The pairs
+     * list is anonymous-readable, so any other source for this flag turns the
+     * endpoint into a phone-number scraper — the exact failure
+     * {@code PairRequestController.redactForAnonymous} documents next door.
+     */
+    default PairDto toDtoEnriched(Pairs e, Map<String, UserProfile> profilesByUid,
+                                   boolean includeClaimToken, boolean includeContactPhone) {
         UserProfile prof = e.getSubmittedByUid() != null && profilesByUid != null
                 ? profilesByUid.get(e.getSubmittedByUid())
                 : null;
@@ -97,7 +119,9 @@ public interface PairMapper {
                 e.getCoSubmittedByUid(),
                 co == null ? null : co.getSlug(),
                 co == null ? null : co.getDisplayName(),
-                includeClaimToken ? e.getClaimToken() : null
+                includeClaimToken ? e.getClaimToken() : null,
+                includeContactPhone ? e.getContactPhone() : null,
+                null
         );
     }
 
@@ -124,7 +148,9 @@ public interface PairMapper {
         return entities.stream().map(e -> {
             boolean canSeeToken = viewerIsOrganizerOrAdmin
                     || (viewerUid != null && viewerUid.equals(e.getSubmittedByUid()));
-            return toDtoEnriched(e, profilesByUid, canSeeToken);
+            // The phone is stricter than the token: only the organiser/admin,
+            // never the submitter's fellow participants.
+            return toDtoEnriched(e, profilesByUid, canSeeToken, viewerIsOrganizerOrAdmin);
         }).toList();
     }
 }

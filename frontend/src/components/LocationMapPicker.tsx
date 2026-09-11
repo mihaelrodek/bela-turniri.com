@@ -9,6 +9,8 @@ import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-lea
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 import { useTranslation } from "../i18n"
+import { mapTiles } from "../utils/mapTiles"
+import { reverseGeocode } from "../utils/places"
 
 /**
  * Custom marker icon for the picked location.
@@ -51,9 +53,11 @@ const PICKER_PIN_ICON = L.divIcon({
  * address. Both flows ultimately fill the same `location` string in
  * the parent form.
  *
- * <p>Reverse geocoding goes through OSM Nominatim, same as the forward
- * autocomplete, so picks here look identical to picks from the dropdown
- * (same Nominatim display_name format, same coordinate accuracy).
+ * <p>Reverse geocoding stays on OSM Nominatim (`utils/places.ts`) even when
+ * the forward autocomplete runs on Google: Google reverse geocoding is a
+ * separate, pricier API and a map click is rare next to typing. The shared
+ * formatter there gives a click the same "Name, Street 1, 12345 City" shape a
+ * typed pick commits, so the two paths remain indistinguishable downstream.
  */
 export default function LocationMapPicker({
     value,
@@ -119,9 +123,12 @@ export default function LocationMapPicker({
                 style={{ height: "100%", width: "100%" }}
                 scrollWheelZoom={false}
             >
+                {/* Basemap comes from utils/mapTiles.ts so both this picker
+                    and /karta follow the same (env-overridable) provider. */}
                 <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                    url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                    attribution={mapTiles.attribution}
+                    url={mapTiles.url}
+                    maxZoom={mapTiles.maxZoom}
                 />
                 <ClickHandler onClick={handleClick} />
                 {/* RecenterOnValue keeps the map's view in sync with the
@@ -241,26 +248,4 @@ function RecenterOnValue({ value }: { value: { lat: number; lng: number } | null
         map.setView([value.lat, value.lng], targetZoom, { animate: true })
     }, [map, value?.lat, value?.lng])
     return null
-}
-
-/**
- * Reverse geocode lat/lng to a Nominatim display_name. Matches the
- * forward-search Accept-Language + addressdetails so the resulting
- * string formats the same way as picks from {@link LocationAutocomplete}.
- *
- * <p>Nominatim's usage policy asks for ≤ 1 request/second per user. The
- * picker is throttled implicitly because the user has to click + wait
- * for the reverse geocode to resolve before they can click again, so
- * we don't need an explicit rate limiter.
- */
-async function reverseGeocode(lat: number, lng: number): Promise<string> {
-    const url =
-        `https://nominatim.openstreetmap.org/reverse?format=json` +
-        `&lat=${lat}&lon=${lng}` +
-        `&accept-language=hr` +
-        `&zoom=18&addressdetails=1`
-    const res = await fetch(url, { headers: { Accept: "application/json" } })
-    if (!res.ok) throw new Error(`Nominatim reverse ${res.status}`)
-    const data = await res.json()
-    return (data?.display_name as string) ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`
 }

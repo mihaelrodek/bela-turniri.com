@@ -181,6 +181,32 @@
             <version>1.78.1</version>
         </dependency>
 
+        <!-- Firebase Admin SDK — used ONLY for Firebase Cloud Messaging (FCM
+             v1), i.e. native push to the iOS/Android shells. Web Push above is
+             untouched and stays the delivery path for browsers.
+
+             The two big Google Cloud clients that firebase-admin drags in
+             (Firestore and Cloud Storage, each with their own gRPC/protobuf
+             stack) are excluded: we never touch either, and leaving them in
+             adds ~30 MB and a second gRPC runtime to the fast-jar for nothing.
+             FirebaseMessaging only needs google-auth-library +
+             google-http-client, which stay. -->
+        <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>9.4.3</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.google.cloud</groupId>
+                    <artifactId>google-cloud-firestore</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.google.cloud</groupId>
+                    <artifactId>google-cloud-storage</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
         <!-- Tests -->
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -190,6 +216,15 @@
         <dependency>
             <groupId>io.rest-assured</groupId>
             <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- @TestSecurity: lets a test get past an @Authenticated gate without
+             minting a real Firebase ID token, so the push-device endpoints can
+             be exercised through the full JAX-RS pipeline (bean validation,
+             status codes, exception mappers) instead of only at service level. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-test-security</artifactId>
             <scope>test</scope>
         </dependency>
 

@@ -75,11 +75,14 @@ export async function createTournament(
 
 export async function fetchTournaments(
     status: "upcoming" | "finished" = "upcoming",
-    opts?: { offset?: number; limit?: number },
+    opts?: { offset?: number; limit?: number; q?: string },
 ): Promise<TournamentCard[]> {
     const params: Record<string, string | number> = { status };
     if (opts?.offset != null) params.offset = opts.offset;
     if (opts?.limit != null) params.limit = opts.limit;
+    // The backend ignores anything under 2 trimmed chars, so an empty or
+    // 1-char box never even reaches it as a query param.
+    if (opts?.q && opts.q.trim().length >= 2) params.q = opts.q.trim();
     const { data } = await http.get<TournamentCard[]>("/tournaments", { params });
     return data;
 }
@@ -99,9 +102,12 @@ export async function fetchMyTournaments(): Promise<TournamentCard[]> {
 
 export async function fetchTournamentsCount(
     status: "finished" = "finished",
+    q?: string,
 ): Promise<number> {
+    const params: Record<string, string> = { status };
+    if (q && q.trim().length >= 2) params.q = q.trim();
     const { data } = await http.get<{ total: number }>("/tournaments/count", {
-        params: { status },
+        params,
         // No success toast for a background count.
         silent: true,
     });
@@ -300,10 +306,21 @@ export async function setPairPaid(
     return data;
 }
 
-export async function selfRegisterPair(tournamentUuid: string, name: string): Promise<PairShort> {
+/**
+ * Registers a pair. Works signed in AND signed out — an anonymous caller must
+ * send `contactPhone`, because the number is then the organiser's only way to
+ * reach the registration (backend answers 400 CONTACT_PHONE_REQUIRED without
+ * it) and the reply carries a `claimUrl` for attaching the pair to an account
+ * later.
+ */
+export async function selfRegisterPair(
+    tournamentUuid: string,
+    name: string,
+    contactPhone?: string | null,
+): Promise<PairShort> {
     const { data } = await http.post<PairShort>(
         `/tournaments/${tournamentUuid}/pairs/self-register`,
-        { name },
+        contactPhone ? { name, contactPhone } : { name },
         { successMessage: t("common.toast.registrationSent") },
     )
     return data

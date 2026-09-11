@@ -15,6 +15,7 @@ export const game: GameDict = {
     "guest.title": "Zaigraj belo",
     "guest.name": "Ime igralca",
     "guest.nameHint": "Vnesi ime za mizo. Zapomnili si ga bomo v tem brskalniku.",
+    "guest.avatarHint": "Izberi lik, ki te predstavlja za mizo.",
     "guest.play": "Igraj kot gost",
     "guest.statsHint": "Prijavi se, da bo tvoja statistika shranjena in dostopna na vseh platformah in napravah.",
     "guest.login": "Prijavi se",
@@ -38,6 +39,8 @@ export const game: GameDict = {
     "settings.gameNameHint": "Ime, ki ga drugi igralci vidijo za mizo. Spremeniš ga lahko enkrat na sedem dni.",
     "settings.gameNameSaved": "Ime je shranjeno.",
     "settings.gameNameNext": "Ime lahko znova spremeniš {date}.",
+    "settings.avatar": "Lik",
+    "settings.avatarHint": "Lik, ki ga drugi igralci vidijo za mizo.",
     "settings.alwaysReady": "Vedno pripravljen",
     "settings.alwaysReadyHint": "Samodejno označi pripravljenost, ko sedeš za mizo.",
     /* ─── Navigacija ────────────────────────────────────────── */

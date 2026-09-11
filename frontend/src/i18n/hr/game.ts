@@ -17,6 +17,7 @@ export const game = {
     "guest.title": "Zaigraj belu",
     "guest.name": "Ime igrača",
     "guest.nameHint": "Unesi ime za stolom. Zapamtit ćemo ga u ovom pregledniku.",
+    "guest.avatarHint": "Izaberi lik koji te predstavlja za stolom.",
     "guest.play": "Igraj kao gost",
     "guest.statsHint": "Prijavi se kako bi tvoja statistika ostala spremljena i dostupna na svim platformama i uređajima.",
     "guest.login": "Prijavi se",
@@ -40,6 +41,8 @@ export const game = {
     "settings.gameNameHint": "Ime koje ostali igrači vide za stolom. Možeš ga promijeniti jednom u sedam dana.",
     "settings.gameNameSaved": "Ime je spremljeno.",
     "settings.gameNameNext": "Ime možeš ponovno promijeniti {date}.",
+    "settings.avatar": "Lik",
+    "settings.avatarHint": "Lik koji ostali igrači vide za stolom.",
     "settings.alwaysReady": "Uvijek spreman",
     "settings.alwaysReadyHint": "Automatski označi spremnost kada sjedneš za stol.",
     /* ─── Navigacija ────────────────────────────────────────── */

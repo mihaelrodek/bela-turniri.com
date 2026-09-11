@@ -21,6 +21,7 @@ public class SlugService {
 
     @Inject UserProfileRepository profileRepo;
     @Inject MessageService messages;
+    @Inject AvatarPresetService avatarPresets;
 
     /** Hard fallback when displayName / email are both empty. */
     private static final String DEFAULT_BASE = "igrac";
@@ -99,6 +100,11 @@ public class SlugService {
         if (existing == null) {
             existing = new UserProfile();
             existing.setUserUid(uid);
+            // A brand-new profile starts with a drawn character rather than
+            // grey initials. Only on creation: a user who deliberately cleared
+            // theirs must not have one handed back on the next sync, which is
+            // why this is not also called on the update path below.
+            avatarPresets.assignDefaultIfMissing(existing);
         }
         if (displayName != null && !displayName.isBlank()) {
             existing.setDisplayName(displayName.trim());

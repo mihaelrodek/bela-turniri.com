@@ -43,7 +43,18 @@ public record PairDto(
         // Opaque token that goes in the /claim-pair/{token} URL. Only sent
         // to the primary submitter and to organizers/admins — viewers who
         // shouldn't see the share link get null here.
-        String claimToken
+        String claimToken,
+
+        // Phone of a pair that registered without an account. ORGANISER-ONLY:
+        // emitted solely when the viewer passes TournamentAccess.canManage,
+        // never in the public pair list — it is the one piece of PII a pair row
+        // can carry, and the list endpoint is anonymous-readable.
+        String contactPhone,
+
+        // Absolute /preuzmi-par/{token} URL, returned ONLY in the response to an
+        // anonymous self-registration so the submitter can keep the link and
+        // later attach the pair to an account. Never set in list responses.
+        String claimUrl
 ) {
     /** Backwards-compat constructor for callers that don't yet enrich submitter info. */
     public PairDto(
@@ -53,7 +64,7 @@ public record PairDto(
     ) {
         this(id, name, isEliminated, extraLife, wins, losses, paid,
                 submittedByUid, pendingApproval, null, null,
-                null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     /** Earlier 11-arg constructor (no co-owner / token fields). */
@@ -65,6 +76,29 @@ public record PairDto(
     ) {
         this(id, name, isEliminated, extraLife, wins, losses, paid,
                 submittedByUid, pendingApproval, submittedBySlug, submittedByName,
-                null, null, null, null);
+                null, null, null, null, null, null);
+    }
+
+    /** The 15-arg shape that predates contactPhone / claimUrl. */
+    public PairDto(
+            Integer id, String name, Boolean isEliminated, Boolean extraLife,
+            Integer wins, Integer losses, Boolean paid,
+            String submittedByUid, Boolean pendingApproval,
+            String submittedBySlug, String submittedByName,
+            String coSubmittedByUid, String coSubmittedBySlug, String coSubmittedByName,
+            String claimToken
+    ) {
+        this(id, name, isEliminated, extraLife, wins, losses, paid,
+                submittedByUid, pendingApproval, submittedBySlug, submittedByName,
+                coSubmittedByUid, coSubmittedBySlug, coSubmittedByName, claimToken,
+                null, null);
+    }
+
+    /** Same row plus the absolute claim URL — the anonymous self-register reply. */
+    public PairDto withClaimUrl(String claimUrl) {
+        return new PairDto(id, name, isEliminated, extraLife, wins, losses, paid,
+                submittedByUid, pendingApproval, submittedBySlug, submittedByName,
+                coSubmittedByUid, coSubmittedBySlug, coSubmittedByName, claimToken,
+                contactPhone, claimUrl);
     }
 }

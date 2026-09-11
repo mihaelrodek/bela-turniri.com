@@ -47,3 +47,34 @@ export type PushSubscriptionJSON = {
         auth?: string
     }
 }
+
+/** Body of `PUT /push/device` — see `PushBootstrap.tsx`'s native branch. */
+export type RegisterPushDeviceRequest = {
+    token: string
+    platform: "ios" | "android"
+    locale?: string
+    appVersion?: string
+}
+
+/**
+ * Upsert an FCM device token (native iOS/Android only — the web path uses
+ * `registerPushSubscription` above). Idempotent on the backend, so calling
+ * it again on every `tokenReceived` just refreshes the row.
+ */
+export async function registerPushDevice(body: RegisterPushDeviceRequest): Promise<void> {
+    await http.put("/push/device", body, {
+        // Background plumbing, same as the web subscribe call — no toast.
+        silent: true,
+    })
+}
+
+/**
+ * Drop a device token on sign-out, so a shared/reset device stops receiving
+ * pushes meant for the account that just signed out. Best-effort: the caller
+ * (`PushBootstrap.tsx`) never lets a failure here surface to the user.
+ */
+export async function unregisterPushDevice(token: string): Promise<void> {
+    await http.delete(`/push/device/${encodeURIComponent(token)}`, {
+        silent: true,
+    })
+}

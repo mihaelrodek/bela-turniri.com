@@ -17,6 +17,11 @@
 !.env.prod.example
 !frontend/.env.example
 
+# Capacitor native shells — the web image never needs them (~20 MB of Xcode/Gradle trees).
+frontend/ios/
+frontend/android/
+frontend/resources/
+
 # Runtime artifacts
 backend/uploads/
 uploads/

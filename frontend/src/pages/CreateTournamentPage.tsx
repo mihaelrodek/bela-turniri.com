@@ -1092,6 +1092,22 @@ export default function CreateTournamentPage() {
                         .filter(Boolean)
                         .join(" · ")
 
+                    // Drugi repasaž (second re-entry price) has no default —
+                    // most organisers never touch it — so on a confirmation
+                    // screen an empty row reading "Nije uneseno" is just
+                    // noise; only render it once it actually has a price.
+                    const repassageSecondValue = money(form.repassageSecondPrice)
+
+                    // Repasaž moguć do (last round it can still be bought)
+                    // always has a value: the form defaults it to "Finala"
+                    // and there is no toggle to disable repassage entirely,
+                    // so unlike the rows above this one can't go missing.
+
+                    // "Detalji" is free text the organiser may skip
+                    // entirely; same reasoning as Drugi repasaž above —
+                    // don't show an empty row just to say it's empty.
+                    const detailsValue = form.details.trim()
+
                     const rows: ReviewRow[] = [
                         {
                             label: t("forms.createTournament.dateTime.label"),
@@ -1103,6 +1119,7 @@ export default function CreateTournamentPage() {
                         {
                             label: t("forms.createTournament.location.label"),
                             value: form.location.trim() || notEntered,
+                            wide: true,
                         },
                         {
                             label: t("forms.createTournament.maxPairs.label"),
@@ -1132,10 +1149,12 @@ export default function CreateTournamentPage() {
                                     </chakra.span>
                                 ),
                         },
-                        {
-                            label: t("forms.createTournament.repassageSecondPrice.label"),
-                            value: money(form.repassageSecondPrice) ?? notEntered,
-                        },
+                        ...(repassageSecondValue != null
+                            ? [{
+                                label: t("forms.createTournament.repassageSecondPrice.label"),
+                                value: repassageSecondValue,
+                            }]
+                            : []),
                         {
                             label: t("forms.createTournament.repassageUntil.label"),
                             value: repassageUntilLabel,
@@ -1149,11 +1168,13 @@ export default function CreateTournamentPage() {
                             label: t("forms.createTournament.section.contact"),
                             value: contactStr || notEntered,
                         },
-                        {
-                            label: t("forms.createTournament.details.label"),
-                            value: form.details.trim() || notEntered,
-                            wide: true,
-                        },
+                        ...(detailsValue
+                            ? [{
+                                label: t("forms.createTournament.details.label"),
+                                value: detailsValue,
+                                wide: true,
+                            }]
+                            : []),
                     ]
 
                     return (

@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bela Turniri</string>
+    <string name="title_activity_main">Bela Turniri</string>
+    <string name="package_name">com.belaturniri.app</string>
+    <string name="custom_url_scheme">com.belaturniri.app</string>
+    <!-- Documents the "bela" notification channel's display name for anyone
+         reading the Android project without JS context — the channel itself
+         is created at runtime by NativeShell.tsx via FirebaseMessaging
+         .createChannel(), using the localised string (i18n key
+         common.push.channelName), not this resource. Keep the two in sync. -->
+    <string name="notification_channel_name">Obavijesti</string>
+</resources>

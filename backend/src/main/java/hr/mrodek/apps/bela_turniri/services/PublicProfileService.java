@@ -39,6 +39,7 @@ public class PublicProfileService {
     @Inject PairsRepository pairRepo;
     @Inject MatchesRepository matchRepo;
     @Inject MessageService messages;
+    @Inject AvatarPresetService avatarPresets;
 
     /**
      * Build the public profile DTO for {@code slug}.
@@ -186,6 +187,8 @@ public class PublicProfileService {
                 phone,
                 hasPhone,
                 avatarUrl,
+                // Precedence lives in one place — see AvatarPresetService.
+                avatarPresets.presetFor(profile, avatarUrl),
                 pairs,
                 participationDtos
         );

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { wsOrigin } from "../platform"
 
 /* ──────────────────────────────────────────────────────────────────────────
    useLiveSocket - realtime "something changed in this tournament" channel.
@@ -12,7 +13,9 @@ import { useEffect, useRef, useState } from "react"
 
    Public URL is /ws/live/{uuid}; Caddy in prod and the Vite dev proxy both
    rewrite that to the backend's /api/live/{uuid} (websockets-next registers
-   under quarkus.http.root-path - see LiveSocket.java).
+   under quarkus.http.root-path - see LiveSocket.java). The origin in front of
+   that path comes from ../platform: the current page on the web, the real host
+   in a native shell.
 
    One connection per tournament: a viewer of tournament A never receives -
    or learns about - traffic for tournament B, and no client-side filtering
@@ -71,10 +74,7 @@ export function useLiveSocket(
         let timer: ReturnType<typeof setTimeout> | null = null
         let stableTimer: ReturnType<typeof setTimeout> | null = null
 
-        const url = () => {
-            const proto = window.location.protocol === "https:" ? "wss:" : "ws:"
-            return `${proto}//${window.location.host}/ws/live/${encodeURIComponent(tournamentUuid)}`
-        }
+        const url = () => `${wsOrigin}/ws/live/${encodeURIComponent(tournamentUuid)}`
 
         const clearTimer = () => {
             if (timer !== null) {

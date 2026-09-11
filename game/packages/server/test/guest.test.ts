@@ -21,7 +21,7 @@ describe("guest identity", () => {
         // clearing it out of localStorage and typing a fresh one, which is what
         // makes the once-a-week limit mean anything for them.
         const named = createAuthenticator(loadConfig({}, { devAllowAnon: false }), {
-            get: async () => ({ displayName: null, avatarUrl: null, gameName: "Pero" }),
+            get: async () => ({ displayName: null, avatarUrl: null, gameName: "Pero", avatarPreset: null }),
             setGameName: async () => ({ ok: false, error: "UNAVAILABLE" }),
         })
         const user = await named.authenticate({ guest: { ...guest, name: "Ana" } })

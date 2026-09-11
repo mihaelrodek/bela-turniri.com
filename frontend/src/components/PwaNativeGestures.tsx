@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { Box } from "@chakra-ui/react"
 import { FiChevronLeft, FiRefreshCw } from "react-icons/fi"
 import { queryClient } from "../queryClient"
+import { isNative } from "../platform"
 
 /**
  * Installed PWAs (display-mode: standalone) run with no browser chrome, so
@@ -115,6 +116,13 @@ export default function PwaNativeGestures() {
     const [backDistance, setBackDistance] = useState(0)
 
     useEffect(() => {
+        // This component exists to patch back two gestures that standalone
+        // PWA mode takes away from a browser tab. The native shells are a
+        // different chrome-less surface entirely — Android's hardware back
+        // button is wired separately (main.tsx's NativeShell), and pull-to-
+        // refresh has no equivalent expectation inside an app-store app —
+        // so there is nothing here to reimplement natively.
+        if (isNative) return
         if (!isStandalone()) return
 
         const g = {
@@ -233,7 +241,7 @@ export default function PwaNativeGestures() {
         }
     }, [navigate, refreshing])
 
-    if (!isStandalone()) return null
+    if (isNative || !isStandalone()) return null
 
     const pullReady = pullDistance >= PULL_THRESHOLD
     const backReady = backDistance >= BACK_THRESHOLD

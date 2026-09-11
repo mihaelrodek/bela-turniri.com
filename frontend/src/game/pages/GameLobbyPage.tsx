@@ -166,7 +166,7 @@ export default function GameLobbyPage() {
             <VStack gap="6" align="stretch">
                 <HStack justify="space-between" gap="3">
                     <HStack gap="2" minW="0">
-                        <PlayerAvatar name={socket.me?.name} avatarUrl={socket.me?.avatarUrl} size="sm" />
+                        <PlayerAvatar name={socket.me?.name} avatarUrl={socket.me?.avatarUrl} avatarPreset={socket.me?.avatarPreset} size="sm" />
                         <Text fontWeight="medium" lineClamp={1}>{socket.me?.name ?? "…"}</Text>
                     </HStack>
                     <HStack>

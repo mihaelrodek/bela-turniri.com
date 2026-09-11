@@ -1,13 +1,22 @@
 import { Box, Image, Text } from "@chakra-ui/react"
+import BelaAvatar from "../../components/avatars/BelaAvatar"
+import { isAvatarId } from "../../components/avatars/avatarArt"
 
 /* ──────────────────────────────────────────────────────────────────────────
    PlayerAvatar — one round avatar, shared by the lobby's room cards, the
    room's seat rows and its "2 vs 2" preview (game/DESIGN.md §1 "Lobby"/"Soba").
 
-   Three states: a photo (`avatarUrl`), initials from `name` when there is
-   none, or `empty` — a dashed circle with a "+" for a seat nobody has taken,
-   the exact same visual `Seat.tsx` uses on the live table so the lobby list
-   and the room preview never look like a different app from the felt.
+   Four states, in this order of preference: a photo (`avatarUrl`), the picked
+   face (`avatarPreset`, drawn by `BelaAvatar`), initials from `name` when
+   there is neither, or `empty` — a dashed circle with a "+" for a seat nobody
+   has taken, the exact same visual `Seat.tsx` uses on the live table so the
+   lobby list and the room preview never look like a different app from the
+   felt.
+
+   The photo wins over the preset because an uploaded photo is a deliberate,
+   more specific statement of "this is me"; the preset is what everyone who
+   never uploaded one gets, which is nearly everyone, and initials are now
+   only the fallback for a seat whose face this build does not recognise.
    ────────────────────────────────────────────────────────────────────── */
 
 const SIZES = {
@@ -33,6 +42,7 @@ function initialsOf(name: string): string {
 export default function PlayerAvatar({
     name,
     avatarUrl = null,
+    avatarPreset = null,
     size = "md",
     empty = false,
     online = false,
@@ -41,6 +51,8 @@ export default function PlayerAvatar({
     /** Ignored when `empty`. */
     name?: string | null
     avatarUrl?: string | null
+    /** Picked face id; used only when there is no `avatarUrl`. */
+    avatarPreset?: string | null
     size?: PlayerAvatarSize
     /** A seat nobody has taken — dashed circle, no name/photo. */
     empty?: boolean
@@ -75,6 +87,8 @@ export default function PlayerAvatar({
                     <Text color="fg.muted" aria-hidden="true">+</Text>
                 ) : avatarUrl ? (
                     <Image src={avatarUrl} alt="" w="100%" h="100%" objectFit="cover" loading="lazy" />
+                ) : isAvatarId(avatarPreset) ? (
+                    <BelaAvatar id={avatarPreset} boxSize="100%" />
                 ) : (
                     initialsOf(name ?? "?")
                 )}

@@ -6,7 +6,11 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // 'android' and 'ios' are the Capacitor native shells — generated Gradle/
+  // Xcode project trees (plus their own build output, e.g. Capacitor's
+  // bridge JS copied into android/app/build/.../assets on every native
+  // build) that this config was never meant to lint as app source.
+  globalIgnores(['dist', 'android', 'ios']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

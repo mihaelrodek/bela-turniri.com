@@ -99,6 +99,20 @@ public class PairClaimController {
         Pairs p = pairRepo.findByClaimToken(token).orElse(null);
         if (p == null) throw new NotFoundException();
 
+        // A pair registered without an account has no primary owner at all.
+        // Claiming it means ADOPTING it — the claimer becomes the submitter,
+        // not a co-owner — which is what the link handed to an anonymous
+        // submitter is for: "sign up later and this registration is yours".
+        // Without this branch the flow below would file them as the partner of
+        // nobody, and the row would stay ownerless forever.
+        if (p.getSubmittedByUid() == null) {
+            slugService.ensureProfile(me, currentUser.displayName());
+            p.setSubmittedByUid(me);
+            p.setUpdatedAt(OffsetDateTime.now());
+            pairRepo.persist(p);
+            return new ClaimResultDto(true, p.getId());
+        }
+
         if (me.equals(p.getSubmittedByUid())) {
             throw new ClientErrorException("OWNER_SAME", 409);
         }

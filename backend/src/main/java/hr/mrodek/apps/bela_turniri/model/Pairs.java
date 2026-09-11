@@ -45,6 +45,15 @@ public class Pairs {
     @Column(name = "submitted_by_uid", length = 64)
     private String submittedByUid;
 
+    /**
+     * Phone the organiser can reach this pair on. Required for a pair
+     * registered WITHOUT an account (there is no profile to look a number up
+     * in); optional and usually null otherwise. Organiser-only on the wire —
+     * see PairMapper.
+     */
+    @Column(name = "contact_phone", length = 32)
+    private String contactPhone;
+
     /** True while waiting for the organizer to confirm a self-registered pair. */
     @Column(name = "pending_approval", nullable = false)
     private boolean pendingApproval = false;

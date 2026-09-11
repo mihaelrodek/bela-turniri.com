@@ -130,6 +130,10 @@ function GroupHeading({ label, count }: { label: string; count: number }) {
  *  actually means here. `palette` tints the whole chip (yellow over capacity,
  *  green once everyone has paid) rather than colouring the numeral alone.
  *
+ *  `size="xs"` is the mobile chip-row variant (see the base/sm header strip
+ *  below): tighter padding and a smaller numeral so three chips plus a scroll
+ *  affordance fit a 320px-wide phone without wrapping.
+ *
  *  Exported because the Cjenik tab — the other editable tab on this page —
  *  carries the same header strip and should not grow a private copy of it. */
 export function CounterChip({
@@ -137,28 +141,32 @@ export function CounterChip({
     value,
     label,
     palette,
+    size = "sm",
 }: {
     icon: ReactNode
     value: number
     label: string
     palette?: "green" | "yellow"
+    size?: "sm" | "xs"
 }) {
+    const dense = size === "xs"
     return (
         <HStack
-            gap="1.5"
-            px="2.5"
-            py="1"
+            gap={dense ? "1" : "1.5"}
+            px={dense ? "2" : "2.5"}
+            py={dense ? "0.5" : "1"}
             rounded="full"
             borderWidth="1px"
             borderColor={palette ? `${palette}.muted` : "border.subtle"}
             bg={palette ? `${palette}.subtle` : "bg.subtle"}
             color={palette ? `${palette}.fg` : "fg.muted"}
             minW="0"
+            flexShrink={0}
         >
             <Box flexShrink={0} display="flex" aria-hidden>
                 {icon}
             </Box>
-            <Text fontSize="sm" fontWeight="bold" lineHeight="1.2" flexShrink={0}>
+            <Text fontSize={dense ? "xs" : "sm"} fontWeight="bold" lineHeight="1.2" flexShrink={0}>
                 {value}
             </Text>
             <Text fontSize="xs" lineHeight="1.2" truncate>
@@ -597,7 +605,13 @@ export default function PairsSection(props: PairsSectionProps) {
                 name input auto-saves on blur (see the page's onPairNameBlur)
                 and kotizacija goes through the offline queue, so a manual save
                 button had nothing left to do. */}
-            <HStack justify="space-between" align="center" gap="2" rowGap="2">
+            {/* md+: unchanged from before — chips wrap among themselves, the
+                buttons keep their own line-end. Gated to md+ only because at
+                390px this produced a ragged three-line block with the
+                register button wedged between the second and third chip; the
+                base/sm replacement below solves that instead of reflowing
+                this one. */}
+            <HStack justify="space-between" align="center" gap="2" rowGap="2" display={{ base: "none", md: "flex" }}>
                 {/* The chips take the slack and wrap among themselves; the
                     buttons keep their own line-end and never get pushed onto a
                     row of their own at 390px. */}
@@ -669,6 +683,88 @@ export default function PairsSection(props: PairsSectionProps) {
                     )}
                 </HStack>
             </HStack>
+
+            {/* base/sm: the chips get their own single scrollable row instead
+                of wrapping into a ragged column, and "+ Prijavi par" (plus the
+                organiser's own buttons) drops to a full-width row underneath
+                so it reads as the primary action instead of floating between
+                chips. Two separate blocks rather than one responsive layout
+                because the desktop wrap arrangement and this scroll-row one
+                are different enough (nowrap vs wrap, chip size, button width)
+                that forcing them through shared props would obscure both. */}
+            <VStack align="stretch" gap="2" display={{ base: "flex", md: "none" }}>
+                <HStack
+                    gap="1.5"
+                    overflowX="auto"
+                    overflowY="hidden"
+                    overscrollBehavior="contain"
+                    pb="0.5"
+                    css={{ scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}
+                >
+                    <CounterChip
+                        size="xs"
+                        icon={<FiUsers size={12} />}
+                        value={pairs.length}
+                        label={
+                            capacity != null
+                                ? plural("tournament.pairs.capacityOf", pairs.length, { max: capacity })
+                                : plural("tournament.pairs.capacityUnlimited", pairs.length)
+                        }
+                        palette={overCapacity ? "yellow" : undefined}
+                    />
+                    {!tournamentAlready && (
+                        <CounterChip
+                            size="xs"
+                            icon={<FiDollarSign size={12} />}
+                            value={paidCount}
+                            label={plural("tournament.pairs.paidEntry", paidCount)}
+                            palette={paidCount === pairs.length && pairs.length > 0 ? "green" : undefined}
+                        />
+                    )}
+                    <CounterChip
+                        size="xs"
+                        icon={<FiCheck size={12} />}
+                        value={activeRows.length}
+                        label={plural("tournament.pairs.activeCount", activeRows.length)}
+                    />
+                    {overCapacity && (
+                        <Badge variant="solid" colorPalette="yellow" size="sm" flexShrink={0}>
+                            {tr("tournament.pairs.overCapacity", { n: pairs.length - (capacity ?? 0) })}
+                        </Badge>
+                    )}
+                </HStack>
+                {/* "+ Prijavi par" is the primary action on this tab for
+                    everyone but the organiser, so it gets a full-width row to
+                    itself. `showSelfRegisterButton` already excludes the
+                    organiser view (see PairsSectionContainer), so this and
+                    the organiser's "Dodaj par" below are mutually exclusive
+                    today; each stays a plain `w="full"` button rather than a
+                    half-width pair for a state that cannot occur. */}
+                {showSelfRegisterButton && (
+                    <Button size="sm" variant="solid" colorPalette="blue" w="full" onClick={onSelfRegisterClick}>
+                        <FiPlus />{" "}
+                        {userAlreadyRegistered
+                            ? tr("tournament.pairs.registerAnother")
+                            : tr("tournament.pairs.registerPair")}
+                    </Button>
+                )}
+                {!tournamentLocked && canEdit && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        w="full"
+                        onClick={handleAddPair}
+                        disabled={tournamentAlready || atCapacity}
+                        title={
+                            atCapacity
+                                ? tr("tournament.pairs.atCapacityTitle", { max: capacity ?? 0 })
+                                : tr("tournament.pairs.addPairTitle")
+                        }
+                    >
+                        <FiPlus /> {tr("tournament.pairs.addPair")}
+                    </Button>
+                )}
+            </VStack>
 
             {/* Open pair-finding requests — visible only before the tournament
                 starts and only if at least one is OPEN. Collapsible so the
@@ -919,6 +1015,24 @@ function PairDetailPanel({
                         >
                             {pair.submittedByName || pair.submittedBySlug}
                         </RouterLink>
+                    </Text>
+                )}
+
+                {/* Phone of a pair that registered without an account. The API
+                    sends contactPhone ONLY to a viewer who may manage the
+                    tournament, so rendering it whenever it is present cannot
+                    leak it — and for the organiser it is the only way to reach
+                    that pair. tel: so it dials straight from a phone. */}
+                {pair.contactPhone && (
+                    <Text fontSize="xs" color="fg.muted">
+                        {tr("tournament.pairs.contactPhone")}{" "}
+                        <chakra.a
+                            href={`tel:${pair.contactPhone.replace(/[^\d+]/g, "")}`}
+                            color="blue.fg"
+                            fontWeight="medium"
+                        >
+                            {pair.contactPhone}
+                        </chakra.a>
                     </Text>
                 )}
 

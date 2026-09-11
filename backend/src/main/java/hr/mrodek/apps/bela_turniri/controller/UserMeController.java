@@ -3,6 +3,7 @@ package hr.mrodek.apps.bela_turniri.controller;
 import hr.mrodek.apps.bela_turniri.dtos.GameStatsDto;
 import hr.mrodek.apps.bela_turniri.services.GameNameService;
 import hr.mrodek.apps.bela_turniri.dtos.MyTournamentParticipationDto;
+import hr.mrodek.apps.bela_turniri.dtos.RegisterPushDeviceRequest;
 import hr.mrodek.apps.bela_turniri.dtos.SyncProfileRequest;
 import hr.mrodek.apps.bela_turniri.dtos.UserProfileDto;
 import hr.mrodek.apps.bela_turniri.model.Pairs;
@@ -13,9 +14,11 @@ import hr.mrodek.apps.bela_turniri.model.UserProfile;
 import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import hr.mrodek.apps.bela_turniri.services.AvatarPresetService;
 import hr.mrodek.apps.bela_turniri.services.CurrentUser;
 import hr.mrodek.apps.bela_turniri.services.GameStatsService;
 import hr.mrodek.apps.bela_turniri.services.MessageService;
+import hr.mrodek.apps.bela_turniri.services.PushDeviceService;
 import hr.mrodek.apps.bela_turniri.services.SlugService;
 import hr.mrodek.apps.bela_turniri.services.StorageService;
 import io.quarkus.security.Authenticated;
@@ -30,8 +33,10 @@ import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
@@ -57,6 +62,8 @@ public class UserMeController {
     @Inject CurrentUser currentUser;
     @Inject GameStatsService gameStatsService;
     @Inject GameNameService gameNameService;
+    @Inject PushDeviceService pushDevices;
+    @Inject AvatarPresetService avatarPresets;
 
     @GET
     @Path("/tournaments")
@@ -160,7 +167,7 @@ public class UserMeController {
         // empty DTO here would hide a name the player can see at the table.
         if (p == null) {
             return new UserProfileDto(null, null, null, null, null, null, null,
-                    gameNameService.nameFor(uid));
+                    gameNameService.nameFor(uid), null);
         }
         return toDto(p);
     }
@@ -174,11 +181,21 @@ public class UserMeController {
         if (existing == null) {
             existing = new UserProfile();
             existing.setUserUid(uid);
+            // Row created here rather than by /sync — give it the same
+            // starting face ensureProfile would have. Anything the body
+            // carries below still wins over it.
+            avatarPresets.assignDefaultIfMissing(existing);
         }
         existing.setPhoneCountry(blank(body.phoneCountry()));
         existing.setPhone(blank(body.phone()));
         // body.avatarUrl is intentionally ignored — avatars are managed via
         // the dedicated /avatar endpoints, not via PUT /profile.
+        // The CHARACTER, unlike the photo, is writable here: it is a choice
+        // from a fixed list, not an upload, so it has no multipart endpoint of
+        // its own. Omitted → unchanged, "" → cleared, unknown id → 400
+        // INVALID_AVATAR_PRESET. Picking one never touches the photo; which of
+        // the two shows is decided in AvatarPresetService.presetFor.
+        avatarPresets.applyFromRequest(existing, body.avatarPreset());
         // Theme: accept "light" or "dark", silently ignore anything else
         // (defensive against stale clients).
         if (body.colorMode() != null) {
@@ -257,6 +274,50 @@ public class UserMeController {
         return toDto(profile);
     }
 
+    /* ===================== native push devices ===================== */
+
+    /**
+     * {@code PUT /user/me/push/device} — register (or refresh) this user's
+     * FCM registration token, so the iOS/Android shell receives the same
+     * notifications a browser gets over Web Push.
+     *
+     * <p>An alias of {@code PUT /push/device}, sitting here because this is
+     * the "my account" surface the shells already talk to; both routes call
+     * the same {@link PushDeviceService}, so they cannot drift. 201 the first
+     * time a token is seen, 200 on the re-registration the app performs on
+     * every cold start.
+     *
+     * <p>Class-level {@code @Authenticated} applies: a guest has no Firebase
+     * UID to key the row on, so guests have no native push at all.
+     */
+    @PUT
+    @Path("/push/device")
+    @Transactional
+    public Response registerPushDevice(@Valid RegisterPushDeviceRequest body) {
+        if (body == null) {
+            throw new BadRequestException(messages.t("push.device.missingFields"));
+        }
+        boolean created = pushDevices.register(
+                currentUser.requireUid(), body.token(), body.platform(), body.locale(), body.appVersion());
+        return Response.status(created ? Response.Status.CREATED : Response.Status.OK).build();
+    }
+
+    /**
+     * {@code DELETE /user/me/push/device/{token}} — drop one of this user's
+     * own registrations. 404 for an unknown token and for someone else's
+     * alike, so the response never confirms a token exists elsewhere.
+     */
+    @DELETE
+    @Path("/push/device/{token}")
+    @Transactional
+    public Response unregisterPushDevice(@PathParam("token") String token) {
+        if (token == null || token.isBlank()) {
+            throw new BadRequestException(messages.t("push.device.missingFields"));
+        }
+        pushDevices.unregister(currentUser.requireUid(), token);
+        return Response.noContent().build();
+    }
+
     /**
      * Upload (or replace) the current user's avatar. Multipart form with a
      * single {@code avatar} part. The previous avatar's resource row is
@@ -282,6 +343,11 @@ public class UserMeController {
         Resources oldAvatar = profile.getAvatar();
         Resources newResource = storageService.uploadAvatar(avatar);
         profile.setAvatar(newResource);
+        // A real photo replaces the stand-in character outright. Without this
+        // the row would carry both, and "either a photo or a character" would
+        // stop being true the moment the photo was later removed — the user
+        // would get back a face they had already replaced.
+        profile.setAvatarPreset(null);
         profileRepo.persist(profile);
         if (oldAvatar != null && oldAvatar.getId() != null
                 && !oldAvatar.getId().equals(newResource.getId())) {
@@ -299,6 +365,13 @@ public class UserMeController {
         var profile = profileRepo.findByUid(uid).orElse(null);
         if (profile == null) return new UserProfileDto(null, null, null, null, null);
         profile.setAvatar(null);
+        // Removing the photo must never leave a player faceless. Uploading a
+        // photo clears the preset outright (see uploadAvatar), so without this
+        // the common path — auto-assigned face, upload a photo, later delete it
+        // — would fall all the way back to bare initials. `assignDefaultIfMissing`
+        // only fills a blank, so a face the user picked while the photo was up
+        // survives untouched.
+        avatarPresets.assignDefaultIfMissing(profile);
         profileRepo.persist(profile);
         return toDto(profile);
     }
@@ -330,7 +403,9 @@ public class UserMeController {
                 // Read-only here — the only writer is the game server's
                 // internal endpoint, because the same rule has to cover guests
                 // who never reach this controller (UserProfileDto.gameName).
-                gameNameService.nameFor(p.getUserUid()));
+                gameNameService.nameFor(p.getUserUid()),
+                // Precedence lives in one place — see AvatarPresetService.
+                avatarPresets.presetFor(p, avatarUrl));
     }
 
     private MyTournamentParticipationDto toDto(Pairs p) {

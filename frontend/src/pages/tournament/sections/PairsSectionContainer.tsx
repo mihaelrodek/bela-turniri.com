@@ -1,8 +1,12 @@
 import { Suspense, useMemo, useState } from "react"
-import { Box, Button, chakra, Dialog, Heading, HStack, Input, Text, VStack } from "@chakra-ui/react"
+import { Box, Button, chakra, Dialog, Heading, HStack, Input, NativeSelect, Portal, Text, VStack } from "@chakra-ui/react"
 
 import PairsSection from "../../../components/PairsSection"
+import SelfRegisterNudgeDialog from "../../../components/SelfRegisterNudgeDialog"
+import { useAuth } from "../../../auth/authContextValue"
 import { useTranslation } from "../../../i18n"
+import { anonRegisteredPairIds } from "../../../utils/anonSelfReg"
+import { PHONE_COUNTRIES, sanitizePhone } from "../../../utils/phone"
 import lazyWithReload from "../../../utils/lazyWithReload"
 import type { PairRequest } from "../../../api/pairRequests"
 import type { UserPairPreset } from "../../../api/userPairPresets"
@@ -62,6 +66,18 @@ export type PairsSectionContainerProps = {
     selfRegError: string | null
     setSelfRegError: (err: string | null) => void
     onSubmitSelfRegister: () => void
+    /* anonymous registration — the nudge that precedes the form, the phone the
+       organiser will call, and the claim link handed back afterwards */
+    selfRegNudgeOpen: boolean
+    setSelfRegNudgeOpen: (open: boolean) => void
+    /** "Prijavi se" in the nudge → /prijava, owned by the page (it navigates). */
+    onSelfRegisterSignIn: () => void
+    selfRegPhoneCountry: string
+    setSelfRegPhoneCountry: (code: string) => void
+    selfRegPhone: string
+    setSelfRegPhone: (phone: string) => void
+    selfRegClaim: { claimUrl: string; name: string } | null
+    setSelfRegClaim: (claim: { claimUrl: string; name: string } | null) => void
 }
 
 /**
@@ -106,8 +122,19 @@ export default function PairsSectionContainer({
     selfRegError,
     setSelfRegError,
     onSubmitSelfRegister,
+    selfRegNudgeOpen,
+    setSelfRegNudgeOpen,
+    onSelfRegisterSignIn,
+    selfRegPhoneCountry,
+    setSelfRegPhoneCountry,
+    selfRegPhone,
+    setSelfRegPhone,
+    selfRegClaim,
+    setSelfRegClaim,
 }: PairsSectionContainerProps) {
     const { t: tr } = useTranslation()
+    const { user } = useAuth()
+    const [claimLinkCopied, setClaimLinkCopied] = useState(false)
 
     const [pairRequestsCollapsed, setPairRequestsCollapsed] = useState(false)
 
@@ -118,10 +145,19 @@ export default function PairsSectionContainer({
     // multiple registrations are legitimate (e.g. a captain entering several
     // teams). It only relabels the button so a user who already has a pair
     // sees "Prijavi još jedan par" instead of the default.
-    const userAlreadyRegistered = useMemo(
-        () => !!viewerUid && pairs.some((p) => p.submittedByUid === viewerUid),
-        [viewerUid, pairs],
-    )
+    // For an anonymous visitor there is no uid to compare against — the server
+    // deliberately does not know who filed the row — so the only evidence is
+    // the receipt this device kept when it registered. Read once per pair-list
+    // change; localStorage access is cheap but not free, and this runs on every
+    // poll tick otherwise.
+    const userAlreadyRegistered = useMemo(() => {
+        if (viewerUid) return pairs.some((p) => p.submittedByUid === viewerUid)
+        if (user) return false
+        const mine = anonRegisteredPairIds(uuid)
+        return pairs.some((p) => mine.has(p.id))
+        // `pairs` is enough of a trigger: a fresh anonymous registration is
+        // appended to it in the same tick the receipt is written.
+    }, [viewerUid, pairs, user, uuid])
 
     // Self-registration is offered to everyone until the tournament starts
     // EXCEPT the organiser / admins. Owners already have a "Dodaj par"
@@ -221,7 +257,9 @@ export default function PairsSectionContainer({
                         </Dialog.Header>
                         <Dialog.Body py="4" px="4">
                             <VStack align="stretch" gap="3">
-                                {availablePresets.length > 0 && (
+                                {/* Presets are per-account; an anonymous
+                                    visitor has none to offer. */}
+                                {user && availablePresets.length > 0 && (
                                     <Box>
                                         <Text fontSize="xs" color="fg.muted" mb="1.5" fontWeight="medium">
                                             {tr("tournament.selfReg.savedPairs")}
@@ -260,6 +298,46 @@ export default function PairsSectionContainer({
                                     />
                                 </Box>
 
+                                {/* Anonymous only, and required: with no account
+                                    behind the row this number is the organiser's
+                                    only way to reach the pair. */}
+                                {!user && (
+                                    <Box>
+                                        <Text fontSize="xs" color="fg.muted" mb="1.5" fontWeight="medium">
+                                            {tr("tournament.selfReg.phoneLabel")}
+                                        </Text>
+                                        <HStack gap="2">
+                                            <NativeSelect.Root size="sm" width="8.5rem" flexShrink={0}>
+                                                <NativeSelect.Field
+                                                    aria-label={tr("tournament.selfReg.phoneCountryLabel")}
+                                                    value={selfRegPhoneCountry}
+                                                    onChange={(e) =>
+                                                        setSelfRegPhoneCountry((e.target as HTMLSelectElement).value)
+                                                    }
+                                                >
+                                                    {PHONE_COUNTRIES.map((c) => (
+                                                        <option key={c.value} value={c.value}>{c.label}</option>
+                                                    ))}
+                                                </NativeSelect.Field>
+                                                <NativeSelect.Indicator />
+                                            </NativeSelect.Root>
+                                            <Input
+                                                flex="1"
+                                                size="sm"
+                                                type="tel"
+                                                inputMode="numeric"
+                                                pattern="[0-9 ]*"
+                                                placeholder={tr("tournament.selfReg.phonePlaceholder")}
+                                                value={selfRegPhone}
+                                                onChange={(e) => setSelfRegPhone(sanitizePhone(e.target.value))}
+                                            />
+                                        </HStack>
+                                        <Text fontSize="xs" color="fg.muted" mt="1.5">
+                                            {tr("tournament.selfReg.phoneHint")}
+                                        </Text>
+                                    </Box>
+                                )}
+
                                 <Text fontSize="xs" color="fg.muted">
                                     {tr("tournament.selfReg.pendingNote.before")} <chakra.b color="yellow.fg">{tr("tournament.selfReg.pendingNote.bold")}</chakra.b> {tr("tournament.selfReg.pendingNote.after")}
                                 </Text>
@@ -284,7 +362,11 @@ export default function PairsSectionContainer({
                                     variant="solid"
                                     colorPalette="blue"
                                     loading={selfRegSubmitting}
-                                    disabled={!selfRegName.trim() || selfRegSubmitting}
+                                    disabled={
+                                        !selfRegName.trim()
+                                        || selfRegSubmitting
+                                        || (!user && !selfRegPhone.trim())
+                                    }
                                     onClick={onSubmitSelfRegister}
                                 >
                                     {tr("tournament.selfReg.submit")}
@@ -293,6 +375,99 @@ export default function PairsSectionContainer({
                         </Dialog.Footer>
                     </Dialog.Content>
                 </Dialog.Positioner>
+            </Dialog.Root>
+
+            {/* ===== "Signing in is better, but not required" ===== */}
+            <SelfRegisterNudgeDialog
+                open={selfRegNudgeOpen}
+                onSignIn={onSelfRegisterSignIn}
+                onContinue={() => {
+                    setSelfRegNudgeOpen(false)
+                    setSelfRegOpen(true)
+                }}
+                onClose={() => setSelfRegNudgeOpen(false)}
+            />
+
+            {/* ===== Claim link, after an anonymous registration =====
+                A dialog and not a toast: this link is the ONLY way the visitor
+                can later attach the registration to an account, and a toast
+                that auto-dismisses would take it with it. */}
+            <Dialog.Root
+                open={!!selfRegClaim}
+                onOpenChange={(e) => {
+                    if (!e.open) {
+                        setSelfRegClaim(null)
+                        setClaimLinkCopied(false)
+                    }
+                }}
+                placement="center"
+            >
+                <Portal>
+                    <Dialog.Backdrop />
+                    <Dialog.Positioner>
+                        <Dialog.Content maxW={{ base: "92%", md: "md" }}>
+                            <Dialog.Header>
+                                <Dialog.Title>{tr("tournament.selfReg.claim.title")}</Dialog.Title>
+                            </Dialog.Header>
+                            <Dialog.Body>
+                                <Dialog.Description asChild>
+                                    <VStack align="stretch" gap="3">
+                                        <Text fontSize="sm">
+                                            {tr("tournament.selfReg.claim.pending", {
+                                                name: selfRegClaim?.name ?? "",
+                                            })}
+                                        </Text>
+                                        <Text fontSize="sm" color="fg.muted">
+                                            {tr("tournament.selfReg.claim.saveLink")}
+                                        </Text>
+                                        <Box
+                                            borderWidth="1px"
+                                            borderColor="border.subtle"
+                                            bg="bg.subtle"
+                                            rounded="md"
+                                            p="2"
+                                        >
+                                            <Text fontSize="xs" wordBreak="break-all" fontFamily="mono">
+                                                {selfRegClaim?.claimUrl}
+                                            </Text>
+                                        </Box>
+                                    </VStack>
+                                </Dialog.Description>
+                            </Dialog.Body>
+                            <Dialog.Footer gap="2">
+                                <Button
+                                    variant="outline"
+                                    onClick={async () => {
+                                        if (!selfRegClaim) return
+                                        try {
+                                            await navigator.clipboard.writeText(selfRegClaim.claimUrl)
+                                            setClaimLinkCopied(true)
+                                        } catch {
+                                            // Older Safari / non-secure context: the
+                                            // link is on screen and selectable, so
+                                            // there is nothing to recover from.
+                                            setClaimLinkCopied(false)
+                                        }
+                                    }}
+                                >
+                                    {claimLinkCopied
+                                        ? tr("tournament.selfReg.claim.copied")
+                                        : tr("tournament.selfReg.claim.copy")}
+                                </Button>
+                                <Button
+                                    variant="solid"
+                                    colorPalette="brand"
+                                    onClick={() => {
+                                        setSelfRegClaim(null)
+                                        setClaimLinkCopied(false)
+                                    }}
+                                >
+                                    {tr("common.close")}
+                                </Button>
+                            </Dialog.Footer>
+                        </Dialog.Content>
+                    </Dialog.Positioner>
+                </Portal>
             </Dialog.Root>
         </>
     )

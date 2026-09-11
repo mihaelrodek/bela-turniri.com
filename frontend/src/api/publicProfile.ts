@@ -29,6 +29,12 @@ export type PublicProfile = {
     hasPhone: boolean
     /** Proxied URL for the user's avatar, or null if none. */
     avatarUrl: string | null
+    /**
+     * The drawn character this user picked instead of a photo, or null.
+     * Already resolved against `avatarUrl` server-side, so at most one of
+     * the two is ever non-null — see `UserProfile.avatarPreset`.
+     */
+    avatarPreset: string | null
     pairs: PairSummary[]
     tournaments: MyTournamentParticipation[]
 }

@@ -119,7 +119,7 @@ export const tournament = {
        "Preuzmi QR" button label are shared with the dialog and live in
        `common.qr.*`; only the card's own heading and hint are here. */
     "qr.cardTitle": "QR kod",
-    "qr.cardHint": "Skeniranjem se otvara stranica ovog turnira. Preuzmi ga i objesi na mjestu održavanja.",
+    "qr.cardHint": "Skeniranjem se otvara popis parova ovog turnira. Preuzmi kod i objesi ga na mjestu održavanja.",
 
     openInGoogleMaps: "Otvori u Google Maps",
     openInMaps: "Otvori u kartama",
@@ -198,6 +198,7 @@ export const tournament = {
     "pairs.nameLabel": "Ime para",
     "pairs.matchHistory": "Povijest mečeva",
     "pairs.submittedBy": "Prijavio:",
+    "pairs.contactPhone": "Kontakt:",
     "pairs.pendingApproval": "Čeka odobrenje",
     "pairs.winLoss": "{wins}W – {losses}L",
     "pairs.hasLife": "Ima život",
@@ -283,6 +284,26 @@ export const tournament = {
     "selfReg.alreadyStarted": "Turnir je već započeo.",
     "selfReg.alreadyRegistered": "Već si prijavio par s tim imenom.",
     "selfReg.error": "Greška pri prijavi.",
+    "selfReg.rateLimited": "Previše prijava s ovog uređaja. Pokušaj ponovno za sat vremena.",
+
+    // Prijava bez računa — nudge, broj telefona i poveznica za preuzimanje.
+    "selfReg.nudge.title": "Prijavi se ili nastavi bez računa",
+    "selfReg.nudge.intro": "Par možeš prijaviti i bez računa, ali s računom je lakše:",
+    "selfReg.nudge.benefitList": "Vidiš sve svoje prijave na jednom mjestu.",
+    "selfReg.nudge.benefitEdit": "Možeš urediti ili povući prijavu.",
+    "selfReg.nudge.benefitNotify": "Dobivaš obavijest kad te organizator potvrdi.",
+    "selfReg.nudge.signIn": "Prijavi se",
+    "selfReg.nudge.continueAnonymously": "Nastavi bez prijave",
+    "selfReg.phoneLabel": "Broj telefona",
+    "selfReg.phoneCountryLabel": "Pozivni broj",
+    "selfReg.phonePlaceholder": "91 234 5678",
+    "selfReg.phoneHint": "Organizator te kontaktira na ovaj broj.",
+    "selfReg.phoneRequired": "Unesi broj telefona.",
+    "selfReg.claim.title": "Prijava je poslana",
+    "selfReg.claim.pending": "Par „{name}\" čeka odobrenje organizatora.",
+    "selfReg.claim.saveLink": "Sačuvaj ovu poveznicu — s njom kasnije možeš preuzeti prijavu na svoj račun.",
+    "selfReg.claim.copy": "Kopiraj poveznicu",
+    "selfReg.claim.copied": "Kopirano!",
 
     // ═══════════════════════ Ždrijeb tab ═══════════════════════
     /* Short on purpose. It is a PILL that sits in the 76px table column of a

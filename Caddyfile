@@ -6,6 +6,8 @@
 #
 # Routing logic, top to bottom:
 #   0. Maintenance mode              → 503 "Nadogradnja u tijeku" (flag file)
+#   0b. /.well-known/apple-app-site-association,
+#       /.well-known/assetlinks.json → static JSON (Universal/App Links)
 #   0. /api/q/*                      → 404 (SmallRye health/openapi hidden)
 #   1. /api/*                        → backend (JSON API)
 #   1b. /ws/*                        → backend /api/* (realtime websocket)
@@ -69,6 +71,41 @@ bela-turniri.com, www.bela-turniri.com {
         file_server {
             status 503
         }
+    }
+
+    # ─── 0b. Universal Links (iOS) / App Links (Android) verification ──
+    # Apple's swcd and Android's Digital Asset Links crawler fetch these
+    # two files directly over HTTPS with NO redirects followed and NO
+    # User-Agent that would ever match the bot regexes below - a 301, a
+    # maintenance 503, or (worse) a silent fall-through to the SPA's
+    # index.html all read as "verification failed" and the OS falls back
+    # to opening the link in the browser instead of the app. So these
+    # `handle` blocks must win the match before every other handler,
+    # maintenance mode included - a visitor stuck behind a maintenance
+    # page must not also break deep-linking for everyone else mid-deploy.
+    #
+    # Served from a host bind-mount (see docker-compose.prod.yaml, mirrors
+    # the ops/maintenance and ops/game-flag mounts) so the placeholder
+    # Team ID / SHA-256 fingerprint in ops/well-known/ can be filled in
+    # without an image rebuild - see DEPLOY.md "Universal / App Links".
+    #
+    # No extension on apple-app-site-association by Apple's own spec; both
+    # files must be served with an explicit application/json Content-Type
+    # (Apple's fetcher rejects text/plain) and a short cache lifetime so a
+    # corrected Team ID / fingerprint propagates quickly.
+    handle /.well-known/apple-app-site-association {
+        root * /well-known
+        header Content-Type "application/json"
+        header Cache-Control "public, max-age=3600"
+        rewrite * /apple-app-site-association
+        file_server
+    }
+    handle /.well-known/assetlinks.json {
+        root * /well-known
+        header Content-Type "application/json"
+        header Cache-Control "public, max-age=3600"
+        rewrite * /assetlinks.json
+        file_server
     }
 
     # ─── 0a. Game feature flag ────────────────────────────────────────

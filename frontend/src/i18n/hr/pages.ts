@@ -138,6 +138,19 @@ export const pages = {
     "tournaments.empty.finishedEmptyDescription": "Završeni turniri će se pojaviti ovdje.",
     "tournaments.loadMore": "Učitaj više ({count})",
 
+    // "Završeni turniri" search group — a second, server-searched group that
+    // appears under the upcoming results once the search box has 2+ chars,
+    // for finished tournaments the client-side filter can't see (only the
+    // first page of the finished list is ever loaded). Heading text is
+    // deliberately the SAME as `finishedHeading` above (it's the same kind
+    // of section, just search-scoped); `resultsCount` is the subtitle that
+    // tells the two apart.
+    "tournaments.searchFinished.resultsCount.one": "{n} rezultat",
+    "tournaments.searchFinished.resultsCount.two": "{n} rezultata",
+    "tournaments.searchFinished.resultsCount.few": "{n} rezultata",
+    "tournaments.searchFinished.resultsCount.other": "{n} rezultata",
+    "tournaments.searchFinished.showMore": "Prikaži još ({count})",
+
     // Fallback text for a raw JS Error with no message of its own. Kept
     // byte-identical to what the pre-extraction code hardcoded here — it
     // was already English in a Croatian app; flagged in the extraction

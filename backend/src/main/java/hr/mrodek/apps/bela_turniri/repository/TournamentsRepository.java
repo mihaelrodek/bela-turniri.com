@@ -92,14 +92,51 @@ public class TournamentsRepository implements AppRepository<Tournaments, Long> {
      * lazy-load older results behind a "Učitaj više" button.
      */
     public List<Tournaments> findFinishedPaged(int offset, int limit) {
-        return find("""
-                from Tournaments t
-                left join fetch t.resource
-                where t.status = ?1
-                order by t.startAt desc
-                """, TournamentStatus.FINISHED)
-                .range(Math.max(0, offset), lastIndex(offset, limit))
-                .list();
+        return findFinishedPaged(offset, limit, null);
+    }
+
+    /**
+     * Same as {@link #findFinishedPaged(int, int)}, plus an optional
+     * case-insensitive name-or-location filter for the "Završeni turniri"
+     * search group on the tournaments page. {@code q} is expected already
+     * trimmed and length-checked by the controller (blank/short queries mean
+     * "no filter" here too, so this stays safe to call directly).
+     */
+    public List<Tournaments> findFinishedPaged(int offset, int limit, String q) {
+        String pattern = likePattern(q);
+        String hql = "from Tournaments t left join fetch t.resource where t.status = ?1"
+                + (pattern != null
+                        ? " and (lower(t.name) like ?2 escape '\\' or lower(t.location) like ?2 escape '\\')"
+                        : "")
+                + " order by t.startAt desc";
+        var query = pattern != null
+                ? find(hql, TournamentStatus.FINISHED, pattern)
+                : find(hql, TournamentStatus.FINISHED);
+        return query.range(Math.max(0, offset), lastIndex(offset, limit)).list();
+    }
+
+    /**
+     * Builds a {@code lower(column) like ?} pattern for a search box query:
+     * lower-cased and wrapped in {@code %...%}, with {@code %}, {@code _} and
+     * the escape character itself backslash-escaped so user-typed wildcards
+     * can't widen the match. Returns {@code null} for a blank/absent query so
+     * callers can skip the filter clause entirely instead of matching
+     * everything with {@code %%}.
+     *
+     * <p>Plain {@code lower()} rather than Postgres {@code ILIKE} — case
+     * folding works the same everywhere and there's no
+     * {@code CREATE EXTENSION unaccent} in the changelog yet, so this is
+     * intentionally NOT accent-insensitive ("čevap" won't match "cevap").
+     */
+    private static String likePattern(String q) {
+        if (q == null) return null;
+        String trimmed = q.trim();
+        if (trimmed.isEmpty()) return null;
+        String escaped = trimmed
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+        return "%" + escaped.toLowerCase() + "%";
     }
 
     /**
@@ -121,7 +158,19 @@ public class TournamentsRepository implements AppRepository<Tournaments, Long> {
     }
 
     public long countFinished() {
-        return count("status = ?1", TournamentStatus.FINISHED);
+        return countFinished(null);
+    }
+
+    /** Same as {@link #countFinished()}, filtered by the same name-or-location
+     *  pattern as {@link #findFinishedPaged(int, int, String)} — feeds the
+     *  "prikaži još" button under the finished-search group. */
+    public long countFinished(String q) {
+        String pattern = likePattern(q);
+        if (pattern == null) {
+            return count("status = ?1", TournamentStatus.FINISHED);
+        }
+        return count("status = ?1 and (lower(name) like ?2 escape '\\' or lower(location) like ?2 escape '\\')",
+                TournamentStatus.FINISHED, pattern);
     }
 
     /**

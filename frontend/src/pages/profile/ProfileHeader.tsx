@@ -1,9 +1,10 @@
-import { Box, Card, chakra, Heading, HStack, IconButton, Image, VStack } from "@chakra-ui/react"
+import { Box, Card, chakra, Heading, HStack, IconButton, VStack } from "@chakra-ui/react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { FiEdit2, FiPhone } from "react-icons/fi"
 import type { PublicProfile } from "../../api/publicProfile"
 import AvatarPreview from "../../components/AvatarPreview"
-import { initialsOf } from "../../components/listingShared"
+import UserAvatar from "../../components/avatars/UserAvatar"
+import { shownPhotoUrl } from "../../components/avatars/shownPhotoUrl"
 import { PHONE_COUNTRIES } from "../../utils/phone"
 import { useTranslation } from "../../i18n"
 
@@ -26,10 +27,10 @@ function flagFor(dialCode: string | null | undefined): string {
 }
 
 /**
- * The avatar circle: the uploaded image when there is one, initials
- * otherwise, wrapped in AvatarPreview so tapping the picture opens the
- * full-screen lightbox. The wrapper is a no-op without an `avatarUrl`, so
- * initials stay un-clickable.
+ * The avatar circle: whichever of photo / character the user chose last,
+ * initials otherwise, wrapped in AvatarPreview so tapping a PHOTO opens the
+ * full-screen lightbox. The wrapper is a no-op without a src, so initials and
+ * characters stay un-clickable.
  */
 export function ProfileAvatar({
     profile,
@@ -42,27 +43,18 @@ export function ProfileAvatar({
 }) {
     const { t } = useTranslation()
     const alt = profile.displayName ?? t("profile.avatar.alt")
+    // `shownPhotoUrl`, not `profile.avatarUrl`: with a character picked the
+    // photo is not on screen, and the lightbox must not offer it.
     return (
-        <AvatarPreview src={profile.avatarUrl} alt={alt}>
-            <Box
-                w={size}
-                h={size}
-                rounded="full"
-                overflow="hidden"
-                bg="blue.subtle"
-                color="blue.fg"
-                display="flex"
-                alignItems="center"
-                justifyContent="center"
-                fontWeight="bold"
+        <AvatarPreview src={shownPhotoUrl(profile)} alt={alt}>
+            <UserAvatar
+                avatarUrl={profile.avatarUrl}
+                avatarPreset={profile.avatarPreset}
+                name={profile.displayName}
+                alt={alt}
+                size={size}
                 fontSize={fontSize}
-            >
-                {profile.avatarUrl ? (
-                    <Image src={profile.avatarUrl} alt={alt} w="100%" h="100%" objectFit="cover" />
-                ) : (
-                    initialsOf(profile.displayName ?? "")
-                )}
-            </Box>
+            />
         </AvatarPreview>
     )
 }

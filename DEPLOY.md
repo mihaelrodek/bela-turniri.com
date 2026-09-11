@@ -319,3 +319,151 @@ Verify after deploy: `docker compose -f docker-compose.prod.yaml logs backend
 | grep Mail:` should show `Mail: Resend configured, from=…, contactTo=…`. If
 either variable is missing you get a `WARN` at boot instead, and failed sends
 are logged at `WARN` with the request id.
+
+## Native push (FCM)
+
+Browsers get Web Push (VAPID); the installed iOS/Android apps get Firebase
+Cloud Messaging. Both run from the same `PushService.sendToUser` fan-out, so a
+user with a browser subscription *and* the app gets both, and neither path can
+break the other. Nothing about Web Push changed.
+
+Set **one** of these on the backend:
+
+```
+FIREBASE_SERVICE_ACCOUNT_JSON=<the whole service-account JSON on one line>
+# or
+FIREBASE_SERVICE_ACCOUNT_FILE=/run/secrets/firebase-service-account.json
+```
+
+`FIREBASE_SERVICE_ACCOUNT_JSON` wins when both are set. Get the credential from
+the Firebase console -> Project settings -> Service accounts -> **Generate new
+private key**. It must be the **same Firebase project as `FIREBASE_PROJECT_ID`**
+(the project whose ID tokens `quarkus-oidc` verifies) — a key from another
+project authenticates fine and then fails to route to any of your tokens.
+Treat it like a private key: it is a full admin credential for that project.
+
+Optional: `FCM_ANDROID_CHANNEL_ID` (default `bela`) must match the notification
+channel the Android shell creates on first run, or Android 8+ silently drops
+every notification.
+
+With neither variable set FCM is **disabled**, not broken: the backend boots,
+`PUT /user/me/push/device` still stores device tokens, and those tokens start
+being delivered to the moment credentials are deployed — nothing needs
+re-registering. `StartupSanityCheck` prints one WARN at boot in prod saying so.
+
+Verify after deploy: `docker compose -f docker-compose.prod.yaml logs backend |
+grep 'Push:'` should show `Push: FCM configured, native push enabled.` The
+disabled case logs `Push: FCM service account not configured — native push
+disabled.`, and a bad key file logs `Push: failed to initialise FCM` at ERROR
+(the app still boots).
+
+## Google Places / map tiles
+
+Three build-time frontend variables (`frontend/.env.example`, mirrored empty in
+`frontend/.env.native`). All are optional — with none of them set the app uses
+OpenStreetMap Nominatim for address search and CARTO Voyager tiles (keyed, see below).
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_GOOGLE_MAPS_API_KEY` | Enables Google Places (New) autocomplete on the create/edit tournament form. Empty = Nominatim fallback. |
+| `VITE_CARTO_API_KEY` | Free CARTO basemap key (https://carto.com/basemaps/apikey). Without it tiles carry an "API KEY REQUIRED" watermark. |
+| `VITE_MAP_TILE_URL` | Leaflet tile URL template for both maps. Empty = CARTO Voyager. |
+| `VITE_MAP_TILE_ATTRIBUTION` | Attribution HTML shown in the map corner. Empty = OSM + CARTO. |
+
+**The Google key ships inside the JS bundle.** That is unavoidable for a
+browser-side Places call: the only protection is the restriction configured in
+Google Cloud. Restrict the key to `https://bela-turniri.com/*`,
+`https://www.bela-turniri.com/*`, `http://localhost:5185/*`,
+`capacitor://localhost/*`, `https://localhost/*` (Application restriction →
+Websites) **and** to "Places API (New)" only (API restriction). Places API (New)
+requires billing to be enabled on the project; Google's free monthly tier covers
+roughly 10 000 autocomplete sessions. Autocomplete + the details call on pick
+share one session token, so a whole typing interaction bills as one session.
+
+Reverse geocoding (clicking the map picker) stays on Nominatim regardless — it
+is a different, pricier Google API and a map click is rare. The backend's lazy
+`GeocodeService` is unaffected and also stays on Nominatim.
+
+CARTO gated its public basemaps in 2026: request the free key (no account, 5 M tiles/month non-commercial) at https://carto.com/basemaps/apikey, set `VITE_CARTO_API_KEY`, rebuild. The key ships in the bundle; CARTO keys are referrer-restricted on their side. To leave CARTO altogether set `VITE_MAP_TILE_URL` + `VITE_MAP_TILE_ATTRIBUTION` for MapTiler / Stadia / Thunderforest.
+
+```
+VITE_MAP_TILE_URL=https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=YOUR_KEY
+VITE_MAP_TILE_ATTRIBUTION=<a href="https://www.maptiler.com/copyright/">MapTiler</a> <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
+```
+
+Stadia, Thunderforest and Mapbox raster tiles work the same way. Leaflet's `{s}`
+(subdomain) and `{r}` (retina `@2x`) placeholders are supported.
+
+## Native builds
+
+iOS and Android builds run in `.github/workflows/native.yml` on every PR and push
+to `main` when `frontend/` changes. macOS 15 builds the iOS simulator app (debug,
+no signing); Ubuntu builds the Android APK (debug). The APK is uploaded as a
+7-day artifact. Both jobs run `npm run build:native` (TypeScript + Vite + Capacitor sync)
+before invoking the native build tools (`xcodebuild`, `gradlew`). No simulator/emulator
+tests — builds only verify the app compiles.
+
+## Universal / App Links
+
+`https://bela-turniri.com/turniri/<slug>`, `/blok/*`, `/igra/*` and
+`/profil/<slug>` open the installed app directly (no browser hop, no share
+sheet) instead of Safari/Chrome, on both iOS (Universal Links) and Android
+(App Links) — `frontend/src/platform/NativeShell.tsx`'s `appUrlOpen` /
+`getLaunchUrl()` listener then routes the URL's path into the SPA router.
+Both platforms verify ownership of the domain by fetching a JSON file over
+HTTPS at boot/install time, so the two files below have to be reachable with
+no redirect and the right `Content-Type` — see the Caddyfile's
+`/.well-known/*` handlers (placed right after the maintenance block, on
+purpose: they must win even when maintenance mode is on) and the
+`./ops/well-known:/well-known:ro` mount on the `edge` service in
+`docker-compose.prod.yaml`.
+
+**Placeholders to replace before this works — both files live in
+`ops/well-known/` and take effect immediately (`docker compose restart edge`
+optional, Caddy `stat()`s the mount per request):**
+
+- `ops/well-known/apple-app-site-association` — replace **`TEAMID`** (both
+  occurrences: `applinks.details[0].appIDs` and `webcredentials.apps`) with
+  the real 10-character Apple Developer Team ID (Apple Developer portal →
+  Membership, or `xcodebuild -showBuildSettings` in `ios/App/App` once a
+  signing team is set → `DEVELOPMENT_TEAM`).
+- `ops/well-known/assetlinks.json` — replace **`REPLACE_WITH_RELEASE_SHA256`**
+  with the SHA-256 certificate fingerprint of the key that actually signs
+  the APK/AAB users install:
+  - Local/debug signing: `cd frontend/android && ./gradlew signingReport` —
+    copy the `SHA256` line under the `release` (or `debug`, for a debug-build
+    test) variant.
+  - Play App Signing (the real production key once published through Play
+    Console): Play Console → your app → **Setup → App signing** → copy the
+    **SHA-256 certificate fingerprint** under *App signing key certificate*
+    — this is the key Google re-signs your upload with, not your local
+    upload key, so it's the one that must appear here for a Play Store
+    install to verify.
+  - `assetlinks.json` accepts multiple fingerprints in the array — list both
+    the upload key and the Play App Signing key while testing internal
+    builds side by side with a Play Store install.
+
+Until both placeholders are replaced with real values, Apple/Android fail
+verification silently and every link opens in the browser as before — safe
+to deploy this file as-is ahead of having the values.
+
+**Verifying on a device** (not in CI, not via simulator/emulator commands —
+those don't exercise the real OS-level link-verification flow):
+
+```bash
+xcrun simctl openurl booted https://bela-turniri.com/turniri/<slug>
+```
+
+Run on a physical device or a simulator with the app already installed, once
+the AASA file has the real Team ID live in prod — it should open the app
+straight to that tournament. Before the Team ID is filled in (or before the
+app has been installed at least once so iOS re-fetches the AASA), the same
+link opens Safari instead — that's the expected fallback, not a bug.
+
+**iOS entitlements**: `frontend/ios/App/App/App.entitlements` declares
+`applinks:bela-turniri.com` and `webcredentials:bela-turniri.com`, and is
+wired into both build configurations of the `App` target via
+`CODE_SIGN_ENTITLEMENTS = App/App.entitlements` in `project.pbxproj`.
+Nothing further to do in Xcode — opening the project should show
+"Associated Domains" under the App target's *Signing & Capabilities* tab
+with both entries already listed.

@@ -209,11 +209,42 @@ export default defineConfig({
                     if (id.includes("node_modules/leaflet/")) {
                         return "vendor-map"
                     }
+                    // `@capacitor-firebase/messaging`'s browser-fallback class
+                    // (only ever reached from a lazy chunk of its own — see the
+                    // carve-out below) statically imports `firebase/messaging`,
+                    // which would otherwise be swept into "vendor-firebase" by
+                    // the general rule right below and ship the web SDK's FCM
+                    // code to every browser even though `isNative` guards every
+                    // caller and that fallback never actually runs on web. Must
+                    // come BEFORE the general firebase check so it wins; leaving
+                    // it to Rollup's default chunking merges it with the one
+                    // lazy chunk that imports it instead.
+                    if (id.includes("node_modules/@firebase/messaging/") || id.includes("node_modules/firebase/messaging/")) {
+                        return undefined
+                    }
                     // Firebase touches no React and is only reached through the
                     // auth layer — safe as its own chunk, loaded alongside but
                     // cached independently of the app's UI dependencies.
                     if (id.includes("node_modules/firebase/") || id.includes("node_modules/@firebase/")) {
                         return "vendor-firebase"
+                    }
+                    // Capacitor PLUGINS (@capacitor/app, status-bar, …) are only
+                    // ever reached through the lazy loaders in
+                    // src/platform/native.ts, behind an `isNative` check. Left
+                    // to Rollup they become their own lazy chunks, which the
+                    // web build then never requests. Forcing them into "vendor"
+                    // would ship native-only bridge code to every browser.
+                    // `@capacitor/core` itself is NOT excluded: platform/index.ts
+                    // imports it statically for the platform check, so it
+                    // belongs in the shared chunk like any other dependency.
+                    if (id.includes("node_modules/@capacitor/") && !id.includes("node_modules/@capacitor/core/")) {
+                        return undefined
+                    }
+                    // Same story for `@capacitor-firebase/messaging` (separate
+                    // npm scope from the plugins above) — only reached via
+                    // `nativeMessaging()` in native.ts, behind `isNative`.
+                    if (id.includes("node_modules/@capacitor-firebase/")) {
+                        return undefined
                     }
                     return "vendor"
                 },

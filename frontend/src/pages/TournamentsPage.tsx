@@ -94,6 +94,14 @@ const EMPTY_CARDS: ListingTournament[] = []
 
 const FINISHED_PREVIEW_LIMIT = 6
 
+/** Below this many trimmed characters the finished-search group doesn't run
+ *  at all — mirrors the backend's own `MIN_QUERY_LENGTH` so the SPA never
+ *  fires a request the server would just ignore. */
+const SEARCH_MIN_LENGTH = 2
+
+/** Page size for the finished-search group's own "prikaži još" ladder. */
+const SEARCH_FINISHED_PAGE_SIZE = 20
+
 /** Grid ↔ list is a viewing preference, not a filter: it survives navigating
  *  away and back within the tab, and resets on the next visit. sessionStorage
  *  (not localStorage) is exactly that lifetime. */
@@ -280,6 +288,56 @@ export default function TournamentsPage() {
     const [view, setView] = useState<ViewMode>(readStoredView)
     const [sortMode, setSortMode] = useState<SortMode>("date_asc")
     const [search, setSearch] = useState("")
+
+    // ── "Završeni turniri" SEARCH group ─────────────────────────────────
+    // The finished bucket above is only ever the first page or two — a
+    // search box match against `search` can't see the rest of it. So once
+    // the box has 2+ chars, ALSO ask the server directly for matching
+    // finished tournaments and render them as their own group. Debounced so
+    // a fast typist fires one request, not one per keystroke.
+    const [debouncedSearch, setDebouncedSearch] = useState("")
+    useEffect(() => {
+        const id = window.setTimeout(() => setDebouncedSearch(search.trim()), 300)
+        return () => window.clearTimeout(id)
+    }, [search])
+
+    const searchActive = debouncedSearch.length >= SEARCH_MIN_LENGTH
+
+    // Own "prikaži još" ladder, reset whenever the search term itself
+    // changes so a new query always starts from the first page again.
+    const [searchFinishedLimit, setSearchFinishedLimit] = useState(SEARCH_FINISHED_PAGE_SIZE)
+    useEffect(() => {
+        setSearchFinishedLimit(SEARCH_FINISHED_PAGE_SIZE)
+    }, [debouncedSearch])
+
+    const searchFinishedQuery = useQuery({
+        queryKey: qk.tournaments({ status: "finished", q: debouncedSearch, limit: searchFinishedLimit }),
+        queryFn: () => fetchTournaments("finished", { q: debouncedSearch, offset: 0, limit: searchFinishedLimit }),
+        enabled: searchActive,
+        placeholderData: keepPreviousData,
+    })
+    const searchFinishedCountQuery = useQuery({
+        queryKey: qk.tournamentsCount("finished", debouncedSearch),
+        queryFn: () => fetchTournamentsCount("finished", debouncedSearch),
+        enabled: searchActive,
+    })
+
+    const searchFinishedResults = searchActive
+        ? ((searchFinishedQuery.data ?? EMPTY_CARDS) as ListingTournament[])
+        : EMPTY_CARDS
+    const searchFinishedTotal = searchActive ? (searchFinishedCountQuery.data ?? 0) : 0
+    const searchFinishedLoading = searchActive && searchFinishedQuery.isPending
+    const searchFinishedLoadingMore =
+        searchActive && searchFinishedQuery.isFetching && !searchFinishedQuery.isPending
+    const searchFinishedHasMore = searchActive && searchFinishedResults.length < searchFinishedTotal
+    const searchFinishedHasResults = searchActive && searchFinishedResults.length > 0
+
+    function loadMoreSearchFinished() {
+        if (searchFinishedLoadingMore) return
+        if (searchFinishedResults.length >= searchFinishedTotal) return
+        setSearchFinishedLimit((n) => n + SEARCH_FINISHED_PAGE_SIZE)
+    }
+
     const [locationFilter, setLocationFilter] = useState("")
     const [priceMin, setPriceMin] = useState("")
     const [priceMax, setPriceMax] = useState("")
@@ -676,8 +734,25 @@ export default function TournamentsPage() {
                                 <Button
                                     asChild
                                     h={{ base: "42px", md: "44px" }}
-                                    px={{ base: "0", lg: "4" }}
-                                    w={{ base: "42px", md: "44px", lg: "auto" }}
+                                    px={{ base: "3", md: "0", lg: "4" }}
+                                    // On phones this is a pill with a visible
+                                    // "Kreiraj" label instead of a bare square
+                                    // icon — this pill IS the toolbar's only
+                                    // create affordance there (MobileTabBar
+                                    // deliberately has no "create" tab), and a
+                                    // first-time visitor had no way to guess a
+                                    // lone "+" makes a tournament. `auto` lets
+                                    // it grow to fit icon + text (~110px); the
+                                    // search field just gives up that width —
+                                    // there's no 260px floor to protect here,
+                                    // since the outer Stack is a column at
+                                    // `base` and this row is the search field's
+                                    // and the button's alone. That floor only
+                                    // matters once `md` turns this into one
+                                    // shared row with Filteri / Sortiraj, where
+                                    // the button stays the square icon-only
+                                    // button it always was.
+                                    w={{ base: "auto", md: "44px", lg: "auto" }}
                                     flexShrink="0"
                                     colorPalette="brand"
                                     rounded="lg"
@@ -689,15 +764,13 @@ export default function TournamentsPage() {
                                         <Box as="span" display="inline-flex" flexShrink="0" aria-hidden="true">
                                             <FiPlus />
                                         </Box>
-                                        {/* Just the verb on screen — the row it
-                                            sits in already says these are
-                                            tournaments, and the short label
-                                            buys back width for the search box
-                                            beside it. The full "Kreiraj
-                                            turnir" stays as the accessible
-                                            name above, where a screen reader
-                                            has no row to read it from. */}
-                                        <Box as="span" display={{ base: "none", lg: "inline" }}>
+                                        {/* Same "Kreiraj" label at base and lg,
+                                            hidden only at the in-between `md`
+                                            square-icon width. The full "Kreiraj
+                                            turnir" stays as the accessible name
+                                            above, where a screen reader has no
+                                            row to read it from. */}
+                                        <Box as="span" display={{ base: "inline", md: "none", lg: "inline" }}>
                                             {tt("common.mobileNav.kreiraj")}
                                         </Box>
                                     </RouterLink>
@@ -1043,11 +1116,14 @@ export default function TournamentsPage() {
                             )
                         }
                     />
-                ) : filteredUpcoming.length === 0 ? (
+                ) : filteredUpcoming.length === 0 && !searchFinishedHasResults ? (
                     // "No tournaments near you" (the radius found zero, but the
                     // unfiltered list isn't empty) reads differently from the
                     // generic "no filter matches" below — the fix there is to
-                    // widen the radius, not to clear every filter.
+                    // widen the radius, not to clear every filter. Either way,
+                    // this only fires when the finished-search group (below)
+                    // has nothing either — a search that matches a finished
+                    // tournament should show THAT, not a "no results" screen.
                     noneNearby ? (
                         <ListEmptyState
                             title={tt("pages.tournaments.empty.noneNearbyTitle")}
@@ -1086,7 +1162,7 @@ export default function TournamentsPage() {
                             }
                         />
                     )
-                ) : (
+                ) : filteredUpcoming.length > 0 ? (
                     <>
                         <Box data-tour="turniri-upcoming">
                             {renderItems(filteredUpcoming, "upcoming")}
@@ -1101,8 +1177,49 @@ export default function TournamentsPage() {
                             </Text>
                         )}
                     </>
-                )}
+                ) : null /* filteredUpcoming is empty but the finished-search
+                            group below has matches — nothing to say up here */}
             </Box>
+
+            {/* ===================== Završeni turniri (search match) =====
+                A second, server-searched group for finished tournaments —
+                separate from the "Nadolazeći" filters (price/radius/location
+                don't apply here, only the search text does; see the query
+                definitions above). Only appears once the search box has 2+
+                chars, and stays out of the way entirely otherwise, per spec:
+                an empty search changes nothing about the page. */}
+            {searchActive && (searchFinishedLoading || searchFinishedHasResults) && (
+                <Box data-tour="turniri-search-finished">
+                    <Heading size="md" mb="1">{tt("pages.tournaments.finishedHeading")}</Heading>
+                    {!searchFinishedLoading && (
+                        <Text fontSize="sm" color="fg.muted" mb="4">
+                            {plural("pages.tournaments.searchFinished.resultsCount", searchFinishedTotal)}
+                        </Text>
+                    )}
+                    {searchFinishedLoading ? (
+                        skeletons
+                    ) : (
+                        <>
+                            {renderItems(searchFinishedResults, "finished")}
+                            {searchFinishedHasMore && (
+                                <HStack justify="center" mt="4">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        colorPalette="brand"
+                                        onClick={loadMoreSearchFinished}
+                                        loading={searchFinishedLoadingMore}
+                                    >
+                                        {tt("pages.tournaments.searchFinished.showMore", {
+                                            count: searchFinishedTotal - searchFinishedResults.length,
+                                        })}
+                                    </Button>
+                                </HStack>
+                            )}
+                        </>
+                    )}
+                </Box>
+            )}
 
             {/* ===================== Finished ===================== */}
             <Box data-tour="turniri-finished">

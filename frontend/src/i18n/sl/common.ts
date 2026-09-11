@@ -63,6 +63,7 @@ export const common: CommonDict = {
     "nav.pronadjiPara": "Najdi para",
     "nav.login": "Prijava",
     "nav.profil": "Profil",
+    "nav.novosti": "Novosti",
     "nav.logout": "Odjavi se",
     "nav.profileMenuAriaLabel": "Meni profila",
     "nav.avatarAlt": "Profilna slika",
@@ -201,6 +202,8 @@ export const common: CommonDict = {
     "location.clickHint": "Klikni na zemljevid za izbiro lokacije",
     "location.searchingAddress": "Iščem naslov…",
     "location.reverseGeocodeError": "Napaka pri pridobivanju naslova.",
+    "location.searchPlaceholder": "Poišči naslov ali ime lokala",
+    "location.poweredByGoogle": "Podprto s strani Google",
 
     // --- Clipboard feedback, shared by CalendarSubscribeButton & TournamentQrDialog --
     "clipboard.copyLink": "Kopiraj povezavo",
@@ -221,7 +224,7 @@ export const common: CommonDict = {
     // --- Tournament QR dialog -------------------------------------------------------
     "qr.dialogTitle": "QR koda turnirja",
     "qr.scanHint":
-        "S skeniranjem se odpre stran turnirja „{name}“. Prikaži to kodo na zaslonu ali jo natisni in obesi na mestu prireditve.",
+        "S skeniranjem se odpre seznam parov turnirja „{name}“. Prikaži to kodo na zaslonu ali jo natisni in obesi na mestu prireditve.",
     "qr.altText": "QR koda za turnir {name}",
     "qr.downloadButton": "Prenesi QR",
     "qr.downloadSuccess": "QR koda je prenesena",
@@ -289,4 +292,8 @@ export const common: CommonDict = {
     "footer.privacyLink": "Zasebnost",
     "footer.termsLink": "Pogoji",
     "footer.copyright": "© {year} bela-turniri.com",
+
+    // --- Native push (platform/NativeShell.tsx) -----------------------------
+    "push.fallbackTitle": "Bela Turniri",
+    "push.channelName": "Obvestila",
 }

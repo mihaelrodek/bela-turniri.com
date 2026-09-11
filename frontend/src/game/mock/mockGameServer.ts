@@ -29,6 +29,7 @@ import type {
     TrickState,
     WonTrick,
 } from "@bela/engine"
+import { isAvatarId } from "../../components/avatars/avatarArt"
 import { t } from "../../i18n"
 import { SUITS, cardRank, cardSuit, makeCard } from "../util/cards"
 import { SEATS, nextSeat, teamOf } from "../util/seats"
@@ -842,6 +843,25 @@ class MockServer {
                 }
                 this.emit({ t: "profile.name", name, nextChangeAt: this.nameChangedAt + NAME_CHANGE_INTERVAL_MS })
                 if (room) { this.pushRoom(); this.pushLobby() }
+                return
+            }
+            case "profile.setAvatar": {
+                /* The picked face (protocol `profile.setAvatar`). The real
+                   server validates against the same 16 ids and, having no
+                   internal write for the avatar, keeps the change on the
+                   connection; the mock has no backend at all, so "in memory"
+                   is the faithful behaviour here rather than a shortcut. */
+                if (!isAvatarId(msg.preset)) { this.error("BAD_REQUEST", msg.t); return }
+                this.me = { ...this.me, avatarPreset: msg.preset }
+                const avatarRoom = this.room()
+                if (avatarRoom) {
+                    for (const seat of avatarRoom.seats) {
+                        const occupant = seat.occupant
+                        if (occupant?.kind === "PLAYER" && occupant.user.uid === this.me.uid) occupant.user = this.me
+                    }
+                }
+                this.emit({ t: "profile.avatar", preset: msg.preset })
+                if (avatarRoom) this.pushRoom()
                 return
             }
             case "room.setOptions": {

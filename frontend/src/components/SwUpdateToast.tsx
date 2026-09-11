@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import { toaster } from "../toaster"
 import { useTranslation } from "../i18n"
+import { isNative } from "../platform"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Service-worker registration + "new version available" UX.
@@ -34,6 +35,11 @@ export default function SwUpdateToast() {
     const notifiedRef = useRef(false)
 
     useEffect(() => {
+        // Native shells load `dist/` straight from the app bundle — there is
+        // no deploy pushing a new sw.js underneath a running instance, an app
+        // update instead installs a whole new bundle via the store, so this
+        // whole "new version available" flow doesn't apply.
+        if (isNative) return
         if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return
         if (!import.meta.env.PROD) return
 

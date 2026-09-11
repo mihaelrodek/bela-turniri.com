@@ -19,8 +19,9 @@
 
 import { createRemoteJWKSet, jwtVerify } from "jose"
 import { createHash } from "node:crypto"
-import { LIMITS } from "@bela/protocol"
+import { LIMITS, isAvatarPreset } from "@bela/protocol"
 import type { UserInfo } from "@bela/protocol"
+import { avatarPresetForUid } from "./avatars.js"
 import type { Config } from "./config.js"
 import { ProtocolError } from "./errors.js"
 import { createProfileLookup } from "./profiles.js"
@@ -32,7 +33,7 @@ const JWKS_URL =
 export const FALLBACK_NAME = "Igrač"
 
 export interface HelloCredentials {
-    guest?: { name: string; secret: string } | undefined
+    guest?: { name: string; secret: string; avatarPreset?: string | undefined } | undefined
     token?: string | undefined
     devName?: string | undefined
 }
@@ -88,11 +89,25 @@ export function devUser(devName: string): UserInfo {
  */
 export function withAppProfile(
     user: UserInfo,
-    profile: { displayName: string | null; avatarUrl: string | null; gameName?: string | null } | null,
+    profile: {
+        displayName: string | null
+        avatarUrl: string | null
+        gameName?: string | null
+        avatarPreset?: string | null
+    } | null,
 ): UserInfo {
     if (!profile) return user
     return {
         ...user,
+        // Same "only what they actually set here wins" rule as the avatar URL:
+        // a profile that carries no preset must not wipe the one the caller
+        // already resolved (a guest's own pick, or the one derived from their
+        // uid). The key is omitted entirely when there is nothing to say, so
+        // a `UserInfo` on the wire never carries a null field the client would
+        // only have to skip — every seat frame pays for this one.
+        ...((profile.avatarPreset ?? user.avatarPreset)
+            ? { avatarPreset: profile.avatarPreset ?? user.avatarPreset }
+            : {}),
         // The IN-GAME name wins over the account name, which wins over the
         // token's (2026-09-09). A player who typed a name for the card table
         // meant it for the card table; the account name is what the rest of
@@ -130,6 +145,15 @@ export function createAuthenticator(cfg: Config, profiles: ProfileLookup = creat
                         uid,
                         name: guest.name.trim().slice(0, LIMITS.playerNameMax),
                         avatarUrl: null,
+                        // The face the guest picked on the identity screen, or
+                        // — when they have none, or sent something that is not
+                        // one of the 16 — a stable one derived from this uid.
+                        // Never null: a guest cannot store a face anywhere but
+                        // their own browser, and a seat without a face reads as
+                        // an empty chair.
+                        avatarPreset: isAvatarPreset(guest.avatarPreset)
+                            ? guest.avatarPreset
+                            : avatarPresetForUid(uid),
                         guest: true,
                     }
                     return withAppProfile(guestUser, await profiles.get(uid))

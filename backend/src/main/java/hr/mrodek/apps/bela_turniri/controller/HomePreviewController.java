@@ -150,10 +150,16 @@ public class HomePreviewController {
      */
     private String renderHome(List<Tournaments> upcoming) {
         StringBuilder sb = new StringBuilder(4096);
+        // The site NAME leads the homepage title, with no domain suffix:
+        // Google derives the SERP site name from (in order) WebSite JSON-LD,
+        // og:site_name and the homepage <title>, and every one of those used
+        // to say "bela-turniri.com" somewhere — which is why the result read
+        // as the bare domain (2026-09-10). All three now say "Bela Turniri".
         appendHeadOpen(sb,
-                "Bela turniri u Hrvatskoj — bela-turniri.com",
-                "Bela turniri u Hrvatskoj i regiji. Pretraži nadolazeće turnire, "
-                        + "pridruži se paru, prati rezultate i statistike.",
+                "Bela Turniri — turniri u beli, online bela i zapisnik",
+                "Platforma za vođenje i praćenje turnira u beli. Kreiraj turnir, "
+                        + "prikupi prijave parova i objavi rezultate, igraj belu "
+                        + "online i vodi zapisnik partije u bloku.",
                 "https://bela-turniri.com/");
         // Site-wide WebSite + Organization JSON-LD, mirrored from the static
         // index.html. NOT actually redundant with it: Caddy's bot UA rewrite
@@ -165,12 +171,14 @@ public class HomePreviewController {
         // Organization record would never reach the crawler they're for.
         appendSiteJsonLd(sb);
         sb.append("</head>\n<body>\n<article>\n");
-        sb.append("<h1>Bela turniri u Hrvatskoj</h1>\n");
-        sb.append("<p>bela-turniri.com je platforma za organizaciju i praćenje "
-                + "Bela turnira u Hrvatskoj i regiji. Organizatori mogu kreirati "
-                + "turnire, prikupiti prijave parova i objaviti rezultate, a "
-                + "igrači prate raspored, povijest nastupa i pridružuju se "
-                + "novim turnirima.</p>\n");
+        sb.append("<h1>Bela Turniri — turniri u beli u Hrvatskoj</h1>\n");
+        sb.append("<p>Bela Turniri je platforma za vođenje i praćenje turnira u "
+                + "beli u Hrvatskoj i regiji. Organizatori kreiraju turnire, "
+                + "prikupljaju prijave parova i objavljuju rezultate, a igrači "
+                + "prate raspored, povijest nastupa i pridružuju se novim "
+                + "turnirima. Uz to možeš igrati belu online protiv igrača i "
+                + "botova te voditi zapisnik partije u bloku, sam ili povezan "
+                + "sa stolom na turniru.</p>\n");
 
         if (!upcoming.isEmpty()) {
             sb.append("<section>\n<h2>Nadolazeći Bela turniri</h2>\n<ul>\n");
@@ -212,7 +220,7 @@ public class HomePreviewController {
     private String renderTournamentsList(List<Tournaments> upcoming, List<Tournaments> finished) {
         StringBuilder sb = new StringBuilder(8192);
         appendHeadOpen(sb,
-                "Bela turniri u Hrvatskoj — popis turnira | bela-turniri.com",
+                "Popis turnira u beli — Bela Turniri",
                 "Popis svih nadolazećih i odigranih Bela turnira u Hrvatskoj. "
                         + "Pretraži po lokaciji, datumu i cijeni.",
                 "https://bela-turniri.com/turniri");
@@ -285,7 +293,9 @@ public class HomePreviewController {
                 .append(escapeAttr(canonical)).append("\">\n");
         sb.append("<meta property=\"og:type\" content=\"website\">\n");
         sb.append("<meta property=\"og:locale\" content=\"hr_HR\">\n");
-        sb.append("<meta property=\"og:site_name\" content=\"bela-turniri.com\">\n");
+        // Site name, not the domain — one of the three signals Google reads
+        // for the SERP site name (see renderHome).
+        sb.append("<meta property=\"og:site_name\" content=\"Bela Turniri\">\n");
         sb.append("<meta property=\"og:title\" content=\"")
                 .append(escapeAttr(title)).append("\">\n");
         sb.append("<meta property=\"og:description\" content=\"")
@@ -325,7 +335,7 @@ public class HomePreviewController {
      */
     private void appendOgImage(StringBuilder sb) {
         String image = baseUrl() + "/" + OG_IMAGE_FILENAME;
-        PreviewHtml.appendOgImageMeta(sb, image, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, "bela-turniri.com");
+        PreviewHtml.appendOgImageMeta(sb, image, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, "Bela Turniri");
         sb.append("<meta name=\"twitter:card\" content=\"").append(TWITTER_CARD).append("\">\n");
         sb.append("<meta name=\"twitter:image\" content=\"").append(escapeAttr(image)).append("\">\n");
     }
@@ -347,7 +357,7 @@ public class HomePreviewController {
         String base = baseUrl();
         sb.append("<script type=\"application/ld+json\">")
                 .append("{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",")
-                .append("\"name\":\"Bela turniri\",\"alternateName\":\"bela-turniri.com\",")
+                .append("\"name\":\"Bela Turniri\",")
                 .append("\"url\":\"").append(jsonEscape(base + "/")).append("\",")
                 .append("\"inLanguage\":\"hr\",")
                 .append("\"potentialAction\":{\"@type\":\"SearchAction\",")
@@ -357,7 +367,7 @@ public class HomePreviewController {
                 .append("</script>\n");
         sb.append("<script type=\"application/ld+json\">")
                 .append("{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",")
-                .append("\"name\":\"Bela turniri\",\"alternateName\":\"bela-turniri.com\",")
+                .append("\"name\":\"Bela Turniri\",")
                 .append("\"url\":\"").append(jsonEscape(base + "/")).append("\",")
                 .append("\"logo\":\"").append(jsonEscape(base + "/bela-turniri-symbol.png")).append("\",")
                 .append("\"sameAs\":[]}")

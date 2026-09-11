@@ -45,6 +45,25 @@ public class UserProfile {
     private Resources avatar;
 
     /**
+     * The drawn character this user picked instead of uploading a photo — the
+     * id of one of {@code AvatarPresetService.PRESETS}, or null when they
+     * never had one (or explicitly cleared it).
+     *
+     * <p>The drawings themselves are frontend code
+     * ({@code frontend/src/components/avatars/avatarArt.ts}); this column
+     * holds nothing but the id. Written by
+     * {@code PUT /user/me/profile}, assigned to brand-new profiles by
+     * {@code AvatarPresetService.assignDefaultIfMissing}, and CLEARED when a
+     * real photo is uploaded.
+     *
+     * <p>Precedence between this and {@link #avatar} is decided in exactly one
+     * place — {@code AvatarPresetService.presetFor} — never re-derived at a
+     * DTO site.
+     */
+    @Column(name = "avatar_preset", length = 32)
+    private String avatarPreset;
+
+    /**
      * Per-user theme preference — "light" or "dark". Null means the
      * user hasn't picked one yet; the frontend defaults to light. We
      * sync this on login so the choice survives across devices.

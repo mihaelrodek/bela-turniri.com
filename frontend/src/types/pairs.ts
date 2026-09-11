@@ -19,6 +19,18 @@ export type PairShort = {
     coSubmittedByName?: string | null;
     /** Opaque token for the /claim-pair/{token} URL — only sent to the primary submitter. */
     claimToken?: string | null;
+    /**
+     * Phone of a pair registered without an account. Organiser-only: the API
+     * sends it solely to a viewer who may manage the tournament, so it is
+     * absent (null) in every public listing.
+     */
+    contactPhone?: string | null;
+    /**
+     * Absolute /preuzmi-par/{token} link, present ONLY in the reply to an
+     * anonymous self-registration — the submitter's one handle on a pair that
+     * belongs to no account yet.
+     */
+    claimUrl?: string;
 };
 
 // Local-only helper for brand-new rows before the server assigns an id.

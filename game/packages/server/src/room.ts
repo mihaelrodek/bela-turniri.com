@@ -738,13 +738,28 @@ export class Room {
      * Nothing else about the room moves; the caller broadcasts.
      */
     renameOccupant(uid: string, name: string): void {
+        this.patchOccupant(uid, { name })
+    }
+
+    /**
+     * The same thing for the picked face (`profile.setAvatar`). Split from
+     * `renameOccupant` only at the call site: a face and a name travel by
+     * different rules (one has a once-a-week clock, the other does not), but
+     * once they arrive they land in exactly the same copies.
+     */
+    restyleOccupant(uid: string, avatarPreset: string): void {
+        this.patchOccupant(uid, { avatarPreset })
+    }
+
+    /** Writes `patch` into every copy of this uid's `UserInfo` the room holds. */
+    private patchOccupant(uid: string, patch: Partial<UserInfo>): void {
         for (const slot of this.seats) {
             if (slot && slot.kind === "PLAYER" && slot.uid === uid) {
-                slot.user = { ...slot.user, name }
+                slot.user = { ...slot.user, ...patch }
             }
         }
         for (const c of this.conns) {
-            if (c.user?.uid === uid) c.user = { ...c.user, name }
+            if (c.user?.uid === uid) c.user = { ...c.user, ...patch }
         }
     }
 

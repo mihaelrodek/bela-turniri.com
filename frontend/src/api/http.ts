@@ -2,9 +2,13 @@ import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestCo
 import { signOut } from "firebase/auth"
 import { auth } from "../firebase"
 import { getLocale, t } from "../i18n"
+import { apiBase } from "../platform"
 import { showError, showSuccess, statusFallback } from "../toaster"
 
-const baseURL = import.meta.env.VITE_API_URL ?? "/api"
+// Relative `/api` in a browser (Vite proxy in dev, Caddy in prod); an absolute
+// host in the native shells, which have no origin to be relative to. See
+// ../platform.
+const baseURL = apiBase
 
 /**
  * Per-request flag the call sites can set to opt out of automatic toasts.

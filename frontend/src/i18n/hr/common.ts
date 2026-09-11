@@ -70,6 +70,7 @@ export const common = {
     "nav.pronadjiPara": "Pronađi para",
     "nav.login": "Prijava",
     "nav.profil": "Profil",
+    "nav.novosti": "Novosti",
     "nav.logout": "Odjavi se",
     "nav.profileMenuAriaLabel": "Profil meni",
     "nav.avatarAlt": "Profilna slika",
@@ -208,6 +209,10 @@ export const common = {
     "location.clickHint": "Klikni na kartu za odabir lokacije",
     "location.searchingAddress": "Tražim adresu…",
     "location.reverseGeocodeError": "Greška pri dohvaćanju adrese.",
+    "location.searchPlaceholder": "Pretraži adresu ili naziv lokala",
+    // Google's Places ToS require this credit when predictions are shown
+    // outside a Google map (our map is Leaflet + CARTO).
+    "location.poweredByGoogle": "Podržano od Google",
 
     // --- Clipboard feedback, shared by CalendarSubscribeButton.tsx & TournamentQrDialog.tsx --
     "clipboard.copyLink": "Kopiraj poveznicu",
@@ -228,7 +233,7 @@ export const common = {
     // --- Tournament QR dialog (components/TournamentQrDialog.tsx) -----------
     "qr.dialogTitle": "QR kod turnira",
     "qr.scanHint":
-        "Skeniranjem se otvara stranica turnira „{name}“. Prikaži ovaj kod na ekranu ili ga ispiši i objesi na mjestu održavanja.",
+        "Skeniranjem se otvara popis parova turnira „{name}“. Prikaži ovaj kod na ekranu ili ga ispiši i objesi na mjestu održavanja.",
     "qr.altText": "QR kod za turnir {name}",
     "qr.downloadButton": "Preuzmi QR",
     "qr.downloadSuccess": "QR kod je preuzet",
@@ -301,6 +306,14 @@ export const common = {
     "footer.privacyLink": "Privatnost",
     "footer.termsLink": "Uvjeti",
     "footer.copyright": "© {year} bela-turniri.com",
+
+    // --- Native push (platform/NativeShell.tsx) -----------------------------
+    // Fallback title for a foreground FCM notification with no title of its
+    // own — mirrors the same fallback public/sw.js uses for Web Push.
+    "push.fallbackTitle": "Bela Turniri",
+    // Android notification channel name (NativeShell's createChannel call);
+    // shown to the user in the OS notification settings for this app.
+    "push.channelName": "Obavijesti",
 }
 
 /** Contract every other locale's `common` namespace must satisfy. */

@@ -23,7 +23,23 @@ const NO_BACKDROP_FILTER =
 const GLASS_CONTENT: SystemStyleObject = {
     bg: "bg.glassPanel",
     backdropFilter: "saturate(180%) blur(24px)",
-    [NO_BACKDROP_FILTER]: { bg: "bg.panel" },
+    [NO_BACKDROP_FILTER]: { bg: "bg.opaque" },
+}
+
+/** Opaque floating material for menus and popovers (2026-09-10).
+ *
+ *  They used to share GLASS_CONTENT, and on iOS Safari that produced an
+ *  unreadable menu: the avatar/burger menu rendered as a 72 % tint with NO
+ *  blur over the tournament posters behind it. Safari drops `backdrop-filter`
+ *  on a popper-positioned layer while it is transformed/animated (Chakra's
+ *  Menu/Popover positioner + enter animation), and the `@supports` fallback
+ *  never fires because the property IS supported — it just isn't applied. A
+ *  dialog is different: its content sits on a fixed full-screen backdrop, no
+ *  popper transform, and the blur holds, so dialogs keep the glass. */
+const SOLID_CONTENT: SystemStyleObject = {
+    // NOT `bg.panel`: that token is itself 61 % translucent (cards are meant
+    // to show the canvas through), which is exactly what a menu must not do.
+    bg: "bg.opaque",
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -448,6 +464,15 @@ const config = defineConfig({
                        was pushed further than the "chrome that floats over
                        content and leans on blur" tier below was ever meant
                        to go, until it read clearly on an ordinary card. */
+                    /* Fully OPAQUE panel colour — the same white / gray.900
+                       as `bg.panel` minus the 61 % alpha. For floating material
+                       that must hide what is under it: menus, popovers, and
+                       the no-backdrop-filter fallback of dialogs. `bg.panel`
+                       was used there until 2026-09-10 and the avatar menu
+                       showed the tournament posters straight through it. */
+                    opaque: {
+                        value: { base: "{colors.white}", _light: "{colors.white}", _dark: "{colors.gray.900}" },
+                    },
                     panel: {
                         value: {
                             base: "rgba(255, 255, 255, 0.61)",
@@ -739,7 +764,8 @@ const config = defineConfig({
            own slot recipes, so only the listed properties change and every
            variant, size and part we don't mention is untouched.
 
-           This is how dialogs / menus / popovers get the glass treatment
+           This is how dialogs get the glass treatment (menus / popovers the
+           opaque one — see SOLID_CONTENT)
            without a `layerStyle` prop on each of the ~25 `Dialog.Content` call
            sites. It has to happen at the recipe layer rather than in
            `globalCss`, because Chakra emits recipes into a CSS layer that wins
@@ -754,8 +780,8 @@ const config = defineConfig({
            Passing the identical array makes the merge a no-op. */
         slotRecipes: {
             dialog: { slots: dialogAnatomy.keys(), base: { content: GLASS_CONTENT } },
-            menu: { slots: menuAnatomy.keys(), base: { content: GLASS_CONTENT } },
-            popover: { slots: popoverAnatomy.keys(), base: { content: GLASS_CONTENT } },
+            menu: { slots: menuAnatomy.keys(), base: { content: SOLID_CONTENT } },
+            popover: { slots: popoverAnatomy.keys(), base: { content: SOLID_CONTENT } },
         },
     },
 })

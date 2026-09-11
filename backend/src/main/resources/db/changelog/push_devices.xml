@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      Native push registrations — one row per (user, installed app), the FCM
+      counterpart of `push_subscriptions`.
+
+      Why a second table instead of columns on push_subscriptions:
+
+        * The credential is a different KIND of thing. A Web Push subscription
+          is an endpoint URL plus per-subscription crypto material the server
+          encrypts with (p256dh/auth); an FCM registration is a single opaque
+          token that Google routes on and encrypts for us. Sharing one table
+          would mean three columns that are NOT NULL for one delivery path and
+          meaningless for the other.
+
+        * The two paths fail independently and are cleaned up on different
+          signals: Web Push drops a row on HTTP 404/410, FCM on a
+          MessagingErrorCode of UNREGISTERED / INVALID_ARGUMENT. Keeping them
+          apart means neither cleanup can ever delete the other's row.
+
+      `token` is text and UNIQUE, like `endpoint` next door, and for the same
+      reason: it IS the routing address, so the same token cannot legitimately
+      exist twice. It moves between accounts, though — one phone, two people —
+      so the registration endpoint reassigns a row rather than refusing it, and
+      the unique constraint is what makes "reassign" the only possible outcome.
+
+      `platform` is varchar(16) holding 'ios' or 'android'. Not an enum type:
+      adding a third shell would then need a migration, and the service
+      validates the value anyway.
+
+      `locale` mirrors the recipient-locale rule (CLAUDE.md → Internationalisation)
+      as a fallback only — the sender still prefers the user's stored
+      UserProfile.locale, because that is what the user actually chose. It is
+      the device's own language, useful for a device whose owner never opened
+      the profile screen.
+
+      No FK on user_uid: Firebase UIDs are plain strings everywhere in this
+      schema, exactly as push_subscriptions notes.
+
+      tableExists / MARK_RAN, like the other tables here, so a database where
+      this was created by hand is a no-op rather than a startup failure.
+    -->
+
+    <changeSet id="2026-09-10-push-devices" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="push_devices"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="push_devices">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"
+                             primaryKeyName="pk_push_devices"/>
+            </column>
+
+            <column name="user_uid" type="varchar(128)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- 'ios' | 'android' -->
+            <column name="platform" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- The FCM registration token. Long and unbounded in practice
+                 (Google has grown it more than once), hence text. -->
+            <column name="token" type="text">
+                <constraints nullable="false" unique="true"
+                             uniqueConstraintName="uq_push_devices_token"/>
+            </column>
+
+            <column name="locale" type="varchar(8)"/>
+            <column name="app_version" type="varchar(32)"/>
+
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Bumped on every re-registration (the app does this on each
+                 cold start) and on every successful send, so a device that has
+                 gone quiet for months can be pruned without waiting for FCM to
+                 admit the token is dead. -->
+            <column name="last_seen_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Every send starts as "all devices of user X". Token lookups go
+             through the unique constraint above. -->
+        <createIndex tableName="push_devices" indexName="idx_push_devices_user_uid">
+            <column name="user_uid"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="push_devices"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

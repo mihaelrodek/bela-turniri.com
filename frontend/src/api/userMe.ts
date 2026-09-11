@@ -27,6 +27,13 @@ export type UserProfile = {
     displayName?: string | null
     slug?: string | null
     avatarUrl?: string | null
+    /**
+     * The drawn character picked instead of a photo, or null. Already
+     * resolved against `avatarUrl` server-side (`AvatarPresetService.presetFor`):
+     * a photo wins whenever one is set, so this and `avatarUrl` are never
+     * both non-null at once.
+     */
+    avatarPreset?: string | null
     /** "light" or "dark"; null until the user picks one. */
     colorMode?: "light" | "dark" | null
     /** BCP-47 base tag ("hr" | "sl"); null until the user picks one. */
@@ -57,11 +64,24 @@ export async function getProfile(): Promise<UserProfile> {
     return data
 }
 
-export async function updateProfile(payload: { phoneCountry: string | null; phone: string | null }): Promise<UserProfile> {
+/**
+ * `avatarPreset` is genuinely optional here — omitted leaves the stored
+ * choice untouched, `""` clears it, a known id sets it (400
+ * `INVALID_AVATAR_PRESET` for anything else). `phoneCountry`/`phone` are
+ * NOT optional on the wire, even though TypeScript can't say so without
+ * splitting this into two payload shapes: the backend rewrites both from
+ * the body unconditionally on every PUT, so a caller that wants to change
+ * only the avatar must still echo back the current phone fields, or it
+ * silently blanks them. See `MyDataCard`'s avatar-pick handler.
+ */
+export async function updateProfile(
+    payload: { phoneCountry: string | null; phone: string | null; avatarPreset?: string | null },
+    opts?: { silentErrorStatuses?: true | number[] },
+): Promise<UserProfile> {
     const { data } = await http.put<UserProfile>(
         "/user/me/profile",
         payload,
-        { successMessage: t("common.toast.profileSaved") },
+        { successMessage: t("common.toast.profileSaved"), ...opts },
     )
     return data
 }

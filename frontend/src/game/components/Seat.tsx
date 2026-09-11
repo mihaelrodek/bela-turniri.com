@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactNode } from "react"
 import { Box, Flex, Image, Text } from "@chakra-ui/react"
+import BelaAvatar from "../../components/avatars/BelaAvatar"
+import { isAvatarId } from "../../components/avatars/avatarArt"
 import type { SeatInfo, Suit } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import type { TurnCountdown } from "../hooks/useTurnCountdown"
@@ -127,6 +129,10 @@ export function SeatAvatar({
     const { t } = useTranslation()
     const disconnected = occupant?.kind === "PLAYER" && !occupant.connected
     const avatarUrl = occupant?.kind === "PLAYER" ? occupant.user.avatarUrl : null
+    // Same order of preference as `PlayerAvatar` (photo > picked face >
+    // initials), kept in step by hand because the felt draws its own avatar:
+    // this one carries the turn-clock ring and the seat marks.
+    const avatarPreset = occupant?.kind === "PLAYER" ? occupant.user.avatarPreset : null
 
     // A conic gradient is the cheapest ring that animates without SVG: the
     // filled arc is the remaining fraction of the turn clock, the rest is the
@@ -196,6 +202,8 @@ export function SeatAvatar({
                 >
                     {avatarUrl ? (
                         <Image src={avatarUrl} alt="" w="100%" h="100%" objectFit="cover" loading="lazy" />
+                    ) : isAvatarId(avatarPreset) ? (
+                        <BelaAvatar id={avatarPreset} boxSize="100%" />
                     ) : occupant === null ? (
                         <Text fontSize="md" color={INK_MUTED} aria-hidden="true">+</Text>
                     ) : (

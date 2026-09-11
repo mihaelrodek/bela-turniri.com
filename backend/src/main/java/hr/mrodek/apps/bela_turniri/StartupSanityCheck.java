@@ -54,6 +54,15 @@ public class StartupSanityCheck {
     @ConfigProperty(name = "minio.endpoint")
     String minioEndpoint;
 
+    /** Firebase service account backing native push (FCM). Optional in the
+     *  same "empty means absent" sense as the game token below — an unset
+     *  value must never keep the application from booting. */
+    @ConfigProperty(name = "push.fcm.service-account-json")
+    Optional<String> fcmServiceAccountJson;
+
+    @ConfigProperty(name = "push.fcm.service-account-file")
+    Optional<String> fcmServiceAccountFile;
+
     /** Shared secret for POST /api/internal/game-results (game/README.md §8.4). */
     /** Optional, not a defaulted String: an empty value is "no value" to
      *  SmallRye, and a warning check must never be the thing that stops the
@@ -121,6 +130,17 @@ public class StartupSanityCheck {
                     + "'), which is committed to the repository. Anyone who can reach "
                     + "/api/internal/game-results could forge game statistics. Set a real "
                     + "random value (openssl rand -base64 32).");
+        }
+
+        if (fcmServiceAccountJson.orElse("").isBlank()
+                && fcmServiceAccountFile.orElse("").isBlank()) {
+            warnings.add("Neither FIREBASE_SERVICE_ACCOUNT_JSON nor FIREBASE_SERVICE_ACCOUNT_FILE "
+                    + "is set, so native push (FCM) is disabled: the iOS/Android apps register "
+                    + "their tokens but receive nothing, while browsers keep getting Web Push. "
+                    + "Set one of them to a service account for the SAME Firebase project as "
+                    + "FIREBASE_PROJECT_ID (Firebase console -> Project settings -> Service "
+                    + "accounts -> Generate new private key). The stored tokens start working "
+                    + "as soon as it is configured; nothing needs re-registering.");
         }
 
         if (warnings.isEmpty()) {

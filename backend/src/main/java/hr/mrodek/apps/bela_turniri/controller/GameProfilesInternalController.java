@@ -3,6 +3,7 @@ package hr.mrodek.apps.bela_turniri.controller;
 import hr.mrodek.apps.bela_turniri.dtos.SetGameNameRequest;
 import hr.mrodek.apps.bela_turniri.model.GameName;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import hr.mrodek.apps.bela_turniri.services.AvatarPresetService;
 import hr.mrodek.apps.bela_turniri.services.GameNameService;
 import hr.mrodek.apps.bela_turniri.services.InternalTokenGuard;
 import jakarta.inject.Inject;
@@ -58,6 +59,7 @@ public class GameProfilesInternalController {
     @Inject UserProfileRepository profiles;
     @Inject GameNameService gameNames;
     @Inject InternalTokenGuard guard;
+    @Inject AvatarPresetService avatarPresets;
 
     /**
      * What the game server needs to render a seat: nothing more.
@@ -71,8 +73,18 @@ public class GameProfilesInternalController {
      * @param gameName    the player's chosen <em>ime za igru</em>, or null when
      *                    they have not set one. Present for guests too, who
      *                    have neither of the other two fields.
+     * @param avatarPreset id of the drawn character the player picked instead
+     *                    of a photo, or null. Appended rather than folded into
+     *                    {@code avatarUrl} because the drawings live in the
+     *                    frontend and the game client renders them itself —
+     *                    there is no URL to point a seat at. Already resolved
+     *                    against the photo (see
+     *                    {@link AvatarPresetService#presetFor}), so the caller
+     *                    draws the photo if it is there and the character
+     *                    otherwise, with no rule of its own.
      */
-    public record GameProfileResponse(String displayName, String avatarUrl, String gameName) {}
+    public record GameProfileResponse(String displayName, String avatarUrl, String gameName,
+                                      String avatarPreset) {}
 
     /**
      * The accepted name plus the two instants the caller needs to render
@@ -97,13 +109,17 @@ public class GameProfilesInternalController {
         // definition has no profile row — still gets their name back.
         String gameName = gameNames.nameFor(uid);
         return profiles.findByUid(uid)
-                .map(p -> new GameProfileResponse(
-                        p.getDisplayName(),
-                        p.getAvatar() != null && p.getAvatar().getId() != null
-                                ? "/api/resources/" + p.getAvatar().getId() + "/image"
-                                : null,
-                        gameName))
-                .orElseGet(() -> new GameProfileResponse(null, null, gameName));
+                .map(p -> {
+                    String avatarUrl = p.getAvatar() != null && p.getAvatar().getId() != null
+                            ? "/api/resources/" + p.getAvatar().getId() + "/image"
+                            : null;
+                    return new GameProfileResponse(
+                            p.getDisplayName(),
+                            avatarUrl,
+                            gameName,
+                            avatarPresets.presetFor(p, avatarUrl));
+                })
+                .orElseGet(() -> new GameProfileResponse(null, null, gameName, null));
     }
 
     /**

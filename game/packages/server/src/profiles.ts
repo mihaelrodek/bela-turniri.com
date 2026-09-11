@@ -21,7 +21,7 @@
        every hello would be the most common request of all.
    ────────────────────────────────────────────────────────────────────── */
 
-import { LIMITS } from "@bela/protocol"
+import { LIMITS, isAvatarPreset } from "@bela/protocol"
 import type { Config } from "./config.js"
 import { log } from "./log.js"
 
@@ -35,6 +35,13 @@ export interface AppProfile {
      * meant it for the table.
      */
     gameName: string | null
+    /**
+     * The face picked in this app's profile (one of `AVATAR_PRESETS`), or null
+     * when they never picked one or the stored value is not a preset this
+     * build knows. Only signed-in players can have one — a guest's face lives
+     * in their browser and arrives with the `hello`.
+     */
+    avatarPreset: string | null
 }
 
 /** Why a `setGameName` did not go through. */
@@ -86,7 +93,7 @@ function isLookupCandidate(uid: string): boolean {
 
 function parseProfile(body: unknown): AppProfile | null {
     if (typeof body !== "object" || body === null) return null
-    const raw = body as { displayName?: unknown; avatarUrl?: unknown; gameName?: unknown }
+    const raw = body as { displayName?: unknown; avatarUrl?: unknown; gameName?: unknown; avatarPreset?: unknown }
     const displayName = typeof raw.displayName === "string" && raw.displayName.trim().length > 0
         ? raw.displayName.trim().slice(0, 60)
         : null
@@ -96,8 +103,12 @@ function parseProfile(body: unknown): AppProfile | null {
     const gameName = typeof raw.gameName === "string" && raw.gameName.trim().length > 0
         ? raw.gameName.trim().slice(0, LIMITS.playerNameMax)
         : null
-    if (displayName === null && avatarUrl === null && gameName === null) return null
-    return { displayName, avatarUrl, gameName }
+    // Validated against the list rather than passed through: an unknown id
+    // would reach `BelaAvatar`, which renders nothing for one, and the seat
+    // would go blank instead of falling back to initials.
+    const avatarPreset = isAvatarPreset(raw.avatarPreset) ? raw.avatarPreset : null
+    if (displayName === null && avatarUrl === null && gameName === null && avatarPreset === null) return null
+    return { displayName, avatarUrl, gameName, avatarPreset }
 }
 
 export function createProfileLookup(cfg: Config): ProfileLookup {
@@ -181,7 +192,9 @@ export function createProfileLookup(cfg: Config): ProfileLookup {
                     const raw = body as { gameName?: unknown; nextChangeAt?: unknown }
                     const saved = typeof raw?.gameName === "string" ? raw.gameName : name
                     // The cached profile now names the wrong player: drop it
-                    // rather than patch it, so the next read is the truth.
+                    // rather than patch it, so the next read is the truth. The
+                    // WRITE itself carries the name and nothing else, so the
+                    // player's `avatarPreset` is untouched by a rename.
                     cache.delete(uid)
                     return { ok: true, name: saved, nextChangeAt: parseInstant(raw?.nextChangeAt) }
                 }

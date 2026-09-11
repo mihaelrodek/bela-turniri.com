@@ -630,16 +630,30 @@ export default function TournamentDetailsPage() {
                             isLifeEligible={isLifeEligible}
                             onOpenPairInfo={setInfoPairId}
                             onSelfRegisterClick={() => {
-                                // Anonymous visitors get bounced to /prijava
-                                // with state.from so they land back here.
+                                // Anonymous visitors are no longer bounced to
+                                // /prijava: registering works without an
+                                // account. They get the nudge first, which
+                                // offers signing in AND walking past it.
                                 if (!user) {
-                                    navigate("/prijava", {
-                                        state: { from: `${location.pathname}${location.search}` },
-                                    })
+                                    pairsEd.setSelfRegNudgeOpen(true)
                                     return
                                 }
                                 pairsEd.setSelfRegOpen(true)
                             }}
+                            onSelfRegisterSignIn={() => {
+                                pairsEd.setSelfRegNudgeOpen(false)
+                                navigate("/prijava", {
+                                    state: { from: `${location.pathname}${location.search}` },
+                                })
+                            }}
+                            selfRegNudgeOpen={pairsEd.selfRegNudgeOpen}
+                            setSelfRegNudgeOpen={pairsEd.setSelfRegNudgeOpen}
+                            selfRegPhoneCountry={pairsEd.selfRegPhoneCountry}
+                            setSelfRegPhoneCountry={pairsEd.setSelfRegPhoneCountry}
+                            selfRegPhone={pairsEd.selfRegPhone}
+                            setSelfRegPhone={pairsEd.setSelfRegPhone}
+                            selfRegClaim={pairsEd.selfRegClaim}
+                            setSelfRegClaim={pairsEd.setSelfRegClaim}
                             onPodiumUpdated={setT}
                             selfRegOpen={pairsEd.selfRegOpen}
                             setSelfRegOpen={pairsEd.setSelfRegOpen}

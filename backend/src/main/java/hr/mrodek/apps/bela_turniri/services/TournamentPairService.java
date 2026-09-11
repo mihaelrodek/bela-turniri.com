@@ -79,9 +79,15 @@ public class TournamentPairService {
                 access.canManage(t));
     }
 
-    /** Enriched single-pair DTO, for the endpoints that return one row. */
+    /**
+     * Enriched single-pair DTO, for the endpoints that return one row.
+     * The contact phone rides along only for a viewer who may manage the
+     * tournament — the same gate the list applies, so a single-row endpoint
+     * cannot become the hole the list closed.
+     */
     public PairDto toDto(Pairs p) {
-        return pairMapper.toDtoEnriched(p, fetchSubmitterProfiles(List.of(p)));
+        boolean manages = access.canManage(p.getTournament());
+        return pairMapper.toDtoEnriched(p, fetchSubmitterProfiles(List.of(p)), false, manages);
     }
 
     /**

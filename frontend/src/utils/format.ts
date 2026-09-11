@@ -6,11 +6,16 @@
    helpers into five, which is how TournamentsPage ended up rendering a date
    without a year while the details page next to it rendered one with.
 
-   There are exactly THREE date shapes in the app and they are all here:
+   There are exactly FOUR date shapes in the app and they are all here:
 
      formatDate         "pon, 22. tra 2026."   list rows, detail tiles
      formatDateShort    "pon, 22. tra"         space-tight cards + map popups
      formatDateCompact  "22. tra 2026."        admin rows, pair-request rows
+     formatDateLong     "22. travnja 2026."    the Novosti dialog's byline —
+                                                the only spot with room for a
+                                                full month name instead of
+                                                the abbreviation the other
+                                                three share
 
    The empty/failed fallback is an em dash by default because that is what
    every current call site renders; pass `fallback` to opt out (the map and
@@ -66,6 +71,12 @@ export function formatDateShort(iso?: string | null, fallback = "—"): string {
 /** Day + month + year, no weekday — dense admin/list rows. */
 export function formatDateCompact(iso?: string | null, fallback = "—"): string {
     return fmt(iso, { day: "2-digit", month: "short", year: "numeric" }, fallback)
+}
+
+/** Day + FULL month name + year, no weekday — "22. travnja 2026." Used where
+ *  a byline reads as prose rather than a table cell (the Novosti dialog). */
+export function formatDateLong(iso?: string | null, fallback = "—"): string {
+    return fmt(iso, { day: "2-digit", month: "long", year: "numeric" }, fallback)
 }
 
 /** Wall-clock time — "19:00". */

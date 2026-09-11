@@ -39,6 +39,7 @@ interface Person {
     key: string
     name: string
     avatarUrl: string | null
+    avatarPreset: string | null
     bot: boolean
 }
 
@@ -50,8 +51,8 @@ function pairOf(seats: readonly SeatInfo[], team: Team): Person[] {
         if (teamOf(s.seat) !== team) continue
         const o = s.occupant
         if (!o) continue
-        if (o.kind === "BOT") out.push({ key: `b${s.seat}`, name: o.name, avatarUrl: null, bot: true })
-        else out.push({ key: `p${s.seat}`, name: o.user.name, avatarUrl: o.user.avatarUrl, bot: false })
+        if (o.kind === "BOT") out.push({ key: `b${s.seat}`, name: o.name, avatarUrl: null, avatarPreset: null, bot: true })
+        else out.push({ key: `p${s.seat}`, name: o.user.name, avatarUrl: o.user.avatarUrl, avatarPreset: o.user.avatarPreset ?? null, bot: false })
     }
     return out
 }
@@ -186,7 +187,7 @@ export default function ActiveRoomWidget() {
                                     </Text>
                                     {row.people.map((p) => (
                                         <HStack key={p.key} gap="1.5" minW="0" w="full">
-                                            <PlayerAvatar size="xs" name={p.name} avatarUrl={p.avatarUrl} dimmed={p.bot} />
+                                            <PlayerAvatar size="xs" name={p.name} avatarUrl={p.avatarUrl} avatarPreset={p.avatarPreset} dimmed={p.bot} />
                                             <Text fontSize="xs" color="fg.muted" lineClamp={1}>{p.name}</Text>
                                         </HStack>
                                     ))}

@@ -55,23 +55,41 @@ public record UserProfileDto(
          * <p>It is returned so the profile page can show what the player is
          * called at a table, which is not always what their account is called.
          */
-        String gameName
+        String gameName,
+
+        /**
+         * The drawn character this user picked instead of a photo — one of
+         * {@code AvatarPresetService.PRESETS}, or {@code null}.
+         *
+         * <p>Unlike {@code avatarUrl}, this one IS writable on
+         * {@code PUT /user/me/profile}: a known id sets it, an empty string
+         * clears it, an unknown id is a 400 carrying the bare code
+         * {@code INVALID_AVATAR_PRESET}, and omitting the field leaves the
+         * stored choice alone.
+         *
+         * <p>On the way OUT it is already resolved against the precedence rule
+         * in {@code AvatarPresetService.presetFor}: a user with an uploaded
+         * photo reads back {@code null} here even if a preset is still stored,
+         * so the client never has to decide which of the two to draw.
+         */
+        @Size(max = 32, message = "validation.profile.avatarPreset.max")
+        String avatarPreset
 ) {
     /** Two-arg convenience for callers that only manage phone fields. */
     public UserProfileDto(String phoneCountry, String phone) {
-        this(phoneCountry, phone, null, null, null, null, null, null);
+        this(phoneCountry, phone, null, null, null, null, null, null, null);
     }
 
     public UserProfileDto(String phoneCountry, String phone, String displayName, String slug) {
-        this(phoneCountry, phone, displayName, slug, null, null, null, null);
+        this(phoneCountry, phone, displayName, slug, null, null, null, null, null);
     }
 
     public UserProfileDto(String phoneCountry, String phone, String displayName, String slug, String avatarUrl) {
-        this(phoneCountry, phone, displayName, slug, avatarUrl, null, null, null);
+        this(phoneCountry, phone, displayName, slug, avatarUrl, null, null, null, null);
     }
 
     public UserProfileDto(String phoneCountry, String phone, String displayName, String slug,
                           String avatarUrl, String colorMode) {
-        this(phoneCountry, phone, displayName, slug, avatarUrl, colorMode, null, null);
+        this(phoneCountry, phone, displayName, slug, avatarUrl, colorMode, null, null, null);
     }
 }

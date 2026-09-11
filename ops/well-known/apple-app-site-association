@@ -1,0 +1,18 @@
+{
+    "applinks": {
+        "details": [
+            {
+                "appIDs": ["TEAMID.com.belaturniri.app"],
+                "components": [
+                    { "/": "/turniri/*" },
+                    { "/": "/blok/*" },
+                    { "/": "/igra/*" },
+                    { "/": "/profil/*" }
+                ]
+            }
+        ]
+    },
+    "webcredentials": {
+        "apps": ["TEAMID.com.belaturniri.app"]
+    }
+}

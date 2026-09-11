@@ -127,4 +127,19 @@
          changed_at the once-per-7-days rule is measured from. -->
     <include file="db/changelog/game_names.xml" relativeToChangelogFile="false"/>
 
+    <!-- Native push (FCM) device registrations for the iOS/Android shells.
+         The FCM counterpart of push_subscriptions, alongside it rather than
+         instead of it: browsers keep getting VAPID Web Push unchanged. -->
+    <include file="db/changelog/push_devices.xml" relativeToChangelogFile="false"/>
+
+    <!-- Contact phone on a pair — the only way an organiser can reach a pair
+         that registered without an account. -->
+    <include file="db/changelog/pairs_contact_phone.xml" relativeToChangelogFile="false"/>
+
+    <!-- "Odaberi lika": a drawn character instead of an uploaded photo, stored
+         as the id of one of the sixteen faces that live in the frontend, plus
+         a backfill that gives every existing profile the same face the Java
+         side would have picked for it. -->
+    <include file="db/changelog/user_profile_avatar_preset.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>

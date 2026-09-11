@@ -25,6 +25,16 @@ public record PublicProfileDto(
         /** Proxied avatar URL ({@code /api/resources/<id>/image}) or null. */
         String avatarUrl,
 
+        /**
+         * Id of the drawn character this user picked instead of a photo, or
+         * null. Public for the same reason {@code avatarUrl} is: the page it
+         * feeds is anonymous-readable, and a cartoon face is not PII. Already
+         * resolved against the photo by
+         * {@code AvatarPresetService.presetFor}, so at most one of the two is
+         * ever non-null here.
+         */
+        String avatarPreset,
+
         /** Distinct pair names this user has played as, with how many tournaments each. */
         List<PairSummary> pairs,
 

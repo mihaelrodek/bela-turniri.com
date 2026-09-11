@@ -1,5 +1,6 @@
 package hr.mrodek.apps.bela_turniri.controller;
 
+import hr.mrodek.apps.bela_turniri.dtos.RegisterPushDeviceRequest;
 import hr.mrodek.apps.bela_turniri.model.PushSubscription;
 import hr.mrodek.apps.bela_turniri.repository.PushSubscriptionRepository;
 import hr.mrodek.apps.bela_turniri.services.CurrentUser;
@@ -35,7 +36,16 @@ import java.util.Map;
  *   <li>{@code DELETE /push/subscribe} — authenticated. Removes a specific
  *       subscription by its endpoint URL. Used when the user toggles
  *       notifications off in browser settings or in the app.</li>
+ *   <li>{@code PUT /push/device} — authenticated. The NATIVE counterpart:
+ *       upserts an FCM registration token for the iOS/Android shells.</li>
+ *   <li>{@code DELETE /push/device/{token}} — authenticated. Drops one of
+ *       the caller's own native registrations.</li>
  * </ul>
+ *
+ * <p>The two device endpoints are also reachable at
+ * {@code /user/me/push/device}, next to the rest of the account surface the
+ * shells use; both routes delegate to the same
+ * {@link hr.mrodek.apps.bela_turniri.services.PushDeviceService}.
  */
 @Path("/push")
 @Produces(MediaType.APPLICATION_JSON)
@@ -46,6 +56,7 @@ public class PushController {
 
     @Inject PushService pushService;
     @Inject PushSubscriptionRepository subRepo;
+    @Inject hr.mrodek.apps.bela_turniri.services.PushDeviceService pushDevices;
     @Inject CurrentUser currentUser;
     @Inject hr.mrodek.apps.bela_turniri.services.MessageService messages;
 
@@ -138,6 +149,60 @@ public class PushController {
             throw new BadRequestException(messages.t("push.subscribe.missingFields"));
         }
         subRepo.deleteByEndpointAndUser(endpoint, currentUser.requireUid());
+        return Response.noContent().build();
+    }
+
+    /* ===================== native (FCM) devices ===================== */
+
+    /**
+     * Register (or refresh) the calling user's native push token.
+     *
+     * <p>PUT, not POST: the token is the identity of the resource and the
+     * shell re-sends the same one on every cold start, so the call is
+     * idempotent by construction. 201 the first time, 200 on a refresh.
+     *
+     * <p>{@code @Authenticated}: a GUEST HAS NO NATIVE PUSH. The row is keyed
+     * on a Firebase UID and a guest has no bearer token to supply one — the
+     * same rule Web Push already follows.
+     *
+     * <p>Works even when FCM itself is unconfigured: the tokens accumulate and
+     * start being used the moment a service account is deployed.
+     *
+     * <p>The same operation is also reachable at {@code /user/me/push/device},
+     * next to the rest of the account surface the shells talk to; both
+     * delegate to {@link hr.mrodek.apps.bela_turniri.services.PushDeviceService}.
+     */
+    @PUT
+    @Path("/device")
+    @Authenticated
+    @Transactional
+    public Response registerDevice(@Valid RegisterPushDeviceRequest body) {
+        // A null body never reaches bean validation, so it stays a manual check.
+        if (body == null) {
+            throw new BadRequestException(messages.t("push.device.missingFields"));
+        }
+        boolean created = pushDevices.register(
+                currentUser.requireUid(), body.token(), body.platform(), body.locale(), body.appVersion());
+        return Response.status(created ? Response.Status.CREATED : Response.Status.OK).build();
+    }
+
+    /**
+     * Drop one of the calling user's native registrations — used when the
+     * shell signs out or the user turns notifications off in the app.
+     *
+     * <p>404 for an unknown token AND for someone else's, deliberately
+     * indistinguishable: a token leaked through a crash report must not be
+     * usable to probe for, or silence, another account's phone.
+     */
+    @DELETE
+    @Path("/device/{token}")
+    @Authenticated
+    @Transactional
+    public Response unregisterDevice(@PathParam("token") String token) {
+        if (token == null || token.isBlank()) {
+            throw new BadRequestException(messages.t("push.device.missingFields"));
+        }
+        pushDevices.unregister(currentUser.requireUid(), token);
         return Response.noContent().build();
     }
 

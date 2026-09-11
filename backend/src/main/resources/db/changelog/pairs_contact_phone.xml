@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      A phone number on the pair itself, for the one registration path that has
+      no account behind it: "prijavi para" without signing in.
+
+      Why the column has to exist at all: a signed-in registration is reachable
+      — the organiser opens the submitter's profile and finds their number
+      there. An anonymous one carries no profile, no email and no push token,
+      so a name alone would leave the organiser with a row they cannot confirm,
+      cannot chase and cannot tell apart from a scripted submission. The phone
+      is therefore REQUIRED for anonymous registrations (enforced in
+      SelfRegistrationService, not by a NOT NULL here — organiser-added and
+      signed-in pairs legitimately have none).
+
+      Nullable, no default and no backfill: every existing row predates the
+      anonymous path and genuinely has no number.
+
+      varchar(32) matches the DTO's @Size and is generous for the stored form
+      ("+385 91 234 5678"). It is deliberately NOT unique — a household phone
+      registering two pairs is normal; the (name, phone) duplicate check that
+      guards against double submission lives in the service, where it can be
+      case-insensitive on the name.
+
+      PII note: this column is organiser-only on the wire. PairMapper emits it
+      solely for a viewer who passes TournamentAccess.canManage, the same gate
+      that already decides who sees claim tokens.
+
+      columnExists / MARK_RAN so a database where this was added by hand is a
+      no-op rather than a startup failure.
+    -->
+
+    <changeSet id="2026-09-10-pairs-contact-phone" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="pairs" columnName="contact_phone"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="pairs">
+            <column name="contact_phone" type="varchar(32)"/>
+        </addColumn>
+
+        <rollback>
+            <dropColumn tableName="pairs" columnName="contact_phone"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

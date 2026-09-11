@@ -117,22 +117,56 @@ public class TournamentPreviewController {
         String spaUrl = base + "/turniri/" + idOrSlug;
 
 
-        // og:image must be an absolute URL — bots fetch it directly from
-        // wherever they are. Point them at the rendered per-tournament share
-        // card (ShareImageController) rather than the tournament's uploaded
-        // poster: unlike a poster, the card always exists (name/date/place
-        // are rendered directly, no dependency on an uploaded resource) and
-        // it's sized to the 1200×630 OG standard the poster never was — the
-        // old square poster crop is exactly the "every link looks the same"
-        // problem this feature replaces. ShareImageController itself falls
-        // back to the static site-level card if rendering ever fails, so no
-        // fallback branch is needed here.
-        String image = base + "/api/tournaments/" + idOrSlug + "/share-image.png";
+        /* og:image must be an absolute URL — bots fetch it directly from
+           wherever they are.
 
-        return PreviewPage.ok(renderHtml(t, name, description, image, spaUrl));
+           THE UPLOADED POSTER WINS when the tournament has one (2026-09-10,
+           owner's call): the poster is the thing the organiser designed and
+           the thing players recognise, and a WhatsApp preview showing it
+           carries more than a uniform brand card. The rendered share card
+           (ShareImageController, always 1200×630, always exists because it
+           draws name/date/place itself) stays as the fallback for every
+           tournament without a poster.
+
+           The trade-off, stated plainly: a poster is usually square or
+           portrait, and Facebook/WhatsApp crop og:image to 1.91:1 — so the
+           top and bottom of a tall poster will be cut in the preview. That
+           is why the dimensions are only declared for the share card; for a
+           poster we do not know them, and a WRONG og:image:width/height is
+           worse than none (crawlers lay the card out from those numbers
+           before they fetch the file).
+
+           WEBP is excluded on purpose: Facebook's and WhatsApp's crawlers
+           still drop it and the preview renders with no thumbnail at all,
+           which is worse than the generic card. */
+        String posterUrl = ogPosterUrl(t, base);
+        boolean hasPoster = posterUrl != null;
+        String image = hasPoster
+                ? posterUrl
+                : base + "/api/tournaments/" + idOrSlug + "/share-image.png";
+
+        return PreviewPage.ok(renderHtml(t, name, description, image, spaUrl, hasPoster));
     }
 
     /* ───────────────────── helpers ───────────────────── */
+
+    /**
+     * Absolute URL of the tournament's uploaded poster, or {@code null} when
+     * there is none or its format is one the link-preview crawlers refuse.
+     * Mirrors {@code TournamentMapper.publicUrl}'s path shape — the same
+     * {@code /api/resources/{id}/image} endpoint the SPA renders from, which
+     * is public and already ETag'd.
+     */
+    private String ogPosterUrl(Tournaments t, String base) {
+        if (t.getResource() == null || t.getResource().getId() == null) return null;
+        String type = t.getResource().getContentType();
+        // Only the two formats every crawler renders. Anything else (webp,
+        // svg, an unset type) falls through to the rendered card.
+        if (type == null || !(type.equalsIgnoreCase("image/png") || type.equalsIgnoreCase("image/jpeg"))) {
+            return null;
+        }
+        return base + "/api/resources/" + t.getResource().getId() + "/image";
+    }
 
     /**
      * Compose the og:description as: "{location} • {datetime} • Kotizacija
@@ -181,13 +215,14 @@ public class TournamentPreviewController {
      * the {@code <body>} is a plain-text fallback for humans who land here
      * directly, and the {@code meta refresh} bounces them to the SPA.
      */
-    private String renderHtml(Tournaments t, String name, String description, String image, String spaUrl) {
+    private String renderHtml(Tournaments t, String name, String description, String image,
+                              String spaUrl, boolean imageIsPoster) {
         StringBuilder sb = new StringBuilder(2048);
         sb.append("<!doctype html>\n");
         sb.append("<html lang=\"hr\">\n<head>\n");
         sb.append("<meta charset=\"UTF-8\">\n");
         sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
-        sb.append("<title>").append(escapeHtml(name)).append(" — bela-turniri.com</title>\n");
+        sb.append("<title>").append(escapeHtml(name)).append(" — Bela Turniri</title>\n");
         sb.append("<meta name=\"description\" content=\"").append(escapeAttr(description)).append("\">\n");
         sb.append("<link rel=\"canonical\" href=\"").append(escapeAttr(spaUrl)).append("\">\n");
         appendIconLinks(sb);
@@ -195,17 +230,21 @@ public class TournamentPreviewController {
         // OpenGraph
         sb.append("<meta property=\"og:type\" content=\"article\">\n");
         sb.append("<meta property=\"og:locale\" content=\"hr_HR\">\n");
-        sb.append("<meta property=\"og:site_name\" content=\"bela-turniri.com\">\n");
+        sb.append("<meta property=\"og:site_name\" content=\"Bela Turniri\">\n");
         sb.append("<meta property=\"og:title\" content=\"").append(escapeAttr(name)).append("\">\n");
         sb.append("<meta property=\"og:description\" content=\"").append(escapeAttr(description)).append("\">\n");
         sb.append("<meta property=\"og:url\" content=\"").append(escapeAttr(spaUrl)).append("\">\n");
         if (image != null && !image.isBlank()) {
-            // Matches ShareImageRenderer.WIDTH/HEIGHT exactly (the standard
-            // OG aspect ratio, same as PreviewHtml.DEFAULT_OG_IMAGE_WIDTH/HEIGHT)
-            // — declaring these lets crawlers lay out the preview card
-            // without fetching the image first.
+            // Dimensions are declared ONLY for the rendered share card, whose
+            // size we know exactly (ShareImageRenderer.WIDTH/HEIGHT, the same
+            // numbers as PreviewHtml.DEFAULT_OG_IMAGE_*) — that lets crawlers
+            // lay the card out before fetching the file. An uploaded poster
+            // has no known size here, and guessing would make every crawler
+            // reserve the wrong box, so it gets no width/height at all.
             PreviewHtml.appendOgImageMeta(sb, image,
-                    PreviewHtml.DEFAULT_OG_IMAGE_WIDTH, PreviewHtml.DEFAULT_OG_IMAGE_HEIGHT, name);
+                    imageIsPoster ? null : PreviewHtml.DEFAULT_OG_IMAGE_WIDTH,
+                    imageIsPoster ? null : PreviewHtml.DEFAULT_OG_IMAGE_HEIGHT,
+                    name);
         }
 
         // Twitter

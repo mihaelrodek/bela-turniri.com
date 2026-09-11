@@ -66,9 +66,14 @@ export const qk = {
      */
     tournaments: (filters?: Record<string, string | number | undefined>) =>
         ["tournaments", filters ?? {}] as const,
-    /** Backend-side total per status bucket — drives the "Učitaj više" button. */
-    tournamentsCount: (status: "upcoming" | "finished") =>
-        ["tournamentsCount", status] as const,
+    /**
+     * Backend-side total per status bucket — drives the "Učitaj više" button,
+     * and (with `q`) the "prikaži još" under the finished-search group. `q`
+     * defaults to "" rather than being omitted so a plain count and a
+     * search-scoped count of 0 never collide on the same key.
+     */
+    tournamentsCount: (status: "upcoming" | "finished", q?: string) =>
+        ["tournamentsCount", status, q ?? ""] as const,
     /** Single tournament, keyed by UUID **or** slug — whatever is in the URL. */
     tournamentDetails: (idOrSlug: string) => ["tournamentDetails", idOrSlug] as const,
     tournamentPairs: (uuid: string) => ["tournamentPairs", uuid] as const,

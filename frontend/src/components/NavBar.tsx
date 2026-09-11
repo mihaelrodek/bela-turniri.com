@@ -5,7 +5,7 @@ import {
 import { Link as RouterLink, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
 import { CardsIcon } from "./MobileTabBar"
 import {
-    FiCalendar, FiEdit3, FiHome, FiLogOut, FiMap, FiMenu, FiMoon, FiSun, FiUser,
+    FiCalendar, FiEdit3, FiHome, FiLogOut, FiMap, FiMenu, FiMoon, FiSun, FiUser, FiVolume2,
 } from "react-icons/fi"
 import { useAuth } from "../auth/authContextValue"
 import { useColorMode } from "../color-mode-hooks"
@@ -13,9 +13,11 @@ import { updateColorMode } from "../api/userMe"
 import { useInstallPrompt, type InstallPromptState } from "../hooks/useInstallPrompt"
 import { useInvalidateMyProfile, useMyProfile } from "../hooks/useMyProfile"
 import { useTranslation } from "../i18n"
+import UserAvatar from "./avatars/UserAvatar"
 import { InstallAppButton } from "./InstallAppButton"
 import LanguagePicker from "./LanguagePicker"
 import { NAVBAR_H } from "./navChrome"
+import { open as openWhatsNew, useHasUnseenWhatsNew } from "../whatsNew/store"
 
 /**
  * Inner height of the bar, i.e. NAVBAR_H minus the 1px bottom hairline.
@@ -185,6 +187,33 @@ function NavCapsule({ children, tourAnchor }: { children: React.ReactNode; tourA
     )
 }
 
+/**
+ * "Novosti" row, shared by both the guest hamburger and the signed-in avatar
+ * menu — same megaphone icon and unseen dot as `WhatsNewFab`, just as a menu
+ * item instead of a floating button. `onSelect` opens the dialog directly
+ * (no navigation involved), same as the theme switch/language picker beside
+ * it not needing a route.
+ */
+function NovostiMenuItem() {
+    const { t } = useTranslation()
+    const unseen = useHasUnseenWhatsNew()
+    return (
+        <Menu.Item value="novosti" onSelect={openWhatsNew}>
+            <FiVolume2 />
+            {t("common.nav.novosti")}
+            {unseen && (
+                <Box
+                    boxSize="6px"
+                    rounded="full"
+                    bg="fg.error"
+                    ml="1"
+                    aria-hidden="true"
+                />
+            )}
+        </Menu.Item>
+    )
+}
+
 /** Small uppercase section heading inside the dropdowns ("TEMA" / "JEZIK"). */
 function MenuSectionLabel({ children }: { children: React.ReactNode }) {
     return (
@@ -311,58 +340,6 @@ function PreferencesSection({ installPrompt }: { installPrompt: InstallPromptSta
     )
 }
 
-function UserAvatar({
-    name,
-    email,
-    avatarUrl,
-}: {
-    name?: string | null
-    email?: string | null
-    avatarUrl?: string | null
-}) {
-    const { t } = useTranslation()
-    const source = (name || email || "?").trim()
-    const initials =
-        source
-            .split(/[\s@]+/)
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((s) => s[0]?.toUpperCase())
-            .join("") || "?"
-    return (
-        <Box
-            w="28px"
-            h="28px"
-            rounded="full"
-            overflow="hidden"
-            bg="blue.subtle"
-            color="blue.fg"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            fontWeight="semibold"
-            fontSize="2xs"
-        >
-            {avatarUrl ? (
-                <Image
-                    src={avatarUrl}
-                    alt={name ?? t("common.nav.avatarAlt")}
-                    w="100%"
-                    h="100%"
-                    objectFit="cover"
-                    // Non-critical: a 28 px avatar must never block the brand
-                    // mark or first paint. (The logo above stays eager — it's
-                    // an LCP candidate.)
-                    loading="lazy"
-                    decoding="async"
-                />
-            ) : (
-                initials
-            )}
-        </Box>
-    )
-}
-
 /**
  * Signed-out visitors have no user pill to hang the preferences off, so a
  * small hamburger next to "Prijava" carries theme + language + install
@@ -392,6 +369,7 @@ function GuestMenu({ tourAnchor }: { tourAnchor?: string }) {
             </Menu.Trigger>
             <Menu.Positioner>
                 <Menu.Content minW="220px">
+                    <NovostiMenuItem />
                     <PreferencesSection installPrompt={installPrompt} />
                 </Menu.Content>
             </Menu.Positioner>
@@ -445,9 +423,13 @@ function UserMenu({ tourAnchor, compact }: { tourAnchor?: string; compact?: bool
                     data-tour={tourAnchor}
                 >
                     <UserAvatar
-                        name={user.displayName}
-                        email={user.email}
                         avatarUrl={profile?.avatarUrl ?? null}
+                        avatarPreset={profile?.avatarPreset ?? null}
+                        name={user.displayName || user.email}
+                        alt={user.displayName ?? t("common.nav.avatarAlt")}
+                        size="28px"
+                        fontSize="2xs"
+                        fontWeight="semibold"
                     />
                     {!compact && (
                         <Box display={{ base: "none", lg: "block" }} fontSize="sm" fontWeight="medium">
@@ -469,6 +451,7 @@ function UserMenu({ tourAnchor, compact }: { tourAnchor?: string; compact?: bool
                     <Menu.Item value="profile" onSelect={() => navigate("/profil")}>
                         <FiUser /> {t("common.nav.profil")}
                     </Menu.Item>
+                    <NovostiMenuItem />
                     <PreferencesSection installPrompt={installPrompt} />
                     <Menu.Item
                         value="logout"
