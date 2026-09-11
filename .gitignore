@@ -71,3 +71,8 @@ frontend/*.local
 # ──────────────────────────────────────────────────────────
 uploads/
 backend/uploads/
+
+# Never commit credentials — a GitHub PAT reached c52ace5 once and GitHub
+# push protection caught it (2026-09-11).
+pat.rtf
+*.pat
