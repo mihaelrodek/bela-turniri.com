@@ -162,21 +162,18 @@ export function SeatAvatar({
             : null
 
     // A conic gradient is the cheapest ring that animates without SVG: the
-    // filled arc is the remaining fraction of the turn clock, the rest is the
+    // filled arc is the remaining fraction of a human turn clock, the rest is the
     // unspent part of it, drawn dim so the ring reads as a dial and not as a
     // border that happens to be two colours.
     //
-    // The lit colour is the SEAT'S TEAM, so the same ring carries both facts;
-    // urgency takes it over, because a seat about to time out is no longer
-    // telling you who it plays with. Off turn the ring stays on — dimmed to
-    // the team's soft tint — so the pairs are legible between moves too.
+    // The lit colour is the SEAT'S TEAM; urgency takes it over because a
+    // human seat about to time out is no longer telling you who it plays
+    // with. Outside a timed human turn the avatar stays unringed.
     const teamColor = TEAM[team]
     const liveTint = countdown?.urgent ? "var(--chakra-colors-red-400)" : tokenColor(teamColor)
     const ring = isTurn && countdown
         ? `conic-gradient(from 0deg, ${liveTint} ${countdown.fraction * 360}deg, rgba(255,255,255,0.16) 0deg)`
-        : isTurn
-            ? liveTint
-            : "transparent"
+        : "transparent"
 
     const frame = size + RING * 2
 
@@ -400,15 +397,13 @@ export default function Seat({
     // carries what is true right now.
     const chip: ReactNode = disconnected
         ? <Chip tone="danger">{t("game.seat.disconnected")}</Chip>
-        : isTurn && countdown?.urgent
-            ? <Chip tone="danger">{t("game.seat.secondsShort", { n: countdown.seconds })}</Chip>
-            : isTurn
-                ? <Chip tone="accent">{t("game.seat.onTurn")}</Chip>
-                : bid?.kind === "pass"
-                    ? <Chip tone="muted">{t("game.bidding.pass")}</Chip>
-                    : bid?.kind === "suit"
-                        ? <Chip tone="accent"><SuitGlyph suit={bid.suit} size={12} /></Chip>
-                        : null
+        : isTurn
+            ? <Chip tone="accent">{t("game.seat.onTurn")}</Chip>
+            : bid?.kind === "pass"
+                ? <Chip tone="muted">{t("game.bidding.pass")}</Chip>
+                : bid?.kind === "suit"
+                    ? <Chip tone="accent"><SuitGlyph suit={bid.suit} size={12} /></Chip>
+                    : null
 
     return (
         <Flex

@@ -125,6 +125,17 @@ export default function PlayingCard({
             outlineColor={selected ? "brand.500" : undefined}
             overflow="hidden"
             userSelect="none"
+            onContextMenu={(event) => event.preventDefault()}
+            onDragStart={(event) => event.preventDefault()}
+            css={{
+                // Long-pressing a card must remain a game gesture. In
+                // particular, iOS must not expose the image's Share/Save
+                // callout over the live table.
+                touchAction: "manipulation",
+                WebkitTouchCallout: "none",
+                WebkitUserSelect: "none",
+                WebkitUserDrag: "none",
+            }}
         >
             {style === "madjarice" ? (
                 <MadjaricaCard rank={rank} suit={suit} size={size} />

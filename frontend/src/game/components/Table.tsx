@@ -62,7 +62,13 @@ export default function Table({
     reactions?: Partial<Record<SeatId, Reaction>>
 }) {
     const mySeat = view.seat
-    const countdown = useTurnCountdown(turnDeadline, turnDurationMs ?? room.turnTimeoutMs)
+    const botTurn = view.turn !== null && room.seats[view.turn]?.occupant?.kind === "BOT"
+    // Bots have a deliberate think pause, not a player-visible timer. Do not
+    // keep this whole table re-rendering at clock cadence while they think.
+    const countdown = useTurnCountdown(
+        botTurn ? null : turnDeadline,
+        botTurn ? 0 : (turnDurationMs ?? room.turnTimeoutMs),
+    )
     const caller = view.bidding.caller
     const trump = view.bidding.trump
     // Team colour is relative to the VIEWER (DESIGN §6). A spectator has no
@@ -95,6 +101,7 @@ export default function Table({
 
             {SEATS.map((seat) => {
                 const position = positionOf(seat, mySeat)
+                const isBotTurn = view.turn === seat && room.seats[seat]?.occupant?.kind === "BOT"
                 // Mine is in the bar under the felt; a spectator has no bar.
                 if (position === "bottom" && mySeat !== null) return null
                 return (
@@ -108,7 +115,7 @@ export default function Table({
                             // deal, so it is keyed off the SETTLED trump, not
                             // off the moment of the bid.
                             callerTrump={caller === seat ? trump : null}
-                            countdown={view.turn === seat ? countdown : null}
+                            countdown={view.turn === seat && !isBotTurn ? countdown : null}
                             bid={bids?.[seat] ?? null}
                             reaction={reactions?.[seat] ?? null}
                             reactionAlign={position === "left" || position === "right" ? position : "center"}

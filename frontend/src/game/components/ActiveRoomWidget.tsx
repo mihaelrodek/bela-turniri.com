@@ -54,6 +54,7 @@ export default function ActiveRoomWidget() {
 
     if (onGameRoute || socket.widgetDismissed) return null
     if (!sticky || !room || room.id !== sticky) return null
+    const playing = room.status === "PLAYING"
 
     return (
         <>
@@ -71,9 +72,11 @@ export default function ActiveRoomWidget() {
                 roundedStart="l3"
                 borderWidth="1px"
                 borderEndWidth="0"
-                borderColor={room.status === "PLAYING" ? "orange.400/60" : "border.subtle"}
-                bg="bg.panel"
-                shadow="lg"
+                borderColor={playing ? "orange.400" : "brand.400"}
+                borderInlineStartWidth="3px"
+                bg="bg.opaque"
+                backdropFilter="none"
+                shadow="0 12px 34px rgba(0, 0, 0, 0.28)"
                 cursor="pointer"
                 role="button"
                 tabIndex={0}
@@ -88,8 +91,8 @@ export default function ActiveRoomWidget() {
             >
                 <HStack justify="space-between" gap="2" px="4" py="3">
                 <HStack gap="2" minW="0">
-                    <Box boxSize="8px" rounded="full" bg={room.status === "PLAYING" ? "green.400" : "orange.400"} flexShrink={0} />
-                    <Text fontSize="sm" fontWeight="semibold" lineClamp={1}>{room.name}</Text>
+                    <Box boxSize="8px" rounded="full" bg={playing ? "green.400" : "orange.400"} flexShrink={0} />
+                    <Text fontSize="sm" fontWeight="bold" color="fg.ink" lineClamp={1}>{room.name}</Text>
                 </HStack>
                 <HStack flexShrink={0}>
                     <IconButton
@@ -98,7 +101,8 @@ export default function ActiveRoomWidget() {
                         aria-label={t("game.active.leave")}
                         onClick={(event) => {
                             event.stopPropagation()
-                            setLeaveOpen(true)
+                            if (playing) setLeaveOpen(true)
+                            else socket.leaveRoom()
                         }}
                     >
                         <FiX />
@@ -107,7 +111,7 @@ export default function ActiveRoomWidget() {
                 </HStack>
             </Box>
             <ConfirmDialog
-                open={leaveOpen}
+                open={playing && leaveOpen}
                 title={t("game.exit.title")}
                 description={t("game.exit.description")}
                 confirmLabel={t("game.exit.leave")}

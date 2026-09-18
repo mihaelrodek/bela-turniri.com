@@ -29,16 +29,18 @@ import TableHeader, { StatusChip, TableActions } from "../components/TableHeader
 import TrickHistory from "../components/TrickHistory"
 import { COLLECT_MS } from "../components/TrickArea"
 import TurnPill, { type TurnTone } from "../components/TurnPill"
+import TurnProgressBar from "../components/TurnProgressBar"
 import { useReactionBubbles } from "../components/reactionBubbles"
 import { PLAY_AREA, GLASS, INK, INK_MUTED, SHORT } from "../components/tableStyles"
 import { useEventQueue } from "../hooks/useEventQueue"
+import { useSlowConnection } from "../hooks/useSlowConnection"
 import { useGamePrefs } from "../hooks/useGamePrefs"
 import { useGameSocket } from "../hooks/useGameSocket"
 import { useLiveActivity } from "../hooks/useLiveActivity"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import { useTurnCountdown } from "../hooks/useTurnCountdown"
 import { cardRank, cardSuit, makeCard } from "../util/cards"
-import { occupantName, teamOf } from "../util/seats"
+import { occupantName, otherTeam, teamOf } from "../util/seats"
 import { playHaptic } from "../util/haptics"
 import { playSound, primeAudio } from "../util/sounds"
 
@@ -110,6 +112,7 @@ export default function GameRoomPage() {
     const reducedMotion = systemReducedMotion || prefs.reduceMotion
 
     const socket = useGameSocket({ roomId, mock })
+    const slowConnection = useSlowConnection(socket.status)
     const { active, pending } = useEventQueue(socket.events, reducedMotion)
     const bubbles = useReactionBubbles(socket.reactions)
 
@@ -144,6 +147,33 @@ export default function GameRoomPage() {
         return () => {
             window.removeEventListener("pointerdown", unlock)
             window.removeEventListener("keydown", unlock)
+        }
+    }, [])
+
+    // The table is a fixed game surface, not a document the player should be
+    // able to scroll or pull down to refresh. Lock the page while this room is
+    // mounted; dialog content remains independently scrollable through its
+    // portal, and the lobby keeps its normal scrolling behaviour.
+    useEffect(() => {
+        const html = document.documentElement
+        const body = document.body
+        const previous = {
+            htmlOverflow: html.style.overflow,
+            htmlOverscrollBehavior: html.style.overscrollBehavior,
+            bodyOverflow: body.style.overflow,
+            bodyOverscrollBehavior: body.style.overscrollBehavior,
+        }
+
+        html.style.overflow = "hidden"
+        html.style.overscrollBehavior = "none"
+        body.style.overflow = "hidden"
+        body.style.overscrollBehavior = "none"
+
+        return () => {
+            html.style.overflow = previous.htmlOverflow
+            html.style.overscrollBehavior = previous.htmlOverscrollBehavior
+            body.style.overflow = previous.bodyOverflow
+            body.style.overscrollBehavior = previous.bodyOverscrollBehavior
         }
     }, [])
 
@@ -343,6 +373,7 @@ export default function GameRoomPage() {
     const [declarationsOpen, setDeclarationsOpen] = useState(false)
     useEffect(() => setDeclarationsOpen(false), [view?.dealNo])
     useEffect(() => setDeclHidden(false), [revealed])
+    const declarationsVisible = declarationsOpen || (revealed !== null && !declHidden)
 
     /* "Gledanje štihova" (game/README.md §1.8). Whether we may look at all is
        the SERVER's answer: `view.trickHistory` is null when the room's rule
@@ -364,7 +395,7 @@ export default function GameRoomPage() {
        the card whose tap is being held back; the panel below resolves it.
 
        It clears itself the moment the question stops being ours to answer: the
-       turn moved on (the 20 s clock expired and the server's bot played for
+       turn moved on (the 15 s clock expired and the server's bot played for
        us), the deal ended, or the card is somehow no longer in hand. Without
        that the panel would sit there offering to play a card we cannot play. */
     const [belaAsk, setBelaAsk] = useState<Card | null>(null)
@@ -446,14 +477,18 @@ export default function GameRoomPage() {
        inside that quarter when we see it (a rejoin) stays quiet rather than
        buzzing out of nowhere. */
     const turnDeadline = socket.turnDeadline
-    // My own avatar's turn ring, now docked in the corner instead of next to
-    // the pill (DESIGN change 2026-09-18) — it still needs the live
-    // countdown MySeatBar used to compute for it.
-    const myCountdown = useTurnCountdown(turnDeadline, socket.turnDurationMs ?? 0)
+    const turn = view?.turn ?? null
+    const isBotTurn = turn !== null && room?.seats[turn]?.occupant?.kind === "BOT"
+    // One server-synchronised clock drives both the active avatar ring and
+    // the straight progress bar between the felt and the turn label. A bot's
+    // think pause intentionally starts no client-side clock at all.
+    const turnCountdown = useTurnCountdown(
+        isBotTurn ? null : turnDeadline,
+        isBotTurn ? 0 : (socket.turnDurationMs ?? 0),
+    )
     // Bigger on web (2026-09-18, user request) — a phone's avatar has to
     // stay small enough to leave room for the cards, a wide screen does not.
     const myAvatarSize = useBreakpointValue<number>({ base: 34, md: 44 }) ?? 34
-    const turn = view?.turn ?? null
     const turnTimeoutMs = room?.turnTimeoutMs ?? 0
     useEffect(() => {
         if (mySeat === null || turn !== mySeat || turnDeadline === null || turnTimeoutMs <= 0) return
@@ -496,6 +531,7 @@ export default function GameRoomPage() {
                         <>
                             <Spinner />
                             <Text color="fg.muted">{t("game.room.joining")}</Text>
+                            {slowConnection && <Text fontSize="sm" color="orange.600">{t("game.connection.slow")}</Text>}
                         </>
                     ) : null}
                 </Flex>
@@ -624,7 +660,11 @@ export default function GameRoomPage() {
             className="fold-game-board"
             direction="column"
             position="relative"
-            w={{ base: inLobbyPhase ? "100%" : "calc(100% + 32px)", md: "100%" }}
+            // The room lobby needs the same mobile bleed as the felt. The
+            // app container already owns a 16 px inset; keeping it *and* the
+            // room panel's inset made a narrow phone spend over 50 px on
+            // empty margins before a chair could begin.
+            w={{ base: "calc(100% + 32px)", md: "100%" }}
             // The column widens with the screen now (DESIGN §6): 720 px was
             // one number for a phone, a tablet and a 27-inch monitor, and on
             // the last two it left the table marooned in the middle of a wide
@@ -632,7 +672,7 @@ export default function GameRoomPage() {
             // from one seat has a natural size, and past ~900 px the seats
             // stop being one glance apart.
             maxW={{ base: "720px", md: "760px", lg: "840px", xl: "900px" }}
-            mx={{ base: inLobbyPhase ? "auto" : "-16px", md: "auto" }}
+            mx={{ base: "-16px", md: "auto" }}
             mt={{ base: inLobbyPhase ? "0" : "-24px", md: "0" }}
             h={{
                 base: inLobbyPhase
@@ -642,6 +682,18 @@ export default function GameRoomPage() {
             }}
             mb="-24px"
             overflow="hidden"
+            css={
+                inLobbyPhase
+                    ? undefined
+                    : {
+                          // iOS honours touch-action before it starts its
+                          // native rubber-band gesture. The table itself has
+                          // no vertical pan affordance; sheets render in a
+                          // portal and retain their own scroll when needed.
+                          touchAction: "pan-x",
+                          overscrollBehavior: "none",
+                      }
+            }
         >
             {inLobbyPhase ? (
                 <>
@@ -725,7 +777,7 @@ export default function GameRoomPage() {
                                             <>
                                                 {mySeat === null && <StatusChip>{t("game.table.spectating")}</StatusChip>}
                                                 {socket.status !== "open" && (
-                                                    <StatusChip tone="warn">{t(`game.connection.${socket.status}`)}</StatusChip>
+                                                    <StatusChip tone="warn">{slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}</StatusChip>
                                                 )}
                                             </>
                                         }
@@ -743,8 +795,11 @@ export default function GameRoomPage() {
                                         ) : null}
                                         declarationsEnabled={view.declarationsRevealed}
                                         declarationPoints={socket.declarationsPending || (revealed !== null && !declHidden)
-                                            ? 0
-                                            : (view.declarationPoints?.A ?? 0) + (view.declarationPoints?.B ?? 0)}
+                                            ? { us: 0, them: 0 }
+                                            : {
+                                                us: view.declarationPoints?.[myTeam] ?? 0,
+                                                them: view.declarationPoints?.[otherTeam(myTeam)] ?? 0,
+                                            }}
                                         onDeclarations={() => setDeclarationsOpen((value) => !value)}
                                         tricksEnabled={room.trickReview !== "off"}
                                         tricksPlayed={view.tricksWon.A + view.tricksWon.B}
@@ -815,13 +870,15 @@ export default function GameRoomPage() {
                             </Flex>
                         )}
 
-                        {(declarationsOpen || (revealed && !declHidden)) && (
+                        {declarationsVisible && (
                             <DeclarationsReveal
                                 perSeat={declarationsOpen ? view.declarations : revealed!.perSeat}
                                 scoringTeam={declarationsOpen ? view.declarationsScoringTeam : revealed!.scoringTeam}
                                 seats={room.seats}
                                 mySeat={mySeat}
                                 ownDeclarations={mySeat === null ? undefined : view.declarations[mySeat]}
+                                declarationPoints={declarationsOpen ? view.declarationPoints : undefined}
+                                belaDeclared={declarationsOpen ? view.belaDeclared : null}
                                 onDismiss={() => { setDeclHidden(true); setDeclarationsOpen(false) }}
                             />
                         )}
@@ -853,6 +910,14 @@ export default function GameRoomPage() {
                             <BelaPrompt
                                 onDeclare={() => answerBela(true)}
                                 onDecline={() => answerBela(false)}
+                            />
+                        )}
+
+                        {!isBotTurn && (
+                            <TurnProgressBar
+                                countdown={turnCountdown}
+                                active={turnDeadline !== null && (socket.turnDurationMs ?? 0) > 0}
+                                reducedMotion={reducedMotion}
                             />
                         )}
 
@@ -929,9 +994,19 @@ export default function GameRoomPage() {
                                 <Box
                                     position="absolute"
                                     insetStart="5"
-                                    top="50%"
-                                    transform="translateY(-50%)"
-                                    zIndex={8}
+                                    // Align my seat with the first card's top
+                                    // edge. Its reaction bubble grows upward,
+                                    // into the clear strip above the hand,
+                                    // instead of covering the cards below.
+                                    top="4"
+                                    // The hand avatar used to sit in a higher
+                                    // compositing layer than the declarations
+                                    // backdrop on iOS, leaving it sharp while
+                                    // the rest of the table blurred. Keep it
+                                    // physically below the overlay too.
+                                    zIndex={declarationsVisible ? 0 : 8}
+                                    filter={declarationsVisible ? "blur(2px)" : undefined}
+                                    opacity={declarationsVisible ? 0.65 : undefined}
                                 >
                                     <SeatAvatar
                                         occupant={room.seats[mySeat].occupant}
@@ -943,7 +1018,7 @@ export default function GameRoomPage() {
                                         // "I called this deal" reads the same way
                                         // wherever the caller happens to be sitting.
                                         callerTrump={view.bidding.caller === mySeat ? view.bidding.trump : null}
-                                        countdown={view.turn === mySeat ? myCountdown : null}
+                                        countdown={view.turn === mySeat ? turnCountdown : null}
                                         reaction={bubbles[mySeat] ?? null}
                                         // Same convention as the felt's own left-flank
                                         // seat (Table.tsx): pins the bubble's LEFT edge

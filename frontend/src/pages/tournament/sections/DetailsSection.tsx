@@ -292,6 +292,46 @@ export default function DetailsSection({
                     />
                 </Box>
 
+                {/* Pravila turnirskih stolova. Values are always present on
+                    newly-created tournaments; the fallbacks keep older API
+                    responses readable while their database migration lands. */}
+                <Box
+                    display="grid"
+                    gridTemplateColumns={{
+                        base: "repeat(2, minmax(0, 1fr))",
+                        md: "repeat(4, minmax(0, 1fr))",
+                    }}
+                    gap="3"
+                >
+                    <DetailTile
+                        icon={<FiAward size={13} />}
+                        label={tr("tournament.tile.targetScore")}
+                        value={t.targetScore ?? 1001}
+                    />
+                    <DetailTile
+                        icon={<FiRotateCcw size={13} />}
+                        label={tr("tournament.tile.gameEndRule")}
+                        value={tr(`tournament.rule.end.${t.gameEndRule === "dosta" ? "dosta" : "prolaz"}`)}
+                    />
+                    <DetailTile
+                        icon={<FiUsers size={13} />}
+                        label={tr("tournament.tile.declarations")}
+                        value={tr(`tournament.rule.declarations.${t.declarationsEnabled === false ? "disabled" : "enabled"}`)}
+                    />
+                    <DetailTile
+                        icon={<FiRotateCcw size={13} />}
+                        label={tr("tournament.tile.dealDirection")}
+                        value={tr(`tournament.rule.direction.${t.dealDirection === "left" ? "left" : "right"}`)}
+                    />
+                    {t.declarationsEnabled === false && (
+                        <DetailTile
+                            icon={<FiInfo size={13} />}
+                            label={tr("tournament.tile.allowBela")}
+                            value={tr(`tournament.rule.${t.allowBela === false ? "no" : "yes"}`)}
+                        />
+                    )}
+                </Box>
+
                 {/* Lokacija — its own row, because the venue is the one fact
                     that carries an action next to it. */}
                 {t.location && (

@@ -157,4 +157,8 @@
          them. The game server reports only after its reconnect grace expires. -->
     <include file="db/changelog/game_reliability.xml" relativeToChangelogFile="false"/>
 
+    <!-- Rules selected when creating a tournament: score, end rule, deal
+         direction, declarations and bela. -->
+    <include file="db/changelog/tournament_game_rules.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>

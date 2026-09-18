@@ -1,3 +1,4 @@
+import { useState, type CSSProperties } from "react"
 import type { Rank, Suit } from "@bela/engine"
 import { RANK_HU_MARK, type CardSize } from "../../util/cards"
 import { SUIT_PALETTE, ACE_PALETTE, FACE, HAIRLINE, INK, NUMERAL_FONT } from "./palette"
@@ -133,6 +134,43 @@ function AceFace({ suit }: { suit: Suit }) {
 const ART_INSET: Record<CardSize, number> = { sm: 2, md: 3, lg: 4 }
 const ART_RADIUS: Record<CardSize, number> = { sm: 4, md: 6, lg: 8 }
 
+/** The SVG underneath is the immediate, complete card face. The scanned art
+ * fades in only after the browser has decoded it, rather than briefly
+ * replacing a card with an undecoded white image on slower mobile devices. */
+function ScannedArtwork({ src, style }: { src: string; style: CSSProperties }) {
+    const [ready, setReady] = useState(false)
+    return (
+        <span aria-hidden="true" style={{ ...style, pointerEvents: "none" }}>
+            <img
+                src={src}
+                alt=""
+                draggable={false}
+                decoding="async"
+                onLoad={() => setReady(true)}
+                style={{
+                    display: "block",
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    opacity: ready ? 1 : 0,
+                    transition: "opacity 110ms ease-out",
+                    WebkitTouchCallout: "none",
+                    WebkitUserSelect: "none",
+                    userSelect: "none",
+                    // Normalize only the scanned artwork. Keeping this off
+                    // the parent lets its margin retain the same quiet
+                    // grey-paper tone instead of being pushed to pure white.
+                    filter: "saturate(1.08) contrast(1.04) brightness(1.08)",
+                    // The source scans include a few uneven grey pixels at
+                    // their paper edge. Crop those inside the clean frame.
+                    transform: "scale(1.045)",
+                    transformOrigin: "center",
+                }}
+            />
+        </span>
+    )
+}
+
 export default function MadjaricaCard({
     rank,
     suit,
@@ -153,68 +191,48 @@ export default function MadjaricaCard({
         overflow: "hidden",
     }
     const image = cardImage(rank, suit)
-    if (image) {
-        return (
-            <span aria-hidden="true" style={artStyle}>
-                <img
-                    src={image}
-                    alt=""
-                    draggable={false}
-                    decoding="async"
-                    style={{
-                        display: "block",
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        // Normalize only the scanned artwork. Keeping this off
-                        // the parent lets its margin retain the same quiet
-                        // grey-paper tone instead of being pushed to pure white.
-                        filter: "saturate(1.08) contrast(1.04) brightness(1.08)",
-                        // The source scans include a few uneven grey pixels at
-                        // their paper edge. Crop those inside the clean frame;
-                        // the wrapper above keeps this scale from eating into
-                        // the deliberate white margin around the artwork.
-                        transform: "scale(1.045)",
-                        transformOrigin: "center",
-                    }}
-                />
-            </span>
-        )
-    }
     return (
-        <svg
-            viewBox="0 0 200 300"
-            width="100%"
-            height="100%"
-            aria-hidden="true"
-            focusable="false"
-            style={artStyle}
-        >
-            <rect x={1} y={1} width={198} height={298} rx={14} fill={FACE} stroke={INK} strokeWidth={2} />
-            <rect x={8} y={8} width={184} height={284} rx={9} fill="none" stroke={HAIRLINE} strokeWidth={1.5} />
-            {rank === "A" ? (
-                <AceFace suit={suit} />
-            ) : (
-                <>
-                    <path d="M9 150h182" stroke={HAIRLINE} strokeWidth={1.2} />
-                    {isNumeral(rank) ? (
-                        <>
-                            <NumeralHalf suit={suit} pips={halfPips(rank, true)} mark={RANK_HU_MARK[rank]} />
-                            <g transform="rotate(180 100 150)">
-                                <NumeralHalf suit={suit} pips={halfPips(rank, false)} mark={RANK_HU_MARK[rank]} />
-                            </g>
-                        </>
-                    ) : (
-                        <>
-                            <CourtHalf suit={suit} rank={rank} />
-                            <g transform="rotate(180 100 150)">
+        <>
+            {/* The scanned face may be this browser's first request for an
+                opponent's card. Keep the complete vector face underneath it
+                so the 320 ms throw animation never starts as an empty white
+                frame while the image is fetched and asynchronously decoded. */}
+            <svg
+                viewBox="0 0 200 300"
+                width="100%"
+                height="100%"
+                aria-hidden="true"
+                focusable="false"
+                style={artStyle}
+            >
+                <rect x={1} y={1} width={198} height={298} rx={14} fill={FACE} stroke={INK} strokeWidth={2} />
+                <rect x={8} y={8} width={184} height={284} rx={9} fill="none" stroke={HAIRLINE} strokeWidth={1.5} />
+                {rank === "A" ? (
+                    <AceFace suit={suit} />
+                ) : (
+                    <>
+                        <path d="M9 150h182" stroke={HAIRLINE} strokeWidth={1.2} />
+                        {isNumeral(rank) ? (
+                            <>
+                                <NumeralHalf suit={suit} pips={halfPips(rank, true)} mark={RANK_HU_MARK[rank]} />
+                                <g transform="rotate(180 100 150)">
+                                    <NumeralHalf suit={suit} pips={halfPips(rank, false)} mark={RANK_HU_MARK[rank]} />
+                                </g>
+                            </>
+                        ) : (
+                            <>
                                 <CourtHalf suit={suit} rank={rank} />
-                            </g>
-                        </>
-                    )}
-                </>
-            )}
-        </svg>
+                                <g transform="rotate(180 100 150)">
+                                    <CourtHalf suit={suit} rank={rank} />
+                                </g>
+                            </>
+                        )}
+                    </>
+                )}
+            </svg>
+
+            {image && <ScannedArtwork src={image} style={artStyle} />}
+        </>
     )
 }
 

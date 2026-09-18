@@ -5,8 +5,9 @@ import { useTranslation } from "../../i18n"
 import { useGameSocket } from "../hooks/useGameSocket"
 
 /* ──────────────────────────────────────────────────────────────────────────
-   GameRoomExitGuard — "ostani u sobi ili izađi?" when a seated player clicks
-   their way out of the table.
+   GameRoomExitGuard — "ostani u sobi ili izađi?" while a seated player leaves
+   an ACTIVE table. A lobby seat is not resumable play: navigation out of a
+   waiting or finished room sends `room.leave` immediately and continues.
 
    WHY A CLICK INTERCEPT AND NOT `useBlocker`: react-router's blocker only
    exists on a data router (`createBrowserRouter`), and this app mounts a plain
@@ -16,9 +17,8 @@ import { useGameSocket } from "../hooks/useGameSocket"
    the capture phase, before react-router's own handler sees the click.
 
    Deliberately narrow:
-     • only while a game room page is mounted AND we actually hold a seat (a
-       spectator drive-by is nobody's business, and neither is a table we
-       already left);
+     • only asks while a game room page is mounted, we hold a seat, AND the
+       room is PLAYING (a spectator drive-by and a lobby seat need no prompt);
      • only for in-app navigation that leaves the current table — opening the
        lobby at /igra therefore goes through the same leave flow, while links
        to a room page stay inside the game area;
@@ -27,8 +27,8 @@ import { useGameSocket } from "../hooks/useGameSocket"
 
    "Ostani u sobi" is a real cancel action: it closes the dialog and leaves
    the player at the table. Only "Izađi iz sobe" navigates away and starts
-   the server's two-minute seat hold. `beforeunload` covers the other exit
-   (closing the tab), where all we can do is ask the browser to ask.
+   the server's two-minute seat hold. `beforeunload` asks only during active
+   play; in the lobby the server releases a disconnected seat immediately.
    ────────────────────────────────────────────────────────────────────── */
 
 /** Another table URL is still a table. The lobby (`/igra`) is an exit from
@@ -44,10 +44,14 @@ export default function GameRoomExitGuard() {
     // Passive: the room page itself holds the connection; the guard only reads it.
     const socket = useGameSocket({ passive: true })
     const [pending, setPending] = useState<string | null>(null)
+    const leaveRoom = socket.leaveRoom
 
     const seated = socket.room !== null && socket.yourSeat !== null
+    const playing = socket.room?.status === "PLAYING"
     const seatedRef = useRef(seated)
+    const playingRef = useRef(playing)
     seatedRef.current = seated
+    playingRef.current = playing
 
     useEffect(() => {
         if (!seated) return
@@ -62,6 +66,13 @@ export default function GameRoomExitGuard() {
             const url = new URL(anchor.href, window.location.href)
             if (url.origin !== window.location.origin) return
             if (insideGame(url.pathname)) return
+            // Waiting rooms and finished games are real lobbies. Leaving one
+            // frees the seat now; there is no active turn to preserve and no
+            // two-minute return window to advertise.
+            if (!playingRef.current) {
+                leaveRoom()
+                return
+            }
             event.preventDefault()
             event.stopPropagation()
             setPending(`${url.pathname}${url.search}${url.hash}`)
@@ -70,6 +81,10 @@ export default function GameRoomExitGuard() {
 
         const onBeforeUnload = (event: BeforeUnloadEvent) => {
             if (!seatedRef.current) return
+            if (!playingRef.current) {
+                leaveRoom()
+                return
+            }
             event.preventDefault()
         }
         window.addEventListener("beforeunload", onBeforeUnload)
@@ -78,18 +93,19 @@ export default function GameRoomExitGuard() {
             document.removeEventListener("click", onClick, true)
             window.removeEventListener("beforeunload", onBeforeUnload)
         }
-    }, [seated])
+    }, [seated, leaveRoom])
 
     // The room can die under an open dialog (game over + cleanup, kicked, a
     // reconnect that found nothing). Asking about a seat we no longer have
     // would be nonsense, so just go.
     useEffect(() => {
-        if (pending !== null && !seated) {
+        if (pending !== null && (!seated || !playing)) {
             const to = pending
             setPending(null)
+            if (seated) leaveRoom()
             navigate(to)
         }
-    }, [pending, seated, navigate])
+    }, [pending, seated, playing, navigate, leaveRoom])
 
     const stay = useCallback(() => {
         setPending(null)
@@ -98,9 +114,9 @@ export default function GameRoomExitGuard() {
     const leave = useCallback(() => {
         const to = pending
         setPending(null)
-        socket.leaveRoom()
+        leaveRoom()
         if (to) navigate(to)
-    }, [pending, navigate, socket])
+    }, [pending, navigate, leaveRoom])
 
     return (
         <ConfirmDialog

@@ -47,9 +47,13 @@
  * owner and a trimmed body to everyone else on the very same URL.
  */
 
-const CACHE = "bela-shell-v3";
+const CACHE = "bela-shell-v4";
 const API_CACHE = "bela-api-v1";
-const SHELL = ["/", "/index.html", "/manifest.webmanifest"];
+// Public files do not get Vite hashes, so list the decorative background
+// explicitly. It is fixed behind every route and must paint from Cache
+// Storage as soon as the app has been opened once, even on weak Wi-Fi.
+const STATIC_ASSETS = ["/bg-cards-faded.png"];
+const SHELL = ["/", "/index.html", "/manifest.webmanifest", ...STATIC_ASSETS];
 
 /* ─────────────────────────────── PRECACHE ───────────────────────────────
  * `/precache-manifest.json` is written at build time by the
@@ -290,7 +294,7 @@ self.addEventListener("fetch", (event) => {
     if (url.origin !== self.location.origin) return;
     // Hashed, immutable build output: whatever is precached IS the right
     // answer, and offline it is the only one (see the file header).
-    if (url.pathname.startsWith("/assets/")) {
+    if (url.pathname.startsWith("/assets/") || STATIC_ASSETS.includes(url.pathname)) {
         event.respondWith(assetCacheFirst(req));
         return;
     }

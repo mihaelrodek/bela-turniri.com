@@ -90,8 +90,13 @@ export function tableGeometry(bottomSeat: boolean) {
         : "var(--cy-free)"
     // A spectator's box carries two full seat blocks (top and bottom) plus
     // both gaps, so its floor is ~90 px taller than a player's.
+    // The table lives in the remaining height after the score board, hand,
+    // reactions and iPhone safe areas. `vh` alone is wrong there: a standalone
+    // iPhone PWA loses the status-bar inset, while DevTools commonly does not.
+    // Keep the requested clamp, but cap it at the parent we actually received
+    // so the seat anchors and trick centre shrink with the visible felt.
     const boxH = (min: number, vh: number, max: number) =>
-        `clamp(${bottomSeat ? min + 90 : min}px, ${vh}vh, ${bottomSeat ? max + 90 : max}px)`
+        `min(100%, clamp(${bottomSeat ? min + 90 : min}px, ${vh}vh, ${bottomSeat ? max + 90 : max}px))`
     // How fast the vertical gap grows with the box. A spectator's ring has to
     // fit TWICE over (`--cy-bottom` is a whole seat for them), so their gap
     // grows at two thirds the rate; at 0.32 the top seat would be pushed off

@@ -1,6 +1,9 @@
 export type RewardType = "FIXED" | "PERCENTAGE";
 export type RepassageUntil = "FINALS" | "SEMIFINALS" | "FIRST_ROUND";
 export type TournamentStatus = "DRAFT" | "STARTED" | "FINISHED";
+export type TournamentTargetScore = 501 | 701 | 1001;
+export type TournamentGameEndRule = "prolaz" | "dosta";
+export type TournamentDealDirection = "right" | "left";
 
 export type TournamentCard = {
     id: number;                // UUID
@@ -40,6 +43,12 @@ export type TournamentDetails = {
     repassagePrice?: number | null;
     repassageSecondPrice?: number | null;
     repassageUntil?: RepassageUntil | null;
+
+    targetScore?: TournamentTargetScore | null;
+    gameEndRule?: TournamentGameEndRule | null;
+    dealDirection?: TournamentDealDirection | null;
+    declarationsEnabled?: boolean | null;
+    allowBela?: boolean | null;
 
     contactName?: string | null;
     contactPhone?: string | null;
@@ -95,6 +104,13 @@ export type CreateTournamentPayload = {
     repassageSecondPrice?: number | null; // nullable
 
     repassageUntil?: RepassageUntil | null;
+
+    // Game rules for every table at this tournament.
+    targetScore?: TournamentTargetScore | null;
+    gameEndRule?: TournamentGameEndRule | null;
+    dealDirection?: TournamentDealDirection | null;
+    declarationsEnabled?: boolean | null;
+    allowBela?: boolean | null;
 
     // contact
     contactName?: string | null;

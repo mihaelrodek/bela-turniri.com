@@ -1,14 +1,13 @@
 import { useRef } from "react"
-import { Box, Grid, Image, VisuallyHidden, useBreakpointValue } from "@chakra-ui/react"
+import { Box, Grid, VisuallyHidden, useBreakpointValue } from "@chakra-ui/react"
 import { keyframes } from "@emotion/react"
 import type { Card } from "@bela/protocol"
 import type { Phase } from "@bela/engine"
 import { useTranslation } from "../../i18n"
-import { CARD_INK, CARD_METRICS, sortHandForDisplay, type CardSize } from "../util/cards"
+import { CARD_METRICS, sortHandForDisplay, type CardSize } from "../util/cards"
 import { useGamePrefs } from "../hooks/useGamePrefs"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
-import PlayingCard from "./PlayingCard"
-import talonBackImage from "../cards/madjarice/assets/BACK.webp"
+import PlayingCard, { CardBack } from "./PlayingCard"
 import { SHORT } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -200,26 +199,11 @@ export default function Hand({
                             zIndex={index}
                         >
                             {slot === TALON_SLOT ? (
-                                <Box
-                                    w={`${cardWidth}px`}
-                                    h="100%"
-                                    rounded={CARD_METRICS[cardSize].radius}
-                                    overflow="hidden"
-                                    bg={CARD_INK.frame}
-                                    borderWidth="0"
-                                    p={cardSize === "sm" ? "2px" : "3px"}
-                                    aria-hidden="true"
-                                >
-                                    <Image
-                                        src={talonBackImage}
-                                        alt=""
-                                        w="100%"
-                                        h="100%"
-                                        display="block"
-                                        objectFit="cover"
-                                        draggable={false}
-                                    />
-                                </Box>
+                                // This is CSS-painted rather than the scanned
+                                // BACK.webp. A new deal can therefore never
+                                // show two white rectangles while a raster is
+                                // being fetched or decoded on a phone.
+                                <CardBack size={cardSize} deck={prefs.deck} />
                             ) : slot !== null ? (
                                 <PlayingCard
                                     card={slot}

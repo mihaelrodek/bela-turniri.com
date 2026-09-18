@@ -392,32 +392,6 @@ describe("room seats", () => {
         expect(state.room.seats[2]?.occupant).toBeNull()
     })
 
-    it("only the host may add bots, but any ready seated player may start", async () => {
-        server = await startTestServer()
-        const host = await connect("Domacin")
-        host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false })
-        const joined = await host.nextOfType("room.joined")
-
-        const guest = await connect("Gost")
-        guest.send({ t: "room.join", roomId: joined.room.id })
-        await guest.nextOfType("room.joined")
-
-        guest.send({ t: "room.addBot", seat: 1 })
-        expect((await guest.nextOfType("error")).code).toBe("NOT_HOST")
-
-        host.send({ t: "room.addBot", seat: 1 })
-        host.send({ t: "room.addBot", seat: 3 })
-        await host.next((m) => m.t === "room.state" && m.room.seats.every((slot) => slot.occupant !== null))
-
-        host.send({ t: "room.ready", ready: true })
-        await host.next((m) => m.t === "room.state" && m.room.seats[0].occupant?.kind === "PLAYER" && m.room.seats[0].occupant.ready)
-        guest.send({ t: "room.ready", ready: true })
-        await guest.next((m) => m.t === "room.state" && m.room.seats.every((slot) => slot.occupant?.kind !== "PLAYER" || slot.occupant.ready))
-        guest.send({ t: "room.start" })
-        const playing = await guest.next((m) => m.t === "room.state" && m.room.status === "PLAYING")
-        expect(playing.t).toBe("room.state")
-    })
-
     it("adds and removes bots", async () => {
         server = await startTestServer()
         const host = await connect("Domacin")

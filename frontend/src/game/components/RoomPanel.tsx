@@ -32,6 +32,11 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
 }) {
     const { t } = useTranslation()
     const isHost = myUid !== null && room.hostUid === myUid
+    // Seating is collaborative: anyone currently in the room may fill an
+    // empty chair with a bot or clear a bot before the game starts. The server
+    // enforces the same membership-and-lobby guard; `isHost` remains only for
+    // room-wide settings such as privacy.
+    const canManageBots = myUid !== null
     const mine = mySeat === null ? null : room.seats[mySeat].occupant
     const ready = mine?.kind === "PLAYER" && mine.ready
     const humans = room.seats.filter((s) => s.occupant?.kind === "PLAYER")
@@ -84,7 +89,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
     ]
 
     return (
-        <VStack gap={{ base: "2", md: "3" }} align="stretch" p={{ base: "2.5", md: "4" }} pt={{ base: "0", md: "1" }} flex="1" minH="0">
+        <VStack gap={{ base: "1.5", md: "3" }} align="stretch" p={{ base: "1.5", md: "4" }} pt={{ base: "0", md: "1" }} flex="1" minH="0">
             {/* No `pr="8"` any more: that gutter existed only to keep the
                 title clear of the absolutely-positioned chat toggle, and the
                 chat is gone (2026-09-09). Without it the settings and exit
@@ -94,7 +99,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 borderWidth="1px"
                 borderColor="border.subtle"
                 rounded="2xl"
-                p={{ base: "2.5", md: "3" }}
+                p={{ base: "2", md: "3" }}
                 shadow="sm"
             >
                 <HStack justify="space-between" gap="3" align="start">
@@ -155,7 +160,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 chips and the whole empty half of the screen was between them
                 and the buttons. `my="auto"` splits that space above and below,
                 which puts the four chairs where the eye lands. */}
-            <SimpleGrid my="auto" columns={1} gap={{ base: "2", md: "3" }}>
+            <SimpleGrid my="auto" columns={1} gap={{ base: "1.5", md: "3" }}>
                 {teams.map((seats, index) => (
                     /* No heading: the card IS the pair. Its border and its own
                        ground are what group the two chairs, so the grouping
@@ -163,14 +168,14 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                        every width (2026-09-18, user request: one row per
                        seat on web too), and the two pair-cards stay two
                        cards, each still holding its own two chairs. */
-                    <VStack key={index} align="stretch" gap={{ base: "1.5", md: "2" }} p={{ base: "1.5", md: "2" }}
+                    <VStack key={index} align="stretch" gap={{ base: "1", md: "2" }} p={{ base: "1", md: "2" }}
                         rounded="xl" bg="bg.panel" borderWidth="1px" borderColor="border.subtle"
                         role="group" aria-label={t("game.room.pairAria", { n: index + 1 })}>
                         {seats.map((seat) => {
                             const occupant = room.seats[seat].occupant
                             return (
-                                <HStack key={seat} justify="space-between" align="center" gap={{ base: "1.5", md: "2" }} p="1.5"
-                                    rounded="lg" bg="bg.subtle" minH={{ base: "68px", md: "72px" }}>
+                                <HStack key={seat} justify="space-between" align="center" gap={{ base: "1.5", md: "2" }} p={{ base: "1.25", md: "1.5" }}
+                                    rounded="lg" bg="bg.subtle" minH={{ base: "62px", md: "72px" }}>
                                     <HStack gap={{ base: "1.5", md: "2" }} minW="0">
                                         <PlayerAvatar size="sm" empty={!occupant} emptyIcon={<CardsIcon size={17} />} name={occupant?.kind === "PLAYER" ? occupant.user.name : occupant?.name}
                                             avatarUrl={occupant?.kind === "PLAYER" ? occupant.user.avatarUrl : undefined}
@@ -216,8 +221,8 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                                                 {t("game.room.sitHere")}
                                             </Button>
                                         )}
-                                        {!occupant && isHost && <Button size="xs" variant="outline" disabled={disabled} onClick={() => onAddBot(seat)}><FiPlus />{t("game.room.addBotCta")}</Button>}
-                                        {occupant?.kind === "BOT" && isHost && <Button size="xs" variant="ghost" disabled={disabled} onClick={() => onRemoveBot(seat)}><FiX />{t("game.room.removeBot")}</Button>}
+                                        {!occupant && canManageBots && <Button size="xs" variant="outline" disabled={disabled} onClick={() => onAddBot(seat)}><FiPlus />{t("game.room.addBotCta")}</Button>}
+                                        {occupant?.kind === "BOT" && canManageBots && <Button size="xs" variant="ghost" disabled={disabled} onClick={() => onRemoveBot(seat)}><FiX />{t("game.room.removeBot")}</Button>}
                                     </HStack>
                                 </HStack>
                             )
@@ -229,7 +234,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 flex column that fills its box, so the last block is pushed to
                 the floor when there is room and simply follows the seats when
                 there is not. */}
-            <VStack mt="auto" align="stretch" gap={{ base: "1", md: "1.5" }} p={{ base: "2", md: "2.5" }} bg="bg.panel" rounded="2xl" borderWidth="1px" borderColor="border.subtle">
+            <VStack mt="auto" align="stretch" gap={{ base: "1", md: "1.5" }} p={{ base: "1.5", md: "2.5" }} bg="bg.panel" rounded="2xl" borderWidth="1px" borderColor="border.subtle">
                 {/* ONE SWITCH PER ROW on a phone (2026-09-09, user request).
                     Side by side they were two half-width boxes whose labels
                     had to be abbreviated to fit ("Privatna" for "Privatna

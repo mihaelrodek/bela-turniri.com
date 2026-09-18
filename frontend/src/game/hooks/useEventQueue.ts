@@ -46,7 +46,7 @@ export const EVENT_DWELL_MS: Record<GameEvent["type"], number> = {
     HAND_COMPLETED: 1600,
     /** A card has to be SEEN landing: 320 ms of flight (TrickArea's FLY_MS)
      *  plus a beat to read it before the next player throws. The server's own
-     *  bot pacing (1800–2800 ms) is longer than this, so for bot plays the
+     *  bot pacing (1300–2300 ms) is longer than this, so for bot plays the
      *  queue is already idle and this dwell costs nothing; it is what makes
      *  MY card and any batched run of plays legible. */
     CARD_PLAYED: 800,

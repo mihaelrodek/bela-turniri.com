@@ -114,7 +114,46 @@ export default function RoomListItem({
         >
             <HStack justify="space-between" gap="2">
                 <VStack align="stretch" gap="2" flex="1" minW="0">
-                    <HStack justify="space-between" align="start" gap="3">
+                    {/* Phone: keep the title clean, give "Privatna" its own
+                        line, then keep the three game rules together in the
+                        same predictable order. This prevents one long name
+                        from splitting the rules into a confusing staircase. */}
+                    <VStack display={{ base: "flex", md: "none" }} align="stretch" gap="1.5">
+                        <Text fontWeight="semibold" lineClamp={1}>{room.name}</Text>
+                        {(room.private || room.status === "PLAYING" || room.minWinRatePercent > 0) && (
+                            <HStack gap="1.5" wrap="wrap">
+                                {room.private && (
+                                    <Badge size="sm" variant="subtle" colorPalette="gray"
+                                        aria-label={t("game.lobby.privateAria")} title={t("game.lobby.privateAria")}>
+                                        <FiLock size={12} /> {t("game.lobby.private")}
+                                    </Badge>
+                                )}
+                                {room.status === "PLAYING" && (
+                                    <Badge size="sm" variant="solid" colorPalette="orange">
+                                        {t("game.lobby.playing")}
+                                    </Badge>
+                                )}
+                                {room.minWinRatePercent > 0 && (
+                                    <Badge size="sm" variant="subtle" colorPalette="orange">
+                                        {t("game.room.minWinRateShort", { percent: room.minWinRatePercent })}
+                                    </Badge>
+                                )}
+                            </HStack>
+                        )}
+                        <HStack gap="1" wrap="nowrap" whiteSpace="nowrap">
+                            <Badge size="sm" px={{ base: "1.5", sm: "2" }} fontSize={{ base: "2xs", sm: "xs" }} variant="subtle" colorPalette="brand">
+                                {room.targetScore}
+                            </Badge>
+                            <Badge size="sm" px={{ base: "1.5", sm: "2" }} fontSize={{ base: "2xs", sm: "xs" }} variant="subtle" colorPalette={room.noDeclarations ? "orange" : "gray"}>
+                                {t(room.noDeclarations ? "game.rules.noDeclarations" : "game.rules.withDeclarations")}
+                            </Badge>
+                            <Badge size="sm" px={{ base: "1.5", sm: "2" }} fontSize={{ base: "2xs", sm: "xs" }} variant="subtle" colorPalette="gray">
+                                {t(`game.lobby.finishMode.${room.gameEndRule}`)}
+                            </Badge>
+                        </HStack>
+                    </VStack>
+
+                    <HStack display={{ base: "none", md: "flex" }} justify="space-between" align="start" gap="3">
                         <HStack gap="2" minW="0">
                             <Text fontWeight="semibold" lineClamp={1}>{room.name}</Text>
                             {room.private && (
@@ -161,7 +200,7 @@ export default function RoomListItem({
                         )}
                     </HStack>
                 </VStack>
-                <Box color="fg.muted" flexShrink={0} aria-hidden="true">
+                <Box display={{ base: "none", md: "block" }} color="fg.muted" flexShrink={0} aria-hidden="true">
                     <FiChevronRight size={20} />
                 </Box>
             </HStack>

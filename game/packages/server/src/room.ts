@@ -519,7 +519,7 @@ export class Room {
         return reconnected
     }
 
-    /** Socket died: keep the seat for the hold window. */
+    /** Socket died: active play gets a hold; a lobby seat is released. */
     onDisconnect(conn: Connection): void {
         if (!this.conns.delete(conn)) return
         const user = conn.user
@@ -555,15 +555,6 @@ export class Room {
             this.holdOrRelease(user.uid, "left")
         }
         conn.send({ t: "room.left" })
-        // An explicit exit from an otherwise abandoned lobby is final. Bots
-        // are not room members and must not keep a public room advertised.
-        // A dropped socket takes the separate onDisconnect path, where its
-        // human seat is retained for reconnect instead of reaching this rule.
-        if (this.status === "LOBBY" && this.isEmpty() && this.humanSeats().length === 0) {
-            log.info("room.deleted", { room: this.id, status: this.status, reason: "last-member-left" })
-            this.lobby.remove(this.id)
-            return
-        }
         this.afterMembershipChange(user?.uid ?? null)
     }
 
@@ -595,6 +586,7 @@ export class Room {
         this.releaseSeat(uid)
         if (this.isHost(uid)) this.transferHost(uid)
         log.info("seat.abandoned", { room: this.id, uid })
+        if (this.removeBotOnlyLobby()) return
         this.broadcastState()
         this.lobby.changed()
         this.game?.onPresenceChanged()
@@ -602,17 +594,30 @@ export class Room {
 
     private afterMembershipChange(leavingUid: string | null): void {
         if (leavingUid !== null && this.isHost(leavingUid)) this.transferHost(leavingUid)
+        if (this.removeBotOnlyLobby()) return
         this.broadcastState()
         this.lobby.changed()
         this.game?.onPresenceChanged()
         this.scheduleDeleteIfEmpty()
     }
 
+    /**
+     * A lobby belongs to its human members, never to its bots. Once its last
+     * human member has gone, remove it right away; a player who stood up is
+     * still a human spectator and must keep the lobby alive.
+     */
+    private removeBotOnlyLobby(): boolean {
+        if (this.status !== "LOBBY" || this.conns.size > 0) return false
+        log.info("room.deleted", { room: this.id, status: this.status, reason: "no-human-members" })
+        this.lobby.remove(this.id)
+        return true
+    }
+
     /** PLAYING → mark the seat away and start the hold; LOBBY → just free it. */
     private holdOrRelease(uid: string, reason: HoldReason): void {
         const seat = this.seatOfUid(uid)
         if (seat === null) return
-        if (this.status !== "PLAYING" && reason === "left") {
+        if (this.status !== "PLAYING") {
             this.cancelHold(uid)
             this.seats[seat] = null
             return
@@ -757,12 +762,13 @@ export class Room {
         const seat = this.seatOfUid(user.uid)
         if (seat === null) throw new ProtocolError("BAD_REQUEST", "Ne sjedite za stolom.")
         this.seats[seat] = null
+        if (this.removeBotOnlyLobby()) return
         this.broadcastState()
         this.lobby.changed()
     }
 
     addBot(conn: Connection, seat: Seat): void {
-        this.requireHost(conn)
+        this.requireUser(conn)
         this.requireLobby()
         if (this.seats[seat]) throw new ProtocolError("SEAT_TAKEN")
         this.seats[seat] = this.makeBotSlot(seat)
@@ -771,7 +777,7 @@ export class Room {
     }
 
     removeBot(conn: Connection, seat: Seat): void {
-        this.requireHost(conn)
+        this.requireUser(conn)
         this.requireLobby()
         const slot = this.seats[seat]
         if (!slot || slot.kind !== "BOT") {

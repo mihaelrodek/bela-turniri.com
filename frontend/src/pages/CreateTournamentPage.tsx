@@ -22,6 +22,7 @@ import {
     FiGift,
     FiImage,
     FiPhone,
+    FiSettings,
     FiX,
 } from "react-icons/fi"
 import DatePicker, { registerLocale } from "react-datepicker"
@@ -894,6 +895,124 @@ export default function CreateTournamentPage() {
                 {step === 2 && (
                 <FormCard>
                     <VStack align="stretch" gap="3">
+                        {/* ── Group A: rules for every tournament table ── */}
+                        <GroupHeading icon={<FiSettings />}>
+                            {t("forms.createTournament.section.gameRules")}
+                        </GroupHeading>
+                        <Box
+                            display="grid"
+                            gridTemplateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }}
+                            gap="3"
+                            alignItems="start"
+                        >
+                            <Field.Root>
+                                <Field.Label>{t("forms.createTournament.targetScore.label")}</Field.Label>
+                                <HStack gap="2">
+                                    {([501, 701, 1001] as const).map((score) => (
+                                        <Button
+                                            key={score}
+                                            flex="1"
+                                            size="sm"
+                                            colorPalette="brand"
+                                            variant={form.targetScore === score ? "solid" : "outline"}
+                                            aria-pressed={form.targetScore === score}
+                                            onClick={() => onChange("targetScore", score)}
+                                        >
+                                            {score}
+                                        </Button>
+                                    ))}
+                                </HStack>
+                            </Field.Root>
+                            <Field.Root>
+                                <Field.Label>{t("forms.createTournament.gameEndRule.label")}</Field.Label>
+                                <HStack gap="2">
+                                    {(["prolaz", "dosta"] as const).map((rule) => (
+                                        <Button
+                                            key={rule}
+                                            flex="1"
+                                            size="sm"
+                                            colorPalette="brand"
+                                            variant={form.gameEndRule === rule ? "solid" : "outline"}
+                                            aria-pressed={form.gameEndRule === rule}
+                                            onClick={() => onChange("gameEndRule", rule)}
+                                        >
+                                            {t(`forms.createTournament.gameEndRule.${rule}`)}
+                                        </Button>
+                                    ))}
+                                </HStack>
+                            </Field.Root>
+                            <Field.Root>
+                                <Field.Label>{t("forms.createTournament.dealDirection.label")}</Field.Label>
+                                <HStack gap="2">
+                                    {(["right", "left"] as const).map((direction) => (
+                                        <Button
+                                            key={direction}
+                                            flex="1"
+                                            size="sm"
+                                            colorPalette="brand"
+                                            variant={form.dealDirection === direction ? "solid" : "outline"}
+                                            aria-pressed={form.dealDirection === direction}
+                                            onClick={() => onChange("dealDirection", direction)}
+                                        >
+                                            {t(`forms.createTournament.dealDirection.${direction}`)}
+                                        </Button>
+                                    ))}
+                                </HStack>
+                            </Field.Root>
+                            <Field.Root>
+                                <Field.Label>{t("forms.createTournament.declarations.label")}</Field.Label>
+                                <HStack gap="2">
+                                    <Button
+                                        flex="1"
+                                        size="sm"
+                                        colorPalette="brand"
+                                        variant={form.declarationsEnabled ? "solid" : "outline"}
+                                        aria-pressed={form.declarationsEnabled}
+                                        onClick={() => onChange("declarationsEnabled", true)}
+                                    >
+                                        {t("forms.createTournament.declarations.enabled")}
+                                    </Button>
+                                    <Button
+                                        flex="1"
+                                        size="sm"
+                                        colorPalette="brand"
+                                        variant={!form.declarationsEnabled ? "solid" : "outline"}
+                                        aria-pressed={!form.declarationsEnabled}
+                                        onClick={() => onChange("declarationsEnabled", false)}
+                                    >
+                                        {t("forms.createTournament.declarations.disabled")}
+                                    </Button>
+                                </HStack>
+                            </Field.Root>
+                            {!form.declarationsEnabled && (
+                                <Field.Root gridColumn={{ base: "auto", md: "1 / -1" }}>
+                                    <Field.Label>{t("forms.createTournament.allowBela.label")}</Field.Label>
+                                    <HStack gap="2" maxW={{ base: "full", md: "260px" }}>
+                                        <Button
+                                            flex="1"
+                                            size="sm"
+                                            colorPalette="brand"
+                                            variant={form.allowBela ? "solid" : "outline"}
+                                            aria-pressed={form.allowBela}
+                                            onClick={() => onChange("allowBela", true)}
+                                        >
+                                            {t("forms.createTournament.allowBela.yes")}
+                                        </Button>
+                                        <Button
+                                            flex="1"
+                                            size="sm"
+                                            colorPalette="brand"
+                                            variant={!form.allowBela ? "solid" : "outline"}
+                                            aria-pressed={!form.allowBela}
+                                            onClick={() => onChange("allowBela", false)}
+                                        >
+                                            {t("forms.createTournament.allowBela.no")}
+                                        </Button>
+                                    </HStack>
+                                </Field.Root>
+                            )}
+                        </Box>
+
                         {/* ── Group A: kotizacija + repasaž ── */}
                         <GroupHeading icon={<FiDollarSign />}>
                             {t("forms.createTournament.section.pricing")}
@@ -1131,6 +1250,32 @@ export default function CreateTournamentPage() {
                                     </chakra.span>
                                 ),
                         },
+                        {
+                            label: t("forms.createTournament.targetScore.label"),
+                            value: form.targetScore,
+                        },
+                        {
+                            label: t("forms.createTournament.gameEndRule.label"),
+                            value: t(`forms.createTournament.gameEndRule.${form.gameEndRule}`),
+                        },
+                        {
+                            label: t("forms.createTournament.dealDirection.label"),
+                            value: t(`forms.createTournament.dealDirection.${form.dealDirection}`),
+                        },
+                        {
+                            label: t("forms.createTournament.declarations.label"),
+                            value: form.declarationsEnabled
+                                ? t("forms.createTournament.declarations.enabled")
+                                : t("forms.createTournament.declarations.disabled"),
+                        },
+                        ...(!form.declarationsEnabled
+                            ? [{
+                                label: t("forms.createTournament.allowBela.label"),
+                                value: form.allowBela
+                                    ? t("forms.createTournament.allowBela.yes")
+                                    : t("forms.createTournament.allowBela.no"),
+                            }]
+                            : []),
                         {
                             label: t("forms.createTournament.entryPrice.label"),
                             value:

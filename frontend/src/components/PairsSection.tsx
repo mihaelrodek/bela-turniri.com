@@ -952,6 +952,7 @@ function PairDetailPanel({
        as the tournament and profile entry points. */
     const { user } = useAuth()
     const [reportOpen, setReportOpen] = useState(false)
+    const nameInputRef = useRef<HTMLInputElement | null>(null)
 
     const hasServerId = typeof pair.id === "number" && pair.id > 0
     const isPending = !!pair.pendingApproval
@@ -960,6 +961,15 @@ function PairDetailPanel({
     const paid = !!pair.paid
     const canRename = canEdit && !tournamentAlready && !tournamentLocked
     const extraBtnDisabled = pair.extraLife || !lifeEligible || !hasServerId
+
+    // A new row is selected in the same state update that inserts it. Native
+    // autofocus can be missed while the master/detail pane is swapping, so
+    // focus the mounted field explicitly on the next frame instead.
+    useEffect(() => {
+        if (pair.id >= 0 || !canRename) return
+        const frame = window.requestAnimationFrame(() => nameInputRef.current?.focus())
+        return () => window.cancelAnimationFrame(frame)
+    }, [pair.id, canRename])
 
     return (
         <Box
@@ -1008,9 +1018,9 @@ function PairDetailPanel({
                     <Box flex="1" minW="0">
                         {canRename ? (
                             <Input
+                                ref={nameInputRef}
                                 size="sm"
                                 variant="flushed"
-                                autoFocus={pair.id < 0}
                                 value={pair.name}
                                 onChange={(e) => onChangePairName(pair.id, e.target.value)}
                                 onBlur={() => onPairNameBlur(pair)}

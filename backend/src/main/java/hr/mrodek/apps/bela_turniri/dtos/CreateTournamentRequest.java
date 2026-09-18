@@ -7,6 +7,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.AssertTrue;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -46,6 +47,12 @@ public record CreateTournamentRequest(
 
         RepassageUntil repassageUntil,         // FINALS | SEMIFINALS | FIRST_ROUND
 
+        Integer targetScore,                    // 501 | 701 | 1001 (default 1001)
+        String gameEndRule,                     // prolaz | dosta (default prolaz)
+        String dealDirection,                   // right | left (default right)
+        Boolean declarationsEnabled,            // default true
+        Boolean allowBela,                      // relevant without declarations; default true
+
         @Size(max = 200, message = "validation.tournament.contactName.max")
         String contactName,
 
@@ -64,4 +71,19 @@ public record CreateTournamentRequest(
         BigDecimal rewardThird,
 
         TournamentStatus status                // DRAFT | STARTED | FINISHED (default DRAFT if null)
-) {}
+) {
+    @AssertTrue(message = "targetScore must be 501, 701 or 1001")
+    public boolean isTargetScoreAllowed() {
+        return targetScore == null || targetScore == 501 || targetScore == 701 || targetScore == 1001;
+    }
+
+    @AssertTrue(message = "gameEndRule must be prolaz or dosta")
+    public boolean isGameEndRuleAllowed() {
+        return gameEndRule == null || gameEndRule.equals("prolaz") || gameEndRule.equals("dosta");
+    }
+
+    @AssertTrue(message = "dealDirection must be right or left")
+    public boolean isDealDirectionAllowed() {
+        return dealDirection == null || dealDirection.equals("right") || dealDirection.equals("left");
+    }
+}

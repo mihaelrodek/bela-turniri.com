@@ -100,18 +100,19 @@ export const LIMITS = {
 
 export const DEFAULTS = {
     targetScore: 1001 as TargetScore,
-    /** Vrijeme za jedan potez prije nego bot odigra umjesto igrača. 20 s:
+    /** Vrijeme za jedan potez prije nego bot odigra umjesto igrača. 15 s:
      *  30 s je za stolom bilo predugo — tri odsutna poteza zaustave partiju
      *  na pola minute po potezu. */
-    turnTimeoutMs: 20_000,
+    turnTimeoutMs: 15_000,
     /** Seat hold after an explicit `room.leave` or a dropped socket, README §3
      *  "Timeri". Two minutes: long enough to walk back in from the lobby or
      *  survive a tunnel, short enough that a table is never stuck on a ghost. */
     reconnectGraceMs: 120_000,
     /** A human-like pause between bot bids and card plays. Long enough that
-     * the player can read the table before the bot changes it again. */
-    botThinkMinMs: 1800,
-    botThinkMaxMs: 2800,
+     * the player can read the table before the bot changes it again, without
+     * an unnecessary extra half-second on every move. */
+    botThinkMinMs: 1300,
+    botThinkMaxMs: 2300,
 } as const
 
 /* ───────────────────────── shared models ───────────────────────── */

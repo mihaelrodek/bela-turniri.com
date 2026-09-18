@@ -9,9 +9,12 @@ import {
 import { DEFAULT_DIAL_CODE, joinPhone, splitPhone } from "./phone"
 import type {
     CreateTournamentPayload,
+    TournamentDealDirection,
+    TournamentGameEndRule,
     RepassageUntil,
     RewardType,
     TournamentDetails,
+    TournamentTargetScore,
 } from "../types/tournaments"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -50,6 +53,11 @@ export type TournamentForm = {
     /** "" = not set → the backend's null wipes any stored second repassage. */
     repassageSecondPrice: string
     repassageUntil: RepassageUntil
+    targetScore: TournamentTargetScore
+    gameEndRule: TournamentGameEndRule
+    dealDirection: TournamentDealDirection
+    declarationsEnabled: boolean
+    allowBela: boolean
     contactName: string
     contactPhoneCountry: string
     contactPhone: string
@@ -97,6 +105,11 @@ export function emptyTournamentForm(): TournamentForm {
         repassagePrice: "30",
         repassageSecondPrice: "",
         repassageUntil: "FINALS",
+        targetScore: 1001,
+        gameEndRule: "prolaz",
+        dealDirection: "right",
+        declarationsEnabled: true,
+        allowBela: true,
         contactName: "",
         contactPhoneCountry: DEFAULT_DIAL_CODE,
         contactPhone: "",
@@ -126,6 +139,11 @@ export function tournamentFormFromDto(t: TournamentDetails): TournamentForm {
                 ? numberToMoneyStr(t.repassageSecondPrice)
                 : "",
         repassageUntil: (t.repassageUntil as RepassageUntil) ?? "FINALS",
+        targetScore: t.targetScore === 501 || t.targetScore === 701 || t.targetScore === 1001 ? t.targetScore : 1001,
+        gameEndRule: t.gameEndRule === "dosta" ? "dosta" : "prolaz",
+        dealDirection: t.dealDirection === "left" ? "left" : "right",
+        declarationsEnabled: t.declarationsEnabled ?? true,
+        allowBela: t.allowBela ?? true,
         contactName: t.contactName ?? "",
         contactPhoneCountry: phone.country,
         contactPhone: phone.local,
@@ -180,6 +198,11 @@ export function tournamentFormToPayload(
         repassagePrice: rep,
         repassageSecondPrice: rep2,
         repassageUntil: f.repassageUntil,
+        targetScore: f.targetScore,
+        gameEndRule: f.gameEndRule,
+        dealDirection: f.dealDirection,
+        declarationsEnabled: f.declarationsEnabled,
+        allowBela: f.allowBela,
         contactName: f.contactName.trim() || null,
         contactPhone: joinPhone(f.contactPhoneCountry, f.contactPhone),
         rewardType: f.rewardType,

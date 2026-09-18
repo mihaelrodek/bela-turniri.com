@@ -123,7 +123,7 @@ the hand tray so the trick stays visible. The answer rides out on the same
 `game.play` as a `bela` flag; there is no extra round trip and nothing at the
 table waits. Refusing is silent and final for the deal (the engine keeps it in
 `belaRefused`, which never reaches a client); declaring is confirmed to
-everybody by the existing `BelaFlash`. If the 20 s clock wins instead, the
+everybody by the existing `BelaFlash`. If the 15 s clock wins instead, the
 server's bot plays and the bela IS announced — silence declares.
 
 **Reviewing past tricks** ("gledanje štihova", `game/README.md` §1.8) is a

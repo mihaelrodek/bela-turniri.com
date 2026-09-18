@@ -63,7 +63,7 @@ import {
    dynamic `import()` so none of it reaches a production bundle.
    ────────────────────────────────────────────────────────────────────── */
 
-const BOT_THINK_MS = 2300
+const BOT_THINK_MS = 1800
 const DECLARATIONS_MS = 8_000
 const NETWORK_MS = 40
 /** The backend's `GameNameService.CHANGE_INTERVAL`, mirrored for the mock. */

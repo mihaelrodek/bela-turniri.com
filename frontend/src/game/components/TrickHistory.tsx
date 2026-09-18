@@ -1,4 +1,4 @@
-import { Box, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react"
+import { Box, Flex, HStack, IconButton, Portal, Text, VStack } from "@chakra-ui/react"
 import { FiX } from "react-icons/fi"
 import type { RoomState, Seat, TrickReview, WonTrick } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
@@ -49,13 +49,14 @@ export default function TrickHistory({
               : null
 
     return (
+        <Portal>
         <Flex
-            position="absolute"
+            position="fixed"
             inset="0"
             align="center"
             justify="center"
             px="3"
-            zIndex={8}
+            zIndex={1500}
             bg="blackAlpha.500"
             backdropFilter="blur(2px)"
             onClick={onDismiss}
@@ -162,5 +163,6 @@ export default function TrickHistory({
 
             </VStack>
         </Flex>
+        </Portal>
     )
 }

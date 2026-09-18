@@ -3,7 +3,7 @@ import { Box, Flex, HStack, IconButton, Text, chakra } from "@chakra-ui/react"
 import { FiFileText, FiLayers, FiSettings } from "react-icons/fi"
 import type { GameEndRule } from "@bela/protocol"
 import { useTranslation, usePlural } from "../../i18n"
-import { GLASS, INK, INK_MUTED } from "./tableStyles"
+import { GLASS, INK, INK_MUTED, TEAM, type TeamSide } from "./tableStyles"
 
 /* Compact HUD controls. The room's rules (target score + end rule) sit over
    the trump cell, in place of the room name — a player already inside the
@@ -74,7 +74,7 @@ export function TableActions({
 }: {
     chat?: ReactNode
     declarationsEnabled: boolean
-    declarationPoints: number
+    declarationPoints: Record<TeamSide, number>
     onDeclarations: () => void
     tricksEnabled: boolean
     tricksPlayed: number
@@ -85,14 +85,23 @@ export function TableActions({
 
     return (
         <HStack gap="1" justify="center" flexWrap="wrap">
-            <PillButton
-                icon={<FiFileText />}
-                label={t("game.declarations.title")}
-                badge={declarationPoints > 0 ? `${declarationPoints}` : null}
-                badgeLabel={t("game.score.declarationBonus")}
-                disabled={!declarationsEnabled}
-                onClick={onDeclarations}
-            />
+            <Flex position="relative" align="center">
+                <PillButton
+                    icon={<FiFileText />}
+                    label={t("game.declarations.title")}
+                    badge={null}
+                    badgeLabel={t("game.score.declarationBonus")}
+                    ariaLabel={`${t("game.declarations.title")} — ${t("game.score.us")}: ${declarationPoints.us}, ${t("game.score.them")}: ${declarationPoints.them}`}
+                    disabled={!declarationsEnabled}
+                    onClick={onDeclarations}
+                />
+                {declarationPoints.us > 0 && (
+                    <DeclarationBadge side="us" points={declarationPoints.us} position="start" />
+                )}
+                {declarationPoints.them > 0 && (
+                    <DeclarationBadge side="them" points={declarationPoints.them} position="end" />
+                )}
+            </Flex>
             {tricksEnabled && (
                 <PillButton
                     icon={<FiLayers />}
@@ -105,6 +114,44 @@ export function TableActions({
             )}
             {chat}
         </HStack>
+    )
+}
+
+function DeclarationBadge({
+    side,
+    points,
+    position,
+}: {
+    side: TeamSide
+    points: number
+    position: "start" | "end"
+}) {
+    return (
+        <Flex
+            as="span"
+            aria-hidden="true"
+            position="absolute"
+            top="-6px"
+            {...(position === "start" ? { insetStart: "-10px" } : { insetEnd: "-10px" })}
+            minW="19px"
+            h="17px"
+            px="1"
+            align="center"
+            justify="center"
+            rounded="full"
+            bg={side === "us" ? "brand.300" : "yellow.400"}
+            color="brand.950"
+            borderWidth="2px"
+            borderColor="bg.opaque"
+            fontSize="9px"
+            fontWeight="bold"
+            fontVariantNumeric="tabular-nums"
+            lineHeight="1"
+            outline="1px solid"
+            outlineColor={TEAM[side]}
+        >
+            {points}
+        </Flex>
     )
 }
 
@@ -124,6 +171,7 @@ function PillButton({
     title,
     badge,
     badgeLabel,
+    ariaLabel,
     disabled = false,
     onClick,
 }: {
@@ -135,6 +183,7 @@ function PillButton({
     badge: string | null
     /** What that number MEANS, for the screen reader and the tooltip. */
     badgeLabel: string
+    ariaLabel?: string
     disabled?: boolean
     onClick: () => void
 }) {
@@ -162,7 +211,7 @@ function PillButton({
             _hover={disabled ? undefined : { bg: "bg.muted" }}
             _focusVisible={{ outline: "2px solid", outlineColor: "brand.300", outlineOffset: "2px" }}
             transition="background 0.12s ease, opacity 0.12s ease"
-            aria-label={badge ? `${label} — ${badgeLabel}` : label}
+            aria-label={ariaLabel ?? (badge ? `${label} — ${badgeLabel}` : label)}
             title={badge ? `${title ?? label} — ${badgeLabel}` : (title ?? label)}
             onClick={disabled ? undefined : onClick}
         >

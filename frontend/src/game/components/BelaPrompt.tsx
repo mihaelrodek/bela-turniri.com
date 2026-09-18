@@ -18,7 +18,7 @@ import { GLASS_STRONG, INK, INK_MUTED } from "./tableStyles"
    The engine is still the authority: it checks the hand really holds both K
    and Q of trump, and the flag can only ever SUPPRESS a bela, never invent one.
 
-   Two constraints shaped the layout, both from the 20 s turn clock ticking
+   Two constraints shaped the layout, both from the 15 s turn clock ticking
    behind it:
 
    1. It must not obscure the trick. So it is anchored to the BOTTOM of the
@@ -93,11 +93,6 @@ export default function BelaPrompt({
             >
                 <Text fontSize="md" fontWeight="bold" color={INK} textAlign="center" lineHeight="1.2">
                     {t("game.bela.ask")}
-                </Text>
-                {/* The reason the question exists at all. One line: whoever is
-                    reading it has a clock running. */}
-                <Text fontSize="2xs" color={INK_MUTED} textAlign="center" lineHeight="1.3">
-                    {t("game.bela.askHint")}
                 </Text>
                 <HStack gap="2">
                     <Button

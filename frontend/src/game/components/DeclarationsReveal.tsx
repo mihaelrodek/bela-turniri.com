@@ -1,12 +1,12 @@
-import { Box, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react"
+import { Box, Flex, HStack, IconButton, Portal, Text, VStack } from "@chakra-ui/react"
 import { FiX } from "react-icons/fi"
 import type { RoomState, Seat } from "@bela/protocol"
 import type { Declaration, Suit, Team } from "@bela/engine"
 import { useTranslation } from "../../i18n"
-import { SEATS, teamOf } from "../util/seats"
+import { otherTeam, SEATS, teamOf } from "../util/seats"
 import { RANKS, makeCard, suitKey } from "../util/cards"
 import PlayingCard from "./PlayingCard"
-import { GLASS_STRONG, INK, INK_MUTED } from "./tableStyles"
+import { GLASS_STRONG, INK, INK_MUTED, TEAM } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
    DeclarationsReveal — the overlay that answers "who had what, and who got
@@ -92,14 +92,15 @@ export function BelotFlash({
     const name = seatName(seats, seat, t("game.seat.empty"))
 
     return (
+        <Portal>
         <Flex
-            position="absolute"
+            position="fixed"
             inset="0"
             align="center"
             justify="center"
             px="3"
             pointerEvents="none"
-            zIndex={10}
+            zIndex={1500}
             bg="bg.opaque"
             backdropFilter="blur(5px)"
             role="status"
@@ -163,6 +164,7 @@ export function BelotFlash({
                 </Text>
             </VStack>
         </Flex>
+        </Portal>
     )
 }
 
@@ -172,6 +174,8 @@ export default function DeclarationsReveal({
     seats,
     mySeat,
     ownDeclarations,
+    declarationPoints,
+    belaDeclared,
     onDismiss,
 }: {
     /** The SCORING pair only — that is all the engine sends (README §1.4). */
@@ -182,6 +186,10 @@ export default function DeclarationsReveal({
     /** The viewer's own declarations, from `PlayerView.declarations[mySeat]`.
      *  Used ONLY to say "yours lost" when our pair did not win the contest. */
     ownDeclarations?: readonly Declaration[]
+    /** Live totals include Bela, which can belong to the other pair even
+     *  when ordinary declarations were awarded to the scoring pair. */
+    declarationPoints?: Record<Team, number>
+    belaDeclared: Team | null
     onDismiss?: () => void
 }) {
     const { t } = useTranslation()
@@ -196,23 +204,43 @@ export default function DeclarationsReveal({
     )
     const ownLost =
         scoringTeam !== null && myTeam !== scoringTeam ? totalPoints(ownDeclarations ?? []) : 0
+    const theirTeam = otherTeam(myTeam)
+    const ordinaryPoints: Record<Team, number> = { A: 0, B: 0 }
+    for (const seat of withDeclarations) {
+        ordinaryPoints[teamOf(seat)] += totalPoints(perSeat[seat] ?? [])
+    }
+    const points = declarationPoints ?? ordinaryPoints
+    const hasVisiblePoints = points.A > 0 || points.B > 0
+    const teamRows = [
+        {
+            team: myTeam,
+            side: "us" as const,
+            label: mySeat === null ? t("game.score.teamA") : t("game.score.us"),
+        },
+        {
+            team: theirTeam,
+            side: "them" as const,
+            label: mySeat === null ? t("game.score.teamB") : t("game.score.them"),
+        },
+    ]
 
     return (
-        <Flex
-            position="absolute"
-            inset="0"
-            align="center"
-            justify="center"
-            px="3"
-            zIndex={8}
-            bg="blackAlpha.500"
-            backdropFilter="blur(2px)"
-            onClick={onDismiss}
-            css={{
-                animation: "belaRevealIn 180ms ease-out",
-                "@keyframes belaRevealIn": { from: { opacity: 0 }, to: { opacity: 1 } },
-            }}
-        >
+        <Portal>
+            <Flex
+                position="fixed"
+                inset="0"
+                align="center"
+                justify="center"
+                px="3"
+                zIndex={1500}
+                bg="blackAlpha.500"
+                backdropFilter="blur(2px)"
+                onClick={onDismiss}
+                css={{
+                    animation: "belaRevealIn 180ms ease-out",
+                    "@keyframes belaRevealIn": { from: { opacity: 0 }, to: { opacity: 1 } },
+                }}
+            >
             <VStack
                 gap="2"
                 align="stretch"
@@ -246,7 +274,50 @@ export default function DeclarationsReveal({
                     {t("game.declarations.title")}
                 </Text>
 
-                {withDeclarations.length === 0 ? (
+                {hasVisiblePoints && (
+                    <HStack gap="2" align="stretch">
+                        {teamRows.map(({ team, side, label }) => (
+                            <VStack
+                                key={team}
+                                flex="1"
+                                gap="0.5"
+                                align={side === "us" ? "start" : "end"}
+                                rounded="l2"
+                                px="2.5"
+                                py="2"
+                                bg="bg.subtle"
+                                borderTopWidth="2px"
+                                borderTopColor={TEAM[side]}
+                            >
+                                <Text
+                                    fontSize="2xs"
+                                    fontWeight="bold"
+                                    color={TEAM[side]}
+                                    textTransform="uppercase"
+                                    letterSpacing="wide"
+                                >
+                                    {label}
+                                </Text>
+                                <Text
+                                    fontSize="xl"
+                                    lineHeight="1"
+                                    fontWeight="black"
+                                    color={points[team] > 0 ? INK : INK_MUTED}
+                                    fontVariantNumeric="tabular-nums"
+                                >
+                                    {points[team] > 0 ? `+${points[team]}` : "—"}
+                                </Text>
+                                {belaDeclared === team && (
+                                    <Text fontSize="2xs" fontWeight="bold" color={TEAM[side]}>
+                                        {t("game.declarations.bela")}
+                                    </Text>
+                                )}
+                            </VStack>
+                        ))}
+                    </HStack>
+                )}
+
+                {withDeclarations.length === 0 && belaDeclared === null ? (
                     <Text fontSize="xs" color={INK_MUTED} textAlign="center" py="2">
                         {t("game.declarations.none")}
                     </Text>
@@ -311,6 +382,7 @@ export default function DeclarationsReveal({
                 )}
 
             </VStack>
-        </Flex>
+            </Flex>
+        </Portal>
     )
 }

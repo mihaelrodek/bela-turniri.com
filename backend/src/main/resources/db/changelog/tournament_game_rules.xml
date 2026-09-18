@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      Rules agreed for every game at a tournament. Defaults mirror the online
+      table: 1001, prolaz, dealing right, declarations on and bela allowed.
+      Keeping these on tournaments makes the rules visible before players
+      register and leaves historical tournaments with an unambiguous setup.
+    -->
+    <changeSet id="2026-09-18-tournament-game-rules" author="mrodek">
+        <addColumn tableName="tournaments">
+            <column name="target_score" type="integer" defaultValueNumeric="1001">
+                <constraints nullable="false"/>
+            </column>
+            <column name="game_end_rule" type="varchar(8)" defaultValue="prolaz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deal_direction" type="varchar(8)" defaultValue="right">
+                <constraints nullable="false"/>
+            </column>
+            <column name="declarations_enabled" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="allow_bela" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

@@ -92,6 +92,7 @@ export const forms: FormsDict = {
 
     // --- CreateTournamentPage.tsx --------------------------------------------
     "createTournament.section.pricing": "Kotizacija in repasaž",
+    "createTournament.section.gameRules": "Pravila igre",
     "createTournament.section.rewards": "Nagrade",
     "createTournament.section.contact": "Kontakt organizatorja",
 
@@ -133,6 +134,20 @@ export const forms: FormsDict = {
     "createTournament.repassageUntil.semifinals": "Polfinala",
     "createTournament.repassageUntil.firstRound": "Prvega kroga",
     "createTournament.repassageUntil.helper": "Zadnji krog, pred katerim je mogoče kupiti dodatno življenje.",
+
+    "createTournament.targetScore.label": "Igra se do",
+    "createTournament.gameEndRule.label": "Igra se na",
+    "createTournament.gameEndRule.prolaz": "Prehod",
+    "createTournament.gameEndRule.dosta": "Dosta",
+    "createTournament.dealDirection.label": "Smer deljenja",
+    "createTournament.dealDirection.right": "Desno",
+    "createTournament.dealDirection.left": "Levo",
+    "createTournament.declarations.label": "Napovedi",
+    "createTournament.declarations.enabled": "Veljajo",
+    "createTournament.declarations.disabled": "Brez napovedi",
+    "createTournament.allowBela.label": "Bela je dovoljena",
+    "createTournament.allowBela.yes": "Da",
+    "createTournament.allowBela.no": "Ne",
 
     "createTournament.rewardsMode.fixed": "Fiksne nagrade (€)",
     "createTournament.rewardsMode.percentage": "Odstotek sklada (%)",

@@ -90,7 +90,7 @@ export function seatsFromMe(mySeat: Seat | null): Seat[] {
  *  the two meet in the middle rather than colliding.) */
 export const SEAT_ANCHORS: Record<TablePosition, CSSProperties> = {
     top: {
-        bottom: "min(calc(100% - var(--seat-h)), calc(var(--cy-bottom) + var(--seat-y) + 12px))",
+        bottom: "min(calc(100% - var(--seat-h)), calc(var(--cy-bottom) + var(--seat-y) + 32px))",
         left: "50%",
         transform: "translateX(-50%)",
     },

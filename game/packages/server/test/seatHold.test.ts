@@ -197,6 +197,40 @@ describe("seat hold on an explicit leave", () => {
         expect(room.holdFor("dev:gost")).toBeNull()
     })
 
+    it("frees the seat outright when a lobby connection closes", async () => {
+        server = await startTestServer()
+        const host = await connect("Domacin")
+        host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false })
+        const joined = await host.nextOfType("room.joined")
+        const guest = await connect("Gost")
+        guest.send({ t: "room.join", roomId: joined.room.id })
+        expect((await guest.nextOfType("room.joined")).yourSeat).toBe(2)
+
+        await guest.close()
+        const room = server.lobby.get(joined.room.id)!
+        await until(() => room.slotAt(2) === null)
+        expect(room.holdFor("dev:gost")).toBeNull()
+    })
+
+    it("deletes a lobby once its last human leaves, even when bots remain", async () => {
+        server = await startTestServer()
+        const host = await connect("Domacin")
+        host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false, allowSpectators: true })
+        const joined = await host.nextOfType("room.joined")
+        for (const seat of [1, 2, 3] as const) host.send({ t: "room.addBot", seat })
+        await host.next((m) => m.t === "room.state" && m.room.seats.every((s) => s.occupant !== null))
+        const spectator = await connect("Gledatelj")
+        spectator.send({ t: "room.join", roomId: joined.room.id })
+        expect((await spectator.nextOfType("room.joined")).yourSeat).toBeNull()
+
+        host.send({ t: "room.leave" })
+        await host.nextOfType("room.left")
+        await spectator.nextOfType("room.left")
+        await until(() => server?.lobby.get(joined.room.id) === undefined)
+
+        expect(server.roomCount()).toBe(0)
+    })
+
     it("converts the held seat to a bot once the hold expires", async () => {
         server = await startTestServer({
             timings: { reconnectGraceMs: 60, botThinkMinMs: 100_000, botThinkMaxMs: 100_000 },

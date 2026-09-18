@@ -56,6 +56,7 @@ export const game: GameDict = {
     "connection.connecting": "Povezovanje…",
     "connection.open": "Povezano",
     "connection.closed": "Povezava je prekinjena — poskušam znova",
+    "connection.slow": "Povezava je počasna — poskušam se povezati",
 
     /* ─── Barve in vrednosti kart ───────────────────────────── */
     "suit.HERC": "srce",
@@ -224,6 +225,7 @@ export const game: GameDict = {
     "table.secondsLeft.two": "{n} sekundi",
     "table.secondsLeft.few": "{n} sekunde",
     "table.secondsLeft.other": "{n} sekund",
+    "table.turnTimeLeft": "Preostali čas za potezo: {seconds} s",
 
     // Statusna tablica nad roko — kdo je na vrsti in kaj počne.
     "table.turnYou": "Ti si na vrsti",
@@ -274,6 +276,7 @@ export const game: GameDict = {
     /* ─── Napovedi ──────────────────────────────────────────── */
     "declarations.title": "Napovedi",
     "declarations.none": "Nihče nima napovedi.",
+    "declarations.bela": "Bela +20",
     "declarations.oursLost": "Tvoje napovedi ({points}) propadejo.",
 
     "bela.title": "Bela!",
@@ -281,9 +284,8 @@ export const game: GameDict = {
     // Klic bele je IZBIRA (game/README.md §1.4): vprašamo enkrat, ko igralec
     // vrže prvo od K/Q aduta. Zavrnitev velja za celotno delitev.
     "bela.ask": "Kličeš belo?",
-    "bela.askHint": "20 točk — a če padete, jih dobi nasprotnik.",
-    "bela.askYes": "Kliči",
-    "bela.askNo": "Ne kliči",
+    "bela.askYes": "Da",
+    "bela.askNo": "Ne",
 
     "belot.title": "BELOT!",
     "belot.by": "{name} ima vseh osem kart — {suit}",
@@ -309,7 +311,9 @@ export const game: GameDict = {
     /* ─── Konec igre ────────────────────────────────────────── */
     "over.youWon": "Zmaga!",
     "over.youLost": "Poraz",
-    "over.description": "Partija je končana. Označi pripravljenost za novo partijo ali zapusti sobo.",
+    "over.wonDescription": "Bravo, videti je, da si pravi mojster bele!",
+    "over.lostDescription": "Več sreče prihodnjič!",
+    "over.finished": "Igra je končana.",
     "over.belotDescription": "{name} je dobil vseh osem kart iste barve in takoj osvojil igro.",
     "over.backToLobby": "Nazaj v predsobo",
     "over.newGame": "Nova igra",

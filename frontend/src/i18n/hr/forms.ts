@@ -103,6 +103,7 @@ export const forms = {
     // Group headings INSIDE a wizard card. „Osnovno“ has none — the step
     // strip above the card already names it — so there is no basicInfo key.
     "createTournament.section.pricing": "Kotizacija i repasaž",
+    "createTournament.section.gameRules": "Pravila igre",
     "createTournament.section.rewards": "Nagrade",
     "createTournament.section.contact": "Kontakt organizatora",
 
@@ -146,6 +147,20 @@ export const forms = {
     "createTournament.repassageUntil.semifinals": "Polufinala",
     "createTournament.repassageUntil.firstRound": "Prvog kruga",
     "createTournament.repassageUntil.helper": "Zadnja runda prije koje je moguće kupiti dodatni život.",
+
+    "createTournament.targetScore.label": "Igra se do",
+    "createTournament.gameEndRule.label": "Igra se na",
+    "createTournament.gameEndRule.prolaz": "Prolaz",
+    "createTournament.gameEndRule.dosta": "Dosta",
+    "createTournament.dealDirection.label": "Smjer kartanja",
+    "createTournament.dealDirection.right": "Desno",
+    "createTournament.dealDirection.left": "Lijevo",
+    "createTournament.declarations.label": "Zvanja",
+    "createTournament.declarations.enabled": "Vrijede",
+    "createTournament.declarations.disabled": "Bez zvanja",
+    "createTournament.allowBela.label": "Bela je dopuštena",
+    "createTournament.allowBela.yes": "Da",
+    "createTournament.allowBela.no": "Ne",
 
     "createTournament.rewardsMode.fixed": "Fixne nagrade (€)",
     "createTournament.rewardsMode.percentage": "Postotak fonda (%)",

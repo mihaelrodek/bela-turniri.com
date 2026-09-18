@@ -115,7 +115,7 @@ automatski, čim igrač odigra prvu od K/Q aduta. Sada se igrača **pita**.
   **za cijelu podjelu**. „Ne” ubija belu: druga karta se poslije igra kao svaka
   druga — ne pita se ponovno i ne boduje se ništa. (Razmotreno i odbačeno:
   pitati ponovno na drugoj karti.)
-- **Bez odgovora bela SE PRIJAVLJUJE.** Istek `turnTimeoutMs` (20 s), odsutan
+- **Bez odgovora bela SE PRIJAVLJUJE.** Istek `turnTimeoutMs` (15 s), odsutan
   igrač kojemu bot odigra potez i **svaki botov potez** stižu bez odgovora, a
   20 bodova je dobitak na velikoj većini podjela — šutnja to ne smije stajati.
   Bot uvijek zove (§5).
@@ -472,7 +472,7 @@ Ključni tokovi:
   `room.stand`; `room.addBot {seat}`;
   `room.removeBot {seat}`; `room.ready {ready}`; `room.start` (može pokrenuti bilo
   koji igrač za stolom kada su sva četiri mjesta popunjena i svi ljudski igrači
-  spremni; botove domaćin dodaje prije pokretanja); `room.leave`. Server emitira
+  spremni; svaki član sobe može dodati ili ukloniti bota prije pokretanja); `room.leave`. Server emitira
   `room.state` svima u sobi.
 - **Postavke sobe**: `room.setOptions {targetScore?, gameEndRule?, allowSpectators?,
   noDeclarations?, allowBela?, trickReview?}` — domaćin mijenja pravila **već
@@ -483,7 +483,7 @@ Ključni tokovi:
     jedan prekidač bez ponavljanja ostalih pet. Vrijednost koja *jest* poslana,
     a nije valjana, vraća `BAD_REQUEST` — ne tiho se ispravlja, jer bi prekidač
     kod domaćina ostao prikazivati postavku koju soba nikad nije primila.
-  - **Samo domaćin** (`NOT_HOST`), kao i za svaki drugi prekidač cijele sobe.
+  - **Samo domaćin** (`NOT_HOST`) mijenja ova pravila sobe.
   - **Samo u `LOBBY`** (`ALREADY_STARTED`): ovo su pravila *podjele*, a
     `GameRoom` ih je pri `room.start` već prepisao u `GameConfig` — promjena u
     tijeku partije ostavila bi sobu koja oglašava jednu igru i engine koji
@@ -547,21 +547,21 @@ Ključni tokovi:
 
 ### 3.1 Timeri i čuvanje sjedala — NORMATIVNO
 
-- **Potez**: `turnTimeoutMs` (default 20 000). Istekom bot odigra **jedan**
+- **Potez**: `turnTimeoutMs` (default 15 000). Istekom bot odigra **jedan**
   potez za igrača; `game.state.autoPlayed` to označava. Taj potez ide **bez
   `bela` zastavice**, pa se eventualna bela prijavljuje — nitko nije odgovorio,
   a šutnja zove (§1.4).
-- **Čuvanje sjedala (`reconnectGraceMs`, default 120 000 = 2 min)**. Pokreće ga
-  pad socketa. Izričit `room.leave` u sobi `PLAYING` pokreće ga samo ako nakon
-  izlaska za stolom ostanu najmanje dvije osobe. Za to vrijeme:
+- **Čuvanje sjedala (`reconnectGraceMs`, default 120 000 = 2 min)** vrijedi
+  samo dok je soba `PLAYING`. Pokreće ga pad socketa. Izričit `room.leave` u
+  aktivnoj partiji pokreće ga samo ako nakon izlaska za stolom ostanu najmanje
+  dvije osobe. Za to vrijeme:
   - sjedalo i dalje pripada tom uid-u; soba ga prikazuje kao
     `connected: false` uz `holdUntil` (`SeatInfo.occupant`), **ne** kao bota;
   - njegovi potezi se **ne** igraju odmah — teče obični `turnTimeoutMs`, i tek
     istekom bot odigra jedan potez (`autoPlayed`). Bot ne „preuzima” stol;
   - povratak (`room.join`, `room.joinByCode`, ili `hello` kad je razlog pada
     bio disconnect) vraća sjedalo i poništava čuvanje;
-  - istekom čuvanja bot trajno preuzima sjedalo do kraja partije (u `LOBBY`
-    statusu se sjedalo samo oslobodi).
+  - istekom čuvanja bot trajno preuzima sjedalo do kraja partije.
 - **Raspad partije**: ako izričit izlazak tijekom igre ostavi manje od dvije
   osobe, cijela soba se odmah uklanja. To obuhvaća 1 osobu + 3 bota i
   2 osobe + 2 bota kada jedna osoba izađe. Preostali članovi dobivaju
@@ -573,9 +573,10 @@ Ključni tokovi:
   novi `hello` automatski vraća u sobu **samo** kod `disconnect`. Nakon
   izričitog izlaska korisnik dobiva `game.active` i vraća se gumbom — inače bi
   otvaranje predvorja tiho poništilo čuvanje i sjedalo se ne bi nikad izgubilo.
-- U `LOBBY` statusu izričit `room.leave` oslobađa sjedalo odmah (nema što čuvati).
-  Ako nakon toga ne ostane nijedan čovjek ni aktivni član, soba se odmah briše;
-  botovi sami ne mogu održavati sobu aktivnom niti vidljivom u predvorju.
+- U `LOBBY` statusu i izričit `room.leave` i prekid veze oslobađaju sjedalo
+  odmah (nema aktivne partije koju bi trebalo čuvati). Ako nakon toga ne ostane
+  nijedan ljudski član sobe, soba se odmah briše; botovi sami ne mogu održavati
+  sobu aktivnom niti vidljivom u predvorju.
 - **Greške**: `error { code, message }`, `code` ∈ `UNAUTHENTICATED | ROOM_NOT_FOUND |
   ROOM_FULL | ROOM_CODE_REQUIRED | SPECTATORS_DISABLED | SEAT_TAKEN | NOT_HOST | NOT_IN_ROOM | NOT_YOUR_TURN | ILLEGAL_MOVE |
   RATE_LIMITED | BAD_REQUEST | ALREADY_STARTED | NOT_ENOUGH_PLAYERS | ALREADY_IN_GAME`.
@@ -723,7 +724,7 @@ sam iz socketa; server pokriva ostalo, preko backenda
   Odsutan čovjek nije bot: njemu teče normalan `turnTimeoutMs` i bot odigra tek
   na isteku (§3.1). Ranije je vraćalo `!slot.connected`, pa je bot počinjao
   igrati istog trenutka kad bi nekome puknula veza.
-- Botovi igraju s mirnijim kašnjenjem (1800–2800 ms) da se svako zvanje i odigrana
+- Botovi igraju s mirnijim kašnjenjem (1300–2300 ms) da se svako zvanje i odigrana
   karta mogu jasno pratiti, a tempo i dalje ostane prirodan.
 - Env: `GAME_PORT=8285`, `FIREBASE_PROJECT_ID`, `GAME_DEV_ALLOW_ANON`, `GAME_CORS_ORIGINS`.
 - Dockerfile (multi-stage, node:22-alpine), `docker-compose.prod.yaml` servis `game`,
@@ -883,8 +884,9 @@ prijavljeni suigrači zadržavaju svoju statistiku prema pravilima prihvatljivos
   **svim rutama osim `/igra*`** (stol je stol, a predvorje ima svoju veću
   karticu): ime sobe, tko je za stolom, povratak, izlaz; sklopiv i odbaciv.
   Diže se iznad `MobileTabBar`-a preko `MOBILE_TABBAR_CLEARANCE`.
-- `components/GameRoomExitGuard.tsx` — klik iz sobe na ne-game rutu pita
-  „ostani u sobi ili izađi”. **Ne** koristi `useBlocker` jer aplikacija ima
+- `components/GameRoomExitGuard.tsx` — klik iz aktivne partije na ne-game rutu
+  pita „ostani u sobi ili izađi”; iz čekanja ili završene partije odmah šalje
+  `room.leave`. **Ne** koristi `useBlocker` jer aplikacija ima
   obični `<BrowserRouter>` (blocker traži data router), nego hvata klik na
   `<a href>` u capture fazi prije react-routera. Pita samo kad stvarno sjedimo
   za stolom; gledatelj prolazi bez pitanja.

@@ -49,6 +49,11 @@ public interface TournamentMapper {
             @Mapping(target = "repassagePrice", source = "repassagePrice"),
             @Mapping(target = "repassageSecondPrice", source = "repassageSecondPrice"),
             @Mapping(target = "repassageUntil", source = "repassageUntil", qualifiedByName = "enumToName"),
+            @Mapping(target = "targetScore", source = "targetScore"),
+            @Mapping(target = "gameEndRule", source = "gameEndRule"),
+            @Mapping(target = "dealDirection", source = "dealDirection"),
+            @Mapping(target = "declarationsEnabled", source = "declarationsEnabled"),
+            @Mapping(target = "allowBela", source = "allowBela"),
             @Mapping(target = "contactName", source = "contactName"),
             @Mapping(target = "contactPhone", source = "contactPhone"),
             @Mapping(target = "rewardType", source = "rewardType", qualifiedByName = "enumToName"),
@@ -88,6 +93,11 @@ public interface TournamentMapper {
             @Mapping(target = "repassagePrice", source = "repassagePrice"),
             @Mapping(target = "repassageSecondPrice", source = "repassageSecondPrice"),
             @Mapping(target = "repassageUntil", source = "repassageUntil", qualifiedByName = "nameToRepassageUntil"),
+            @Mapping(target = "targetScore", source = "targetScore"),
+            @Mapping(target = "gameEndRule", source = "gameEndRule"),
+            @Mapping(target = "dealDirection", source = "dealDirection"),
+            @Mapping(target = "declarationsEnabled", source = "declarationsEnabled"),
+            @Mapping(target = "allowBela", source = "allowBela"),
 
             @Mapping(target = "contactName", source = "contactName"),
             @Mapping(target = "contactPhone", source = "contactPhone"),
@@ -134,6 +144,11 @@ public interface TournamentMapper {
             @Mapping(target = "repassagePrice", source = "repassagePrice"),
             @Mapping(target = "repassageSecondPrice", source = "repassageSecondPrice"),
             @Mapping(target = "repassageUntil", source = "repassageUntil", qualifiedByName = "nameToRepassageUntil"),
+            @Mapping(target = "targetScore", source = "targetScore"),
+            @Mapping(target = "gameEndRule", source = "gameEndRule"),
+            @Mapping(target = "dealDirection", source = "dealDirection"),
+            @Mapping(target = "declarationsEnabled", source = "declarationsEnabled"),
+            @Mapping(target = "allowBela", source = "allowBela"),
 
             @Mapping(target = "contactName", source = "contactName"),
             @Mapping(target = "contactPhone", source = "contactPhone"),
@@ -169,6 +184,11 @@ public interface TournamentMapper {
 
         if (t.getEntryPrice() == null) t.setEntryPrice(BigDecimal.ZERO);
         if (t.getRepassagePrice() == null) t.setRepassagePrice(BigDecimal.ZERO);
+        if (t.getTargetScore() == null) t.setTargetScore(1001);
+        if (t.getGameEndRule() == null || t.getGameEndRule().isBlank()) t.setGameEndRule("prolaz");
+        if (t.getDealDirection() == null || t.getDealDirection().isBlank()) t.setDealDirection("right");
+        if (t.getDeclarationsEnabled() == null) t.setDeclarationsEnabled(true);
+        if (t.getAllowBela() == null) t.setAllowBela(true);
         // repassageSecondPrice intentionally may be null
     }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { Badge, Box, Button, Grid, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Text, VStack } from "@chakra-ui/react"
+import { Badge, Box, Button, Grid, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Spinner, Text, VStack } from "@chakra-ui/react"
 import { FiLogIn, FiPlus, FiSearch, FiSettings, FiUsers } from "react-icons/fi"
 import type { RoomStatus, RoomSummary } from "@bela/protocol"
 import type { CreateGameOptions } from "../components/CreateGameDialog"
@@ -16,6 +16,7 @@ import GameSettingsSheet from "../components/GameSettingsSheet"
 import RoomListItem from "../components/RoomListItem"
 import { formatCountdown, useHoldCountdown } from "../hooks/useHoldCountdown"
 import { useGameSocket } from "../hooks/useGameSocket"
+import { useSlowConnection } from "../hooks/useSlowConnection"
 
 /* ──────────────────────────────────────────────────────────────────────────
    GameLobbyPage (/igra) — player settings, a card-table welcome panel,
@@ -51,36 +52,52 @@ function ActiveGameCard({
         <Box
             rounded="l3"
             borderWidth="1px"
-            borderColor={status === "PLAYING" ? "orange.400/60" : "brand.400"}
-            bg="bg.panel"
+            borderColor={status === "PLAYING" ? "orange.400" : "brand.400"}
+            bg="bg.opaque"
             px="3"
             py="2.5"
-            shadow="sm"
+            shadow="md"
         >
-            <HStack justify="space-between" gap="3" wrap="wrap">
-                <HStack gap="2" minW="0" flex="1" wrap="wrap">
-                    <Text fontWeight="semibold" whiteSpace="nowrap">{t("game.active.title")}</Text>
+            <VStack align="stretch" gap="3">
+                <HStack gap="2" minW="0" wrap="wrap">
+                    <Text fontWeight="semibold">{t("game.active.title")}</Text>
                     <Badge size="sm" variant="subtle" colorPalette={status === "PLAYING" ? "green" : "gray"}>
                         {t(`game.active.status.${status}`)}
                     </Badge>
-                    <Text fontSize="sm" color="fg.muted" lineClamp={1}>{roomName}</Text>
                     {remaining !== null && remaining > 0 && (
                         <Badge size="sm" variant="subtle" colorPalette="orange">
                             {t("game.active.holdLeft", { time: formatCountdown(remaining) })}
                         </Badge>
                     )}
                 </HStack>
-                <HStack gap="2" flexShrink={0}>
-                    <Button size="sm" colorPalette="brand" onClick={onResume}>
+                <Text fontSize="sm" color="fg.muted" lineClamp={1}>{roomName}</Text>
+                <HStack gap="2" w="full">
+                    <Button
+                        size="sm"
+                        flex="1"
+                        minW="0"
+                        px={{ base: "2", sm: "3" }}
+                        fontSize={{ base: "xs", sm: "sm" }}
+                        colorPalette="brand"
+                        onClick={onResume}
+                    >
                         <FiLogIn /> {t("game.active.resume")}
                     </Button>
                     {status !== "PLAYING" && (
-                        <Button size="sm" variant="outline" onClick={onLeave}>
+                        <Button
+                            size="sm"
+                            flex="1"
+                            minW="0"
+                            px={{ base: "2", sm: "3" }}
+                            fontSize={{ base: "xs", sm: "sm" }}
+                            variant="outline"
+                            onClick={onLeave}
+                        >
                             {t("game.active.leave")}
                         </Button>
                     )}
                 </HStack>
-            </HStack>
+            </VStack>
             <Text mt="1.5" fontSize="sm" color="fg.muted">
                 {t("game.active.description")}
             </Text>
@@ -152,6 +169,7 @@ export default function GameLobbyPage() {
     }, [socket.rooms, search])
 
     const connected = socket.status === "open"
+    const slowConnection = useSlowConnection(socket.status)
 
     const create = (options: CreateGameOptions) => {
         wantsRoomRef.current = true
@@ -209,7 +227,8 @@ export default function GameLobbyPage() {
                     <IconButton aria-label={t("game.settings.title")} variant="outline" rounded="full" onClick={() => setSettingsOpen(true)}><FiSettings /></IconButton>
                     {!connected && (
                         <Badge size="sm" variant="subtle" colorPalette="orange">
-                            {t(`game.connection.${socket.status}`)}
+                            <Spinner size="2xs" />
+                            {slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}
                         </Badge>
                     )}
                     </HStack>

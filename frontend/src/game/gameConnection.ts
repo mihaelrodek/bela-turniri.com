@@ -201,8 +201,31 @@ export function dismissWidget(): void {
  * that second action is intentionally not offered in the playing-game lobby.
  */
 export function leaveRoom(): void {
+    // Keep the current retainer from immediately rejoining this very same
+    // room while React is navigating from the table back to the lobby. Once
+    // `room.left` arrives, `applyDesired` below is allowed to join it again.
+    leavingRoomId = state.room?.id ?? state.stickyRoomId ?? state.activeSeat?.roomId
+    leavingRetainers = leavingRoomId === undefined
+        ? null
+        : new Set([...retainers].filter((retainer) => retainer.active && retainer.roomId === leavingRoomId))
     if (state.room || state.stickyRoomId || state.activeSeat) send({ t: "room.leave" })
     setSticky(null)
+    // Leaving a lobby is final. Clear this tab immediately instead of keeping
+    // a stale finished-game view or an "active game" card visible until the
+    // round-trip `room.left` / `game.active` frames arrive.
+    set({
+        ...state,
+        room: null,
+        yourSeat: null,
+        view: null,
+        turnDeadline: null,
+        turnDurationMs: null,
+        declarationsPending: false,
+        autoPlayed: false,
+        events: [],
+        reactions: [],
+        activeSeat: null,
+    })
 }
 
 /* ───────────────────────── frame handling ───────────────────────── */
@@ -272,20 +295,49 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
                 error: null,
             }
         case "room.joined":
-        case "room.state":
+        case "room.state": {
+            // A room can finish while this tab is elsewhere. When the player
+            // enters another lobby afterwards, its `room.joined` is not a
+            // continuation of that old table: discard old GAME_OVER state,
+            // queued animations and reactions before rendering the newcomer.
+            const enteringDifferentRoom = prev.room?.id !== msg.room.id
             return {
                 ...prev,
                 room: msg.room,
                 yourSeat: msg.yourSeat,
                 holdUntil: null,
+                ...(enteringDifferentRoom
+                    ? {
+                        view: null,
+                        turnDeadline: null,
+                        turnDurationMs: null,
+                        declarationsPending: false,
+                        autoPlayed: false,
+                        events: [],
+                        reactions: [],
+                    }
+                    : {}),
                 // A rematch must not replay the previous game's final animations.
                 ...(prev.room?.status === "LOBBY" && msg.room.status === "PLAYING" ? { events: [] } : {}),
             }
+        }
         case "room.left":
-            // Keep the chat log: the user may be bouncing between the room and
-            // the lobby, and losing it on every hop is worse than showing a
-            // stale line or two.
-            return { ...prev, room: null, yourSeat: null, view: null, turnDeadline: null, turnDurationMs: null }
+            // Chat can survive a hop, but no game-local visual state may: a
+            // later join is a fresh room unless the server explicitly sends a
+            // state for the same one.
+            return {
+                ...prev,
+                room: null,
+                yourSeat: null,
+                view: null,
+                turnDeadline: null,
+                turnDurationMs: null,
+                declarationsPending: false,
+                autoPlayed: false,
+                events: [],
+                reactions: [],
+                activeSeat: null,
+            }
         case "game.state":
             return {
                 ...prev,
@@ -421,6 +473,10 @@ let transport: GameTransport | null = null
 let helloOk = false
 let outbox: ClientMessage[] = []
 let joinedRoomId: string | undefined
+/** A requested leave still waiting for the server's ordered `room.left`. */
+let leavingRoomId: string | undefined
+/** Retainers that belonged to the table at the moment its leave was sent. */
+let leavingRetainers: Set<Retainer> | null = null
 let lobbySubscribed = false
 let connectedUid: string | null = null
 let connectedMock = false
@@ -449,6 +505,8 @@ function teardown(): void {
     }
     helloOk = false
     joinedRoomId = undefined
+    leavingRoomId = undefined
+    leavingRetainers = null
     lobbySubscribed = false
     const t = transport
     transport = null
@@ -563,10 +621,35 @@ function applyDesired(): void {
     }
     // Never auto-LEAVE: walking off the game pages keeps the seat on purpose
     // (that is the whole point of the widget). Leaving is always explicit.
+    // Conversely, do not auto-JOIN while that explicit leave is still in
+    // flight: a table component remains mounted for one render while the
+    // router swaps it for the lobby.
+    if (leavingRoomId !== undefined) return
     if (d.roomId !== undefined && joinedRoomId !== d.roomId) {
         joinedRoomId = d.roomId
         transport.send({ t: "room.join", roomId: d.roomId })
     }
+}
+
+/** Finish a requested leave without allowing the departing table to rejoin. */
+function finishLeave(): void {
+    const leftRoomId = leavingRoomId
+    const retainersAtLeave = leavingRetainers
+    // `joinedRoomId` only records an outbound request. Keeping it after a
+    // leave makes a later visit to the SAME room look already joined, leaving
+    // the screen on its spinner until an unrelated reconnect resets it.
+    joinedRoomId = undefined
+    leavingRoomId = undefined
+    leavingRetainers = null
+
+    if (leftRoomId === undefined || desired().roomId !== leftRoomId) return
+    // The exiting GameRoom's retainer can still exist when the socket frame
+    // arrives. Only a new retainer proves that the player opened this room
+    // again while the leave was in flight.
+    const reopened = [...retainers].some(
+        (retainer) => retainer.active && retainer.roomId === leftRoomId && !retainersAtLeave?.has(retainer),
+    )
+    if (reopened) applyDesired()
 }
 
 async function connect(): Promise<void> {
@@ -588,6 +671,7 @@ async function connect(): Promise<void> {
             if (msg.t === "hello.ok") afterHello()
             set(applyMessage(state, msg))
             reconcileSticky(msg)
+            if (msg.t === "room.left" || (msg.t === "error" && msg.ref === "room.leave")) finishLeave()
             const d = desired()
             if ((msg.t === "room.joined" || msg.t === "room.state") && msg.room.id === d.roomId) {
                 setStatus("open")
@@ -602,6 +686,8 @@ async function connect(): Promise<void> {
         onClose: () => {
             helloOk = false
             joinedRoomId = undefined
+            leavingRoomId = undefined
+            leavingRetainers = null
             lobbySubscribed = false
             transport = null
             // Losing the socket while seated is exactly what starts the

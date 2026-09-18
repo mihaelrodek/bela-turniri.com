@@ -12,7 +12,7 @@ import { useTranslation } from "../../i18n"
    a moment, not a piece of furniture: it belongs in the middle of the screen,
    once, with a way to put it down.
 
-   Four things, in this order: who won, one line about what happens next, the
+   Four things, in this order: who won, one line about the result, the
    Mi/Oni score card, and a single button that dismisses it. Behind it the
    room is already back in LOBBY with its seats and its "Spreman" switch, so
    there is nothing else for this dialog to offer.
@@ -50,6 +50,13 @@ export default function GameOverDialog({
         : weWon
           ? t("game.over.youWon")
           : t("game.over.youLost")
+    const description = spectator
+        ? belotName
+            ? t("game.over.belotDescription", { name: belotName })
+            : t("game.over.finished")
+        : weWon
+          ? t("game.over.wonDescription")
+          : t("game.over.lostDescription")
 
     return (
         <Dialog.Root
@@ -68,9 +75,7 @@ export default function GameOverDialog({
                         <Dialog.Body>
                             <VStack gap="3" align="stretch">
                                 <Text fontSize="sm" color="fg.muted">
-                                    {belotName
-                                        ? t("game.over.belotDescription", { name: belotName })
-                                        : t("game.over.description")}
+                                    {description}
                                 </Text>
                                 <HStack
                                     gap="0"

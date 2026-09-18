@@ -83,30 +83,44 @@ const OFFLINE_ROUTE_MODULES = [
     "src/firebaseAuthModule.ts",
 ]
 
+/* The online table is deliberately warmed as one unit. Its scanned mađarice
+ * are emitted as content-hashed /assets files by `imageAssets.ts`; including
+ * imported assets only while walking these route roots keeps the offline blok
+ * light while ensuring a player never waits on a card image mid-deal. */
+const GAME_ROUTE_MODULES = [
+    "src/game/GameFeatureGate.tsx",
+    "src/game/components/GameIdentityGate.tsx",
+    "src/game/components/ActiveRoomWidget.tsx",
+    "src/game/components/GameRoomExitGuard.tsx",
+    "src/game/pages/GameLobbyPage.tsx",
+    "src/game/pages/GameRoomPage.tsx",
+    "src/i18n/hr/game.ts",
+]
+
+const PRECACHE_ROUTE_MODULES = [...OFFLINE_ROUTE_MODULES, ...GAME_ROUTE_MODULES]
+
 function precacheManifest(): Plugin {
     return {
         name: "bela-precache-manifest",
         apply: "build",
         generateBundle(_options, bundle) {
             const files = new Set<string>()
+            const assetsWalked = new Set<string>()
 
-            const walk = (fileName: string) => {
+            const walk = (fileName: string, includeAssets = false) => {
                 const entry = bundle[fileName]
                 if (!entry || entry.type !== "chunk") return
-                if (files.has(`/${fileName}`)) return
-                files.add(`/${fileName}`)
+                const key = `/${fileName}`
+                if (files.has(key) && (!includeAssets || assetsWalked.has(fileName))) return
+                files.add(key)
                 for (const css of entry.viteMetadata?.importedCss ?? []) files.add(`/${css}`)
-                // NOT `importedAssets`. Those are the URLs a module holds, not
-                // the bytes it needs to EXECUTE: `game/cards/madjarice`'s
-                // `import.meta.glob` puts all 32 card faces (2.8 MB of webp)
-                // into the graph of `PlayingCard`, which the scorepad reaches
-                // only for `SuitIcon` — four inline SVG paths that touch none
-                // of them. A blok never renders a card face, so precaching the
-                // deck would be the single biggest thing in the cache and the
-                // one thing offline /blok cannot use. An image that is missing
-                // offline degrades one picture; a missing chunk stops the app
-                // from booting, and only chunks and their CSS can do that.
-                for (const imported of entry.imports) walk(imported)
+                if (includeAssets) {
+                    assetsWalked.add(fileName)
+                    for (const asset of entry.viteMetadata?.importedAssets ?? []) {
+                        if (asset.startsWith("assets/") && !asset.includes("..")) files.add(`/${asset}`)
+                    }
+                }
+                for (const imported of entry.imports) walk(imported, includeAssets)
             }
 
             const found = new Set<string>()
@@ -114,21 +128,21 @@ function precacheManifest(): Plugin {
                 if (entry.type !== "chunk") continue
                 const facade = entry.facadeModuleId?.replaceAll("\\", "/") ?? ""
                 if (entry.isEntry) walk(fileName)
-                for (const module of OFFLINE_ROUTE_MODULES) {
+                for (const module of PRECACHE_ROUTE_MODULES) {
                     if (!facade.endsWith(module)) continue
                     found.add(module)
-                    walk(fileName)
+                    walk(fileName, GAME_ROUTE_MODULES.includes(module))
                 }
             }
 
-            // Loud, not silent: a precache without the scorepad in it would
-            // still "work" in every test that is not run on a plane.
-            const missing = OFFLINE_ROUTE_MODULES.filter((m) => !found.has(m))
+            // Loud, not silent: a precache without a route it promises to
+            // serve offline would look valid until a phone loses its signal.
+            const missing = PRECACHE_ROUTE_MODULES.filter((m) => !found.has(m))
             if (missing.length > 0) {
                 this.error(
                     `precache manifest: no chunk for ${missing.join(", ")}. `
                     + "Did the module move, or is it no longer lazily imported? "
-                    + "The offline scorepad depends on this.",
+                    + "The offline route cache depends on this.",
                 )
             }
 

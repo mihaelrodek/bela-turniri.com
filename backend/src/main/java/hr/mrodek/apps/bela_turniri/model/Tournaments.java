@@ -81,6 +81,22 @@ public class Tournaments {
     @Column(name = "repassage_until", length = 20)
     private RepassageUntil repassageUntil;
 
+    // Rules for the individual bela games played at this tournament.
+    @Column(name = "target_score", nullable = false)
+    private Integer targetScore = 1001;
+
+    @Column(name = "game_end_rule", length = 8, nullable = false)
+    private String gameEndRule = "prolaz";
+
+    @Column(name = "deal_direction", length = 8, nullable = false)
+    private String dealDirection = "right";
+
+    @Column(name = "declarations_enabled", nullable = false)
+    private Boolean declarationsEnabled = true;
+
+    @Column(name = "allow_bela", nullable = false)
+    private Boolean allowBela = true;
+
     // contact
     @Column(name = "contact_name", length = 120)
     private String contactName;
@@ -172,5 +188,10 @@ public class Tournaments {
         // meaningful value ("no cap on registered pairs").
         if (entryPrice == null) entryPrice = BigDecimal.ZERO;
         if (repassagePrice == null) repassagePrice = BigDecimal.ZERO;
+        if (targetScore == null) targetScore = 1001;
+        if (gameEndRule == null || gameEndRule.isBlank()) gameEndRule = "prolaz";
+        if (dealDirection == null || dealDirection.isBlank()) dealDirection = "right";
+        if (declarationsEnabled == null) declarationsEnabled = true;
+        if (allowBela == null) allowBela = true;
     }
 }

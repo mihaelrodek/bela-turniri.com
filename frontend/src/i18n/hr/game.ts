@@ -58,6 +58,7 @@ export const game = {
     "connection.connecting": "Spajanje…",
     "connection.open": "Povezano",
     "connection.closed": "Veza je prekinuta — pokušavam ponovno",
+    "connection.slow": "Veza je spora — pokušavam se spojiti",
 
     /* ─── Boje i vrijednosti karata ─────────────────────────── */
     // Hrvatski nazivi boja; simboli (♥♦♠♣) su francuski i ne prevode se.
@@ -245,6 +246,7 @@ export const game = {
     "table.secondsLeft.two": "{n} sekunde",
     "table.secondsLeft.few": "{n} sekunde",
     "table.secondsLeft.other": "{n} sekundi",
+    "table.turnTimeLeft": "Preostalo vrijeme za potez: {seconds} s",
 
     // Statusna pilula iznad ruke — tko je na potezu i što radi.
     "table.turnYou": "Tvoj potez",
@@ -297,6 +299,7 @@ export const game = {
     /* ─── Zvanja ────────────────────────────────────────────── */
     "declarations.title": "Zvanja",
     "declarations.none": "Nitko nema zvanja.",
+    "declarations.bela": "Bela +20",
     // Jedina rečenica o zvanjima koja su propala: karte protivničkog para se
     // više ne šalju ni ne prikazuju (README §1.4), a svoje si ionako vidiš.
     "declarations.oursLost": "Tvoja zvanja ({points}) propadaju.",
@@ -306,9 +309,8 @@ export const game = {
     // Zvanje bele je IZBOR (game/README.md §1.4): pitamo jednom, kad se baca
     // prva od K/Q aduta. Odbijanje vrijedi za cijelu podjelu.
     "bela.ask": "Zovi belu?",
-    "bela.askHint": "20 bodova — ali ako padnete, idu protivniku.",
-    "bela.askYes": "Zovi",
-    "bela.askNo": "Ne zovi",
+    "bela.askYes": "Da",
+    "bela.askNo": "Ne",
 
     "belot.title": "BELOT!",
     "belot.by": "{name} ima svih osam karata — {suit}",
@@ -334,7 +336,9 @@ export const game = {
     /* ─── Kraj igre ─────────────────────────────────────────── */
     "over.youWon": "Pobjeda!",
     "over.youLost": "Poraz",
-    "over.description": "Partija je završena. Označi spremnost za novu partiju ili napusti sobu.",
+    "over.wonDescription": "Bravo, izgleda da si pravi bela majstor!",
+    "over.lostDescription": "Više sreće drugi put!",
+    "over.finished": "Partija je završena.",
     "over.belotDescription": "{name} je dobio svih osam karata iste boje i odmah osvojio partiju.",
     "over.backToLobby": "Natrag u predvorje",
     "over.newGame": "Nova igra",

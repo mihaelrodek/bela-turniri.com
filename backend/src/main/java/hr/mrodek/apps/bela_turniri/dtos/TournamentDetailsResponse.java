@@ -29,6 +29,12 @@ public record TournamentDetailsResponse(
         BigDecimal repassageSecondPrice,    // maps from entity.repasage2
         String repassageUntil,        // "FINALS" | "SEMIFINALS" | "FIRST_ROUND"
 
+        Integer targetScore,           // 501 | 701 | 1001
+        String gameEndRule,            // "prolaz" | "dosta"
+        String dealDirection,          // "right" | "left"
+        Boolean declarationsEnabled,
+        Boolean allowBela,
+
         String contactName,
         String contactPhone,
 
