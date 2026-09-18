@@ -227,7 +227,7 @@ export default function GameLobbyPage() {
                     <IconButton aria-label={t("game.settings.title")} variant="outline" rounded="full" onClick={() => setSettingsOpen(true)}><FiSettings /></IconButton>
                     {!connected && (
                         <Badge size="sm" variant="subtle" colorPalette="orange">
-                            <Spinner size="2xs" />
+                            <Spinner size="xs" />
                             {slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}
                         </Badge>
                     )}
