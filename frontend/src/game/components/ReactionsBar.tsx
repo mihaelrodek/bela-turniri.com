@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react"
 import { Box, Flex, chakra } from "@chakra-ui/react"
+import { FiSmile } from "react-icons/fi"
 import { LIMITS, REACTIONS } from "@bela/protocol"
 import type { Reaction } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
+import { REACTION_TEXT_KEYS } from "../util/reactions"
+import { GLASS, INK_MUTED } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
-   ReactionsBar — the six emoji under the hand (game/DESIGN.md §2.8).
+   ReactionsBar — five quick phrases under the hand (game/DESIGN.md §2.8).
 
    The whole social surface of a table where three of the four players may
    be bots: no typing, no thinking, one tap. The protocol's own
@@ -13,6 +16,24 @@ import { useTranslation } from "../../i18n"
    buttons visibly grey out for those three seconds — a tap that silently
    does nothing reads as a broken button, while a button that is obviously
    resting reads as a rule.
+
+   FIVE SEPARATE RINGS in a row under the hand (2026-09-18, user request —
+   reverted the fused segmented-capsule look: each reaction is its own glass
+   circle with its own border, gapped from its neighbours, not one long box
+   with hairline dividers).
+
+   The FIRST circle is a plain, colourless smile icon (`FiSmile`, not an
+   emoji) that shows or hides the other five. Expanded by default: collapsing
+   is for a player who wants the row out of the way, not a hoop to jump
+   through before the row is ever useful.
+
+   The five reaction circles stay MOUNTED and reserve their layout space even
+   while collapsed — only `opacity`/`pointerEvents` toggle. The row is
+   `justify="center"`, so if they were removed from the DOM instead, the row
+   would shrink to just the toggle and RE-CENTRE around it alone, visibly
+   jumping the toggle from "first circle of a six-circle row" to "the only
+   thing in the row" (bug reported 2026-09-18). Reserving the space keeps the
+   toggle's own position fixed regardless of expanded state.
 
    The other half of the feature — which seat is currently showing which
    emoji — is `useReactionBubbles` in `reactionBubbles.ts`, kept in its own
@@ -29,6 +50,7 @@ export default function ReactionsBar({
     const { t } = useTranslation()
     const [restingUntil, setRestingUntil] = useState(0)
     const [now, setNow] = useState(() => Date.now())
+    const [expanded, setExpanded] = useState(true)
 
     // One timer, and only while the bar is actually cooling down.
     useEffect(() => {
@@ -49,35 +71,63 @@ export default function ReactionsBar({
     return (
         <Flex
             justify="center"
-            gap="1"
+            align="center"
+            gap="1.5"
             px="2"
             aria-label={t("game.table.reactions")}
             role="group"
-            opacity={resting ? 0.45 : 1}
-            transition="opacity 0.2s ease"
         >
+            <chakra.button
+                type="button"
+                {...GLASS}
+                w="44px"
+                h="44px"
+                rounded="full"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                fontSize="18px"
+                lineHeight="1"
+                color={INK_MUTED}
+                cursor="pointer"
+                _hover={{ bg: "bg.muted" }}
+                _active={{ bg: "bg.muted" }}
+                _focusVisible={{ outline: "2px solid", outlineColor: "brand.300", outlineOffset: "2px" }}
+                transition="background 0.12s ease"
+                aria-label={t("game.table.reactionsToggle")}
+                aria-expanded={expanded}
+                onClick={() => setExpanded((v) => !v)}
+            >
+                <FiSmile aria-hidden="true" />
+            </chakra.button>
+
             {REACTIONS.map((reaction) => (
                 <chakra.button
                     type="button"
                     key={reaction}
-                    w="36px"
-                    h="30px"
+                    {...GLASS}
+                    w="44px"
+                    h="44px"
                     rounded="full"
                     display="flex"
                     alignItems="center"
                     justifyContent="center"
-                    fontSize="17px"
+                    fontSize="18px"
                     lineHeight="1"
-                    bg="brand.950/62"
-                    borderWidth="1px"
-                    borderColor="brand.700/70"
+                    opacity={!expanded ? 0 : resting ? 0.45 : 1}
+                    pointerEvents={expanded ? "auto" : "none"}
+                    aria-hidden={!expanded}
+                    tabIndex={expanded ? undefined : -1}
                     cursor={disabled || resting ? "default" : "pointer"}
-                    disabled={disabled || resting}
-                    _hover={disabled || resting ? undefined : { bg: "brand.700", transform: "translateY(-2px)" }}
+                    disabled={disabled || resting || !expanded}
+                    _hover={disabled || resting ? undefined : { bg: "bg.muted" }}
+                    _active={disabled || resting ? undefined : { bg: "bg.muted" }}
                     _focusVisible={{ outline: "2px solid", outlineColor: "brand.300", outlineOffset: "2px" }}
-                    transition="transform 0.12s ease, background 0.12s ease"
-                    aria-label={t("game.table.sendReaction", { emoji: reaction })}
-                    title={t("game.table.sendReaction", { emoji: reaction })}
+                    transition="background 0.12s ease, opacity 0.16s ease"
+                    aria-label={t("game.table.sendReaction", {
+                        reaction: t(REACTION_TEXT_KEYS[reaction]),
+                    })}
+                    title={t(REACTION_TEXT_KEYS[reaction])}
                     onClick={() => send(reaction)}
                 >
                     <Box as="span" aria-hidden="true">{reaction}</Box>

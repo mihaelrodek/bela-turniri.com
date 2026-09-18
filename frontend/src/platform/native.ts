@@ -53,3 +53,21 @@ export async function nativeMessaging() {
     const mod = await import("@capacitor-firebase/messaging")
     return { FirebaseMessaging: mod.FirebaseMessaging, Importance: mod.Importance }
 }
+
+/**
+ * The app's own Live Activity (iOS) / Live Update (Android) plugin. Unlike the
+ * loaders above there is no npm package: `registerPlugin` lives in
+ * `liveActivityPlugin.ts`, and this `import()` is what keeps that file a lazy
+ * chunk. See `game/hooks/useLiveActivity.ts` for when it is driven.
+ */
+export async function nativeLiveActivity() {
+    return (await import("./liveActivityPlugin")).default
+}
+
+/** Returns the plugin AND both enums (same pattern as `nativeStatusBar`):
+ *  `ImpactStyle` / `NotificationType` are runtime enums, so importing them at
+ *  module scope would drag the plugin's registerPlugin() into that chunk. */
+export async function nativeHaptics() {
+    const mod = await import("@capacitor/haptics")
+    return { Haptics: mod.Haptics, ImpactStyle: mod.ImpactStyle, NotificationType: mod.NotificationType }
+}

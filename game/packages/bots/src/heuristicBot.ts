@@ -32,6 +32,7 @@ import {
     belaLead,
     declarationRead,
     defensiveLead,
+    defensiveTrumpCapture,
     fillPreferringTen,
     isLastOfADeadSuit,
     partnerAskedForTrump,
@@ -39,7 +40,7 @@ import {
     stigljaTakeOver,
     forceOutTheLastTrump,
     tenThatSecuresThePass,
-    nineOnPartnersLowTrump,
+    highTrumpOnPartnersLowTrump,
     bestTrumpSuit,
     callerTrumpLead,
     cheapestCard,
@@ -50,6 +51,7 @@ import {
     isMasterCard,
     isPartnerHoldingTrick,
     isThinLead,
+    openingTrumpForCallingPartner,
     partnerSignal,
     partnerTrickIsSafe,
     quietLeadCard,
@@ -184,6 +186,29 @@ function chooseBid(view: PlayerView, legal: LegalBids, _rng: () => number): BidC
  *     a singleton or a backed 10 (`isThinLead`, both 2:1 against);
  *  8. the weakest card I have.
  */
+/**
+ * A caller who opens a trick with the trump jack available leads it.
+ *
+ * J-9-A has its own deliberate sequence in `callerTrumpLead`, so it must not
+ * be intercepted here.
+ */
+function callerJackLead(
+    view: PlayerView,
+    legal: readonly Card[],
+    trump: Suit,
+): Card | null {
+    if (view.seat === null || view.bidding.caller !== view.seat) return null
+
+    const jack = makeCard("J", trump)
+    if (!legal.includes(jack)) return null
+
+    const hasNine = legal.includes(makeCard("9", trump))
+    const hasAce = legal.includes(makeCard("A", trump))
+    if (hasNine && hasAce) return null
+
+    return jack
+}
+
 function leadCard(view: PlayerView, legal: readonly Card[], trump: Suit): Card {
     const signal = partnerSignal(view)
 
@@ -196,12 +221,26 @@ function leadCard(view: PlayerView, legal: readonly Card[], trump: Suit): Card {
     const bela = belaLead(view, legal)
     if (bela !== null) return bela
 
+    // On the first trick, a voluntary partner call is a direct request for
+    // trump. Even a lone 10 goes across to the jack he represented by calling.
+    const openingTrump = openingTrumpForCallingPartner(view, legal)
+    if (openingTrump !== null) return openingTrump
+
+    const callerJack = callerJackLead(view, legal, trump)
+    if (callerJack !== null) return callerJack
+
     if (shouldDrawTrumps(view)) {
         const sequenced = callerTrumpLead(view, legal)
         if (sequenced !== null) return sequenced
         const draw = trumpDrawCard(view, legal)
         if (draw !== null) return draw
     }
+
+    // Defending normally keeps trumps, except when our master trump can pull
+    // an outstanding opposing A/10 for certain. In the reported shape the 9
+    // follows the A-winning trick and captures the caller's remaining 10.
+    const capture = defensiveTrumpCapture(view, legal)
+    if (capture !== null) return capture
 
     // The suit my partner ASKED for (`partnerSignal`) — he threw its ace, so
     // his 10 is the master and every trick of it is ours.
@@ -219,8 +258,11 @@ function leadCard(view: PlayerView, legal: readonly Card[], trump: Suit): Card {
 
     // "Podigravati 7, 8 i 9 znači: vrati aduta." He said it; this answers.
     if (partnerAskedForTrump(view)) {
-        const trumps = legal.filter((card) => cardSuit(card) === trump)
-        if (trumps.length > 0) return weakestCard(trumps, trump)
+        // Return only with a master or a genuinely cheap trump. In particular,
+        // never lead the 10/A underneath an outstanding 9 merely because the
+        // partner asked earlier.
+        const draw = trumpDrawCard(view, legal)
+        if (draw !== null) return draw
     }
 
     // One trump left in the deal and it beats mine: force it out with the long
@@ -310,9 +352,10 @@ function chooseCard(view: PlayerView, legal: Card[], _rng: () => number): Card {
         // choice (§1.5: I must go over him in the led suit, or I am void and
         // must ruff him), take it as CHEAPLY as possible — the trick is ours
         // already, a trump jack spent on it is a jack thrown away.
-        // He opened with a low trump: the nine is the card that answers it.
-        const nine = nineOnPartnersLowTrump(view, legal)
-        if (nine !== null) return nine
+        // He opened with a low trump: answer with the nine, or with the jack
+        // when the nine may still be outside. K/10 only gamble on its seat.
+        const highTrump = highTrumpOnPartnersLowTrump(view, legal)
+        if (highTrump !== null) return highTrump
         const notBeating = legal.filter((card) => !wouldWinTrick(view, card))
         // §1.5 leaves no choice but to take it off him: the weakest card that
         // does, since the trick is ours either way.

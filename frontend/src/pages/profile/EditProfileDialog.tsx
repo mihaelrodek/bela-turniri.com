@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react"
 import { Button, chakra, Dialog, Field, HStack, Input, NativeSelect, Skeleton, VStack } from "@chakra-ui/react"
-import { updateProfile as fbUpdateProfile } from "firebase/auth"
-import { auth } from "../../firebase"
+import { loadFirebaseAuth } from "../../firebase"
 import { syncProfile, updateProfile } from "../../api/userMe"
 import { useInvalidateMyProfile, useMyProfile } from "../../hooks/useMyProfile"
 import { errorMessage } from "../../utils/apiError"
@@ -86,9 +85,10 @@ export function EditProfileDialog({
             // Firebase displayName is the source of truth — update it first
             // so any subsequent token refresh carries the new name. The
             // backend mirror lands via /user/me/sync.
-            const fbUser = auth.currentUser
+            const fb = await loadFirebaseAuth()
+            const fbUser = fb.auth.currentUser
             if (fbUser && fbUser.displayName !== trimmed) {
-                await fbUpdateProfile(fbUser, { displayName: trimmed })
+                await fb.updateProfile(fbUser, { displayName: trimmed })
             }
             await syncProfile(trimmed)
             // Phone is optional; null both fields if blank so the backend

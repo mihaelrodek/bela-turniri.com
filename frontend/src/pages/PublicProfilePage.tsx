@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 import {
     Box,
     Button,
@@ -6,15 +6,22 @@ import {
     chakra,
     Flex,
     HStack,
+    IconButton,
+    Menu,
     Skeleton,
     Spinner,
     Text,
     VStack,
 } from "@chakra-ui/react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom"
-import { FiAlertCircle } from "react-icons/fi"
+import { FiAlertCircle, FiFlag, FiMoreHorizontal, FiSlash } from "react-icons/fi"
 import { getPublicProfile, type PublicProfile } from "../api/publicProfile"
-import type { MyTournamentParticipation } from "../api/userMe"
+import { blockUser, type MyTournamentParticipation } from "../api/userMe"
+import ConfirmDialog from "../components/ConfirmDialog"
+import ReportDialog from "../components/ReportDialog"
+import { qk } from "../queryClient"
+import { showError, showSuccess } from "../toaster"
 import { CONTENT_STICKY_TOP } from "../components/navChrome"
 import { StickyHeaderStrip, StickyPageHeader } from "../components/StickyPageHeader"
 import { useAuth } from "../auth/authContextValue"
@@ -24,12 +31,14 @@ import { lazyWithReload } from "../utils/lazyWithReload"
 // `tStatic` is the non-reactive translator: the fetch effect below writes
 // its message into state, and depending on the hook's `t` (a fresh closure
 // every render) would re-fire the request on every render.
-import { t as tStatic, usePlural, useTranslation } from "../i18n"
+import { loadNamespace, t as tStatic, usePlural, useTranslation } from "../i18n"
 import { ProfileIdentityBlock, PublicIdentityCard } from "./profile/ProfileHeader"
 import { TournamentsCard } from "./profile/TournamentsCard"
 import { pairKey } from "./profile/pairKey"
 import { TournamentRow } from "./profile/TournamentRow"
 import { MyDataCard } from "./profile/MyDataCard"
+import { BlockedUsersCard } from "./profile/BlockedUsersCard"
+import { DeleteAccountCard } from "./profile/DeleteAccountCard"
 import { MyPairsCard } from "./profile/MyPairsCard"
 import { DrinkTemplateCard } from "./profile/DrinkTemplateCard"
 import { SettingsCard } from "./profile/SettingsCard"
@@ -41,9 +50,16 @@ import { buildProfileSections, SIDEBAR_MAX_H, type ProfileSectionDef, type Profi
 /* The three admin consoles are reachable only by an admin, only on their own
    profile, and only after clicking the tab — so their (sizeable) code is
    split out of the profile chunk and fetched on demand. */
-const AdminDashboardTab = lazyWithReload(() => import("../components/AdminDashboardTab"))
-const AdminPlayersListTab = lazyWithReload(() => import("../components/AdminPlayersListTab"))
-const AdminContactMessagesTab = lazyWithReload(() => import("../components/AdminContactMessagesTab"))
+/* Each awaits the route-scoped `admin` dictionary namespace alongside its own
+   chunk (see src/i18n/index.ts): the namespace is not in the entry bundle, and
+   loading it after mount would paint one frame of raw "admin.*" keys. */
+const adminTab = <P extends object>(factory: () => Promise<{ default: ComponentType<P> }>) =>
+    lazyWithReload<P>(() => Promise.all([factory(), loadNamespace("admin")]).then(([mod]) => mod))
+
+const AdminDashboardTab = adminTab(() => import("../components/AdminDashboardTab"))
+const AdminGameAnalyticsTab = adminTab(() => import("../components/AdminGameAnalyticsTab"))
+const AdminPlayersListTab = adminTab(() => import("../components/AdminPlayersListTab"))
+const AdminContactMessagesTab = adminTab(() => import("../components/AdminContactMessagesTab"))
 
 export default function PublicProfilePage() {
     const { slug } = useParams<{ slug: string }>()
@@ -341,7 +357,10 @@ export default function PublicProfilePage() {
     if (!isOwner) {
         return (
             <VStack align="stretch" gap="4" maxW="900px" mx="auto" w="full">
-                <PublicIdentityCard profile={profile} />
+                <PublicIdentityCard
+                    profile={profile}
+                    actions={<VisitorProfileActions profile={profile} />}
+                />
                 {tournamentsCard}
             </VStack>
         )
@@ -448,6 +467,10 @@ export default function PublicProfilePage() {
                     <>
                         <MyDataCard profile={profile} onProfileChanged={refreshProfile} />
                         <SettingsCard />
+                        <BlockedUsersCard />
+                        {/* Last card on the page, deliberately: the only
+                            irreversible thing here, with nothing under it. */}
+                        <DeleteAccountCard />
                     </>
                 )}
 
@@ -466,6 +489,12 @@ export default function PublicProfilePage() {
                     </Suspense>
                 )}
 
+                {isAdmin && profileTab === "analitika" && (
+                    <Suspense fallback={<TabChunkLoading />}>
+                        <AdminGameAnalyticsTab />
+                    </Suspense>
+                )}
+
                 {/* === POPIS IGRAČA — admin-only, on own profile === */}
                 {isAdmin && profileTab === "popis-igraca" && (
                     <Suspense fallback={<TabChunkLoading />}>
@@ -481,6 +510,114 @@ export default function PublicProfilePage() {
                 )}
             </VStack>
         </Flex>
+    )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Visitor actions — report / block                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The "…" menu on someone else's profile: "Prijavi profil" and "Blokiraj
+ * korisnika" (App Store review requires both to be reachable from the content
+ * itself, not only from a settings screen).
+ *
+ * ANONYMOUS VIEWERS SEE NO MENU AT ALL. Both actions need an identity —
+ * a report is attributed to its reporter and a block is stored on the
+ * blocker's own row — so a disabled item with a "Prijavi se" tooltip would be
+ * an affordance that can never do anything on this page. The same rule is
+ * applied at the other two entry points (tournament, pair).
+ *
+ * Blocking navigates away on success: the block takes effect immediately and
+ * this very page then 404s, so staying would repaint into the error state.
+ */
+function VisitorProfileActions({ profile }: { profile: PublicProfile }) {
+    const { t } = useTranslation()
+    const { user } = useAuth()
+    const navigate = useNavigate()
+    const queryClient = useQueryClient()
+    const [reportOpen, setReportOpen] = useState(false)
+    const [blockOpen, setBlockOpen] = useState(false)
+    const [blocking, setBlocking] = useState(false)
+
+    if (!user) return null
+
+    const name = profile.displayName ?? profile.slug
+    // No uid on the payload means there is nothing `PUT /user/me/blocks/{uid}`
+    // could be keyed on — hide the item rather than send a bad id.
+    const canBlock = !!profile.uid
+
+    async function onConfirmBlock() {
+        if (!profile.uid) return
+        try {
+            setBlocking(true)
+            await blockUser(profile.uid)
+            showSuccess(t("profile.blocks.blocked", { name }))
+            // Tournaments created by a blocked user drop out of the list
+            // server-side, so that cache has to go along with the block list.
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: qk.blocks }),
+                queryClient.invalidateQueries({ queryKey: ["tournaments"] }),
+            ])
+            navigate("/turniri")
+        } catch (err) {
+            showError(t("profile.blocks.failed"), errorMessage(err))
+        } finally {
+            setBlocking(false)
+        }
+    }
+
+    return (
+        <>
+            <Menu.Root>
+                <Menu.Trigger asChild>
+                    <IconButton
+                        aria-label={t("profile.actions.more")}
+                        title={t("profile.actions.more")}
+                        size="sm"
+                        variant="ghost"
+                        rounded="full"
+                    >
+                        <FiMoreHorizontal />
+                    </IconButton>
+                </Menu.Trigger>
+                <Menu.Positioner>
+                    <Menu.Content minW="220px">
+                        <Menu.Item value="report" onSelect={() => setReportOpen(true)}>
+                            <FiFlag /> {t("profile.report.profileItem")}
+                        </Menu.Item>
+                        {canBlock && (
+                            <Menu.Item
+                                value="block"
+                                color="red.fg"
+                                onSelect={() => setBlockOpen(true)}
+                            >
+                                <FiSlash /> {t("profile.blocks.blockItem")}
+                            </Menu.Item>
+                        )}
+                    </Menu.Content>
+                </Menu.Positioner>
+            </Menu.Root>
+
+            <ReportDialog
+                targetType="PROFILE"
+                targetId={profile.slug}
+                targetLabel={name}
+                open={reportOpen}
+                onClose={() => setReportOpen(false)}
+            />
+
+            <ConfirmDialog
+                open={blockOpen}
+                title={t("profile.blocks.confirmTitle")}
+                description={t("profile.blocks.confirmBody", { name })}
+                confirmLabel={t("profile.blocks.blockItem")}
+                destructive
+                busy={blocking}
+                onConfirm={() => void onConfirmBlock()}
+                onCancel={() => setBlockOpen(false)}
+            />
+        </>
     )
 }
 

@@ -3,15 +3,19 @@ package hr.mrodek.apps.bela_turniri.services;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import hr.mrodek.apps.bela_turniri.model.Resources;
 import hr.mrodek.apps.bela_turniri.repository.ResourcesRepository;
+import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.RemoveObjectArgs;
 import io.minio.errors.MinioException;
+import io.quarkus.cache.CacheKey;
+import io.quarkus.cache.CacheResult;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import java.time.OffsetDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -46,6 +50,19 @@ public class StorageService {
     private static final int MAX_POSTER_DIM = 1600;
     private static final int MAX_AVATAR_DIM = 512;
 
+    /**
+     * Widths accepted for {@code GET /resources/{id}/image?w=} when the
+     * resource's stored {@code metadata.kind} is {@code "poster"}. Fixed,
+     * small set — same reasoning as {@code QrCodeRenderer.ALLOWED_SIZES}:
+     * an unbounded {@code w} would make the cache key space (and therefore
+     * the render cost) attacker-controlled. Contract shared with the
+     * frontend's {@code posterSrcSet} helper (perf programme package D).
+     */
+    public static final Set<Integer> ALLOWED_POSTER_WIDTHS = Set.of(480, 960);
+
+    /** Same idea as {@link #ALLOWED_POSTER_WIDTHS}, for {@code "avatar"} resources. */
+    public static final Set<Integer> ALLOWED_AVATAR_WIDTHS = Set.of(128);
+
     /** Tournament poster upload — keyed under {@code posters/...}. */
     public Resources uploadPoster(org.jboss.resteasy.reactive.multipart.FileUpload file) {
         return uploadImage(file, "poster", "posters", MAX_POSTER_BYTES, MAX_POSTER_DIM);
@@ -54,6 +71,85 @@ public class StorageService {
     /** User avatar upload — keyed under {@code avatars/...}. */
     public Resources uploadAvatar(org.jboss.resteasy.reactive.multipart.FileUpload file) {
         return uploadImage(file, "avatar", "avatars", MAX_AVATAR_BYTES, MAX_AVATAR_DIM);
+    }
+
+    /**
+     * On-the-fly width-downscaled variant of a stored image, for
+     * {@code GET /resources/{id}/image?w=}. Caffeine-cached (see the
+     * {@code image-variants} named cache in {@code application.properties})
+     * keyed by resource id + width + the resource's own {@code etag} — the
+     * etag is included even though a given resource id's bytes never
+     * actually change in place (every upload path here always {@code save}s
+     * a brand-new {@link Resources} row; see the class javadoc and
+     * {@link #releaseIfOrphaned}), purely as cheap defense-in-depth against
+     * that invariant ever being broken by a future change.
+     *
+     * <p><b>Never upscales</b>: posters/avatars are already downscaled to
+     * {@link #MAX_POSTER_DIM}/{@link #MAX_AVATAR_DIM} at upload time, so a
+     * source narrower than the requested width is returned byte-for-byte
+     * unchanged rather than stretched.
+     *
+     * <p>GIF/WebP pass through unresized — same reasoning as
+     * {@link #uploadImage}: Thumbnailator would destroy GIF animation, and
+     * this JVM's ImageIO has no WebP decoder.
+     *
+     * <p>Called only after {@link #validVariantWidth} has approved
+     * {@code width} for the resource's kind — an unbounded {@code width}
+     * would make the cache key space (and the downscale cost) attacker
+     * controlled, exactly the reasoning behind {@code QrCodeRenderer}'s
+     * {@code ALLOWED_SIZES}.
+     */
+    @CacheResult(cacheName = "image-variants")
+    public byte[] resizedVariant(
+            @CacheKey Long resourceId,
+            @CacheKey int width,
+            @CacheKey String etag,
+            String bucketName,
+            String objectKey,
+            String contentType
+    ) {
+        try (java.io.InputStream in = minio.getObject(GetObjectArgs.builder()
+                .bucket(bucketName)
+                .object(objectKey)
+                .build())) {
+            byte[] original = in.readAllBytes();
+
+            if ("image/gif".equalsIgnoreCase(contentType) || "image/webp".equalsIgnoreCase(contentType)) {
+                return original;
+            }
+
+            int[] dims = readImageDimensions(original);
+            if (dims == null || dims[0] <= width) {
+                // Already narrower than (or equal to) the requested width, or
+                // dimensions unreadable — serving the original is always safe
+                // and never upscales.
+                return original;
+            }
+
+            String outFormat = "image/png".equalsIgnoreCase(contentType) ? "png" : "jpg";
+            var out = new java.io.ByteArrayOutputStream(128 * 1024);
+            net.coobird.thumbnailator.Thumbnails.of(new java.io.ByteArrayInputStream(original))
+                    .width(width)
+                    .outputFormat(outFormat)
+                    .outputQuality(0.85)
+                    .toOutputStream(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to build image variant for resource " + resourceId, e);
+        }
+    }
+
+    /**
+     * True when {@code width} is an accepted {@code ?w=} value for a
+     * resource whose stored {@code metadata.kind} is {@code kind}
+     * ({@code "poster"} or {@code "avatar"}; any other/missing kind accepts
+     * nothing). The caller ({@code controller.ResourceController}) maps a
+     * {@code false} to 400 before ever calling {@link #resizedVariant}.
+     */
+    public static boolean validVariantWidth(String kind, int width) {
+        if ("poster".equals(kind)) return ALLOWED_POSTER_WIDTHS.contains(width);
+        if ("avatar".equals(kind)) return ALLOWED_AVATAR_WIDTHS.contains(width);
+        return false;
     }
 
     /**
@@ -284,10 +380,28 @@ public class StorageService {
      * the raster, so it is safe to call on untrusted input.
      */
     private int[] readImageDimensions(java.nio.file.Path path) {
-        javax.imageio.stream.ImageInputStream iis = null;
+        try {
+            javax.imageio.stream.ImageInputStream iis = javax.imageio.ImageIO.createImageInputStream(path.toFile());
+            return readImageDimensions(iis);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Same header-only read as above, for bytes already held in memory (image variants). */
+    private int[] readImageDimensions(byte[] bytes) {
+        try {
+            javax.imageio.stream.ImageInputStream iis = javax.imageio.ImageIO
+                    .createImageInputStream(new java.io.ByteArrayInputStream(bytes));
+            return readImageDimensions(iis);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private int[] readImageDimensions(javax.imageio.stream.ImageInputStream iis) {
         javax.imageio.ImageReader reader = null;
         try {
-            iis = javax.imageio.ImageIO.createImageInputStream(path.toFile());
             if (iis == null) return null;
             java.util.Iterator<javax.imageio.ImageReader> readers =
                     javax.imageio.ImageIO.getImageReaders(iis);

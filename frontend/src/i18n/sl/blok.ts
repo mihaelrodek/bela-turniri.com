@@ -14,7 +14,6 @@ import type { BlokDict } from "../hr/blok"
 export const blok: BlokDict = {
     /* ─── Naslov, navigacija, SEO ───────────────────────────────────── */
     title: "Bela blok",
-    nav: "Blok",
     "seo.title": "Blok za beleženje rezultatov bele — bela-turniri.com",
     "seo.description":
         "Digitalni blok za beleženje rezultatov bele za mizo — vpisuj točke, napovedi in štiglje brez prijave in brez interneta.",
@@ -455,14 +454,16 @@ export const blok: BlokDict = {
     "newGame.games.few": "{n} končane partije",
     "newGame.games.other": "{n} končanih partij",
     "newGame.confirmSignedIn":
-        "Serija ({games}) se shrani v Blok na tvojem profilu, izid serije pa se vrne na 0:0.",
+        "Izberi, ali želiš shraniti {games} v Blok na svojem profilu, preden začneš novo igro.",
     "newGame.confirmSignedOut":
-        "Serija ({games}) se izbriše s te naprave, izid serije pa se vrne na 0:0. Zgodovina se hrani le prijavljenim igralcem.",
+        "Za shranjevanje {games} se prijavi. Nadaljuješ lahko tudi brez shranjevanja.",
     "newGame.confirmNothing":
-        "Nobena partija ni končana, zato se nič ne shrani. Blok se izprazni, izid serije pa se vrne na 0:0.",
-    "newGame.confirmUnfinished": "Trenutna partija ni končana in se ne shrani.",
+        "Ni končanih partij za shranjevanje. Takoj lahko začneš novo igro.",
+    "newGame.confirmUnfinished": "Nedokončana partija se ne bo shranila.",
+    "newGame.saveAndContinue": "Shrani in nadaljuj",
+    "newGame.continueWithoutSaving": "Nadaljuj brez shranjevanja",
     "newGame.signedOutNote": "Zgodovina blokov se hrani le prijavljenim igralcem.",
-    "newGame.saved": "Serija je shranjena v Blok na tvojem profilu.",
+    "newGame.saved": "Odigrane partije so shranjene v Blok na tvojem profilu.",
     "share.enable": "Omogoči deljenje partije s povezavo",
     "share.linkedNote":
         "Zapisnik povezane mize ostane javen — organizator ga odpre iz žreba.",

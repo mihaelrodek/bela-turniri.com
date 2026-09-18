@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Brand name, unchanged across locales; declared here only because adding
+         this values-sl/ folder makes lint check every default-locale string for
+         a translation (package_name/custom_url_scheme are non-translatable
+         technical values, marked as such in values/strings.xml instead). -->
+    <string name="app_name">Bela Turniri</string>
+    <string name="title_activity_main">Bela Turniri</string>
+    <string name="notification_channel_name">Obvestila</string>
+
+    <!-- N4.4 live game notification, Slovenian. See values/strings.xml for the
+         hr source and LiveGameNotification.kt for how these are used. -->
+    <string name="live_channel_name">Igra v živo</string>
+    <string name="live_notif_title">Mi %1$d : %2$d Vi</string>
+    <string name="live_notif_text_your_turn">Ti si na potezi</string>
+    <string name="live_notif_text_other_turn">Na potezi je igralec %1$d</string>
+    <string name="live_notif_win">Zmaga!</string>
+    <string name="live_notif_lose">Poraz</string>
+
+    <!-- N5.3 widget, Slovenian. See values/strings.xml for the hr source. -->
+    <string name="widget_title">Prihajajoči turnirji</string>
+    <string name="widget_empty">Ni prihajajočih turnirjev</string>
+    <string name="widget_description">Prikaže naslednje tri prihajajoče turnirje.</string>
+
+    <!-- N5.4 static app shortcuts, Slovenian. -->
+    <string name="shortcut_blok_short">Blok</string>
+    <string name="shortcut_blok_long">Odpri blok</string>
+    <string name="shortcut_new_tournament_short">Nov turnir</string>
+    <string name="shortcut_new_tournament_long">Nov turnir</string>
+    <string name="shortcut_play_short">Igraj</string>
+    <string name="shortcut_play_long">Igraj</string>
+</resources>

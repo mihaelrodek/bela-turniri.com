@@ -205,9 +205,9 @@ prolaz.”
 Kad me §1.5 tjera **preko vlastitog suigrača** (u boji ili rezanjem), idem
 najslabijom kartom koja to čini — štih je ionako naš, dečko bačen na njega je
 bačen dečko. **Iznimka**: suigrač je otvorio **niskim adutom (7 ili 8)** — tada
-ide **devetka** (`nineOnPartnersLowTrump`, TRIK). Baba je jeftinija i tuče
-osmicu, ali babu tuku 10, as i dečko; devetku samo dečko. Otvorio je nisko jer
-želi da aduti izađu, a devetka je karta koja ih zaista izvlači.
+ide **devetka ako je imam, inače dečko** (`highTrumpOnPartnersLowTrump`). Baba
+ili kralj jesu jeftiniji, ali iznad njih mogu ostati 10, as i 9. Otvorio je
+nisko jer želi da aduti izađu; 9 ili J su karte koje ih zaista izvlače.
 
 ---
 
@@ -216,19 +216,34 @@ osmicu, ali babu tuku 10, as i dečko; devetku samo dečko. Otvorio je nisko jer
 Redoslijed u `leadCard`. Nijedno pravilo ne prolazi bez uvjeta — neograničeno
 pravilo je ono što je 2026-09-08 izlazilo adutom osam puta po podjeli.
 
+0. **Prvo otvaranje za partnerov poziv** (`openingTrumpForCallingPartner`): ako
+   je partner dobrovoljno zvao adut, a ja otvaram prvi štih, obavezno mu
+   podigravam adut. Pretpostavka je da je zvao na dečka; zato ide i usamljena
+   adutska 10 kada nemam jeftiniji adut. Preskače se samo kad javna zvanja
+   dokazuju da partner nema adutskog dečka ili kad je poziv bio prisilni mus.
+   Ovo nije dopuštenje zvaču da kasnije vodi 10 pod protivničku 9.
 1. **Boja koju je suigrač tražio** (§3), ako je mogu otvoriti — otvaram je
    nisko, jer je njegova 10 najjača, a moja karta je samo ulaz.
-1a. **„Vrati aduta”** (`partnerAskedForTrump`, TRIK): suigrač je negdje u ovoj
+1a. **Vrijedan adut na obrani** (`defensiveTrumpCapture`): ako držim dokazano
+   najjači preostali adut, a jedini drugi neodigrani adut koji protivnik još
+   može imati jest **10 ili as**, vodim najslabiji svoj adut koji ga sigurno
+   izvlači i čuvam jaču kontrolu za sljedeći štih. To je
+   slučaj J, Q, K i 8 već vani, ja držim 9, a neodigrana je 10. Ne okida se
+   zbog gole 7 ili 8: za bezvrijednu kartu nema smisla trošiti kontrolu aduta.
+1b. **„Vrati aduta”** (`partnerAskedForTrump`, TRIK): suigrač je negdje u ovoj
    podjeli otvorio **niskim adutom** (7, 8 ili 9). To je rečenica — „imam
    sljedeću najjaču u adutu ili sva tri strana asa, vrati adut” — pa kad lead
    dođe do mene, ide natrag u adut. Samo dok protivnici još mogu imati adut;
    kad dokazano nemaju, rečenica je odgovorena.
-1b. **Istjerivanje zadnjeg aduta** (`forceOutTheLastTrump`, TRIK): ako je u
+   Povratna karta bira se kao kod vađenja aduta: najjači preostali adut ako ga
+   držim, inače samo jeftini 7/8/Q/K. **Adutska 10 ili as ne vode se ispod još
+   neodigrane 9 ili J** samo zato što je partner ranije zatražio povrat.
+1c. **Istjerivanje zadnjeg aduta** (`forceOutTheLastTrump`, TRIK): ako je u
    igri ostao **jedan jedini** adut i jači je od svih mojih, ne dajem adut da
    ga izvučem nego otvaram najdužu boju bez asa — tko ga drži mora ga potrošiti
    na štih koji smo ionako gubili, a ako je kod suigrača, reže boju koju ionako
    nisam mogao ubrati.
-1c. **Obrambena knjiga otvaranja** (§7) kad su protivnici zvali. Ide **prije**
+1d. **Obrambena knjiga otvaranja** (§7) kad su protivnici zvali. Ide **prije**
    vođenja asa: prvo što dokument kaže jest da se na obrani ne otvara vlastita
    asova boja.
 2. **Vađenje aduta**, samo kad ima svrhu (`shouldDrawTrumps`, README §5).
@@ -236,12 +251,8 @@ pravilo je ono što je 2026-09-08 izlazilo adutom osam puta po podjeli.
    - imam J, 9 i A aduta **i** stranog asa → počinjem **adutskim asom** („ne
      odbacuj potkovanu 10, imat ćeš vremena”);
    - imam J, 9 i A aduta **bez** stranog asa → počinjem **devetkom**;
-   - **dečko se ne podiže „u glavu”** s tri ili manje aduta, osim ako je
-     **svaka bočna boja koju držim predvođena najjačom preostalom kartom**
-     (`plainSuitsAllTopped`) — tada ide najslabiji adut. Dečko inače uzme svoj
-     jedan štih i vrati lead ruci koja nema što ubrati. Uvjet mora pitati za
-     **bočne** boje: `hasWinnersToCash` broji bilo koju najjaču kartu, a
-     adutski dečko je i sam takva, pa je s njim ova grana bila mrtav kod;
+   - kad je zvač prvi u štihu i ima dečka, vodi **dečka**. Tako sigurno skuplja
+     izdvojenu 9 i asa. Odluka je deterministička; nema nasumične iznimke;
    - inače `trumpDrawCard`: najjači adut ako ga imam, inače najslabiji.
 3. **Strani as kad protivnici dokazano nemaju aduta** (`aceToCash`, TRIK) —
    odigra se čim su aduti pokupljeni, da suigrač zna zadržati bezec 10. **Solo**
@@ -434,18 +445,21 @@ razlike).
 
 | pravilo | mjera | koliko se okida |
 |---|---|---|
-| **dečko se ne podiže „u glavu”** | **46,5 %** (−3,5 pp) | rijetko |
+| staro: **dečko se nikad ne podiže „u glavu”** | **46,5 %** (−3,5 pp) | rijetko |
 | „zadnja boja koju nitko nema” | 49,6 % (−0,4 pp) | 2 674 / 2400 partija |
 | „vrati aduta” | 50,2 % / 49,6 % ovisno o skupu | 494 |
 | ciljanje štiglje | 50,0 % | 128 vodstava |
 
-Sva četiri zajedno: **45,8 %**. Bez dečka u glavu: **49,3 %** — dakle dečko je
-gotovo cijela razlika. Regresijski guard je s tim pravilima pao s 27/30 na
-25/30 protiv nasumičnog igrača (prag je 18/30).
+Sva četiri tadašnja pravila zajedno: **45,8 %**. Bez starog pravila za dečka:
+**49,3 %** — dakle ono je bilo gotovo cijela razlika. Zato je 2026-09-13
+zamijenjeno pravilom da zvač na svom otvaranju vodi dečka. Brojevi u tablici su
+povijesno mjerenje stare, uvijek-niske varijante; novo pravilo još nema A/B
+mjerenje. Regresijski guard je s tadašnjim pravilima pao s 27/30 na 25/30
+protiv nasumičnog igrača (prag je 18/30).
 
-Dečko u glavu je i dvaput bio mrtav kod prije nego što je proradio: uvjet je
-pitao `hasWinnersToCash`, a to broji i sam adutski dečko. Sada pita
-`plainSuitsAllTopped` (§5.2).
+Staro pravilo za niski adut bilo je i dvaput mrtav kod prije nego što je
+proradilo: uvjet je pitao `hasWinnersToCash`, a to broji i sam adutski dečko.
+To je pravilo uklonjeno kada je uvedeno determinističko vođenje dečka.
 
 **Što još nije implementirano** (ispravak 2026-09-09: raniji tekst je tvrdio da
 je ostalo samo blefiranje, što nije bilo točno):

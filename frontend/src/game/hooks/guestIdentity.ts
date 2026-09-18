@@ -11,14 +11,29 @@
  * `@capacitor/preferences` (`hydrateGuestFromNative` restores it into
  * localStorage on next launch if localStorage came back empty; `saveGuest`
  * fire-and-forgets the mirror write). On iOS Preferences maps to
- * UserDefaults, not the Keychain, so this mirror does NOT survive an
- * uninstall/reinstall there — reinstall-survival needs Keychain storage (a
- * `capacitor-secure-storage-plugin`-class plugin, or a small custom Swift
- * plugin) and is deliberately deferred to a follow-up task, N2.2b.
+ * UserDefaults, which does NOT survive an uninstall/reinstall — that is what
+ * N2.2b adds: on iOS the durable mirror is the Keychain
+ * (`GuestKeychainPlugin`, `src/platform/nativeKeychain.ts`), written
+ * alongside Preferences on every `saveGuest` and consulted before Preferences
+ * on hydration, since a Keychain item genuinely outlives the app while
+ * Preferences is merely the belt-and-braces fallback (and stays the *only*
+ * mirror on Android, where Auto Backup already carries UserDefaults-
+ * equivalent storage across reinstalls, so there is no Android Keychain
+ * plugin to call).
  */
 import { isAvatarId } from "../../components/avatars/avatarArt"
-import { isNative } from "../../platform"
+import { isNative, platform } from "../../platform"
 import { nativePreferences } from "../../platform/native"
+
+// Dynamic, not a top-level `import`, and deliberately not re-exported from
+// `platform/native.ts`: this whole module (and the "GuestKeychain" string
+// `registerPlugin` needs) must land in its own chunk rather than the main
+// bundle. `NativeShell.tsx` — always mounted, native or not — imports this
+// file statically for `hydrateGuestFromNative`, so a static import here
+// would drag the Keychain plugin proxy into every load, web included.
+function nativeKeychain() {
+    return import("../../platform/nativeKeychain").then((m) => m.nativeKeychain())
+}
 
 /**
  * `avatar` is the face the guest picked on the identity screen. It is here
@@ -78,26 +93,51 @@ export function saveGuest(name: string, avatar?: string): GuestIdentity {
         nativePreferences()
             .then((Preferences) => Preferences.set({ key: KEY, value: json }))
             .catch(() => { /* best-effort mirror only */ })
+        // In addition to, not instead of, Preferences: Keychain is the one
+        // that survives reinstall, Preferences is the one that answers
+        // fastest and needs no biometric/passcode context to write.
+        if (platform === "ios") {
+            nativeKeychain()
+                .then((Keychain) => Keychain.set({ key: KEY, value: json }))
+                .catch(() => { /* best-effort mirror only */ })
+        }
     }
     return cached
 }
 
 /**
  * Restores the guest record from the native mirror when localStorage came up
- * empty (fresh WebView storage, or storage the OS evicted) but Preferences
- * still has it. No-op on web and a no-op once localStorage already holds a
- * valid record, so it is safe to call unconditionally at native startup.
- * Always resolves (never throws) and always flips `hydrationReady`, so a
- * dead or missing Preferences plugin degrades to "ask for a name" instead of
+ * empty (fresh WebView storage, or storage the OS evicted, or — on iOS —
+ * a reinstall that wiped both localStorage and UserDefaults but left the
+ * Keychain item behind). No-op on web and a no-op once localStorage already
+ * holds a valid record, so it is safe to call unconditionally at native
+ * startup. Always resolves (never throws) and always flips `hydrationReady`,
+ * so a dead or missing mirror plugin degrades to "ask for a name" instead of
  * hanging `GameIdentityGate` forever.
+ *
+ * Order is localStorage (checked by the early return, since `readGuest()`
+ * already covers it), then Keychain, then Preferences: Keychain is the only
+ * one of the two that survives a reinstall, so on iOS it is checked first
+ * and, on a hit, is itself what gets restored — Preferences is only reached
+ * when Keychain came back empty (a device migration path that predates
+ * N2.2b, or Android, which has no Keychain plugin to call at all).
  */
 export async function hydrateGuestFromNative(): Promise<void> {
     if (!isNative) return
     try {
         if (!readGuest()) {
-            const Preferences = await nativePreferences()
-            const { value } = await Preferences.get({ key: KEY })
-            const restored = parse(value)
+            let restored: GuestIdentity | null = null
+            if (platform === "ios") {
+                try {
+                    const Keychain = await nativeKeychain()
+                    restored = parse((await Keychain.get({ key: KEY })).value)
+                } catch { /* Keychain unavailable — fall through to Preferences. */ }
+            }
+            if (!restored) {
+                const Preferences = await nativePreferences()
+                const { value } = await Preferences.get({ key: KEY })
+                restored = parse(value)
+            }
             if (restored) {
                 cached = restored
                 try { localStorage.setItem(KEY, JSON.stringify(restored)) } catch { /* best-effort */ }

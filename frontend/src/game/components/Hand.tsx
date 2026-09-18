@@ -1,111 +1,132 @@
 import { useRef } from "react"
-import { Box, Flex, Text, useBreakpointValue } from "@chakra-ui/react"
+import { Box, Grid, Image, VisuallyHidden, useBreakpointValue } from "@chakra-ui/react"
 import { keyframes } from "@emotion/react"
 import type { Card } from "@bela/protocol"
+import type { Phase } from "@bela/engine"
 import { useTranslation } from "../../i18n"
-import { sortHandForDisplay, type CardSize } from "../util/cards"
+import { CARD_INK, CARD_METRICS, sortHandForDisplay, type CardSize } from "../util/cards"
 import { useGamePrefs } from "../hooks/useGamePrefs"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import PlayingCard from "./PlayingCard"
-import { GLASS, INK_MUTED, SHORT } from "./tableStyles"
+import talonBackImage from "../cards/madjarice/assets/BACK.webp"
+import { SHORT } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Hand — my cards, in a dark tray docked at the bottom of the table.
 
    Four rules, all of them about not misplaying on a phone:
 
-   1. FIXED SLOTS. The layout is decided when a hand is dealt (and again when
-      the last two cards arrive after the bidding) and never re-flows: a card
-      you play leaves an EMPTY SLOT behind. Cards that shuffle themselves
-      left after every trick are how a player's thumb lands on the wrong one
-      — muscle memory over tidiness (game/DESIGN.md §2.4).
-   2. Legality controls interaction without recommending a move. Every card
-      keeps the same full-colour resting appearance; only cards contained in
-      `PlayerView.legalMoves` respond to a tap. The server validates the same
+   1. FIXED SORTED SLOTS. The six cards dealt before bidding occupy the first
+      six of eight places and two card backs finish the grid. When the talon
+      arrives, all eight cards are sorted again so the new cards move into
+      their suit and rank group. From that point on a played card leaves an
+      empty slot. The grid therefore never jumps from two rows to one when the
+      hand drops from five cards to four.
+   2. Legality controls the result of a tap without recommending a move. Every
+      card keeps the same full-colour resting appearance and every card is
+      clickable during the player's turn. A legal card is played; an illegal
+      one explains why it cannot be played. The server validates the same
       engine result again, so an illegal play cannot bypass this UI.
-   3. The row NEVER scrolls sideways. On a narrow screen the slots tighten
-      and the cards overlap instead; the visible slice of each is its tap
-      target and it never falls below ~42 px (a 360 px phone cannot fit eight
-      44 px cards, and a card that has scrolled off-screen is worse than a
-      slightly narrow one).
+   3. The hand NEVER scrolls sideways. A phone gets four fixed columns in two
+      rows; from 48em the same eight fixed slots lay out as ONE ROW (DESIGN
+      §6). Eight `md` cards are 618 px and the column is 760 px there, so the
+      row fits without shrinking a card — and it hands ~130 px of height back
+      to the felt, which on a tablet was the difference between a table and a
+      strip of green. The slots are the same eight either way: nothing about
+      rule 1 changes, the grid just has a different shape.
+
+      (A same-day 2026-09-18 attempt to widen these one step further —
+      `sm`→`md`, `md`→`lg` — broke exactly this fit: eight `lg` cards are
+      810 px against a 760-840 px cap, and on a phone the bigger `md` cards
+      pushed the two-row hand past its tray. Reverted on user report — this
+      is the sizing that actually fits every width it has to.)
    4. It uses one fixed suit/rank order (`sortHandForDisplay`) in every deal.
       Trump never moves a suit, so shuffling cannot change the layout rule.
+
+   Legal and illegal cards deliberately have the same resting appearance.
+   Rules are explained only after a player taps an illegal card; the hand
+   never visually recommends which move to make.
    ────────────────────────────────────────────────────────────────────── */
 
 /** Card widths from CARD_METRICS. Slot maths must use the size actually drawn. */
 const CARD_WIDTH: Record<"sm" | "md", number> = { sm: 56, md: 72 }
-
-/* Fan geometry — purely a paint-time transform (rotate + a couple of px of
-   translateY), never touches the slot's actual box size, so it cannot
-   change a tap target or fight the "never re-flow" contract above. Cards
-   read as a hand of real cards standing in a fan rather than a flat row of
-   tiles touching edge to edge; the further a card sits from the centre, the
-   more it tilts and the lower it sits, hinged from its own bottom edge. */
-const FAN_ANGLE_STEP = 3.1
-const FAN_ANGLE_MAX = 12
-const FAN_ARC_STEP = 2.4
-
-function fanTransform(index: number, count: number, compact: boolean): { angle: number; arc: number } {
-    if (count <= 1) return { angle: 0, arc: 0 }
-    const rel = index - (count - 1) / 2
-    const angleStep = compact ? 1.7 : FAN_ANGLE_STEP
-    const angleMax = compact ? 6 : FAN_ANGLE_MAX
-    const arcStep = compact ? 1.4 : FAN_ARC_STEP
-    const angle = Math.max(-angleMax, Math.min(angleMax, rel * angleStep))
-    return { angle, arc: Math.abs(rel) * arcStep }
-}
+/** The gap between two slots, in px. Used in the grid's own width sum. */
+const SLOT_GAP = 6
+const TALON_SLOT = Symbol("talon-slot")
+type HandSlot = Card | typeof TALON_SLOT
+type StableHandSlot = HandSlot | null
 
 export default function Hand({
     cards,
     legal,
+    phase,
     disabled = false,
     onPlay,
+    onInvalidPlay,
 }: {
     cards: Card[]
     /** `PlayerView.legalMoves` — empty when it is not our turn. */
     legal: Card[]
+    phase: Phase
     /** True while an animation is playing or the connection is down. */
     disabled?: boolean
     onPlay: (card: Card) => void
+    onInvalidPlay: (card: Card) => void
 }) {
     const { t } = useTranslation()
     const [prefs] = useGamePrefs()
     const reducedMotion = usePrefersReducedMotion() || prefs.reduceMotion
     const cardSize = (useBreakpointValue<CardSize>({ base: "sm", md: "md" }) ?? "sm") as "sm" | "md"
     const cardWidth = CARD_WIDTH[cardSize]
+    // One row from the same breakpoint that grows the cards, so the tray only
+    // ever has two shapes and they change together.
+    const columns = cardSize === "md" ? 8 : 4
     const legalSet = new Set(legal)
     const myTurn = legal.length > 0 && !disabled
 
-    /* The slot layout, derived during render from the previous one.
-       Cheaper and less racy than an effect: while the hand is a SUBSET of
-       what the layout already holds, played cards simply become gaps; the
-       moment a card appears that the layout does not know (a new deal, or
-       the two cards dealt after the bidding) the whole thing is rebuilt
-       sorted. Idempotent, so StrictMode's double render is a no-op. */
-    const layoutRef = useRef<(Card | null)[]>([])
-    const held = new Set(cards)
-    const kept = layoutRef.current.filter((c): c is Card => c !== null)
-    const known = kept.length > 0 && cards.every((card) => kept.includes(card))
-    const slots = known
-        ? layoutRef.current.map((card) => (card !== null && held.has(card) ? card : null))
-        : sortHandForDisplay(cards)
-    layoutRef.current = slots
+    /* Keep the same eight DOM positions throughout play. The only intentional
+       rebuild is when bidding ends and the two talon cards become real cards,
+       or when a reconnect/new deal introduces cards this layout has never
+       seen. Deriving this before paint prevents the intermediate one-row hand
+       that an effect-based implementation would briefly render. */
+    const layoutRef = useRef<{ bidding: boolean; slots: StableHandSlot[] }>({
+        bidding: phase === "BIDDING",
+        slots: [],
+    })
+    const bidding = phase === "BIDDING"
+    const previousCards = layoutRef.current.slots.filter(
+        (slot): slot is Card => slot !== null && slot !== TALON_SLOT,
+    )
+    const introducesCards = cards.some((card) => !previousCards.includes(card))
+    let slots: StableHandSlot[]
 
-    if (cards.length === 0) {
-        return (
-            <Flex justify="center" align="center" minH="56px" px="4">
-                <Text fontSize="xs" color={INK_MUTED}>{t("game.hand.empty")}</Text>
-            </Flex>
+    if (bidding) {
+        slots = [
+            ...sortHandForDisplay(cards),
+            ...Array.from(
+                { length: Math.max(0, 8 - cards.length) },
+                (): typeof TALON_SLOT => TALON_SLOT,
+            ),
+        ].slice(0, 8)
+    } else if (layoutRef.current.bidding || layoutRef.current.slots.length !== 8 || introducesCards) {
+        slots = [
+            ...sortHandForDisplay(cards),
+            ...Array.from({ length: Math.max(0, 8 - cards.length) }, () => null),
+        ].slice(0, 8)
+    } else {
+        const held = new Set(cards)
+        slots = layoutRef.current.slots.map((slot) =>
+            slot !== null && slot !== TALON_SLOT && held.has(slot) ? slot : null,
         )
     }
-
-    const count = slots.length
+    layoutRef.current = { bidding, slots }
 
     return (
         <Box
+            className="fold-game-hand"
             role="group"
             aria-label={t("game.hand.ariaLabel")}
-            {...GLASS}
+            bg="transparent"
             rounded="l3"
             borderBottomRadius="0"
             borderBottomWidth="0"
@@ -114,21 +135,28 @@ export default function Hand({
             pt="4"
             px="2"
             css={{
-                ...GLASS.css,
                 paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))",
                 [SHORT]: { paddingTop: "10px" },
             }}
         >
-            <Flex justify="center" align="flex-end">
-                {slots.map((card, index) => {
+            {cards.length === 0 && <VisuallyHidden>{t("game.hand.empty")}</VisuallyHidden>}
+            <Grid
+                className="fold-game-hand-grid"
+                templateColumns={`repeat(${columns}, ${cardWidth}px)`}
+                alignItems="end"
+                gap={`${SLOT_GAP}px`}
+                mx="auto"
+                css={{
+                    width: `${cardWidth * columns + SLOT_GAP * (columns - 1)}px`,
+                    maxWidth: "100%",
+                }}
+            >
+                {slots.map((slot, index) => {
+                    const card = slot !== TALON_SLOT ? slot : null
                     const isLegal = card !== null && legalSet.has(card)
-                    const isLast = index === count - 1
-                    const { angle, arc } = fanTransform(index, count, cardSize === "sm")
-                    const fanCss =
+                    const dealCss =
                         card !== null
                             ? {
-                                  transform: `rotate(${angle}deg) translateY(${arc}px)`,
-                                  transformOrigin: "bottom center",
                                   // Plays once, on this DOM node's first paint —
                                   // React keys slots by card id, so a card that
                                   // was already in the hand and just moved
@@ -141,11 +169,11 @@ export default function Hand({
                                       : {
                                             animation: `${keyframes({
                                                 from: {
-                                                    transform: `rotate(${angle}deg) translateY(${arc + 26}px) scale(0.85)`,
+                                                    transform: "translateY(26px) scale(0.85)",
                                                     opacity: 0,
                                                 },
                                                 to: {
-                                                    transform: `rotate(${angle}deg) translateY(${arc}px) scale(1)`,
+                                                    transform: "translateY(0) scale(1)",
                                                     opacity: 1,
                                                 },
                                             })} 260ms cubic-bezier(0.16,1,0.3,1) backwards`,
@@ -155,47 +183,70 @@ export default function Hand({
                             : {}
                     return (
                         <Box
-                            key={card ?? `empty-${index}`}
+                            key={card ?? (slot === TALON_SLOT ? `talon-${index}` : `empty-${index}`)}
                             flexShrink={0}
-                            // Every slot but the last one may tighten below
-                            // the card's own width, which is what makes the
-                            // cards overlap instead of the row scrolling.
+                            // Every card owns the same full-width slot in the
+                            // fixed grid — four columns on a phone, eight from
+                            // 48em, the same eight slots either way.
                             css={{
-                                width: isLast
-                                    ? `${cardWidth}px`
-                                    : `min(${cardWidth}px, calc((100% - ${cardWidth}px) / ${Math.max(1, count - 1)}))`,
-                                ...fanCss,
+                                width: `${cardWidth}px`,
+                                height: prefs.deck === "madjarice" ? "93px" : "84px",
+                                "@media (min-width: 48em)": {
+                                    height: prefs.deck === "madjarice" ? "120px" : "108px",
+                                },
+                                borderRadius: "10px",
+                                ...dealCss,
                             }}
-                            // Keep the natural fan order for every card. Legal
-                            // cards used to jump above and visually separate
-                            // from the rest, which looked like a recommendation.
                             zIndex={index}
                         >
-                            {card === null ? (
-                                // The gap a played card leaves. It keeps its
-                                // BOX — that is the whole "never re-flow"
-                                // contract above — but paints nothing: an
-                                // outlined ghost of every card already played
-                                // turns the tray into a row of empty boxes by
-                                // the sixth trick, which is exactly the clutter
-                                // the table is trying not to have.
+                            {slot === TALON_SLOT ? (
                                 <Box
                                     w={`${cardWidth}px`}
-                                    h={cardSize === "sm" ? "93px" : "120px"}
+                                    h="100%"
+                                    rounded={CARD_METRICS[cardSize].radius}
+                                    overflow="hidden"
+                                    bg={CARD_INK.frame}
+                                    borderWidth="0"
+                                    p={cardSize === "sm" ? "2px" : "3px"}
                                     aria-hidden="true"
+                                >
+                                    <Image
+                                        src={talonBackImage}
+                                        alt=""
+                                        w="100%"
+                                        h="100%"
+                                        display="block"
+                                        objectFit="cover"
+                                        draggable={false}
+                                    />
+                                </Box>
+                            ) : slot !== null ? (
+                                <PlayingCard
+                                    card={slot}
+                                    size={cardSize}
+                                    // During our turn every card is a real
+                                    // button. The engine-provided legal set
+                                    // decides whether the tap plays it or
+                                    // explains why it cannot be played.
+                                    disabled={!myTurn}
+                                    actionHint={myTurn && !isLegal ? t("game.hand.illegalPlay") : undefined}
+                                    onSelect={myTurn ? (isLegal ? onPlay : onInvalidPlay) : undefined}
                                 />
                             ) : (
-                                <PlayingCard
-                                    card={card}
-                                    size={cardSize}
-                                    disabled={!myTurn || !isLegal}
-                                    onSelect={myTurn && isLegal ? onPlay : undefined}
+                                <Box
+                                    w={`${cardWidth}px`}
+                                    h="100%"
+                                    rounded={CARD_METRICS[cardSize].radius}
+                                    borderWidth="1.5px"
+                                    borderColor="rgba(127, 127, 127, 0.55)"
+                                    bg="transparent"
+                                    aria-hidden="true"
                                 />
                             )}
                         </Box>
                     )
                 })}
-            </Flex>
+            </Grid>
         </Box>
     )
 }

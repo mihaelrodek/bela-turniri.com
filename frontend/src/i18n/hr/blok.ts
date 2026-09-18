@@ -16,7 +16,6 @@
 export const blok = {
     /* ─── Naslov, navigacija, SEO ───────────────────────────────────── */
     title: "Bela blok",
-    nav: "Blok",
     "seo.title": "Blok za bodovanje bele — bela-turniri.com",
     "seo.description":
         "Digitalni blok za bodovanje bele za stolom — upisuj bodove, zvanja i štiglje bez prijave i bez interneta.",
@@ -513,14 +512,16 @@ export const blok = {
     "newGame.games.few": "{n} dovršene partije",
     "newGame.games.other": "{n} dovršenih partija",
     "newGame.confirmSignedIn":
-        "Serija ({games}) sprema se u Blok na tvom profilu, a rezultat serije se vraća na 0:0.",
+        "Odaberi želiš li spremiti {games} u Blok na svom profilu prije nego započneš novu igru.",
     "newGame.confirmSignedOut":
-        "Serija ({games}) briše se s ovog uređaja, a rezultat serije se vraća na 0:0. Povijest se čuva samo prijavljenim igračima.",
+        "Za spremanje {games} prijavi se. Možeš nastaviti i bez spremanja.",
     "newGame.confirmNothing":
-        "Nijedna partija nije dovršena, pa se ništa ne sprema. Blok se prazni i rezultat serije se vraća na 0:0.",
-    "newGame.confirmUnfinished": "Tekuća partija nije dovršena i ne sprema se.",
+        "Nema dovršenih partija za spremanje. Možeš odmah započeti novu igru.",
+    "newGame.confirmUnfinished": "Nedovršena partija neće se spremiti.",
+    "newGame.saveAndContinue": "Spremi i nastavi",
+    "newGame.continueWithoutSaving": "Nastavi bez spremanja",
     "newGame.signedOutNote": "Povijest blokova čuva se samo prijavljenim igračima.",
-    "newGame.saved": "Serija je spremljena u Blok na tvom profilu.",
+    "newGame.saved": "Odigrane partije spremljene su u Blok na tvom profilu.",
     "share.enable": "Omogući dijeljenje partije poveznicom",
     "share.linkedNote":
         "Zapisnik povezanog stola ostaje javan — organizator ga otvara iz ždrijeba.",

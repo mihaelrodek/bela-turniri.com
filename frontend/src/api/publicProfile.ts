@@ -17,6 +17,13 @@ export type PairSummary = {
 
 export type PublicProfile = {
     slug: string
+    /**
+     * Firebase UID of the player this page belongs to — the only thing
+     * `PUT /user/me/blocks/{uid}` can be keyed on. Optional because older
+     * clients/payloads predate it: with no uid there is nobody to block, so
+     * the "Blokiraj korisnika" item hides rather than sending a bad id.
+     */
+    uid?: string
     displayName: string | null
     phoneCountry: string | null
     phone: string | null

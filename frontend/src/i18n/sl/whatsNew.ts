@@ -8,4 +8,6 @@ export const whatsNew: Dictionary["whatsNew"] = {
     "dialog.badge": "NOVOSTI",
     "dialog.closeAria": "Zapri",
     "dialog.closeCta": "Zapri",
+    "dialog.older.show": "Prikaži starejša obvestila",
+    "dialog.older.hide": "Skrij starejša obvestila",
 }

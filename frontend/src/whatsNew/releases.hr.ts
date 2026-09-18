@@ -4,6 +4,25 @@ import { LATEST_VERSION } from "./latestVersion"
 export const releasesHr: Release[] = [
     {
         version: LATEST_VERSION,
+        date: "2026-09-18",
+        title: "Bela Online je uživo",
+        groups: [
+            {
+                heading: "Bela Online",
+                sections: [
+                    {
+                        title: "Od sad igraj belu uživo!",
+                        body: [
+                            "Bela Online je uživo.",
+                            "Još poboljšanja stižu uskoro.",
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        version: LATEST_VERSION,
         date: "2026-09-10",
         title: "Novosti ukratko",
         groups: [

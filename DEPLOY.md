@@ -284,6 +284,67 @@ of reaching the backend. If a legitimate integration starts tripping these
 (e.g. a monitoring service polling too fast), raise the relevant zone's
 `events` in the Caddyfile rather than removing the limit.
 
+## First-screen seed (`GET /api/seed`)
+
+A cold load used to be a strict waterfall: parse `index.html` → download the
+JS bundle → boot React → mount `TournamentsPage` → *only then* fire the three
+REST calls the first screen is made of. `/api/seed` cuts the tail off it.
+
+**How it works.** `frontend/index.html` carries an inline classic `<script>`
+as the very first thing after `<meta charset>`. On `/turniri`, on `/` (which
+redirects there) and on `/turniri/<uuid-or-slug>` it fires
+`GET /api/seed?path=<location.pathname>` and parks the promise on
+`window.__belaSeed`. `src/main.tsx` waits for it — **at most ~400 ms** — and
+`src/shell/seed.ts` writes the payload into the react-query cache under the
+pages' own `qk` keys before the first render. The same file also paints a
+static skeleton (navbar + three listing cards) inside `#root`, so there is
+something on screen before any JS exists at all.
+
+**Why JSON and not server-rendered HTML.** The `backend` container has no
+copy of the frontend `dist` — Caddy serves the static build and only proxies
+`/api/*` here — so a "`/api/shell` returns a filled-in index.html" variant
+would need the two images to share a volume and would couple every frontend
+deploy to the backend's file layout. The JSON seed needs neither.
+
+**Operationally it is nothing new.** It rides the existing `handle /api/*`
+block (no Caddyfile change, no new rate-limit zone — one extra request per
+cold load against a 3000/min per-IP budget), the response is
+`Cache-Control: public, max-age=20, s-maxage=60`, and
+`ShellRenderService` memoises it in-process for the same 20 s. 404s (an
+unknown slug) are never cached, in either place.
+
+**It is optional by design.** The promise never rejects, a failure resolves
+to `null`, and the 400 ms cap means a cold or slow backend can never hold the
+SPA hostage: the app renders and the pages fetch for themselves exactly as
+they did before. If you ever need to switch it off, deleting the inline
+`<script>` block from `index.html` is the whole rollback — nothing else reads
+`window.__belaSeed`.
+
+**One caveat worth knowing.** The seed is the ANONYMOUS variant of the
+listing (it never reads `CurrentUser` — that is what makes it publicly
+cacheable). For an anonymous visitor it is therefore also the AUTHORITATIVE
+variant: it is byte-for-byte the answer the same endpoints would give them.
+Only a signed-in caller can see something different — a user who blocked an
+organiser is one row too generous for a moment, an organiser is missing their
+own-tournament affordances.
+
+So the revalidation is **conditional on the session, not unconditional**:
+`applySeed` records the keys it wrote, and `revalidateSeedForUser` — called by
+`AuthProvider` at the first `onAuthStateChanged` — invalidates them with
+`refetchType: "active"` **only when someone is signed in**. A guest's three
+first-screen queries are not refetched at all; the seed stands until the normal
+30 s `staleTime`, which removes three requests from every anonymous cold load.
+Do not turn that back into an unconditional invalidate, and do not drop the
+signed-in half either — that is what keeps a blocked organiser's rows from
+lingering. (The `updatedAt: generatedAt` timestamp is separate and load-bearing
+for a different reason: it is what makes "whichever is fresher wins" resolve
+correctly against the localStorage persister.)
+
+Note the ordering this survives: the seed and the Firebase session resolve
+independently. Whichever lands second does the work — a late seed applied after
+the session is known is judged on the spot, an early seed waits in
+`seededKeys`. See `frontend/src/shell/seed.ts`.
+
 ## Email (Resend)
 
 Outgoing mail (today: the `/kontakt` form's notification) goes through the
@@ -357,9 +418,26 @@ disabled case logs `Push: FCM service account not configured — native push
 disabled.`, and a bad key file logs `Push: failed to initialise FCM` at ERROR
 (the app still boots).
 
+### Live Activities / Live Updates
+
+The game server pushes lock-screen game state for players whose app is
+backgrounded through `POST /api/internal/live-activity` (game/README.md §3.4).
+No new environment variables: it reuses `GAME_RESULTS_TOKEN` and
+`BACKEND_INTERNAL_URL` on the game server and the FCM service account above on
+the backend, and Caddy's existing `/api/internal/*` block already hides it.
+Without the token the game server logs `liveActivity.disabled` once; without
+FCM the backend answers 202 and sends nothing. Android Live Updates work as
+soon as FCM is configured. iOS Live Activities need
+`ApnsConfig.Builder#setLiveActivityToken`, which arrived in firebase-admin
+9.10.0 — the version `backend/pom.xml` pins since 2026-09-13. They also need
+the APNs `.p8` key uploaded in Firebase → Cloud Messaging, and the iOS widget
+extension itself (task N4.1). If a future downgrade drops the method, the
+backend logs `LiveActivity: firebase-admin on the classpath lacks ...` once and
+the iOS branch becomes a no-op; `LiveActivitySenderTest` fails first.
+
 ## Google Places / map tiles
 
-Three build-time frontend variables (`frontend/.env.example`, mirrored empty in
+Build-time frontend variables (`frontend/.env.example`, mirrored empty in
 `frontend/.env.native`). All are optional — with none of them set the app uses
 OpenStreetMap Nominatim for address search and CARTO Voyager tiles (keyed, see below).
 
@@ -368,7 +446,10 @@ OpenStreetMap Nominatim for address search and CARTO Voyager tiles (keyed, see b
 | `VITE_GOOGLE_MAPS_API_KEY` | Enables Google Places (New) autocomplete on the create/edit tournament form. Empty = Nominatim fallback. |
 | `VITE_CARTO_API_KEY` | Free CARTO basemap key (https://carto.com/basemaps/apikey). Without it tiles carry an "API KEY REQUIRED" watermark. |
 | `VITE_MAP_TILE_URL` | Leaflet tile URL template for both maps. Empty = CARTO Voyager. |
-| `VITE_MAP_TILE_ATTRIBUTION` | Attribution HTML shown in the map corner. Empty = OSM + CARTO. |
+| `VITE_MAP_TILE_ATTRIBUTION` | Attribution HTML shown in the map corner. Empty = provider default. |
+| `VITE_MAP_PROVIDER` | `carto` (default, raster) or `openfreemap` (MapLibre GL vector tiles, no key). |
+| `VITE_OPENFREEMAP_STYLE` | OpenFreeMap light style: `liberty` (default), `bright`, `positron`, `dark`, `fiord`. |
+| `VITE_OPENFREEMAP_STYLE_DARK` | Style used while the app is in dark mode. Default `dark`. |
 
 **The Google key ships inside the JS bundle.** That is unavoidable for a
 browser-side Places call: the only protection is the restriction configured in
@@ -393,6 +474,39 @@ VITE_MAP_TILE_ATTRIBUTION=<a href="https://www.maptiler.com/copyright/">MapTiler
 
 Stadia, Thunderforest and Mapbox raster tiles work the same way. Leaflet's `{s}`
 (subdomain) and `{r}` (retina `@2x`) placeholders are supported.
+
+### OpenFreeMap (keyless alternative)
+
+To stop depending on a CARTO key altogether, switch to OpenFreeMap vector tiles
+— **no key, no account, no registration, no request limit, commercial use
+allowed**:
+
+```
+VITE_MAP_PROVIDER=openfreemap
+VITE_OPENFREEMAP_STYLE=liberty        # or bright / positron / dark / fiord
+VITE_OPENFREEMAP_STYLE_DARK=dark      # used when the app is in dark mode
+```
+
+Rebuild and redeploy; nothing else changes. Both maps (`/karta` and the
+create-form picker) stay on Leaflet — markers, popups and controls are
+untouched — but the basemap is drawn by MapLibre GL as a Leaflet layer
+(`@maplibre/maplibre-gl-leaflet`). Attribution (`OpenFreeMap © OpenMapTiles
+Data from OpenStreetMap`) is required and rendered automatically; do not
+remove it.
+
+Two things worth knowing:
+
+* The MapLibre renderer (~1 MB, chunk `vendor-maplibre-*.js`) is **lazily
+  imported**, so a CARTO deployment never downloads it and it is not in the
+  offline precache manifest. Switching to OpenFreeMap costs that download the
+  first time a map is opened.
+* Dark mode works differently per provider. The raster path fakes a dark map
+  with a CSS filter over the tiles (`.dark .bela-basemap-raster
+  .leaflet-tile-pane` in `frontend/src/system.ts`); the vector path loads a
+  real dark style instead, and that filter is deliberately scoped away from it.
+
+`VITE_MAP_TILE_URL` overrides `VITE_MAP_PROVIDER`: an explicit tile template can
+only mean raster tiles.
 
 ## Native builds
 
@@ -467,3 +581,189 @@ wired into both build configurations of the `App` target via
 Nothing further to do in Xcode — opening the project should show
 "Associated Domains" under the App target's *Signing & Capabilities* tab
 with both entries already listed.
+
+## Sign in with Apple / native Google
+
+Both native shells replace `signInWithPopup` (blocked in WKWebView, and Google
+refuses OAuth inside an embedded webview) with
+`@capacitor-firebase/authentication`: the plugin runs the OS sign-in sheet,
+the app then feeds the returned OAuth credential into the Firebase **JS** SDK
+with `signInWithCredential`, so `onAuthStateChanged`, `getIdToken()` and every
+REST call downstream behave exactly as on the web. `skipNativeAuth` stays
+**false** on purpose (`frontend/capacitor.config.ts`), so the native Firebase
+SDK is signed in as well — `@capacitor-firebase/messaging` needs that to bind
+the FCM token to the right account.
+
+Sign in with Apple is **mandatory** on iOS: App Store Review guideline 4.8
+requires it in any app that offers another third-party social login, and this
+app offers Google. It is also enabled on the web (popup) so the same account
+works in a browser.
+
+Nothing below is in the repo — these are one-time console steps the owner has
+to do, and until they are done the Apple/Google buttons fail with
+`auth/operation-not-allowed` or return to a dead end.
+
+### 1. Apple Developer portal
+
+1. **Certificates, Identifiers & Profiles → Identifiers → App ID
+   `com.belaturniri.app`** → edit → tick **Sign in with Apple** → Save.
+   (`frontend/ios/App/App/App.entitlements` already declares
+   `com.apple.developer.applesignin = [Default]`; signing fails if the App ID
+   does not have the capability.)
+2. **Identifiers → + → Services IDs** → create e.g. `com.belaturniri.web`,
+   description "Bela Turniri Web". Edit it → tick **Sign in with Apple** →
+   **Configure**:
+   - Primary App ID: `com.belaturniri.app`
+   - Domains and Subdomains: `bela-turniri.com`
+   - Return URLs: `https://bela-turniri.firebaseapp.com/__/auth/handler`
+     (the Firebase Auth handler — substitute the project's real
+     `authDomain` if it is not `bela-turniri.firebaseapp.com`; it is the
+     `VITE_FIREBASE_AUTH_DOMAIN` value)
+   This Services ID is only used by the **web** popup flow; the native flow
+   authenticates against the App ID directly.
+3. **Keys → +** → name e.g. "Bela Turniri Sign in with Apple" → tick
+   **Sign in with Apple** → Configure → Primary App ID `com.belaturniri.app`
+   → Register → **download the `.p8` once** (Apple never shows it again).
+   Note the **Key ID** shown on the key page and the **Team ID** from the top
+   right of the portal.
+
+### 2. Firebase console — Apple provider
+
+**Authentication → Sign-in method → Add new provider → Apple → Enable**, then:
+
+- Services ID: `com.belaturniri.web`
+- Apple Team ID: the Team ID from step 1.3
+- Key ID: the Key ID from step 1.3
+- Private key: paste the contents of the `.p8`
+
+Save. Without this the web popup and, on a fresh project, the native flow both
+fail with `auth/operation-not-allowed`.
+
+### 3. Native Google
+
+Google sign-in needs the platform config files that are **not** in the repo:
+
+- **iOS**: Firebase console → Project settings → iOS app (`com.belaturniri.app`)
+  → download **`GoogleService-Info.plist`** → put it at
+  `frontend/ios/App/App/GoogleService-Info.plist` and add it to the `App`
+  target in Xcode. Open it, copy the **`REVERSED_CLIENT_ID`** value
+  (`com.googleusercontent.apps.<digits>-<hash>`) and replace the placeholder
+  `com.googleusercontent.apps.REPLACE_WITH_REVERSED_CLIENT_ID` inside
+  `CFBundleURLTypes` in `frontend/ios/App/App/Info.plist`. Without the scheme
+  the Google sheet has no way back into the app. (Sign in with Apple needs no
+  URL scheme — it runs in-process through AuthenticationServices.)
+- **Android**: Firebase console → Android app (`com.belaturniri.app`) →
+  download **`google-services.json`** → `frontend/android/app/google-services.json`.
+  Then add the signing certificate **SHA-1** of *both* keystores to that
+  Firebase Android app (Project settings → Your apps → Add fingerprint) —
+  Google sign-in silently returns "developer error" (status 10) otherwise:
+  ```bash
+  # debug keystore (the one gradlew assembleDebug uses)
+  keytool -list -v -alias androiddebugkey -keystore ~/.android/debug.keystore \
+      -storepass android -keypass android | grep SHA1
+  # release keystore
+  keytool -list -v -alias <release-alias> -keystore <release.jks> | grep SHA1
+  ```
+  Re-download `google-services.json` after adding fingerprints.
+- Firebase console → **Authentication → Sign-in method → Google → Enable**
+  (this is what the web popup already uses, so it is probably on already).
+
+### 4. After the console work
+
+`frontend/capacitor.config.ts` lists the providers the native plugin builds a
+handler for (`["apple.com", "google.com"]`) — that list is not cosmetic, the
+plugin rejects with *"sign-in provider is not enabled"* for anything missing.
+It only reaches the native projects through a sync, so run:
+
+```bash
+cd frontend && npm run build:native      # vite build + npx cap sync
+```
+
+Then rebuild the apps. Worth checking on a device: the Apple button appears
+**first** on iOS (reviewers look for it), cancelling the sheet shows no error
+at all, and signing in with Apple the very first time stores the name — Apple
+releases it on the first authorisation only, so `AuthContext` copies it onto
+the Firebase user and pushes it to `/user/me/sync` right there; a second
+sign-in from a reinstalled app will never see it again.
+
+## Account deletion, reports, retention
+
+Three App Store compliance features, all backend-enforced. Nothing new to
+configure — they work on a plain `./ops/deploy.sh` — but there are four
+operational facts worth knowing.
+
+### 1. Account deletion is anonymisation (`DELETE /api/user/me`)
+
+The person disappears; the tournaments other people played in stay intact.
+The `user_profiles` row and **its slug survive** with `deleted_at` stamped and
+every personal field nulled, so old links 404 instead of the slug being
+re-issued to the next person whose name normalises to it. Push subscriptions
+and devices, the `game_names` row, `blok_sessions` and every `user_blocks`
+edge are deleted; `pairs.contact_phone` is nulled while `submitted_by_uid`,
+`co_submitted_by_uid` and `tournaments.created_by_uid` are kept. The full
+per-table checklist lives in `AccountDeletionService`'s javadoc.
+
+* A **second** `DELETE /api/user/me` is **204**, not 404 — the request means
+  "make sure this account is gone", and it is.
+* `POST /api/user/me/sync` for a deleted account answers **410
+  `ACCOUNT_DELETED`** instead of lazily re-creating the profile. Without that,
+  deletion would only mean "logged out until you sign in again".
+* `GET /api/public/users/{slug}` for a deleted account is **404**; anywhere the
+  name would be rendered (pair "Prijavio: …", partner chips, the block list)
+  shows `profile.deletedUser` — "Obrisani korisnik" / "Izbrisan uporabnik".
+
+**Without an FCM service account** (`FIREBASE_SERVICE_ACCOUNT_JSON` /
+`FIREBASE_SERVICE_ACCOUNT_FILE` unset — see "Native push (FCM)" above) there is
+no `FirebaseApp` in the process, so the **Firebase Auth user is not deleted
+server-side**. The backend logs one WARN
+(`no Firebase service account configured — Firebase Auth user … was NOT
+deleted server-side`) and still returns 204; the local data is anonymised
+either way and the frontend's own client-side `deleteUser()` is the second
+path. If you see that WARN in production, configure the service account —
+it is the same credential native push already needs.
+
+### 2. Reports and blocks (Apple 1.2)
+
+* `POST /api/reports` (signed in) — 201 `{"id": n}`. Unknown target 404,
+  reporting your own content 400 `CANNOT_REPORT_SELF`, more than 10 per hour
+  per user 429 `RATE_LIMITED`.
+* Admin inbox, gated on the `role: "admin"` custom claim
+  (`scripts/set-admin.mjs`):
+  * `GET /api/admin/reports?status=open|resolved`
+  * `GET /api/admin/reports/count?status=open` — the badge
+  * `POST /api/admin/reports/{id}/resolve` with
+    `{"resolution":"DISMISSED"|"ACTIONED","note":"…"}`
+* Blocks: `PUT` / `DELETE /api/user/me/blocks/{uid}`, `GET /api/user/me/blocks`.
+  A block hides the profile page **in both directions** (404) and drops that
+  organiser's tournaments from `/api/tournaments` and `/api/tournaments/count`
+  **for the signed-in blocker only**. A blocked user's **pairs are still
+  listed** in a tournament — the organiser needs the full roster and the other
+  players need the draw.
+* Caching: `PublicReadCacheFilter` now skips any request carrying an
+  `Authorization` header outright, so only the uniform anonymous listing is
+  ever cacheable by the browser or by Caddy.
+
+### 3. Contact-form retention (scheduler)
+
+`ContactMessageRetentionJob` runs nightly at **04:00 server time**
+(`@Scheduled(cron = "0 0 4 * * ?")`, `quarkus-scheduler`) and:
+
+* nulls `contact_messages.ip` on rows older than **30 days**;
+* deletes rows older than **12 months**.
+
+**Those two numbers are quoted in the privacy policy** — change one and you
+must change the other. The job is gated by the standard
+`quarkus.scheduler.enabled` property; the `%test` profile sets it `false` so a
+sweep cannot fire mid-test-suite. To disable it on a running box, set
+`QUARKUS_SCHEDULER_ENABLED=false` in `.env` and `./ops/up.sh backend`. A log
+line appears only when it actually changed something:
+`Contact retention: N IP(s) cleared (>30d), M message(s) deleted (>12m).`
+
+### 4. Migrations
+
+Three changelogs, already included in `changelog-master.xml`:
+`account_deletion.xml` (the `deleted_at` column + a partial index),
+`content_reports.xml` (`content_reports`, `user_blocks`) and
+`contact_message_retention.xml` (an index on `contact_messages.created_at`, so
+the nightly sweep does not seq-scan). All guarded with
+`preConditions onFail="MARK_RAN"` and carrying explicit `<rollback>` blocks.

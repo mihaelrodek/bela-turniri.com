@@ -1,5 +1,5 @@
 /* Room chat (README §3 "Chat"): trim, cap at LIMITS.chatMax, fan out to the room.
-   Also `chat.react` (protocol §2.9): a rate-limited emoji reaction broadcast, no
+   Also `chat.react` (protocol §2.9): a rate-limited quick-reaction broadcast, no
    history kept — it is a transient toast next to the sender's seat. */
 
 import { LIMITS } from "@bela/protocol"

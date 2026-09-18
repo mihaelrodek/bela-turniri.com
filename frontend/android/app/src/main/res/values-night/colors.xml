@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- N5.3 widget dark-mode palette. Brand green #2F8F52 reads too dark on
+         a near-black widget background, so the accent is brightened here;
+         see values/colors.xml for the light counterpart. -->
+    <color name="widget_accent">#4CC97A</color>
+    <color name="widget_bg">#1E211F</color>
+    <color name="widget_bg_row">#2A2E2B</color>
+    <color name="widget_text_primary">#F1F4F2</color>
+    <color name="widget_text_secondary">#B7C4BC</color>
+</resources>

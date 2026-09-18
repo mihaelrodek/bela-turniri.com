@@ -5,6 +5,7 @@ import hr.mrodek.apps.bela_turniri.model.Tournaments;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -103,16 +104,57 @@ public class TournamentsRepository implements AppRepository<Tournaments, Long> {
      * "no filter" here too, so this stays safe to call directly).
      */
     public List<Tournaments> findFinishedPaged(int offset, int limit, String q) {
+        return findFinishedPaged(offset, limit, q, null);
+    }
+
+    /**
+     * Same again, minus the tournaments created by anyone {@code blockerUid}
+     * has blocked (App Store guideline 1.2).
+     *
+     * <p>{@code blockerUid} is the CALLER's uid and is null for an anonymous
+     * request, which is the only reason this can stay a single query: with no
+     * caller there is no block list, the subquery is not emitted at all, and
+     * the anonymous response is byte-for-byte what it always was. That is what
+     * keeps {@code PublicReadCacheFilter} honest — it only ever caches
+     * anonymous GETs, so a shared cache can never hold one user's filtered
+     * listing.
+     *
+     * <p>A {@code not in} subquery rather than a join: the block list is
+     * usually empty and almost always tiny, and this shape leaves the existing
+     * {@code left join fetch t.resource} (and therefore SQL-side pagination)
+     * exactly as it was.
+     */
+    public List<Tournaments> findFinishedPaged(int offset, int limit, String q, String blockerUid) {
         String pattern = likePattern(q);
-        String hql = "from Tournaments t left join fetch t.resource where t.status = ?1"
-                + (pattern != null
-                        ? " and (lower(t.name) like ?2 escape '\\' or lower(t.location) like ?2 escape '\\')"
-                        : "")
-                + " order by t.startAt desc";
-        var query = pattern != null
-                ? find(hql, TournamentStatus.FINISHED, pattern)
-                : find(hql, TournamentStatus.FINISHED);
-        return query.range(Math.max(0, offset), lastIndex(offset, limit)).list();
+        List<Object> args = new ArrayList<>();
+        args.add(TournamentStatus.FINISHED);
+        StringBuilder hql = new StringBuilder("from Tournaments t left join fetch t.resource where t.status = ?1");
+        if (pattern != null) {
+            args.add(pattern);
+            hql.append(" and (lower(t.name) like ?").append(args.size())
+               .append(" escape '\\' or lower(t.location) like ?").append(args.size()).append(")");
+        }
+        appendBlockFilter(hql, args, blockerUid);
+        hql.append(" order by t.startAt desc");
+        return find(hql.toString(), args.toArray())
+                .range(Math.max(0, offset), lastIndex(offset, limit))
+                .list();
+    }
+
+    /**
+     * Appends "…and this tournament's creator is not on the caller's block
+     * list" when there is a caller with a block list to consult, and nothing
+     * at all otherwise.
+     *
+     * <p>{@code created_by_uid is null} is allowed through deliberately:
+     * legacy tournaments predate the column, and nobody can have blocked a
+     * uid that was never recorded.
+     */
+    private static void appendBlockFilter(StringBuilder hql, List<Object> args, String blockerUid) {
+        if (blockerUid == null || blockerUid.isBlank()) return;
+        args.add(blockerUid);
+        hql.append(" and (t.createdByUid is null or t.createdByUid not in"
+                + " (select b.blockedUid from UserBlock b where b.blockerUid = ?").append(args.size()).append("))");
     }
 
     /**
@@ -165,12 +207,23 @@ public class TournamentsRepository implements AppRepository<Tournaments, Long> {
      *  pattern as {@link #findFinishedPaged(int, int, String)} — feeds the
      *  "prikaži još" button under the finished-search group. */
     public long countFinished(String q) {
+        return countFinished(q, null);
+    }
+
+    /** Same count, with the caller's blocked creators excluded — see
+     *  {@link #findFinishedPaged(int, int, String, String)}. */
+    public long countFinished(String q, String blockerUid) {
         String pattern = likePattern(q);
-        if (pattern == null) {
-            return count("status = ?1", TournamentStatus.FINISHED);
+        List<Object> args = new ArrayList<>();
+        args.add(TournamentStatus.FINISHED);
+        StringBuilder hql = new StringBuilder("from Tournaments t where t.status = ?1");
+        if (pattern != null) {
+            args.add(pattern);
+            hql.append(" and (lower(t.name) like ?").append(args.size())
+               .append(" escape '\\' or lower(t.location) like ?").append(args.size()).append(")");
         }
-        return count("status = ?1 and (lower(name) like ?2 escape '\\' or lower(location) like ?2 escape '\\')",
-                TournamentStatus.FINISHED, pattern);
+        appendBlockFilter(hql, args, blockerUid);
+        return count(hql.toString(), args.toArray());
     }
 
     /**
@@ -180,12 +233,20 @@ public class TournamentsRepository implements AppRepository<Tournaments, Long> {
      * scheduled start has passed.
      */
     public List<Tournaments> findNotFinishedOrderByStartAtAsc() {
-        return list("""
-                from Tournaments t
-                left join fetch t.resource
-                where t.status <> ?1
-                order by t.startAt asc
-                """, TournamentStatus.FINISHED);
+        return findNotFinishedOrderByStartAtAsc(null);
+    }
+
+    /** Same listing, minus the creators {@code blockerUid} has blocked; null
+     *  caller (anonymous) means no filtering — see
+     *  {@link #findFinishedPaged(int, int, String, String)}. */
+    public List<Tournaments> findNotFinishedOrderByStartAtAsc(String blockerUid) {
+        List<Object> args = new ArrayList<>();
+        args.add(TournamentStatus.FINISHED);
+        StringBuilder hql = new StringBuilder(
+                "from Tournaments t left join fetch t.resource where t.status <> ?1");
+        appendBlockFilter(hql, args, blockerUid);
+        hql.append(" order by t.startAt asc");
+        return list(hql.toString(), args.toArray());
     }
 
     /**

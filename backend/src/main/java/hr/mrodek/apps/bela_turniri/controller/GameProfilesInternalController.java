@@ -1,10 +1,12 @@
 package hr.mrodek.apps.bela_turniri.controller;
 
 import hr.mrodek.apps.bela_turniri.dtos.SetGameNameRequest;
+import hr.mrodek.apps.bela_turniri.dtos.GameStatsDto;
 import hr.mrodek.apps.bela_turniri.model.GameName;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
 import hr.mrodek.apps.bela_turniri.services.AvatarPresetService;
 import hr.mrodek.apps.bela_turniri.services.GameNameService;
+import hr.mrodek.apps.bela_turniri.services.GameStatsService;
 import hr.mrodek.apps.bela_turniri.services.InternalTokenGuard;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -60,6 +62,7 @@ public class GameProfilesInternalController {
     @Inject GameNameService gameNames;
     @Inject InternalTokenGuard guard;
     @Inject AvatarPresetService avatarPresets;
+    @Inject GameStatsService gameStats;
 
     /**
      * What the game server needs to render a seat: nothing more.
@@ -84,7 +87,7 @@ public class GameProfilesInternalController {
      *                    otherwise, with no rule of its own.
      */
     public record GameProfileResponse(String displayName, String avatarUrl, String gameName,
-                                      String avatarPreset) {}
+                                      String avatarPreset, GameStatsDto gameStats) {}
 
     /**
      * The accepted name plus the two instants the caller needs to render
@@ -108,6 +111,7 @@ public class GameProfilesInternalController {
         // Resolved before the profile branch below, so a guest — who by
         // definition has no profile row — still gets their name back.
         String gameName = gameNames.nameFor(uid);
+        GameStatsDto stats = gameStats.statsFor(uid);
         return profiles.findByUid(uid)
                 .map(p -> {
                     String avatarUrl = p.getAvatar() != null && p.getAvatar().getId() != null
@@ -117,9 +121,10 @@ public class GameProfilesInternalController {
                             p.getDisplayName(),
                             avatarUrl,
                             gameName,
-                            avatarPresets.presetFor(p, avatarUrl));
+                            avatarPresets.presetFor(p, avatarUrl),
+                            stats);
                 })
-                .orElseGet(() -> new GameProfileResponse(null, null, gameName, null));
+                .orElseGet(() -> new GameProfileResponse(null, null, gameName, null, stats));
     }
 
     /**

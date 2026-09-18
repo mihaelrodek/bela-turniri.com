@@ -110,8 +110,15 @@ export const qk = {
     /** Admin console reads. */
     adminDashboard: ["admin", "dashboard"] as const,
     adminPlayers: ["admin", "players"] as const,
+    adminGameAnalytics: ["admin", "gameAnalytics"] as const,
     /** Contact-form triage inbox — carries senders' e-mail/IP, admin-only. */
     adminContactMessages: ["admin", "contactMessages"] as const,
+    /** Content-report queue, one entry per status bucket (open / resolved). */
+    adminReports: (status: "open" | "resolved") => ["admin", "reports", status] as const,
+    /** Badge count of still-open reports — read without loading the queue. */
+    adminReportsCount: ["admin", "reports", "count"] as const,
+    /** Users the signed-in user has blocked ("Blokirani korisnici"). */
+    blocks: ["blocks"] as const,
     /** The signed-in user's own saved pair-name presets ("Moji pari"). */
     myPairPresets: ["myPairPresets"] as const,
     /** Names of the signed-in user's saved drink-price templates. */
@@ -122,6 +129,8 @@ export const qk = {
     myInvoices: ["myInvoices"] as const,
     /** The signed-in user's game statistics (bela online). */
     gameStats: ["gameStats"] as const,
+    /** The signed-in user's online-game reliability and confirmed leaves. */
+    gameReliability: ["gameReliability"] as const,
     /** Organiser/admin view of "Poveži blok sa stolom" requests (BLOK-LINK.md). */
     blokLinks: (tournamentUuid: string) => ["blokLinks", tournamentUuid] as const,
     /** The signed-in user's saved "Bela blok" sessions (BLOK-HISTORY.md) — summaries only. */
@@ -145,6 +154,9 @@ export const qk = {
 export const NON_PERSISTED_KEY_ROOTS: ReadonlySet<string> = new Set([
     "profile",
     "admin",
+    // The signed-in user's block list — names and avatars of people they
+    // chose to hide, and about as personal as this app's data gets.
+    "blocks",
     // Rows carry owner-only affordances (edit / delete / contact).
     "pairRequests",
     // Owner-only extras when the viewer is the profile's own player.

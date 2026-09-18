@@ -2,12 +2,36 @@
 <resources>
     <string name="app_name">Bela Turniri</string>
     <string name="title_activity_main">Bela Turniri</string>
-    <string name="package_name">com.belaturniri.app</string>
-    <string name="custom_url_scheme">com.belaturniri.app</string>
+    <string name="package_name" translatable="false">com.belaturniri.app</string>
+    <string name="custom_url_scheme" translatable="false">com.belaturniri.app</string>
     <!-- Documents the "bela" notification channel's display name for anyone
          reading the Android project without JS context — the channel itself
          is created at runtime by NativeShell.tsx via FirebaseMessaging
          .createChannel(), using the localised string (i18n key
          common.push.channelName), not this resource. Keep the two in sync. -->
     <string name="notification_channel_name">Obavijesti</string>
+
+    <!-- N4.4 live game notification (BelaLiveActivityPlugin / BelaMessagingService /
+         LiveGameNotification). "live_notif_title" and "live_notif_text_other_turn"
+         take %1$d/%2$d int placeholders — see LiveGameNotification.kt. -->
+    <string name="live_channel_name">Partija uživo</string>
+    <string name="live_notif_title">Mi %1$d : %2$d Vi</string>
+    <string name="live_notif_text_your_turn">Tvoj red</string>
+    <string name="live_notif_text_other_turn">Na potezu je igrač %1$d</string>
+    <string name="live_notif_win">Pobjeda!</string>
+    <string name="live_notif_lose">Poraz</string>
+
+    <!-- N5.3 "Nadolazeći turniri" home-screen widget. See
+         UpcomingTournamentsWidgetProvider.kt / widget_upcoming_tournaments.xml. -->
+    <string name="widget_title">Nadolazeći turniri</string>
+    <string name="widget_empty">Nema nadolazećih turnira</string>
+    <string name="widget_description">Prikazuje sljedeća tri nadolazeća turnira.</string>
+
+    <!-- N5.4 static app shortcuts (long-press the launcher icon). See res/xml/shortcuts.xml. -->
+    <string name="shortcut_blok_short">Blok</string>
+    <string name="shortcut_blok_long">Otvori blok</string>
+    <string name="shortcut_new_tournament_short">Novi turnir</string>
+    <string name="shortcut_new_tournament_long">Novi turnir</string>
+    <string name="shortcut_play_short">Igraj</string>
+    <string name="shortcut_play_long">Igraj</string>
 </resources>

@@ -1,14 +1,17 @@
+import { useState } from "react"
 import { Button, HStack, IconButton, Menu } from "@chakra-ui/react"
 import {
     FiCalendar,
-    FiChevronLeft,
     FiCreditCard,
     FiEdit2,
+    FiFlag,
     FiMoreHorizontal,
     FiTrash2,
 } from "react-icons/fi"
 import { FaQrcode } from "react-icons/fa"
 
+import { useAuth } from "../../auth/authContextValue"
+import ReportDialog from "../../components/ReportDialog"
 import SyncIndicator from "../../components/SyncIndicator"
 import TournamentResultsCard from "../../components/TournamentResultsCard"
 import {
@@ -44,7 +47,37 @@ export type TournamentChromeProps = {
     onEdit: () => void
     onDelete: () => void
     onOpenQr: () => void
-    onBackToList: () => void
+}
+
+/**
+ * "Prijavi turnir" wiring, shared by both shells so the phone header and the
+ * desktop sidebar can never end up offering different things.
+ *
+ * ANONYMOUS READERS GET NOTHING — `canReport` is false without a session.
+ * A report is attributed to its reporter, so a disabled item with a "Prijavi
+ * se" tooltip would be an affordance that cannot work where it is shown; the
+ * profile and pair entry points hide themselves on the same rule.
+ *
+ * The dialog lives here rather than on the page, because the page (which is
+ * not part of this shell) would otherwise have to grow a prop and a piece of
+ * state for something that never touches tournament data.
+ */
+function useReportTournament(tournament: TournamentDetails) {
+    const { user } = useAuth()
+    const [open, setOpen] = useState(false)
+    return {
+        canReport: !!user,
+        openReport: () => setOpen(true),
+        dialog: (
+            <ReportDialog
+                targetType="TOURNAMENT"
+                targetId={tournament.uuid}
+                targetLabel={tournament.name}
+                open={open}
+                onClose={() => setOpen(false)}
+            />
+        ),
+    }
 }
 
 /** Phone / tablet: title, status, the section pills and a compact action row. */
@@ -62,9 +95,9 @@ export function TournamentTopBar({
     onEdit,
     onDelete,
     onOpenQr,
-    onBackToList,
 }: TournamentChromeProps) {
     const { t: tr } = useTranslation()
+    const { canReport, openReport, dialog: reportDialog } = useReportTournament(t)
     return (
         <TournamentMobileBar
             name={t.name}
@@ -123,9 +156,11 @@ export function TournamentTopBar({
                                 <Menu.Item value="qr" onSelect={onOpenQr}>
                                     <FaQrcode /> {tr("common.qr.dialogTitle")}
                                 </Menu.Item>
-                                <Menu.Item value="back" onSelect={onBackToList}>
-                                    <FiChevronLeft /> {tr("tournament.backToList")}
-                                </Menu.Item>
+                                {canReport && (
+                                    <Menu.Item value="report" onSelect={openReport}>
+                                        <FiFlag /> {tr("tournament.report.tournamentItem")}
+                                    </Menu.Item>
+                                )}
                                 {showDeleteAction && (
                                     <Menu.Item
                                         value="delete"
@@ -138,6 +173,7 @@ export function TournamentTopBar({
                             </Menu.Content>
                         </Menu.Positioner>
                     </Menu.Root>
+                    {reportDialog}
                 </>
             }
         />
@@ -159,10 +195,9 @@ export function TournamentSideNav({
     onEdit,
     onDelete,
     onOpenQr,
-    // `onBackToList` is deliberately unused here: the sidebar has no
-    // overflow menu — the app navbar above it already carries the way back.
 }: TournamentChromeProps) {
     const { t: tr } = useTranslation()
+    const { canReport, openReport, dialog: reportDialog } = useReportTournament(t)
     return (
         <TournamentSidebar
             name={t.name}
@@ -240,6 +275,21 @@ export function TournamentSideNav({
                             <FiCreditCard />
                         </IconButton>
                     )}
+                    {/* Same item as the phone header's overflow menu — the
+                        sidebar has no menu, so it becomes an icon. */}
+                    {canReport && (
+                        <IconButton
+                            aria-label={tr("tournament.report.tournamentItem")}
+                            title={tr("tournament.report.tournamentItem")}
+                            size="sm"
+                            variant="outline"
+                            rounded="full"
+                            onClick={openReport}
+                        >
+                            <FiFlag />
+                        </IconButton>
+                    )}
+                    {reportDialog}
                 </>
             }
         >

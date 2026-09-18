@@ -187,7 +187,7 @@ function CountChip({
 export default function FindPairPage() {
     const { t: tt } = useTranslation()
     const plural = usePlural()
-    const { user, isAdmin } = useAuth()
+    const { user, isAdmin, loading: authLoading } = useAuth()
     const navigate = useNavigate()
     const location = useLocation()
     const queryClient = useQueryClient()
@@ -843,8 +843,12 @@ export default function FindPairPage() {
 
             {/* Signed-out readers see every phone redacted by the backend. Say
                 so once, as a property of the page, instead of letting each card
-                imply something it cannot know. */}
-            {!user && (
+                imply something it cannot know. `authLoading` is part of the
+                condition because the Firebase SDK is loaded lazily (see
+                src/firebase.ts): without it a signed-in user would see this
+                "prijavi se" banner for as long as the auth chunk takes to
+                land, then watch it vanish. */}
+            {!authLoading && !user && (
                 <HStack
                     gap="3"
                     px="3.5"

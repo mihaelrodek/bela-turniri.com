@@ -19,7 +19,7 @@ components/     PlayingCard, Hand, Seat, TrickArea, Table, BiddingPanel,
                 DealSummary, RoomPanel, Chat
 hooks/          useGameSocket      one WS per page: hello → room → play
                 useEventQueue      plays game.events back one at a time
-                useTurnCountdown   turnDeadline → a draining ring
+                useTurnCountdown   turnDeadline → draining seat/pill rings
                 usePrefersReducedMotion
 mock/           mockGameServer.ts  in-browser fake server (DEV ONLY)
                 mockRules.ts       just enough of README §1 to fake a deal
@@ -45,6 +45,11 @@ types.ts        the transport interface the socket and the mock share
   once — the server clears the trick in the same frame it announces the
   winner — and there the event wins until its dwell is over
   (`hooks/useEventQueue.ts`).
+- **Dealing is presented in stable phases.** Although the authoritative
+  `PlayerView` may already contain all eight cards when trump settles, the
+  table keeps rendering six faces and two backs until `HAND_COMPLETED` reaches
+  the event queue. `DEALT`, trump selection, talon reveal and declaration
+  checking use overlays, so these explanations never reflow the table.
 - **A (re)join reads the view, never the event log.** The socket is a module
   singleton, so its event ring buffer outlives the table page; a queue mounted
   in front of a backlog must *skip* it (`startedRef` in `useEventQueue`) —
@@ -55,6 +60,15 @@ types.ts        the transport interface the socket and the mock share
   `GameRoomPage` seeds the felt from the view once per connected session.
   Those hydrated cards do **not** fly in: only the card of the CARD_PLAYED the
   queue has just released does (`TrickArea`'s `flyIn`).
+- **A reconnect is complete only after room restoration.** WebSocket open and
+  `hello.ok` prove transport and authentication, but the cached table stays
+  disabled until the matching `room.joined` / `room.state` confirms the seat.
+  The reconnect banner keeps the seat-hold countdown visible through that
+  round trip and briefly announces successful restoration.
+- **A separating vertical fold gets one complete table segment.** The foldable
+  bridge exposes segment geometry as CSS variables; `foldable.css` constrains
+  the live board and its dialogs to the first segment, switches the hand back
+  to four columns and keeps the hinge out of cards and primary controls.
 - **The scoreboard's big number is THIS DEAL.** `PlayerView.currentDealPoints`
   — the card points of completed tricks — is what a player is doing
   arithmetic with while the deal runs, so it gets the largest type; the
@@ -97,7 +111,8 @@ than parking them as a watcher, and `GameRoomPage` sends both refusals back to
 the lobby. `RoomListItem` renders the room's `occupants` — players by name,
 bots as bots, empty chairs dashed — and refuses the click when the summary's
 `joinable` is false, which is the server's own admission answer rather than a
-guess from the counts. The lobby summary carries no uid and no private code.
+guess from the counts. Player faces use the public built-in `avatarPreset`;
+the lobby summary carries no uid, uploaded avatar URL or private code.
 
 **"Zovi belu?"** (`game/README.md` §1.4). Announcing bela is the holder's
 choice, not an automatism: on a deal we are going to lose, every point of it

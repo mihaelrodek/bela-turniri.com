@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { useColorMode } from "../color-mode-hooks"
 import { isNative, platform } from "./index"
 import { nativeApp, nativeMessaging, nativeSplashScreen, nativeStatusBar } from "./native"
+import { applyFoldState, Foldable } from "./foldable"
 import { hydrateGuestFromNative } from "../game/hooks/guestIdentity"
 import { t } from "../i18n"
 import { toaster } from "../toaster"
@@ -30,6 +31,33 @@ export default function NativeShell() {
     useEffect(() => {
         if (!isNative) return
         hydrateGuestFromNative()
+    }, [])
+
+    // Jetpack WindowManager reports a physical hinge or separating fold in
+    // window coordinates. The local Capacitor plugin converts those pixels to
+    // CSS pixels; this effect exposes them as root variables shared by the
+    // scorepad, game controls, navigation and every portalled dialog.
+    useEffect(() => {
+        if (!isNative || platform !== "android") return
+        let handle: { remove: () => void } | undefined
+        let cancelled = false
+        Foldable.getState().then(applyFoldState).catch(() => {})
+        Foldable.addListener("foldChange", applyFoldState).then((next) => {
+            if (cancelled) next.remove()
+            else handle = next
+        }).catch(() => {})
+        return () => {
+            cancelled = true
+            handle?.remove()
+            applyFoldState({
+                present: false,
+                separating: false,
+                orientation: "none",
+                state: "none",
+                occlusion: "none",
+                bounds: { left: 0, top: 0, width: 0, height: 0 },
+            })
+        }
     }, [])
 
     // Hide the native splash once React has actually painted, instead of

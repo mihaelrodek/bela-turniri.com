@@ -9,6 +9,39 @@
    Owned by ONE agent of the extraction pass — nobody else edits this file. */
 
 export const admin = {
+    "analytics.title": "Analitika online igre",
+    "analytics.description": "Privatna globalna statistika svih online soba i partija. Podaci se počinju prikupljati od uvođenja ove analitike.",
+    "analytics.loading": "Učitavanje analitike…",
+    "analytics.error": "Analitika se nije mogla učitati.",
+    "analytics.roomsCreated": "Kreirane sobe",
+    "analytics.gamesStarted": "Pokrenute partije",
+    "analytics.completed": "Završene",
+    "analytics.abandoned": "Napuštene",
+    "analytics.inProgress": "U tijeku",
+    "analytics.completionRate": "Završeno {value}%",
+    "analytics.targets": "Kategorije",
+    "analytics.targetRow": "{started} pokrenuto · {completed} završeno · {abandoned} napušteno",
+    "analytics.trumps": "Aduti i uspjeh zvanja",
+    "analytics.trumpRow": "{calls} puta · {share}% svih · {success}% prolaz · {falls} padova",
+    "analytics.positions": "Redoslijed zvanja",
+    "analytics.position": "{position}. na redu",
+    "analytics.positionRow": "{calls} zvanja · {success}% prolaz · {falls} padova",
+    "analytics.details": "Dodatni pokazatelji",
+    "analytics.deals": "Odigrane podjele",
+    "analytics.avgDeals": "Prosjek podjela / partija",
+    "analytics.avgDuration": "Prosječno trajanje",
+    "analytics.minutes": "{value} min",
+    "analytics.declarationPoints": "Bodovi zvanja",
+    "analytics.stiglja": "Štiglje",
+    "analytics.belot": "Beloti",
+    "analytics.autoPlayed": "Automatski potezi",
+    "analytics.tableMix": "Sastav stolova",
+    "analytics.humans": "Samo igrači",
+    "analytics.mixed": "Igrači i botovi",
+    "analytics.bots": "Samo botovi",
+    "analytics.visibility": "Vidljivost soba",
+    "analytics.public": "Javne",
+    "analytics.private": "Privatne",
     /* ─── CjenikTab ─────────────────────────────────────────── */
     "cjenik.loading": "Učitavanje cjenika…",
     // Visitor-side empty state (someone who cannot edit). Informal second
@@ -198,6 +231,38 @@ export const admin = {
     "contactMessages.unhandledCount.two": "{n} neriješene poruke",
     "contactMessages.unhandledCount.few": "{n} neriješene poruke",
     "contactMessages.unhandledCount.other": "{n} neriješenih poruka",
+
+    /* ─── AdminDashboardTab: „Prijave” (moderacija sadržaja) ─────
+       Druga strana `components/ReportDialog.tsx`. Razlozi su isti strojni
+       kodovi koje korisnik bira u dijalogu, ali ovdje su formulirani kao
+       oznaka retka u redu čekanja, a ne kao rečenica koju korisnik odabire. */
+    "reports.heading": "Prijave",
+    "reports.description": "Prijave sadržaja koje su poslali korisnici. Svaku zatvori s „Odbaci” ili „Riješeno”.",
+    "reports.filterOpen": "Otvorene",
+    "reports.filterResolved": "Riješene",
+    "reports.loadFailed": "Nije moguće učitati prijave.",
+    "reports.empty": "Nema prijava.",
+    "reports.targetType.TOURNAMENT": "Turnir",
+    "reports.targetType.PAIR": "Par",
+    "reports.targetType.PROFILE": "Profil",
+    "reports.reason.SPAM": "Spam",
+    "reports.reason.OFFENSIVE": "Uvredljivo",
+    "reports.reason.PERSONAL_DATA": "Osobni podaci",
+    "reports.reason.OTHER": "Ostalo",
+    "reports.resolution.DISMISSED": "Odbačeno",
+    "reports.resolution.ACTIONED": "Riješeno",
+    "reports.reporter": "UID: {uid}",
+    "reports.noteShown": "Bilješka: {note}",
+    "reports.notePlaceholder": "Interna bilješka (nije obavezno)…",
+    "reports.dismiss": "Odbaci",
+    "reports.action": "Riješeno",
+    "reports.toast.resolved": "Prijava je zatvorena",
+    "reports.toast.failed": "Zatvaranje prijave nije uspjelo",
+    // Značka na naslovu odjeljka — koliko prijava još čeka.
+    "reports.openCount.one": "{n} otvorena prijava",
+    "reports.openCount.two": "{n} otvorene prijave",
+    "reports.openCount.few": "{n} otvorene prijave",
+    "reports.openCount.other": "{n} otvorenih prijava",
 }
 
 /** Contract every other locale's `admin` namespace must satisfy. */

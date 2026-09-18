@@ -29,6 +29,7 @@ export default function GameOverDialog({
     myTeam,
     /** A spectator has no side, so the columns are named Tim A / Tim B. */
     spectator = false,
+    belotName = null,
     onDismiss,
 }: {
     open: boolean
@@ -36,6 +37,7 @@ export default function GameOverDialog({
     score: Record<Team, number>
     myTeam: Team
     spectator?: boolean
+    belotName?: string | null
     onDismiss: () => void
 }) {
     const { t } = useTranslation()
@@ -66,7 +68,9 @@ export default function GameOverDialog({
                         <Dialog.Body>
                             <VStack gap="3" align="stretch">
                                 <Text fontSize="sm" color="fg.muted">
-                                    {t("game.over.description")}
+                                    {belotName
+                                        ? t("game.over.belotDescription", { name: belotName })
+                                        : t("game.over.description")}
                                 </Text>
                                 <HStack
                                     gap="0"

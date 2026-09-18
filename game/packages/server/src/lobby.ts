@@ -7,15 +7,17 @@
    ────────────────────────────────────────────────────────────────────── */
 
 import { LIMITS } from "@bela/protocol"
-import type { ActiveSeatInfo, GameEndRule, RoomSummary, TargetScore, TrickReview } from "@bela/protocol"
+import type { ActiveSeatInfo, GameEndRule, RoomSummary, TargetScore, TrickReview, WinRateRequirement } from "@bela/protocol"
 import type { Timings } from "./config.js"
 import { ProtocolError } from "./errors.js"
 import { newRoomCode, newRoomId } from "./ids.js"
+import type { LiveActivityHub } from "./liveActivity.js"
 import { log } from "./log.js"
 import { randomRoomName } from "./roomNames.js"
 import { Room } from "./room.js"
 import type { RoomHost } from "./room.js"
 import type { Connection } from "./ws.js"
+import { reportRoomCreated } from "./analyticsReporter.js"
 
 export interface CreateRoomInput {
     gameEndRule?: GameEndRule
@@ -27,6 +29,7 @@ export interface CreateRoomInput {
     name?: string
     targetScore: TargetScore
     private: boolean
+    minWinRatePercent?: WinRateRequirement
 }
 
 /** Bail-out after this many collisions — practically unreachable at `MAX_ROOMS` scale. */
@@ -38,13 +41,15 @@ export class Lobby implements RoomHost {
     private readonly rooms: Map<string, Room>
     private readonly subscribers: Set<Connection>
     private readonly timings: Timings
+    private readonly liveActivity: LiveActivityHub | null
     private debounceTimer: ReturnType<typeof setTimeout> | null
     private disposed: boolean
 
-    constructor(timings: Timings) {
+    constructor(timings: Timings, liveActivity: LiveActivityHub | null = null) {
         this.rooms = new Map()
         this.subscribers = new Set()
         this.timings = timings
+        this.liveActivity = liveActivity
         this.debounceTimer = null
         this.disposed = false
     }
@@ -151,12 +156,14 @@ export class Lobby implements RoomHost {
             targetScore: input.targetScore,
             gameEndRule: input.gameEndRule,
             private: input.private,
+            minWinRatePercent: input.minWinRatePercent,
             allowSpectators: input.allowSpectators,
             noDeclarations: input.noDeclarations,
             allowBela: input.allowBela,
             trickReview: input.trickReview,
             lobby: this,
             timings: this.timings,
+            liveActivity: this.liveActivity,
         })
         this.rooms.set(room.id, room)
         room.attach(conn)
@@ -165,6 +172,7 @@ export class Lobby implements RoomHost {
         // brand-new room IS seat 0; this states the invariant and is a no-op.
         room.sit(conn, 0)
         log.info("room.created", { room: room.id, code: room.code, host: user.uid, private: input.private })
+        reportRoomCreated(room)
         this.changed()
         return room
     }

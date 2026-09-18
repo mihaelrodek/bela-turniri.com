@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { Badge, Box, Button, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Text, VStack } from "@chakra-ui/react"
+import { Badge, Box, Button, Grid, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Text, VStack } from "@chakra-ui/react"
 import { FiLogIn, FiPlus, FiSearch, FiSettings, FiUsers } from "react-icons/fi"
 import type { RoomStatus, RoomSummary } from "@bela/protocol"
 import type { CreateGameOptions } from "../components/CreateGameDialog"
@@ -48,7 +48,15 @@ function ActiveGameCard({
     const remaining = useHoldCountdown(holdUntil)
 
     return (
-        <Box rounded="l3" borderWidth="1px" borderColor="brand.400" bg="bg.panel" px="3" py="2.5" shadow="sm">
+        <Box
+            rounded="l3"
+            borderWidth="1px"
+            borderColor={status === "PLAYING" ? "orange.400/60" : "brand.400"}
+            bg="bg.panel"
+            px="3"
+            py="2.5"
+            shadow="sm"
+        >
             <HStack justify="space-between" gap="3" wrap="wrap">
                 <HStack gap="2" minW="0" flex="1" wrap="wrap">
                     <Text fontWeight="semibold" whiteSpace="nowrap">{t("game.active.title")}</Text>
@@ -73,6 +81,9 @@ function ActiveGameCard({
                     )}
                 </HStack>
             </HStack>
+            <Text mt="1.5" fontSize="sm" color="fg.muted">
+                {t("game.active.description")}
+            </Text>
         </Box>
     )
 }
@@ -110,7 +121,27 @@ export default function GameLobbyPage() {
 
     useEffect(() => {
         if (!socket.error) return
-        showError(t(`game.error.${socket.error.code}`))
+        /* A room page may redirect here just as its final `room.left` or a
+           failed automatic rejoin reaches the shared connection. When this
+           lobby did not initiate an entry, ROOM_NOT_FOUND / NOT_IN_ROOM only
+           mean the room we deliberately left has already been cleaned up.
+           Showing that expected cleanup as a red error makes a successful
+           exit look broken. A failed code join keeps `wantsRoomRef` true and
+           therefore still shows its real error. */
+        const expectedAfterExit =
+            !wantsRoomRef.current &&
+            (socket.error.code === "ROOM_NOT_FOUND" || socket.error.code === "NOT_IN_ROOM")
+        if (expectedAfterExit) {
+            socket.clearError()
+            return
+        }
+        // Schedule the imperative toaster after React has finished this
+        // lifecycle. Chakra's toaster flushes synchronously; calling it from
+        // inside the effect body produced React's "flushSync inside a
+        // lifecycle" warning visible in devtools.
+        const error = socket.error
+        wantsRoomRef.current = false
+        queueMicrotask(() => showError(t(`game.error.${error.code}`), error.message))
         socket.clearError()
     }, [socket, t])
 
@@ -135,6 +166,11 @@ export default function GameLobbyPage() {
 
     const openRoom = (room: RoomSummary) => {
         const mine = active?.roomId === room.id
+        const myWinRate = (socket.me?.gameStats?.global.winRate ?? 0) * 100
+        if (!mine && myWinRate < room.minWinRatePercent) {
+            showError(t("game.error.WIN_RATE_TOO_LOW", { percent: room.minWinRatePercent }))
+            return
+        }
         /* "Puna" is the server's own verdict (`RoomSummary.joinable`), not a
            guess from the counts, so the refusal here says exactly what the
            join would say — instead of walking into the room screen to be
@@ -164,7 +200,7 @@ export default function GameLobbyPage() {
     return (
         <Box maxW="1040px" mx="auto" pb={{ base: "32", md: "8" }}>
             <VStack gap="6" align="stretch">
-                <HStack justify="space-between" gap="3">
+                <Grid templateColumns="minmax(0, 1fr) auto" alignItems="center" columnGap="3" w="full">
                     <HStack gap="2" minW="0">
                         <PlayerAvatar name={socket.me?.name} avatarUrl={socket.me?.avatarUrl} avatarPreset={socket.me?.avatarPreset} size="sm" />
                         <Text fontWeight="medium" lineClamp={1}>{socket.me?.name ?? "…"}</Text>
@@ -177,9 +213,14 @@ export default function GameLobbyPage() {
                         </Badge>
                     )}
                     </HStack>
-                </HStack>
+                </Grid>
 
-                {socket.me?.guest && <Text fontSize="sm" color="fg.muted">{t("game.guest.statsHint")} <Link to="/prijava">{t("game.guest.login")}</Link></Text>}
+                {socket.me?.guest && <Text fontSize="sm" color="fg.muted">
+                    <Link to="/prijava" style={{ fontWeight: 700, color: "var(--chakra-colors-brand-fg)", textDecoration: "underline", textUnderlineOffset: "3px" }}>
+                        {t("game.guest.loginInline")}
+                    </Link>
+                    {" "}{t("game.guest.statsHintSuffix")}
+                </Text>}
 
                 {/* "Imaš aktivnu igru" — the server tells us which room still
                     holds a seat for this user (`game.active`), so walking out
@@ -193,9 +234,7 @@ export default function GameLobbyPage() {
                         onLeave={() => socket.leaveRoom()}
                     />
                 )}
-                {blocked && <Text fontSize="sm" color="fg.muted">{t("game.lobby.blockedByActive")}</Text>}
-
-                <HStack justify="space-between" gap="2">
+                <Grid templateColumns="minmax(0, 1fr) auto" alignItems="center" columnGap="2" w="full">
                     <Heading textStyle="title">{t("game.lobby.heading")}</Heading>
                     <HStack gap="3">
                         <Button
@@ -210,7 +249,7 @@ export default function GameLobbyPage() {
                             {socket.rooms.length}
                         </Badge>
                     </HStack>
-                </HStack>
+                </Grid>
 
                 <InputGroup startElement={<FiSearch />}>
                     <Input
@@ -235,7 +274,7 @@ export default function GameLobbyPage() {
                         description={t("game.lobby.empty.description")}
                     />
                 ) : (
-                    <SimpleGrid columns={{ base: 1, md: 2 }} gap="4">
+                    <SimpleGrid className="responsive-room-grid" gap="4">
                         {rooms.map((room) => (
                             <RoomListItem
                                 key={room.id}
@@ -252,10 +291,11 @@ export default function GameLobbyPage() {
             </VStack>
 
             <Box
+                className="fold-center-action"
                 display={{ base: "flex", md: "none" }}
                 position="fixed"
                 left="50%"
-                bottom={`calc(${MOBILE_TABBAR_CLEARANCE} + 12px)`}
+                bottom={`calc(${MOBILE_TABBAR_CLEARANCE} + 24px)`}
                 transform="translateX(-50%)"
                 zIndex="910"
                 justifyContent="center"

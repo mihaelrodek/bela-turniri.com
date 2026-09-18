@@ -142,4 +142,19 @@
          side would have picked for it. -->
     <include file="db/changelog/user_profile_avatar_preset.xml" relativeToChangelogFile="false"/>
 
+    <!-- Store-compliance work, 2026-09-13. One file per task (they were built
+         in parallel): account anonymisation, user-content reports/blocks, and
+         a retention column for contact-form submissions. -->
+    <include file="db/changelog/account_deletion.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/content_reports.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/contact_message_retention.xml" relativeToChangelogFile="false"/>
+
+    <!-- Private admin-only telemetry for online Bela. Raw lifecycle events
+         preserve enough detail to derive new aggregate statistics later. -->
+    <include file="db/changelog/game_analytics.xml" relativeToChangelogFile="false"/>
+
+    <!-- Confirmed online-game abandons and the per-user karma derived from
+         them. The game server reports only after its reconnect grace expires. -->
+    <include file="db/changelog/game_reliability.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>

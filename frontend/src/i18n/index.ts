@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react"
-import { hr, type Dictionary } from "./hr"
+import { hrCore, type CoreDictionary, type Dictionary, type LazyNamespaces } from "./hr"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Hand-rolled i18n — no react-i18next / react-intl. Matches the project's
@@ -23,10 +23,10 @@ import { hr, type Dictionary } from "./hr"
    An explicit pick persists to localStorage immediately, and to the profile
    too when signed in (LocaleSync watches for it).
 
-   LAZY LOADING: `hr` is the only dictionary bundled into the entry chunk. It
-   is also the fallback for every missing key (see `translate` below), so a
-   synchronous `t()` must have it before anything else has loaded. Every other
-   locale is fetched with a dynamic `import()` — registered in `localeLoaders`
+   LAZY LOADING (locales): `hrCore` is the only dictionary bundled into the
+   entry chunk. It is also the fallback for every missing key (see `translate`
+   below), so a synchronous `t()` must have it before anything else has
+   loaded. Every other locale is fetched with a dynamic `import()` — in `localeLoaders`
    — kicked off eagerly the moment it becomes the current locale (at module
    load for a stored/detected non-hr locale, or from `setLocale`) and cached
    into `dictionaries` once it resolves. Until then `lookup()` transparently
@@ -36,11 +36,16 @@ import { hr, type Dictionary } from "./hr"
    stale deploy after a redeploy changed chunk hashes) is swallowed — the app
    just keeps rendering Croatian instead of spinning or crashing.
 
-   ADDING A LANGUAGE: create `./en/` with the same six namespace files typed
-   against `hr`, then register a loader in `localeLoaders` and an entry in
-   `LOCALE_LABELS` below. Nothing else changes — `Locale`, `LOCALES`, the
-   storage round-trip and the browser detection are all derived from
-   `localeLoaders`.
+   LAZY LOADING (namespaces): four namespaces are route-scoped and are not in
+   the entry chunk either — see `namespaceLoaders` / `loadNamespace` below.
+
+   ADDING A LANGUAGE: create `./en/` with the same namespace files typed
+   against `hr`, then register a loader in `localeLoaders`, the four
+   route-scoped ones in `namespaceLoaders`, and an entry in `LOCALE_LABELS`
+   below. Nothing else changes — `Locale`, `LOCALES`, the storage round-trip
+   and the browser detection are all derived from `localeLoaders`, and
+   `namespaceLoaders` is typed `Record<Locale, …>` so a half-registered
+   language is a compile error.
    ────────────────────────────────────────────────────────────────────── */
 
 /** Every locale other than `hr`, and how to fetch its dictionary. Kept
@@ -52,7 +57,7 @@ const localeLoaders = {
 } as const
 
 export type Locale = "hr" | keyof typeof localeLoaders
-export type { Dictionary }
+export type { CoreDictionary, Dictionary }
 
 /** Every supported locale, in menu order. Derived from `localeLoaders` so a
  *  new language cannot be half-registered. */
@@ -74,9 +79,130 @@ export function isLocale(value: unknown): value is Locale {
         || (typeof value === "string" && Object.prototype.hasOwnProperty.call(localeLoaders, value))
 }
 
-/** Dictionaries actually in memory. `hr` is always here; everything else is
- *  filled in by `loadDictionaryFor` once its chunk resolves. */
-const dictionaries: Partial<Record<Locale, Dictionary>> = { hr }
+/** Core dictionaries actually in memory. `hr` is always here; everything else
+ *  is filled in by `loadDictionaryFor` once its chunk resolves. */
+const dictionaries: Partial<Record<Locale, CoreDictionary>> = { hr: hrCore }
+
+/* ─────────────────── route-scoped namespaces ───────────────────
+ * `admin`, `legal`, `game` and `blok` are ~46 kB of Croatian source that only
+ * four route subtrees ever read, and the same again in Slovenian. Keeping
+ * them in the eager dictionary meant every visitor to the landing route paid
+ * for the privacy policy's prose and the online game's table chatter.
+ *
+ * They are dynamic imports instead, one chunk per (namespace, locale),
+ * registered here as they resolve. The rule that makes this invisible to the
+ * user: A NAMESPACE CHUNK IS AWAITED TOGETHER WITH THE PAGE CHUNK THAT NEEDS
+ * IT. `App.tsx` wraps each route's factory in
+ *
+ *     lazyWithReload(() => Promise.all([import("./pages/PrivacyPage"),
+ *                                       loadNamespace("legal")]).then(([m]) => m))
+ *
+ * so React's Suspense fallback covers the dictionary exactly as it covers the
+ * page, and the page's first paint already has its strings. A component that
+ * reads one of these namespaces OUTSIDE its route (the two nav bars used to)
+ * must either move its key into a core namespace or call `loadNamespace()`
+ * itself before rendering the string.
+ *
+ * hr is ALWAYS fetched for a requested namespace, even when the active locale
+ * is not hr: it is the source of truth and `translate()`'s fallback, so it is
+ * what keeps a language switch showing Croatian text rather than raw keys
+ * while the other locale's chunk is still in flight. The active locale's own
+ * chunk is best-effort for the same reason — key parity is compile-enforced,
+ * so falling back to hr is always a complete answer.
+ */
+
+export const LAZY_NAMESPACES = ["admin", "legal", "game", "blok"] as const
+
+/** A namespace that is NOT in the entry bundle. `t("legal.x")` only resolves
+ *  after `loadNamespace("legal")` has settled. */
+export type LazyNamespace = (typeof LAZY_NAMESPACES)[number]
+
+/** One loader per (namespace, locale). `Record<Locale, …>` is what forces a
+ *  new language to provide all four; the per-namespace return type is what
+ *  keeps each file typed against its Croatian counterpart. */
+type NamespaceLoaders = {
+    [N in LazyNamespace]: Record<Locale, () => Promise<LazyNamespaces[N]>>
+}
+
+const namespaceLoaders: NamespaceLoaders = {
+    admin: {
+        hr: () => import("./hr/admin").then((mod) => mod.admin),
+        sl: () => import("./sl/admin").then((mod) => mod.admin),
+    },
+    legal: {
+        hr: () => import("./hr/legal").then((mod) => mod.legal),
+        sl: () => import("./sl/legal").then((mod) => mod.legal),
+    },
+    game: {
+        hr: () => import("./hr/game").then((mod) => mod.game),
+        sl: () => import("./sl/game").then((mod) => mod.game),
+    },
+    blok: {
+        hr: () => import("./hr/blok").then((mod) => mod.blok),
+        sl: () => import("./sl/blok").then((mod) => mod.blok),
+    },
+}
+
+/** Flat key→string tables, exactly the shape `lookup` indexes into. */
+type NamespaceTable = Record<string, string>
+
+/** What has actually arrived, per locale. Kept beside `dictionaries` rather
+ *  than merged into it: a namespace can land before (or without) its locale's
+ *  core chunk, and mutating a dictionary object that has not been assigned
+ *  yet would silently drop the registration. */
+const loadedNamespaces: Partial<Record<Locale, Partial<Record<LazyNamespace, NamespaceTable>>>> = {}
+
+/** Every namespace some route has asked for. Replayed on `setLocale` so a
+ *  language switch re-fetches exactly the namespaces currently on screen. */
+const requestedNamespaces = new Set<LazyNamespace>()
+
+/** One in-flight (or settled) promise per (locale, namespace). */
+const namespacePromises = new Map<string, Promise<void>>()
+
+function fetchNamespace(locale: Locale, namespace: LazyNamespace): Promise<void> {
+    if (loadedNamespaces[locale]?.[namespace]) return Promise.resolve()
+    const cacheKey = `${locale}:${namespace}`
+    let promise = namespacePromises.get(cacheKey)
+    if (!promise) {
+        promise = namespaceLoaders[namespace][locale]()
+            .then((table) => {
+                const perLocale = loadedNamespaces[locale] ?? (loadedNamespaces[locale] = {})
+                perLocale[namespace] = table as unknown as NamespaceTable
+            })
+            .catch((err) => {
+                // Allow a later retry (a second navigation, the next cold
+                // load) instead of caching the failure forever.
+                namespacePromises.delete(cacheKey)
+                throw err
+            })
+        namespacePromises.set(cacheKey, promise)
+    }
+    return promise
+}
+
+/**
+ * Make `namespace` resolvable by `t()`. Await this ALONGSIDE the page chunk
+ * that needs it (see `App.tsx`) — never after first paint, or the page flashes
+ * raw keys.
+ *
+ * REJECTS if Croatian's chunk cannot be fetched, deliberately: wrapped in
+ * `lazyWithReload`'s factory it then gets the same treatment as a missing page
+ * chunk — one recovery reload after a deploy changed the hashes, and the
+ * honest offline notice when there is no signal — instead of rendering a page
+ * full of dotted key names. The ACTIVE locale's own chunk is best-effort: a
+ * failure there falls back to Croatian text, which is a complete answer.
+ */
+export function loadNamespace(namespace: LazyNamespace): Promise<void> {
+    requestedNamespaces.add(namespace)
+    const locale = currentLocale
+    const jobs: Promise<unknown>[] = [fetchNamespace(DEFAULT_LOCALE, namespace)]
+    if (locale !== DEFAULT_LOCALE) {
+        jobs.push(fetchNamespace(locale, namespace).catch(() => {}))
+    }
+    return Promise.all(jobs).then(() => {
+        if (currentLocale === locale) notify()
+    })
+}
 
 // One in-flight (or settled) load promise per locale, so a locale switched to
 // twice in a row — or hit by both the module-scope kick-off and an early
@@ -206,6 +332,18 @@ export function setLocale(next: Locale): void {
     applyDocumentLang(next)
     notify()
     loadDictionaryFor(next)
+    // Replay the route-scoped namespaces the app has asked for so far: the
+    // page on screen is almost certainly one of them, and without this a
+    // switch to Slovenian on /privatnost would keep rendering the Croatian
+    // policy forever (the `lookup` fallback) instead of only until the chunk
+    // lands. Failures stay swallowed — Croatian is a complete answer.
+    requestedNamespaces.forEach((namespace) => {
+        void fetchNamespace(next, namespace)
+            .then(() => {
+                if (currentLocale === next) notify()
+            })
+            .catch(() => {})
+    })
 }
 
 function subscribe(onStoreChange: () => void): () => void {
@@ -231,16 +369,33 @@ function warnOnce(message: string, key: string) {
     console.warn(`[i18n] ${message}`)
 }
 
+/** The flat table behind one namespace for one locale, or `undefined` when
+ *  this locale has not got it (yet): a core chunk still in flight, or a
+ *  route-scoped namespace nobody on screen has asked for. */
+function namespaceTable(locale: Locale, namespace: string): NamespaceTable | undefined {
+    const lazy = loadedNamespaces[locale]?.[namespace as LazyNamespace]
+    if (lazy) return lazy
+    const dict = dictionaries[locale]
+    if (!dict) return undefined
+    return (dict as unknown as Record<string, NamespaceTable | undefined>)[namespace]
+}
+
 function lookup(locale: Locale, key: TKey): string | undefined {
     const dot = key.indexOf(".")
     if (dot <= 0) return undefined
     const namespace = key.slice(0, dot)
     const leaf = key.slice(dot + 1)
-    // `dictionaries[locale]` is briefly absent right after a cold load into,
-    // or a `setLocale` switch to, a locale whose chunk hasn't resolved yet —
-    // serve `hr` rather than throwing, exactly like a genuinely missing key.
-    const dict = dictionaries[locale] ?? hr
-    const table = (dict as unknown as Record<string, Record<string, string>>)[namespace]
+    // A locale's table for this namespace is briefly absent right after a cold
+    // load into, or a `setLocale` switch to, a locale whose chunk hasn't
+    // resolved yet — and likewise while a route-scoped namespace is being
+    // fetched for the locale just switched to. Serve Croatian's table rather
+    // than throwing, exactly as this did before namespaces became lazy.
+    //
+    // NB this falls back on a WHOLE MISSING TABLE only. A table that IS loaded
+    // but lacks the leaf returns undefined and goes through `translate`'s
+    // fallback (with the dev warning) — which is what keeps `translatePlural`'s
+    // "ask the requested locale, not Croatian" contract for Slovenian's dual.
+    const table = namespaceTable(locale, namespace) ?? namespaceTable(DEFAULT_LOCALE, namespace)
     return table?.[leaf]
 }
 

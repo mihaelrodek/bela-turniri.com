@@ -3,6 +3,7 @@ import { useMemo } from "react"
 import { useDocumentHead } from "./useDocumentHead"
 import { useTranslation } from "../i18n"
 import { formatDate } from "../utils/format"
+import { detailPosterPreload } from "../utils/imageUrl"
 import type { TournamentDetails } from "../types/tournaments"
 
 /**
@@ -148,6 +149,13 @@ export function useTournamentHead(t: TournamentDetails | null, uuid: string | un
         return items
     }, [t, canonicalUrl, headDesc])
 
+    // Same URL + srcSet/sizes as `DetailsSection`'s `<img>` (both derive from
+    // `detailPosterPreload`), so a direct load / hard reload starts fetching
+    // the header poster the instant this hook mounts — before the tournament
+    // query has even resolved — instead of only benefiting from a listing
+    // card's hover preload.
+    const posterPreload = useMemo(() => detailPosterPreload(t?.bannerUrl), [t?.bannerUrl])
+
     useDocumentHead({
         title: headTitle,
         description: headDesc,
@@ -161,6 +169,9 @@ export function useTournamentHead(t: TournamentDetails | null, uuid: string | un
         // already came in via a slug URL).
         canonical: canonicalUrl,
         jsonLd,
+        preloadImage: posterPreload?.href,
+        preloadImageSrcSet: posterPreload?.imageSrcSet,
+        preloadImageSizes: posterPreload?.imageSizes,
     })
 }
 

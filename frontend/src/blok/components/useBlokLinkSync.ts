@@ -156,8 +156,9 @@ async function saveThenPush(
     sessionId: string,
     body: { us: number; them: number; final: boolean },
     signedIn: boolean,
+    saveToProfile = signedIn,
 ): Promise<void> {
-    if (signedIn) {
+    if (saveToProfile) {
         try {
             await saveSessionNow(sessionId)
         } catch {
@@ -185,6 +186,7 @@ export function finalizeBlokLink(
     wins: Record<BlokSide, number>,
     sessionId: string,
     signedIn: boolean,
+    saveToProfile = signedIn,
 ): void {
     if (link === null || link.status !== "APPROVED") return
     const synced = link.syncedGames
@@ -198,6 +200,7 @@ export function finalizeBlokLink(
         sessionId,
         { us: wins.us, them: wins.them, final: true },
         signedIn,
+        saveToProfile,
     )
         .then(() => {
             // The link is normally gone by now (the reset dropped it) and

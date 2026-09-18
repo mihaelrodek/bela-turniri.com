@@ -11,6 +11,7 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
     UNAUTHENTICATED: "Niste prijavljeni.",
     ROOM_NOT_FOUND: "Soba ne postoji.",
     ROOM_FULL: "Soba je puna.",
+    WIN_RATE_TOO_LOW: "Nemate dovoljan postotak pobjeda za ulaz u ovu sobu.",
     ROOM_CODE_REQUIRED: "Za ulaz u privatnu sobu potrebna je šifra.",
     SPECTATORS_DISABLED: "Gledatelji nisu omogućeni za ovu igru.",
     SEAT_TAKEN: "Sjedalo je zauzeto.",

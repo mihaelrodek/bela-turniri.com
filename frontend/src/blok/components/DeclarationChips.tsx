@@ -114,8 +114,8 @@ import { DECLARATION_VALUES, declarationCap } from "../types"
    position, and the entries of one value are genuinely interchangeable.
    ────────────────────────────────────────────────────────────────────── */
 
-/** Same 56 px thumb target as the keypad, so the two blocks feel like one pad. */
-const BUTTON_H = "52px"
+/** Inherits the height-aware size from the entry drawer. */
+const BUTTON_H = "var(--blok-entry-control-h, 52px)"
 
 /** The two corner badges. The ✕ is bigger than the counter because one is a
  *  TARGET and the other is a label — 28 px is under the 44 px floor a primary

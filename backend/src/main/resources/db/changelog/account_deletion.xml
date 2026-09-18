@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      "Obriši račun" (App Store guideline 5.1.1(v): an account created in the
+      app must be deletable from the app).
+
+      ANONYMISATION, NOT ERASURE — the owner's decision. A tournament other
+      people played in is shared history: deleting the rows would silently
+      rewrite somebody else's results. So the PERSON disappears
+      (display name, phone, avatar, in-game name, devices, personal scorepad
+      history) while the tournaments, pairs and matches stay exactly as they
+      were.
+
+      This column is the whole switch. `deleted_at is not null` means:
+
+        * the public profile 404s (PublicProfileService),
+        * POST /user/me/sync REFUSES with 410 ACCOUNT_DELETED instead of
+          lazily re-creating the row (SlugService.ensureProfile),
+        * anywhere a name is rendered for this uid, the i18n string
+          `profile.deletedUser` is rendered instead (DisplayNames).
+
+      The ROW AND ITS SLUG ARE KEPT on purpose. Dropping the row would put the
+      slug back in the pool, and the next person whose name normalises to
+      `marko-markovic` would inherit every old link, QR code and shared URL
+      that pointed at the deleted account. A kept row with no personal data in
+      it turns those links into a clean 404 instead.
+
+      Nullable timestamptz, no default: every existing profile is live.
+      Indexed, because the lookups that matter are the negative ones — "give
+      me this slug IF it is not deleted" runs on every profile page view.
+      Partial index so it stays the size of the deleted set rather than of the
+      whole table.
+
+      columnExists / MARK_RAN, like the rest of this directory, so a database
+      where the column was added by hand is a no-op rather than a boot failure.
+    -->
+
+    <changeSet id="2026-09-13-account-deletion" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="user_profiles" columnName="deleted_at"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="user_profiles">
+            <column name="deleted_at" type="timestamptz"/>
+        </addColumn>
+
+        <rollback>
+            <dropColumn tableName="user_profiles" columnName="deleted_at"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="2026-09-13-account-deletion-index" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <columnExists tableName="user_profiles" columnName="deleted_at"/>
+                <not>
+                    <indexExists indexName="idx_user_profiles_deleted_at"/>
+                </not>
+            </and>
+        </preConditions>
+
+        <sql dbms="postgresql">
+            create index idx_user_profiles_deleted_at
+                on user_profiles (deleted_at)
+                where deleted_at is not null;
+        </sql>
+
+        <rollback>
+            <sql dbms="postgresql">drop index if exists idx_user_profiles_deleted_at;</sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

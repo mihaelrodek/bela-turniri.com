@@ -18,10 +18,16 @@ export function hasCalendarDate(t: TournamentDetails): boolean {
  * is the one format every calendar on every platform imports, and it needs no
  * account, no popup blocker exemption and no per-vendor URL builder.
  */
-export function downloadTournamentIcs(t: TournamentDetails) {
+export async function downloadTournamentIcs(t: TournamentDetails): Promise<void> {
     if (!hasCalendarDate(t)) return
     const url = typeof window !== "undefined" ? window.location.href : undefined
-    downloadIcs(
+    // Never rejects. Both callers fire it straight from an onClick/onSelect
+    // without awaiting, and since the native branch (write to the cache dir,
+    // then open the share sheet) became async a failed write would otherwise
+    // surface as an unhandled rejection. A cancelled share sheet is already
+    // swallowed inside `downloadIcs`; this catches the rarer real failures.
+    try {
+        await downloadIcs(
         icsFileName(t.name),
         buildIcs({
             // Must match the UID the subscription feed emits
@@ -36,5 +42,8 @@ export function downloadTournamentIcs(t: TournamentDetails) {
             url,
             start: new Date(t.startAt as string),
         }),
-    )
+        )
+    } catch (err) {
+        console.warn("Preuzimanje kalendarskog događaja nije uspjelo", err)
+    }
 }

@@ -29,7 +29,7 @@ export {
 export { legalMoves, legalBids, trickWinner, trickPoints } from "./rules"
 export { findDeclarations, compareDeclarations, hasBela } from "./declarations"
 export { currentDealPoints, declarationPoints, scoreDeal } from "./scoring"
-export { newGame, reduce } from "./game"
+export { findBelot, newGame, reduce } from "./game"
 export { viewFor } from "./view"
 export type { ViewOptions } from "./view"
 export { createRng, nextFloat, shuffle } from "./rng"

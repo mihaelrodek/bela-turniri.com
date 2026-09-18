@@ -22,9 +22,9 @@ import type { QueuedGameEvent } from "../types"
 /**
  * Milliseconds the UI dwells on each event before pulling the next one.
  *
- * Zero means "nothing to animate, the `PlayerView` already says it" — a bid
- * and a pass are both visible in `view.bidding`, so holding the queue for
- * them would only add lag.
+ * Zero means "nothing to animate, the `PlayerView` already says it". Bids and
+ * passes deliberately have a short non-zero beat so fast bot bidding remains
+ * understandable even when several events arrive in one frame.
  *
  * A PLAY is not in that group. The server batches (the fourth card of a trick
  * arrives together with its TRICK_WON, and a whole run of bot plays can land
@@ -35,42 +35,57 @@ import type { QueuedGameEvent } from "../types"
  * beat between one card landing and the next one leaving a hand.
  */
 export const EVENT_DWELL_MS: Record<GameEvent["type"], number> = {
-    /** Cards leaving the dealer — the deal animation runs off `view.handSizes`. */
-    DEALT: 350,
+    /** The cards themselves are the deal feedback; no introductory popup. */
+    DEALT: 0,
     /** Let every caller/pass remain visible before the turn marker moves. */
-    BID: 300,
-    PASS: 300,
+    BID: 800,
+    PASS: 800,
     /** Long enough to read the "X zove herc" banner. */
-    TRUMP_SET: 900,
-    /** The visible "Igra računa zvanja…" beat before results appear. */
-    HAND_COMPLETED: 500,
-    /** A card has to be SEEN landing: 250 ms of flight (TrickArea's FLY_MS)
+    TRUMP_SET: 1600,
+    /** The complete eight-card hand stays visible before results cover it. */
+    HAND_COMPLETED: 1600,
+    /** A card has to be SEEN landing: 320 ms of flight (TrickArea's FLY_MS)
      *  plus a beat to read it before the next player throws. The server's own
-     *  bot pacing (900–1700 ms) is longer than this, so for bot plays the
+     *  bot pacing (1800–2800 ms) is longer than this, so for bot plays the
      *  queue is already idle and this dwell costs nothing; it is what makes
      *  MY card and any batched run of plays legible. */
-    CARD_PLAYED: 600,
+    CARD_PLAYED: 800,
     /** The "Bela!" flash. */
-    BELA: 1000,
-    /** 700 ms holding the four cards (TRICK_HOLD_MS in GameRoomPage) plus the
-     *  400 ms they take to slide to the winner and fade, and a little slack.
+    BELA: 1400,
+    /** Belot ends the game; let the full-hand celebration finish first. */
+    BELOT: 3200,
+    /** 950 ms holding the four cards (TRICK_HOLD_MS in GameRoomPage) plus the
+     *  500 ms they take to slide to the winner and fade, and a little slack.
      *  Shorter than the sum and the next card is dealt over a trick still
-     *  leaving the table. The fourth card got its own 420 ms before this
+     *  leaving the table. The fourth card got its own landing beat before this
      *  event ever became active, so the full read is: card lands → beat →
      *  four cards held → winner sweeps them up. */
-    TRICK_WON: 1200,
-    /** The declarations overlay before the first card — 3.4 s, or a tap
-     *  (game/DESIGN.md §2.7). */
-    DECLARATIONS_REVEALED: 3400,
+    TRICK_WON: 1550,
+    /** The declarations overlay before the first card — 5.2 s, or until it is
+     *  closed explicitly (game/DESIGN.md §2.7). */
+    DECLARATIONS_REVEALED: 5200,
     /** The deal summary is a dialog the player dismisses; no dwell. */
     DEAL_SCORED: 0,
     GAME_OVER: 0,
 }
 
-/** With reduced motion every dwell collapses to this — the information still
- *  needs a beat on screen, it just doesn't slide. The queue itself is NEVER
- *  bypassed: it is what keeps a batched frame from collapsing into nothing. */
-const REDUCED_DWELL_MS = 120
+/** Reduced motion shortens movement, not reading. Informational moments keep
+ * enough time to understand what happened; only dealing, card flight and the
+ * trick sweep become nearly immediate. */
+const REDUCED_DWELL_MS: Record<GameEvent["type"], number> = {
+    DEALT: 0,
+    BID: 500,
+    PASS: 500,
+    TRUMP_SET: 1200,
+    HAND_COMPLETED: 1200,
+    CARD_PLAYED: 260,
+    BELA: 1200,
+    BELOT: 3000,
+    TRICK_WON: 600,
+    DECLARATIONS_REVEALED: 4800,
+    DEAL_SCORED: 0,
+    GAME_OVER: 0,
+}
 
 export interface EventQueue {
     /** The event currently being shown, or null when the queue is idle. */
@@ -81,7 +96,7 @@ export interface EventQueue {
 
 /**
  * @param incoming append-only list from `useGameSocket` (ids are monotonic).
- * @param reducedMotion collapse every dwell (`prefers-reduced-motion`).
+ * @param reducedMotion shorten physical movement while retaining readable pauses.
  */
 export function useEventQueue(incoming: QueuedGameEvent[], reducedMotion = false): EventQueue {
     const queueRef = useRef<QueuedGameEvent[]>([])
@@ -125,7 +140,7 @@ export function useEventQueue(incoming: QueuedGameEvent[], reducedMotion = false
         setActive(next.event)
         setPending(queueRef.current.length)
         const dwell = reducedRef.current
-            ? Math.min(EVENT_DWELL_MS[next.event.type], REDUCED_DWELL_MS)
+            ? REDUCED_DWELL_MS[next.event.type]
             : EVENT_DWELL_MS[next.event.type]
         timerRef.current = setTimeout(() => {
             timerRef.current = null

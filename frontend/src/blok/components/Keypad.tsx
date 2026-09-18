@@ -25,15 +25,13 @@ import { FiDelete } from "react-icons/fi"
 
 const DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const
 
-/* Key height as a CSS variable rather than a Chakra prop, because the thing
-   that has to change it is the VIEWPORT HEIGHT and the theme's breakpoints
-   are all widths. Four rows at 56 px plus the header, the two side cards and
-   the action row do not fit on a 568 px-tall phone (an SE lying next to the
-   cards is exactly the target device), and the part that must not be squeezed
-   is the cards. 46 px still clears the 44 px tap-target floor. */
+/* Key height follows VIEWPORT HEIGHT rather than width. The compact size also
+   applies to ordinary phone heights: four rows save 40 px, which keeps the
+   trump picker visible without making the user scroll the middle of the
+   sheet. 46 px still clears the 44 px tap-target floor. */
 const KEY_HEIGHT_CSS = {
     "--blok-key-h": "56px",
-    "@media (max-height: 700px)": { "--blok-key-h": "46px" },
+    "@media (max-height: 900px)": { "--blok-key-h": "46px" },
 } as const
 
 const KEY_STYLE = {

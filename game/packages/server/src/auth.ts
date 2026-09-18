@@ -94,6 +94,7 @@ export function withAppProfile(
         avatarUrl: string | null
         gameName?: string | null
         avatarPreset?: string | null
+        gameStats?: UserInfo["gameStats"]
     } | null,
 ): UserInfo {
     if (!profile) return user
@@ -108,6 +109,7 @@ export function withAppProfile(
         ...((profile.avatarPreset ?? user.avatarPreset)
             ? { avatarPreset: profile.avatarPreset ?? user.avatarPreset }
             : {}),
+        ...(profile.gameStats ? { gameStats: profile.gameStats } : {}),
         // The IN-GAME name wins over the account name, which wins over the
         // token's (2026-09-09). A player who typed a name for the card table
         // meant it for the card table; the account name is what the rest of
@@ -178,7 +180,14 @@ export function createAuthenticator(cfg: Config, profiles: ProfileLookup = creat
                     algorithms: ["RS256"],
                 })
                 const user = userFromClaims(payload as unknown as Record<string, unknown>)
-                return withAppProfile(user, await profiles.get(user.uid))
+                const merged = withAppProfile(user, await profiles.get(user.uid))
+                // The profile lookup can come back empty (backend cold,
+                // timed out, profile not synced yet). Without a face the
+                // client would fall through to the Google `picture`
+                // hotlink, which fails often enough to paint a broken-image
+                // glyph at the table — so hand out the same uid-derived
+                // face a guest gets rather than gamble on that URL.
+                return merged.avatarPreset ? merged : { ...merged, avatarPreset: avatarPresetForUid(merged.uid) }
             } catch (e) {
                 if (e instanceof ProtocolError) throw e
                 throw new ProtocolError("UNAUTHENTICATED", "Neispravan ili istekao token.")

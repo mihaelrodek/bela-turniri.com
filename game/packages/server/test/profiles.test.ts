@@ -63,12 +63,27 @@ describe("createProfileLookup", () => {
             avatarUrl: "/api/resources/7/image",
             gameName: null,
             avatarPreset: null,
+            gameStats: null,
         })
         expect(second).toEqual(first)
         expect(fetchMock).toHaveBeenCalledTimes(1)
         const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
         expect(url).toBe("http://backend.test/api/internal/profiles/firebase-uid-1")
         expect((init.headers as Record<string, string>)["X-Internal-Token"]).toBe("secret")
+    })
+
+    it("carries overall and per-target records into the room user", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+            gameStats: {
+                global: { games: 9, wins: 5, losses: 4, winRate: 0.556 },
+                byTargetScore: { "501": { games: 4, wins: 3, losses: 1, winRate: 0.75 } },
+            },
+        }), { status: 200, headers: { "Content-Type": "application/json" } })))
+
+        const profile = await createProfileLookup(cfg()).get("firebase-uid-1")
+        const user = withAppProfile(CLAIMS_USER, profile)
+        expect(user.gameStats?.global).toMatchObject({ wins: 5, losses: 4 })
+        expect(user.gameStats?.byTargetScore["501"]).toMatchObject({ wins: 3, losses: 1 })
     })
 
     it("coalesces concurrent lookups for the same uid", async () => {
@@ -124,6 +139,27 @@ describe("createProfileLookup", () => {
         await lookup.get("firebase-uid-1")
         expect(fetchMock.mock.calls.filter(([, i]) => (i as RequestInit | undefined)?.method !== "PUT"))
             .toHaveLength(2)
+    })
+
+    it("parses the backend's ISO next-change instant", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(
+            JSON.stringify({ gameName: "Ivan", nextChangeAt: "2026-09-16T10:00:00Z" }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+        )))
+
+        const lookup = createProfileLookup(cfg())
+        expect(await lookup.setGameName("firebase-uid-1", "Ivan"))
+            .toEqual({ ok: true, name: "Ivan", nextChangeAt: Date.parse("2026-09-16T10:00:00Z") })
+    })
+
+    it("renames synthetic dev users without calling the backend", async () => {
+        const fetchMock = vi.fn()
+        vi.stubGlobal("fetch", fetchMock)
+        const lookup = createProfileLookup(loadConfig({ GAME_DEV_ALLOW_ANON: "1" }))
+
+        expect(await lookup.setGameName("dev:mihael", "Testko"))
+            .toEqual({ ok: true, name: "Testko", nextChangeAt: 0 })
+        expect(fetchMock).not.toHaveBeenCalled()
     })
 
     it("reports the once-a-week refusal with the instant it may next change", async () => {

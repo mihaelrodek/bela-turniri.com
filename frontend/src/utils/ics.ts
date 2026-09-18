@@ -1,3 +1,6 @@
+import { isNative } from "../platform"
+import { nativeFilesystem, nativeShare } from "../platform/nativeIo"
+
 /* ──────────────────────────────────────────────────────────────────────────
    Tiny RFC-5545 .ics builder for „Dodaj u kalendar“.
 
@@ -99,7 +102,35 @@ export function buildIcs(evt: IcsEvent): string {
 
 /** Trigger a download of the given .ics text. Mobile browsers hand the file
  *  to the OS, which prompts to add the event. */
-export function downloadIcs(filename: string, ics: string): void {
+export async function downloadIcs(filename: string, ics: string): Promise<void> {
+    if (isNative) {
+        // A download link does nothing inside a WebView — there is no
+        // browser download manager to hand the blob to. Write the .ics into
+        // the app's cache instead and hand its file:// URI to the OS share
+        // sheet, which on both iOS and Android offers "Add to Calendar" (or
+        // the device's calendar app directly) as one of its targets for a
+        // .ics attachment.
+        const name = filename.toLowerCase().endsWith(".ics") ? filename : `${filename}.ics`
+        // Belt-and-braces on top of `icsFileName`'s own sanitising — this is
+        // a real filesystem path now, not just an anchor's `download` hint.
+        const safeName = name.replace(/[^a-z0-9.-]/g, "")
+        const { Filesystem, Directory, Encoding } = await nativeFilesystem()
+        const written = await Filesystem.writeFile({
+            directory: Directory.Cache,
+            path: safeName,
+            data: ics,
+            encoding: Encoding.UTF8,
+        })
+        const Share = await nativeShare()
+        try {
+            await Share.share({ title: name, url: written.uri, dialogTitle: name })
+        } catch {
+            // The user backed out of the share sheet — the exact native
+            // equivalent of clicking away from a browser's download prompt.
+            // Never surface that as an error.
+        }
+        return
+    }
     const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")

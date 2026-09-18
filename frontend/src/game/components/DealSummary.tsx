@@ -2,8 +2,6 @@ import { useEffect, useState } from "react"
 import { Badge, Box, CloseButton, Dialog, HStack, Portal, Text, VStack } from "@chakra-ui/react"
 import type { DealScore, Team } from "@bela/engine"
 import { useTranslation } from "../../i18n"
-import { suitKey } from "../util/cards"
-import SuitGlyph from "./SuitGlyph"
 
 /* ──────────────────────────────────────────────────────────────────────────
    DealSummary — what a deal actually paid, shown when the eighth trick is in.
@@ -29,7 +27,7 @@ import SuitGlyph from "./SuitGlyph"
    ────────────────────────────────────────────────────────────────────── */
 
 /** How long the receipt stays up. Below `dealDoneAutoMs` on the server. */
-const AUTO_CLOSE_MS = 3000
+const AUTO_CLOSE_MS = 7000
 
 function Row({
     label,
@@ -131,10 +129,6 @@ export default function DealSummary({
                         <Dialog.Body pt="5">
                             <VStack gap="2" align="stretch">
                                 <HStack gap="2" wrap="wrap">
-                                    <Badge size="sm" variant="subtle" colorPalette="brand">
-                                        <SuitGlyph suit={dealScore.trump} size={12} />
-                                        {t(suitKey(dealScore.trump))}
-                                    </Badge>
                                     <Badge
                                         size="sm"
                                         variant="solid"

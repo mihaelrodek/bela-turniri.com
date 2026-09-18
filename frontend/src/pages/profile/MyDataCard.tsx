@@ -168,16 +168,16 @@ export function MyDataCard({
 
     return (
         <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
-            <Card.Body p={{ base: "4", md: "5" }}>
-                <VStack align="stretch" gap="4">
-                    <HStack justify="space-between" align="start" gap="3" wrap="wrap">
-                        <HStack gap="3" align="center" minW="0">
+            <Card.Body p={{ base: "3", md: "5" }}>
+                <VStack align="stretch" gap={{ base: "3", md: "4" }}>
+                    <HStack justify="space-between" align="center" gap="2">
+                        <HStack gap={{ base: "2.5", md: "3" }} align="center" minW="0">
                             {/* Avatar with its edit affordance. The pencil is
                                 the picker; "Ukloni profilnu sliku" appears
                                 under the heading only when there is something
                                 to remove. */}
                             <Box position="relative" flexShrink={0}>
-                                <ProfileAvatar profile={profile} size="56px" fontSize="lg" />
+                                <ProfileAvatar profile={profile} size="52px" fontSize="lg" />
                                 <IconButton
                                     aria-label={profile.avatarUrl ? t("profile.avatar.change") : t("profile.avatar.upload")}
                                     title={profile.avatarUrl ? t("profile.avatar.change") : t("profile.avatar.upload")}
@@ -203,7 +203,7 @@ export function MyDataCard({
                             </Box>
                             <Box minW="0">
                                 <Heading size="sm">{t("profile.details.title")}</Heading>
-                                <Text fontSize="xs" color="fg.muted">
+                                <Text fontSize="xs" color="fg.muted" display={{ base: "none", sm: "block" }} lineClamp={1}>
                                     {t("profile.details.description")}
                                 </Text>
                                 {profile.avatarUrl && (
@@ -211,7 +211,7 @@ export function MyDataCard({
                                         size="2xs"
                                         variant="ghost"
                                         colorPalette="red"
-                                        mt="1"
+                                        mt="0.5"
                                         onClick={() => setRemoveAvatarOpen(true)}
                                         loading={uploading}
                                     >
@@ -220,19 +220,27 @@ export function MyDataCard({
                                 )}
                             </Box>
                         </HStack>
-                        <Button size="xs" variant="outline" onClick={() => setEditOpen(true)}>
+                        <Button
+                            size="xs"
+                            variant="subtle"
+                            colorPalette="brand"
+                            flexShrink={0}
+                            onClick={() => setEditOpen(true)}
+                        >
                             <FiEdit2 /> {t("profile.details.edit")}
                         </Button>
                     </HStack>
 
-                    {/* Three short values side by side from md up, stacked on a
-                        phone where they would not fit. */}
-                    <SimpleGrid columns={{ base: 1, md: 3 }} gap={{ base: "2", md: "3" }}>
+                    {/* The name gets a full first row on a phone; username and
+                        phone share the second. This keeps the facts readable
+                        while removing one whole tile-row from the card. */}
+                    <SimpleGrid columns={{ base: 2, md: 3 }} gap={{ base: "1.5", md: "3" }}>
                         <DetailTile
                             layout="inline"
                             icon={<FiUser size={14} />}
                             label={t("profile.details.nameLabel")}
                             value={profile.displayName ?? t("profile.details.notSet")}
+                            span={{ base: "span 2", md: "span 1" }}
                         />
                         <DetailTile
                             layout="inline"

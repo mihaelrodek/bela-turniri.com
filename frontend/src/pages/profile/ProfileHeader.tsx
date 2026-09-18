@@ -1,4 +1,5 @@
-import { Box, Card, chakra, Heading, HStack, IconButton, VStack } from "@chakra-ui/react"
+import type { ReactNode } from "react"
+import { Box, Button, Card, chakra, Heading, HStack, IconButton, VStack } from "@chakra-ui/react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { FiEdit2, FiPhone } from "react-icons/fi"
 import type { PublicProfile } from "../../api/publicProfile"
@@ -191,9 +192,20 @@ export function ProfileIdentityBlock({
                     variant="ghost"
                     flexShrink={0}
                     onClick={onEdit}
+                    display={{ base: "none", lg: "inline-flex" }}
                 >
                     <FiEdit2 />
                 </IconButton>
+                <Button
+                    size="xs"
+                    variant="subtle"
+                    colorPalette="brand"
+                    flexShrink={0}
+                    onClick={onEdit}
+                    display={{ base: "inline-flex", lg: "none" }}
+                >
+                    <FiEdit2 /> {t("profile.details.edit")}
+                </Button>
             </HStack>
             {!hidePhone && <ProfilePhoneLine profile={profile} />}
         </VStack>
@@ -201,7 +213,19 @@ export function ProfileIdentityBlock({
 }
 
 /** Visitor-facing identity card — avatar, name, phone, nothing editable. */
-export function PublicIdentityCard({ profile }: { profile: PublicProfile }) {
+export function PublicIdentityCard({
+    profile,
+    actions,
+}: {
+    profile: PublicProfile
+    /**
+     * Slot at the end of the name row — the visitor's "…" menu (Prijavi
+     * profil / Blokiraj korisnika). A slot rather than the menu itself so
+     * this file stays what its doc comment says it is: identity rendering,
+     * with no idea who is allowed to report whom.
+     */
+    actions?: ReactNode
+}) {
     const { t } = useTranslation()
     return (
         <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
@@ -214,6 +238,7 @@ export function PublicIdentityCard({ profile }: { profile: PublicProfile }) {
                         <Heading size="md" lineHeight="short" lineClamp={2} flex="1" minW="0">
                             {profile.displayName ?? t("profile.unnamedPlayer")}
                         </Heading>
+                        {actions != null && <Box flexShrink={0}>{actions}</Box>}
                     </HStack>
                     <ProfilePhoneLine profile={profile} />
                 </VStack>

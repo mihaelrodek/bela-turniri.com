@@ -11,6 +11,7 @@ import hr.mrodek.apps.bela_turniri.model.UserProfile;
 import hr.mrodek.apps.bela_turniri.repository.MatchesRepository;
 import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
+import hr.mrodek.apps.bela_turniri.repository.UserBlockRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -40,6 +41,8 @@ public class PublicProfileService {
     @Inject MatchesRepository matchRepo;
     @Inject MessageService messages;
     @Inject AvatarPresetService avatarPresets;
+    @Inject UserBlockRepository blockRepo;
+    @Inject DisplayNames displayNames;
 
     /**
      * Build the public profile DTO for {@code slug}.
@@ -54,6 +57,23 @@ public class PublicProfileService {
                 .orElseThrow(() -> new NotFoundException(messages.t("profile.notFound", slug)));
 
         String uid = profile.getUserUid();
+
+        // A deleted account has no public page. The ROW is still here (the
+        // slug must never be re-issued — see AccountDeletionService), so this
+        // is the check that turns every old link, QR code and search result
+        // pointing at it into a clean 404 instead of a blank profile.
+        if (profile.isDeleted()) {
+            throw new NotFoundException(messages.t("profile.notFound", slug));
+        }
+
+        // Blocks hide the page in BOTH directions: the blocker must not see
+        // the blocked user, and the blocked user must not be able to keep
+        // reading the blocker. Same 404 as a missing slug, so the response
+        // never confirms that the other account exists at all. Enforced here,
+        // server-side, so it holds for the SPA and the native shells alike.
+        if (viewerUid != null && !viewerUid.equals(uid) && blockRepo.existsEitherWay(viewerUid, uid)) {
+            throw new NotFoundException(messages.t("profile.notFound", slug));
+        }
 
         // Load every preset the profile owner is a party to — primary OR
         // co-owner — across BOTH active and archived rows. We need the
@@ -156,8 +176,11 @@ public class PublicProfileService {
                     prettyName.get(e.getKey()),
                     e.getValue()[0],
                     e.getValue()[1],
-                    partner == null ? null : partner.getSlug(),
-                    partner == null ? null : partner.getDisplayName()
+                    // A partner whose account has been deleted renders as the
+                    // "Obrisani korisnik" label with no link — the same rule
+                    // PairMapper applies to "Prijavio: …".
+                    displayNames.slugOf(partner),
+                    displayNames.nameOf(partner)
             ));
         }
         // Most-played pair first so the UI default selection is the strongest signal.

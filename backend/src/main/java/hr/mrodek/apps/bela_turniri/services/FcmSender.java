@@ -100,6 +100,20 @@ public class FcmSender {
     /** Null until credentials are found; null forever when they never are. */
     private volatile FirebaseMessaging messaging;
 
+    /**
+     * The same private {@link FirebaseApp} the messaging client above hangs
+     * off, kept so OTHER Firebase Admin clients can be built from it — today
+     * only {@code FirebaseAuth}, used by {@code AccountDeletionService} to
+     * delete the Firebase Auth user when the account is deleted.
+     *
+     * <p>It lives here rather than in a second initialiser because there is
+     * exactly one service account and {@code FirebaseApp.initializeApp} throws
+     * on a duplicate name; whoever boots first would win and the other would
+     * log an error forever. Null when no service account is configured — every
+     * caller must treat that as "this half is simply off".
+     */
+    private volatile FirebaseApp app;
+
     void onStart(@Observes StartupEvent ev) {
         try {
             InputStream credentials = readCredentials();
@@ -119,6 +133,7 @@ public class FcmSender {
                     .filter(a -> APP_NAME.equals(a.getName()))
                     .findFirst()
                     .orElseGet(() -> FirebaseApp.initializeApp(options, APP_NAME));
+            this.app = app;
             this.messaging = FirebaseMessaging.getInstance(app);
             LOG.info("Push: FCM configured, native push enabled.");
         } catch (Exception e) {
@@ -135,6 +150,16 @@ public class FcmSender {
     }
 
     /**
+     * The initialised {@link FirebaseApp}, or null when no service account is
+     * configured. The only non-messaging consumer is
+     * {@code AccountDeletionService}, which needs a {@code FirebaseAuth} bound
+     * to the same project.
+     */
+    public FirebaseApp firebaseApp() {
+        return app;
+    }
+
+    /**
      * Deliver one notification to one device token.
      *
      * <p>Never throws. Call from a background thread only.
@@ -146,12 +171,24 @@ public class FcmSender {
     public Result send(String token, String platform, PushService.PushPayload payload) {
         if (!isEnabled()) return Result.DISABLED;
         if (token == null || token.isBlank() || payload == null) return Result.FAILED;
+        return sendMessage(token, platform, buildMessage(token, payload));
+    }
+
+    /**
+     * Deliver an already-built message — for callers whose message is not a
+     * notification, i.e. {@link LiveActivitySender}'s data and Live Activity
+     * pushes. Same deadline, same verdicts, same never-throws contract as
+     * {@link #send}; {@code token} is only there so a test stub can record it.
+     */
+    public Result sendMessage(String token, String platform, Message message) {
+        if (!isEnabled()) return Result.DISABLED;
+        if (token == null || token.isBlank() || message == null) return Result.FAILED;
         ApiFuture<String> pending = null;
         try {
             // Same discipline as the web-push branch: the blocking send() has
             // no deadline of its own, so drive the async form and cancel a
             // stuck request rather than pinning a sender thread on it.
-            pending = messaging.sendAsync(buildMessage(token, payload));
+            pending = messaging.sendAsync(message);
             pending.get(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             return Result.OK;
         } catch (TimeoutException te) {

@@ -21,6 +21,7 @@ import TournamentQrCard from "../../../components/TournamentQrCard"
 import { MEDALS } from "../../../components/TournamentResultsCard"
 import { useTranslation } from "../../../i18n"
 import { formatAmount, formatDate, formatTime } from "../../../utils/format"
+import { DETAIL_POSTER_SIZES, posterSrcSet } from "../../../utils/imageUrl"
 import type { TournamentDetails } from "../../../types/tournaments"
 
 /** Terse euro amount with an em-dash placeholder — the tiles never render blank. */
@@ -59,6 +60,12 @@ export default function DetailsSection({
     pairCount: number
 }) {
     const { t: tr } = useTranslation()
+
+    // Same URL the listing card and the hover preload use (both come from
+    // `TournamentMapper.publicUrl`) — same `srcSet`/`sizes` pair too, via
+    // `DETAIL_POSTER_SIZES`, so a hover-warmed cache entry actually matches
+    // what this `<img>` requests instead of triggering a second fetch.
+    const poster = useMemo(() => posterSrcSet(t.bannerUrl, DETAIL_POSTER_SIZES), [t.bannerUrl])
 
     /* Nagradni fond — type badge plus the three medal places. Memoised so a
        poll tick that leaves the reward fields untouched doesn't rebuild the
@@ -120,7 +127,9 @@ export default function DetailsSection({
                     justifyContent="center"
                 >
                     <Image
-                        src={t.bannerUrl}
+                        src={poster?.src ?? t.bannerUrl}
+                        srcSet={poster?.srcSet}
+                        sizes={poster?.srcSet ? poster.sizes : undefined}
                         alt={t.name}
                         display="block"
                         w="auto"
@@ -132,6 +141,11 @@ export default function DetailsSection({
                         maxH={{ base: "56vh", xl: "70vh" }}
                         objectFit="contain"
                         draggable={false}
+                        // This IS the detail page's LCP element on most
+                        // tournaments — eager (default) load, high priority,
+                        // async decode so it never blocks the main thread.
+                        fetchPriority="high"
+                        decoding="async"
                     />
                 </Box>
             )}

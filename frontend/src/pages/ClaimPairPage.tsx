@@ -7,7 +7,7 @@ import {
     Card,
     Heading,
     HStack,
-    Spinner,
+    Skeleton,
     Text,
     VStack,
 } from "@chakra-ui/react"
@@ -19,6 +19,34 @@ import {
 import { useAuth } from "../auth/authContextValue"
 import { useTranslation } from "../i18n"
 import { formatDateTime } from "../utils/format"
+
+/**
+ * Skeleton for the claim card while loading the preview.
+ */
+function ClaimCardSkeleton() {
+    return (
+        <Card.Root maxW="md" mx="auto" mt="6" variant="outline" rounded="xl">
+            <Card.Body p="6">
+                <VStack gap="4" align="stretch">
+                    <Box>
+                        <Skeleton h="4" w="60px" mb="2" />
+                        <Skeleton h="6" w="80%" />
+                    </Box>
+                    <Box>
+                        <Skeleton h="4" w="100px" mb="2" />
+                        <Skeleton h="5" w="100%" />
+                        <Skeleton h="3" w="60%" mt="2" />
+                    </Box>
+                    <Box>
+                        <Skeleton h="4" w="80px" mb="2" />
+                        <Skeleton h="5" w="90%" />
+                    </Box>
+                    <Skeleton h="44px" w="100%" rounded="md" />
+                </VStack>
+            </Card.Body>
+        </Card.Root>
+    )
+}
 
 /**
  * Landing page for the pair-sharing URL: /claim-pair/{token}.
@@ -112,12 +140,7 @@ export default function ClaimPairPage() {
     }
 
     if (loading || authLoading) {
-        return (
-            <VStack py="16" gap="3">
-                <Spinner />
-                <Text color="fg.muted" fontSize="sm">{t("common.loading")}</Text>
-            </VStack>
-        )
+        return <ClaimCardSkeleton />
     }
 
     if (notFound || !preview) {

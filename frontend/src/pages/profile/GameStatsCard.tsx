@@ -1,7 +1,7 @@
 import { Box, Card, Heading, HStack, Skeleton, Text, VStack } from "@chakra-ui/react"
 import { FiAlertCircle, FiTrendingUp } from "react-icons/fi"
 import { useQuery } from "@tanstack/react-query"
-import { fetchMyGameStats } from "../../api/userMe"
+import { fetchMyGameReliability, fetchMyGameStats } from "../../api/userMe"
 import { useAuth } from "../../auth/authContextValue"
 import { useTranslation, usePlural } from "../../i18n"
 import { qk } from "../../queryClient"
@@ -19,6 +19,12 @@ export function GameStatsCard() {
     const { data: stats, isLoading, error } = useQuery({
         queryKey: qk.gameStats,
         queryFn: fetchMyGameStats,
+        enabled: !!user,
+        staleTime: 5 * 60_000,
+    })
+    const { data: reliability } = useQuery({
+        queryKey: qk.gameReliability,
+        queryFn: fetchMyGameReliability,
         enabled: !!user,
         staleTime: 5 * 60_000,
     })
@@ -87,6 +93,13 @@ export function GameStatsCard() {
 
                     {/* Global stats row */}
                     <GlobalStatsRow stats={stats.global} plural={plural} t={t} />
+
+                    {reliability && (
+                        <HStack gap="4" wrap="wrap">
+                            <StatTile label={t("profile.gameStats.karma")} value={`${reliability.karma}/100`} accent="green" />
+                            <StatTile label={t("profile.gameStats.abandons")} value={reliability.abandons} />
+                        </HStack>
+                    )}
 
                     {/* Per-category breakdown — only if categories exist */}
                     {stats.byTargetScore && Object.keys(stats.byTargetScore).length > 0 && (

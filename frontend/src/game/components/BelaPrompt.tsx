@@ -105,10 +105,10 @@ export default function BelaPrompt({
                         h={ROW_H}
                         variant="outline"
                         rounded="l2"
-                        bg="brand.950/62"
+                        bg="bg.opaque"
                         color={INK_MUTED}
-                        borderColor="brand.700"
-                        _hover={{ bg: "brand.900", color: INK }}
+                        borderColor="border"
+                        _hover={{ bg: "bg.muted", color: INK }}
                         onClick={onDecline}
                     >
                         {t("game.bela.askNo")}
@@ -119,10 +119,10 @@ export default function BelaPrompt({
                         h={ROW_H}
                         variant="outline"
                         rounded="l2"
-                        bg="brand.700"
+                        bg="brand.subtle"
                         color={INK}
                         borderColor="brand.300"
-                        _hover={{ bg: "brand.600" }}
+                        _hover={{ bg: "bg.muted" }}
                         _active={{ bg: "brand.500" }}
                         onClick={onDeclare}
                     >

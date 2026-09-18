@@ -174,6 +174,8 @@ export const tournament: TournamentDict = {
     "pairs.emptyTitle": "Še ni parov",
     "pairs.emptyDescription": "Dodaj prvi par s klikom na \"Dodaj par\" zgoraj.",
     "pairs.emptyDescriptionReadonly": "Organizator še ni prijavil nobenega para.",
+    "pairs.finishedEmptyTitle": "Turnir ni bil odigran",
+    "pairs.finishedEmptyDescription": "Turnir se je zaključil brez odigranih tekem.",
     "pairs.noName": "Brez imena",
     "pairs.backToList": "Nazaj na seznam parov",
     "pairs.detailEmptyTitle": "Izberi par",
@@ -252,6 +254,8 @@ export const tournament: TournamentDict = {
     "bracket.notStartedTitle": "Turnir se še ni začel",
     "bracket.notStartedOwner": "Klikni \"Zaženi turnir\" zgoraj, ko so vsi pari pripravljeni.",
     "bracket.notStartedViewer": "Organizator turnirja še ni zagnal. Preveri kasneje.",
+    "bracket.finishedWithoutPlayTitle": "Turnir ni bil odigran",
+    "bracket.finishedWithoutPlayDescription": "Turnir se je zaključil brez odigranih tekem.",
     "bracket.noRoundsTitle": "Še ni rund",
     "bracket.noRoundsOwnerStarted": "Klikni \"Generiraj prvo rundo\" za začetek žreba.",
     "bracket.noRoundsOwnerDraft": "Najprej zaženi turnir, ko so vsi pari pripravljeni.",
@@ -522,4 +526,9 @@ export const tournament: TournamentDict = {
     "blokLinks.logbook": "Zapisnik",
     "blokLinks.logbookTitle":
         "Odpri zapisnik povezanega bloka — javna povezava, odpre se v novem zavihku",
+
+    /* PRIJAVA VSEBINE — vstopni točki s strani turnirja. Samo napisa; sam
+       pogovor je v rječniku `profile`, ker ga odpira tudi profil igralca. */
+    "report.tournamentItem": "Prijavi turnir",
+    "report.pairItem": "Prijavi par",
 }

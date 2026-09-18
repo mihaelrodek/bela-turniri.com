@@ -14,6 +14,7 @@ import {
     cardSuit,
 } from "../util/cards"
 import { useGamePrefs } from "../hooks/useGamePrefs"
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import { MadjaricaCard, MadjaricaSuitIcon } from "../cards/madjarice"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ export default function PlayingCard({
     disabled = false,
     onSelect,
     deck,
+    actionHint,
 }: {
     /** Omit together with `faceDown` for an anonymous back (another seat's hand). */
     card?: Card
@@ -61,9 +63,13 @@ export default function PlayingCard({
     /** Force a deck instead of following the player's preference — for the
      *  settings sheet's two sample cards. Omit everywhere else. */
     deck?: DeckStyle
+    /** Extra spoken guidance, used for a card that remains tappable so it can
+     * explain why the rules reject it. */
+    actionHint?: string
 }) {
     const { t } = useTranslation()
     const [prefs] = useGamePrefs()
+    const reducedMotion = usePrefersReducedMotion() || prefs.reduceMotion
     const style = deck ?? prefs.deck
     const metrics = CARD_METRICS[size]
     const height = style === "madjarice" ? MADJARICA_HEIGHT[size] : metrics.h
@@ -84,59 +90,29 @@ export default function PlayingCard({
     return (
         <Root
             {...(interactive ? { type: "button" as const, disabled, onClick: () => onSelect?.(card) } : {})}
-            aria-label={label}
-            title={label}
+            aria-label={actionHint ? `${label}. ${actionHint}` : label}
             position="relative"
             display="block"
             w={metrics.w}
             h={height}
             flexShrink={0}
             rounded={metrics.radius}
-            bg={style === "madjarice" ? CARD_INK.face : CARD_INK.faceFrench}
+            bg={style === "madjarice" ? CARD_INK.frame : CARD_INK.faceFrench}
             color={SUIT_IS_RED[suit] ? CARD_INK.red : CARD_INK.ink}
-            borderWidth={style === "madjarice" ? "0" : "1px"}
-            borderColor={selected ? "brand.500" : "border.emphasized"}
-            // The photographed mađarice carry their own paper edge, which
-            // varies slightly shot to shot — a plain Chakra "sm"/"md" shadow
-            // read as a flat pasted sticker against the felt. This stacks a
-            // soft ambient shadow (the card sitting a little off the table),
-            // a tight contact shadow (the edge actually touching it) and a
-            // hairline dark ring that stands the card off ANY background
-            // regardless of how much white margin that particular photo has.
-            // The French deck keeps the plain Chakra shadow — it's a flat
-            // CSS face with its own border already.
-            boxShadow={
-                style === "madjarice"
-                    ? selected
-                        ? "0 1px 0 rgba(0,0,0,0.45) inset, 0 12px 22px -6px rgba(0,0,0,0.65), 0 2px 4px rgba(0,0,0,0.4)"
-                        : "0 1px 0 rgba(0,0,0,0.4) inset, 0 6px 14px -6px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.4)"
-                    : selected
-                        ? "md"
-                        : "sm"
-            }
+            // Every face gets the same physical-card frame. The artwork is
+            // clipped below it, so photographed paper edges cannot create a
+            // different outline from one card to the next.
+            borderWidth="0"
+            boxShadow="none"
             opacity={dimmed ? 0.42 : 1}
-            filter={
-                dimmed
-                    ? "saturate(0.4)"
-                    // Unifies the 32 photographed faces (shot under slightly
-                    // different light) and gives the ink a bit more punch —
-                    // "richer" reads as "premium" more than any shape change
-                    // does. Flat French cards need none of this.
-                    : style === "madjarice"
-                        ? "saturate(1.1) contrast(1.05)"
-                        : undefined
-            }
+            filter={dimmed ? "saturate(0.4)" : undefined}
             cursor={interactive ? "pointer" : "default"}
             transform={raised ? "translateY(-10px)" : undefined}
-            transition="transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease"
+            transition={reducedMotion ? "none" : "transform 0.14s ease, opacity 0.14s ease"}
             _hover={
                 interactive
                     ? {
                           transform: "translateY(-16px)",
-                          boxShadow:
-                              style === "madjarice"
-                                  ? "0 1px 0 rgba(0,0,0,0.45) inset, 0 18px 26px -8px rgba(0,0,0,0.65), 0 3px 5px rgba(0,0,0,0.4)"
-                                  : "md",
                       }
                     : undefined
             }
@@ -151,7 +127,7 @@ export default function PlayingCard({
             userSelect="none"
         >
             {style === "madjarice" ? (
-                <MadjaricaCard rank={rank} suit={suit} />
+                <MadjaricaCard rank={rank} suit={suit} size={size} />
             ) : (
                 <FrenchFace suit={suit} rankLabel={t(`game.rankShort.${rank}`)} size={size} />
             )}
@@ -231,17 +207,15 @@ export function CardBack({ size = "md", deck = "madjarice" }: { size?: CardSize;
             h={deck === "madjarice" ? MADJARICA_HEIGHT[size] : metrics.h}
             flexShrink={0}
             rounded={metrics.radius}
-            bg="brand.700"
-            borderWidth="2px"
-            borderColor="brand.900"
-            boxShadow="sm"
+            bg={CARD_INK.frame}
+            borderWidth="0"
+            boxShadow="none"
             position="relative"
             overflow="hidden"
-            backgroundImage="repeating-linear-gradient(45deg, var(--chakra-colors-brand-600) 0 4px, var(--chakra-colors-brand-800) 4px 8px)"
         >
             <Box
                 position="absolute"
-                inset="12%"
+                inset="3px"
                 rounded="sm"
                 borderWidth="1px"
                 borderColor="whiteAlpha.400"

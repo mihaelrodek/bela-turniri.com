@@ -66,7 +66,7 @@ const IDLE_CLOSE_MS = 3_000
 /** Ring buffers — a long game must not grow unbounded React state. */
 const MAX_EVENTS = 200
 const MAX_CHAT = 100
-/** Reactions are on screen for ~2 s; a handful is all the table can ever show. */
+/** Reactions are on screen briefly; a handful is all the table can ever show. */
 const MAX_REACTIONS = 12
 
 /** One `chat.reaction` frame, with a local id so the bubble that renders it
@@ -77,7 +77,7 @@ export interface SeatReaction {
     /** null when a spectator reacted — there is no seat to float it over. */
     seat: Seat | null
     reaction: Reaction
-    /** Server timestamp; the bubble lives ~2 s from here. */
+    /** Server timestamp; the speech bubble expires from here. */
     at: number
 }
 
@@ -89,6 +89,7 @@ export interface GameSocketState {
     yourSeat: Seat | null
     view: PlayerView | null
     turnDeadline: number | null
+    turnDurationMs: number | null
     declarationsPending: boolean
     autoPlayed: boolean
     events: QueuedGameEvent[]
@@ -116,7 +117,8 @@ export interface GameSocketState {
      * no longer talk to us, so nothing can tell us its deadline. We take the
      * moment the socket closed plus the documented `reconnectGraceMs` — the
      * same number the server used — which is what `ReconnectBanner` counts
-     * down. It is cleared the instant we are greeted again.
+     * down. It is cleared only after the room state confirms that the seat
+     * has actually been restored.
      */
     holdUntil: number | null
     /** Room we keep membership in while away from the game pages; null = none. */
@@ -137,6 +139,7 @@ const initialState: GameSocketState = {
     yourSeat: null,
     view: null,
     turnDeadline: null,
+    turnDurationMs: null,
     declarationsPending: false,
     autoPlayed: false,
     events: [],
@@ -207,9 +210,10 @@ export function leaveRoom(): void {
 function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketState {
     switch (msg.t) {
         case "hello.ok":
-            // We are back on speaking terms; whatever hold the outage started
-            // is either cancelled (room.join follows) or none of our business.
-            return { ...prev, me: msg.user, error: null, holdUntil: null }
+            // Authentication succeeded, but a reconnecting table is not
+            // restored until `room.joined` / `room.state` confirms the seat.
+            // Keep the hold countdown alive through that round trip.
+            return { ...prev, me: msg.user, error: null }
         case "pong":
             return prev
         case "error":
@@ -220,7 +224,7 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
                 // cached table while the room page handles the terminal error
                 // and returns to the lobby.
                 ...(msg.code === "ROOM_NOT_FOUND"
-                    ? { room: null, yourSeat: null, view: null, turnDeadline: null }
+                    ? { room: null, yourSeat: null, view: null, turnDeadline: null, turnDurationMs: null }
                     : {}),
             }
         case "lobby.rooms":
@@ -228,16 +232,35 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
         case "game.active":
             return { ...prev, activeSeat: msg.seat }
         case "profile.name":
-            // Rename ourselves on the spot. The room broadcasts its own copies
-            // of the seats (`renameOccupant` on the server), so the table
-            // catches up on the next `room.state`; `me` is the one thing no
-            // other frame is going to correct.
-            return {
+            // Apply the confirmed name to every local copy immediately. The
+            // server also follows with `room.state`, but making the visible
+            // seat depend on that second frame left the old name on screen
+            // until a refresh whenever that broadcast was delayed or missed.
+            // The later authoritative state still replaces this optimistic
+            // copy in the usual way.
+            {
+                const uid = prev.me?.uid
+                const room = prev.room && uid
+                    ? {
+                        ...prev.room,
+                        seats: prev.room.seats.map((seat) => {
+                            const occupant = seat.occupant
+                            return occupant?.kind === "PLAYER" && occupant.user.uid === uid
+                                ? { ...seat, occupant: { ...occupant, user: { ...occupant.user, name: msg.name } } }
+                                : seat
+                        }) as RoomState["seats"],
+                        spectators: prev.room.spectators.map((user) =>
+                            user.uid === uid ? { ...user, name: msg.name } : user),
+                    }
+                    : prev.room
+                return {
                 ...prev,
                 gameName: msg.name,
                 gameNameNextChangeAt: msg.nextChangeAt > 0 ? msg.nextChangeAt : null,
                 me: prev.me ? { ...prev.me, name: msg.name } : prev.me,
+                room,
                 error: null,
+                }
             }
         case "profile.avatar":
             // Same shape as the rename above: the table catches up through the
@@ -254,6 +277,7 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
                 ...prev,
                 room: msg.room,
                 yourSeat: msg.yourSeat,
+                holdUntil: null,
                 // A rematch must not replay the previous game's final animations.
                 ...(prev.room?.status === "LOBBY" && msg.room.status === "PLAYING" ? { events: [] } : {}),
             }
@@ -261,12 +285,13 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
             // Keep the chat log: the user may be bouncing between the room and
             // the lobby, and losing it on every hop is worse than showing a
             // stale line or two.
-            return { ...prev, room: null, yourSeat: null, view: null, turnDeadline: null }
+            return { ...prev, room: null, yourSeat: null, view: null, turnDeadline: null, turnDurationMs: null }
         case "game.state":
             return {
                 ...prev,
                 view: msg.view,
                 turnDeadline: msg.turnDeadline,
+                turnDurationMs: msg.turnDurationMs,
                 autoPlayed: msg.autoPlayed,
                 declarationsPending: msg.declarationsPending === true,
             }
@@ -516,6 +541,10 @@ function afterHello(): void {
     helloOk = true
     attempt = 0
     applyDesired()
+    // A lobby-only connection is ready as soon as hello succeeds. A table
+    // stays "connecting" until the server confirms the room rejoin, so the
+    // cached table can never look interactive between auth and restoration.
+    if (desired().roomId === undefined) setStatus("open")
     const pending = outbox
     outbox = []
     for (const msg of pending) transport?.send(msg)
@@ -552,7 +581,6 @@ async function connect(): Promise<void> {
 
     const handlers: GameTransportHandlers = {
         onOpen: () => {
-            setStatus("open")
             const mine = transport
             if (mine) void greet(mine)
         },
@@ -560,6 +588,16 @@ async function connect(): Promise<void> {
             if (msg.t === "hello.ok") afterHello()
             set(applyMessage(state, msg))
             reconcileSticky(msg)
+            const d = desired()
+            if ((msg.t === "room.joined" || msg.t === "room.state") && msg.room.id === d.roomId) {
+                setStatus("open")
+            } else if (msg.t === "lobby.rooms" && d.roomId === undefined) {
+                setStatus("open")
+            } else if (msg.t === "error" && state.status === "connecting") {
+                // Let the page handle a rejected join instead of leaving its
+                // spinner in a permanent connecting state.
+                setStatus("open")
+            }
         },
         onClose: () => {
             helloOk = false

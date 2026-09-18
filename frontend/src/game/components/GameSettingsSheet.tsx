@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Button, Dialog, HStack, Input, Portal, Separator, Text, VStack } from "@chakra-ui/react"
+import { Box, Button, Dialog, HStack, IconButton, Input, Popover, Portal, Separator, Text, VStack } from "@chakra-ui/react"
 import { LIMITS, TRICK_REVIEWS } from "@bela/protocol"
 import type { ClientMessage, RoomState, TargetScore } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
@@ -11,6 +11,7 @@ import { useGameSocket } from "../hooks/useGameSocket"
 import { readGuest, saveGuest } from "../hooks/guestIdentity"
 import PlayingCard from "./PlayingCard"
 import GameOption from "./GameOption"
+import { FiInfo } from "react-icons/fi"
 
 /**
  * "Ime za igru" — the name this player wears at the card table, which is a
@@ -60,7 +61,29 @@ function GameNameSetting() {
 
     return (
         <VStack align="stretch" gap="1.5">
-            <Text fontSize="sm" fontWeight="semibold">{t("game.settings.gameName")}</Text>
+            <HStack gap="1">
+                <Text fontSize="sm" fontWeight="semibold">{t("game.settings.gameName")}</Text>
+                <Popover.Root positioning={{ placement: "bottom-start" }}>
+                    <Popover.Trigger asChild>
+                        <IconButton
+                            aria-label={t("game.settings.gameNameHint")}
+                            title={t("game.settings.gameNameHint")}
+                            size="2xs"
+                            variant="ghost"
+                            color="fg.muted"
+                        >
+                            <FiInfo />
+                        </IconButton>
+                    </Popover.Trigger>
+                    <Popover.Positioner>
+                        <Popover.Content maxW="260px">
+                            <Popover.Body fontSize="sm" color="fg.soft">
+                                {t("game.settings.gameNameHint")}
+                            </Popover.Body>
+                        </Popover.Content>
+                    </Popover.Positioner>
+                </Popover.Root>
+            </HStack>
             <HStack gap="2">
                 <Input flex="1" size="sm" value={draft} maxLength={LIMITS.playerNameMax}
                     autoComplete="nickname" disabled={blocked}
@@ -72,13 +95,13 @@ function GameNameSetting() {
                     {t("game.common.save")}
                 </Button>
             </HStack>
-            <Text fontSize="xs" color={limited ? "fg.error" : "fg.muted"}>
-                {blocked
-                    ? t("game.settings.gameNameNext", { date: formatDate(new Date(gameNameNextChangeAt).toISOString()) })
-                    : sent && !changed
-                        ? t("game.settings.gameNameSaved")
-                        : t("game.settings.gameNameHint")}
-            </Text>
+            {(blocked || (sent && !changed)) && (
+                <Text fontSize="xs" color={limited ? "fg.error" : "fg.muted"}>
+                    {blocked
+                        ? t("game.settings.gameNameNext", { date: formatDate(new Date(gameNameNextChangeAt).toISOString()) })
+                        : t("game.settings.gameNameSaved")}
+                </Text>
+            )}
         </VStack>
     )
 }
@@ -111,9 +134,13 @@ function GameAvatarSetting() {
     return (
         <VStack align="stretch" gap="1.5">
             <Text fontSize="sm" fontWeight="semibold">{t("game.settings.avatar")}</Text>
-            <AvatarPicker value={me?.avatarPreset ?? null} onChange={pick} size="40px"
-                label={t("game.settings.avatar")} />
-            <Text fontSize="xs" color="fg.muted">{t("game.settings.avatarHint")}</Text>
+            {/* Two complete rows keep the settings sheet compact. The rest of
+                the faces remain in the same keyboard-accessible radio group
+                and can be reached by scrolling this small region. */}
+            <Box maxH="124px" overflowY="auto" overflowX="hidden" py="1" pr="1">
+                <AvatarPicker value={me?.avatarPreset ?? null} onChange={pick} size="40px"
+                    label={t("game.settings.avatar")} />
+            </Box>
         </VStack>
     )
 }

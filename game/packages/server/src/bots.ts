@@ -7,16 +7,28 @@
 
 import { createBot } from "@bela/bots"
 import type { Bot } from "@bela/bots"
-import type { Seat } from "@bela/protocol"
 import type { Card, LegalBids, PlayerView, Suit } from "@bela/engine"
+import { AVATAR_PRESETS } from "@bela/protocol"
+import type { AvatarPreset } from "@bela/protocol"
 
 export type { Bot } from "@bela/bots"
 
-/** Seat 0..3 bot display names (README §4 / room UI). */
-export const BOT_NAMES: readonly string[] = ["Bot Ivo", "Bot Ana", "Bot Mate", "Bot Jana"]
+/** Display names used by the bot roster. A bot gets one at add-time. */
+export const BOT_NAMES: readonly string[] = [
+    "Bot Ivo", "Bot Ana", "Bot Mate", "Bot Jana", "Bot Luka", "Bot Ema",
+    "Bot Filip", "Bot Petra", "Bot Tin", "Bot Nina", "Bot Karlo", "Bot Sara",
+    "Bot Toni", "Bot Dora", "Bot Marko", "Bot Lea", "Bot Ivan", "Bot Mia",
+    "Bot Marin", "Bot Klara", "Bot Stjepan", "Bot Lucija", "Bot Josip", "Bot Tea",
+]
 
-export function botName(seat: Seat): string {
-    return BOT_NAMES[seat] ?? `Bot ${seat + 1}`
+export function botName(usedNames: readonly string[] = []): string {
+    const available = BOT_NAMES.filter((name) => !usedNames.includes(name))
+    const pool = available.length > 0 ? available : BOT_NAMES
+    return pool[Math.floor(Math.random() * pool.length)] ?? "Bot Ivo"
+}
+
+export function botAvatar(): AvatarPreset {
+    return AVATAR_PRESETS[Math.floor(Math.random() * AVATAR_PRESETS.length)] ?? AVATAR_PRESETS[0]
 }
 
 export function makeBot(): Bot {

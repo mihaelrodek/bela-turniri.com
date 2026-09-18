@@ -81,6 +81,29 @@
 	<string>Koristi se za odabir fotografija za postere turnira i profilne slike.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Koristi se za spremanje fotografija iz aplikacije.</string>
+	<!-- Live Activities for a running bela online game (BelaLiveActivityPlugin);
+	     frequent updates because turns change every few seconds. -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<true/>
+	<!-- Native Google sign-in (@capacitor-firebase/authentication → GoogleSignIn
+	     SDK) hands control to Safari/the Google app and needs a URL scheme to
+	     come back to. The scheme is the REVERSED_CLIENT_ID value out of
+	     GoogleService-Info.plist, which is not in the repo yet — the string
+	     below is a PLACEHOLDER and MUST be replaced with the real reversed
+	     client id (see DEPLOY.md, "Sign in with Apple / native Google") or the
+	     Google button on iOS returns to a dead end. Sign in with Apple needs
+	     no URL scheme; it runs in-process through AuthenticationServices. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.REPLACE_WITH_REVERSED_CLIENT_ID</string>
+			</array>
+		</dict>
+	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>

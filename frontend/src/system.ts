@@ -242,20 +242,47 @@ const config = defineConfig({
              darkening — no separate brightness tuning needed for it.
 
            next-themes puts `class="dark"` on <html>, so all of this is
-           dark-only. */
-        ".dark .leaflet-tile-pane": {
+           dark-only.
+
+           `.bela-basemap-raster` narrows it further, to the RASTER path only.
+           The whole treatment exists to fake a dark map out of light raster
+           tiles; with VITE_MAP_PROVIDER=openfreemap the basemap is a MapLibre
+           GL canvas rendering a genuinely dark vector style, and darkening
+           THAT would double-darken it into mud. `components/MapBaseLayer.tsx`
+           puts the class on the Leaflet container only when it renders a
+           `<TileLayer>`. It has to be a CONTAINER class, not the narrower
+           `.leaflet-tile-pane img`, because the `::after` tint below lives on
+           the pane itself — and the GL canvas sits in that same pane, so an
+           `img`-scoped selector would still blend blue over it. */
+        ".dark .bela-basemap-raster .leaflet-tile-pane": {
             filter: "brightness(0.2) contrast(1.05)",
         },
         // No `position` override needed: leaflet.css already sets every
         // `.leaflet-pane` to `position: absolute`, which is a valid
         // containing block for the `inset: 0` pseudo below on its own.
-        ".dark .leaflet-tile-pane::after": {
+        ".dark .bela-basemap-raster .leaflet-tile-pane::after": {
             content: "\"\"",
             position: "absolute",
             inset: 0,
             background: "#1c5f92",
             mixBlendMode: "color",
             pointerEvents: "none",
+        },
+
+        /* Leaflet gives EVERY `divIcon` a white fill and a grey border
+           (`.leaflet-div-icon` in leaflet.css) — styling meant for its old
+           text-label icons. Our pins are inline SVGs that bring their own
+           artwork, so that box is pure leftover: invisible on light tiles,
+           but on the dark map it reads as a pale plaque floating behind the
+           pin (reported 2026-09-11).
+
+           `!important` for the same reason as the rules below: Chakra emits
+           globalCss into `@layer base`, and unlayered author styles
+           (leaflet.css) beat layered ones however specific the selector. Not
+           dark-only — the box was always wrong, dark is just where it shows. */
+        ".leaflet-div-icon": {
+            background: "transparent !important",
+            border: "0 !important",
         },
 
         /* Leaflet's own chrome — zoom buttons, popup bubble, attribution bar —
@@ -448,14 +475,14 @@ const config = defineConfig({
                        move to keep the ladder legible.
 
                        Dark was Chakra's stock gray.950 (#111111) until
-                       2026-09-08, lifted one small step to #141517 on
-                       request ("malo svjetlije") — still clearly darker
+                       2026-09-08, then lifted in two small steps to #161719
+                       on request ("malo svjetlije") — still clearly darker
                        than the gray.900 (#18181b) panels sitting on it (the
                        whole point of a canvas/panel pair), just not flat
-                       black. White text keeps 18.3:1 (was 18.9:1) — no
+                       black. White text keeps strong contrast — no
                        practical difference, AA/AAA unaffected. */
                     canvas: {
-                        value: { base: "#dae7de", _light: "#dae7de", _dark: "#141517" },
+                        value: { base: "#dae7de", _light: "#dae7de", _dark: "#161719" },
                     },
                     /* Cards, dialogs, the navbar — one step above the canvas.
                        Translucent (61%) — actually past `glass`'s own 72% at

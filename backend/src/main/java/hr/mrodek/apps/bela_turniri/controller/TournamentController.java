@@ -9,6 +9,7 @@ import hr.mrodek.apps.bela_turniri.model.Tournaments;
 import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.TournamentsRepository;
 import hr.mrodek.apps.bela_turniri.services.CurrentUser;
+import hr.mrodek.apps.bela_turniri.services.UserBlockService;
 import hr.mrodek.apps.bela_turniri.services.GeocodeService;
 import hr.mrodek.apps.bela_turniri.services.IdempotencyService;
 import hr.mrodek.apps.bela_turniri.services.QrCodeRenderer;
@@ -74,6 +75,7 @@ public class TournamentController {
 
     @Inject TournamentAccess access;
     @Inject CurrentUser currentUser;
+    @Inject UserBlockService blocks;
     @Inject IdempotencyService idempotency;
     @Inject TournamentPairService pairService;
     @Inject SelfRegistrationService selfRegistrationService;
@@ -427,15 +429,24 @@ public class TournamentController {
         // already see client-side (only the first page is loaded). Upcoming
         // keeps its instant client-side filter over the fully-loaded list.
         String query = q != null && q.trim().length() >= MIN_QUERY_LENGTH ? q.trim() : null;
+        // Blocks (App Store guideline 1.2): an AUTHENTICATED caller does not
+        // see tournaments created by somebody they blocked. Null for an
+        // anonymous caller and for a caller who has blocked nobody, in which
+        // case the query is byte-for-byte the one that ran before this feature
+        // existed — which is also what keeps PublicReadCacheFilter safe: it
+        // only ever stamps a cacheable response on an anonymous GET (and adds
+        // Vary: Authorization on top), so a filtered listing can never be
+        // served to anyone else.
+        String blockerUid = blocks.blockerUidFor(currentUser.uidOrNull());
         final List<Tournaments> items;
         if ("finished".equalsIgnoreCase(status)) {
             if (limit > 0) {
-                items = tournamentsRepo.findFinishedPaged(Math.max(0, offset), limit, query);
+                items = tournamentsRepo.findFinishedPaged(Math.max(0, offset), limit, query, blockerUid);
             } else {
-                items = tournamentsRepo.findFinishedPaged(0, Integer.MAX_VALUE, query);
+                items = tournamentsRepo.findFinishedPaged(0, Integer.MAX_VALUE, query, blockerUid);
             }
         } else {
-            items = tournamentsRepo.findNotFinishedOrderByStartAtAsc();
+            items = tournamentsRepo.findNotFinishedOrderByStartAtAsc(blockerUid);
         }
 
         if (items.isEmpty()) return List.of();
@@ -462,7 +473,10 @@ public class TournamentController {
             @QueryParam("q") String q) {
         if ("finished".equalsIgnoreCase(status)) {
             String query = q != null && q.trim().length() >= MIN_QUERY_LENGTH ? q.trim() : null;
-            return Map.of("total", tournamentsRepo.countFinished(query));
+            // Same block filter as list() — the "Učitaj više" total has to
+            // agree with the number of rows the caller can actually see.
+            return Map.of("total",
+                    tournamentsRepo.countFinished(query, blocks.blockerUidFor(currentUser.uidOrNull())));
         }
         // Other buckets aren't paged today so they don't need a count.
         return Map.of("total", 0L);

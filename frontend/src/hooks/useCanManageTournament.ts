@@ -3,6 +3,7 @@ import { useCallback, useMemo } from "react"
 import { useAuth } from "../auth/authContextValue"
 import { showError } from "../toaster"
 import { t as tStatic } from "../i18n"
+import { useNetworkStatus } from "../platform/useNetworkStatus"
 import type { TournamentDetails } from "../types/tournaments"
 
 /**
@@ -17,6 +18,7 @@ import type { TournamentDetails } from "../types/tournaments"
  */
 export function useCanManageTournament(t: TournamentDetails | null | undefined) {
     const { user, isAdmin } = useAuth()
+    const online = useNetworkStatus()
 
     const canEditTournament = isAdmin || (!!user?.uid && user.uid === t?.createdByUid)
 
@@ -34,16 +36,19 @@ export function useCanManageTournament(t: TournamentDetails | null | undefined) 
      * sentence beats letting the generic network toast imply the work might
      * still land.
      *
-     * `tStatic` (not the reactive translator) so the callback keeps an empty
-     * dependency array and a stable identity for the callers that hold it.
+     * `tStatic` (not the reactive translator) keeps the strings this way
+     * regardless of language switches mid-flight; `online` is the one
+     * genuinely reactive input, from `useNetworkStatus` (native asks the OS
+     * via `@capacitor/network` instead of the WebView's unreliable
+     * `navigator.onLine`).
      */
     const requireOnlineFor = useCallback((title: string): boolean => {
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
+        if (!online) {
             showError(title, tStatic("tournament.offline.description"))
             return false
         }
         return true
-    }, [])
+    }, [online])
 
     return useMemo(
         () => ({ canEditTournament, showEditAction, showDeleteAction, requireOnlineFor }),

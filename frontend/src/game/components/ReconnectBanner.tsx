@@ -1,6 +1,9 @@
+import { useEffect, useRef, useState } from "react"
 import { Box, HStack, Spinner, Text } from "@chakra-ui/react"
+import { FiCheckCircle } from "react-icons/fi"
 import { useTranslation } from "../../i18n"
 import { formatCountdown, useHoldCountdown } from "../hooks/useHoldCountdown"
+import type { GameConnectionStatus } from "../types"
 
 /* ──────────────────────────────────────────────────────────────────────────
    ReconnectBanner — "veza je pala, sjedalo ti se čuva još 1:47" strip shown
@@ -11,37 +14,68 @@ import { formatCountdown, useHoldCountdown } from "../hooks/useHoldCountdown"
    `hooks/useHoldCountdown.ts` because the lobby's "active game" card shows the
    very same number.
 
-   Props are optional so the table can mount it unconditionally: with no
-   `holdUntil` — or one already in the past — it renders nothing.
+   The table mounts it unconditionally. Connection status controls whether it
+   is visible; `holdUntil` enriches the reconnect message with a countdown
+   when the player has a held seat.
    ────────────────────────────────────────────────────────────────────── */
 
-export default function ReconnectBanner({ holdUntil }: { holdUntil?: number | null } = {}) {
+export default function ReconnectBanner({
+    holdUntil,
+    status,
+}: {
+    holdUntil?: number | null
+    status: GameConnectionStatus
+}) {
     const { t } = useTranslation()
     const remaining = useHoldCountdown(holdUntil)
+    const interrupted = useRef(false)
+    const [restored, setRestored] = useState(false)
 
-    if (remaining === null || remaining <= 0) return null
+    useEffect(() => {
+        if (status !== "open") {
+            interrupted.current = true
+            setRestored(false)
+            return
+        }
+        if (!interrupted.current) return
+        interrupted.current = false
+        setRestored(true)
+        const id = window.setTimeout(() => setRestored(false), 2400)
+        return () => window.clearTimeout(id)
+    }, [status])
+
+    if (status === "open" && !restored) return null
+
+    const rejoining = status !== "open"
 
     return (
         <Box
             role="status"
             aria-live="polite"
+            aria-atomic="true"
             rounded="l2"
             borderWidth="1px"
-            borderColor="orange.400"
+            borderColor={rejoining ? "orange.400" : "brand.300"}
             bg="bg.panel"
             px="3"
             py="2"
             shadow="md"
         >
             <HStack gap="2.5" align="center">
-                <Spinner size="xs" color="orange.400" borderWidth="2px" />
+                {rejoining
+                    ? <Spinner size="xs" color="orange.400" borderWidth="2px" />
+                    : <FiCheckCircle color="var(--chakra-colors-brand-500)" aria-hidden="true" />}
                 <Box minW="0">
                     <Text fontSize="sm" fontWeight="semibold" lineClamp={1}>
-                        {t("game.reconnect.title")}
+                        {t(rejoining ? "game.reconnect.title" : "game.reconnect.restored")}
                     </Text>
-                    <Text fontSize="xs" color="fg.muted" lineClamp={1}>
-                        {t("game.reconnect.hold", { time: formatCountdown(remaining) })}
-                    </Text>
+                    {rejoining && (
+                        <Text fontSize="xs" color="fg.muted" lineClamp={1}>
+                            {remaining !== null && remaining > 0
+                                ? t("game.reconnect.hold", { time: formatCountdown(remaining) })
+                                : t("game.reconnect.retrying")}
+                        </Text>
+                    )}
                 </Box>
             </HStack>
         </Box>

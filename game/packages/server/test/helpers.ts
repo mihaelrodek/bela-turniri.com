@@ -31,6 +31,9 @@ export async function startTestServer(options: ServerOptions = {}): Promise<Game
         host: host ?? "127.0.0.1",
         env: env ?? DEV_ENV,
         timings: { ...FAST_TIMINGS, ...timings },
+        // No test should reach a real backend just because a seat dropped;
+        // Live Activity tests inject their own recording notifier.
+        liveActivity: { send: () => undefined },
         ...rest,
     })
 }

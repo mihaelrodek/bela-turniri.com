@@ -59,6 +59,11 @@ export type GameStatsDto = {
     byTargetScore?: Partial<Record<"501" | "701" | "1001", GameStatCategory>>
 }
 
+export type GameReliabilityDto = {
+    karma: number
+    abandons: number
+}
+
 export async function getProfile(): Promise<UserProfile> {
     const { data } = await http.get<UserProfile>("/user/me/profile")
     return data
@@ -127,9 +132,87 @@ export async function syncProfile(displayName: string | null | undefined): Promi
     const { data } = await http.post<UserProfile>(
         "/user/me/sync",
         { displayName: displayName ?? null },
-        { silent: true },
+        // 410 ACCOUNT_DELETED is a normal answer here, not a failure: the
+        // account was erased on another device (or the Firebase user
+        // outlived the server-side delete), and the token in this tab is
+        // simply the last thing left of it. Silencing the status keeps the
+        // interceptor from red-toasting a boot-time request the user never
+        // asked for — `deleted` below is what callers should act on.
+        { silent: true, silentErrorStatuses: [410] },
     )
     return data
+}
+
+/**
+ * Result of a profile sync that tolerates a deleted account.
+ *
+ * `deleted` is true when the backend answered 410 ACCOUNT_DELETED, i.e. this
+ * Firebase session belongs to an account that no longer exists. Nothing is
+ * thrown, so the existing login flow continues undisturbed.
+ *
+ * FOLLOW-UP: `auth/AuthContext.tsx` (not touched here) should call this in
+ * place of {@link syncProfile} and sign the user out when `deleted` is true —
+ * right now a stale session just renders an empty profile until the next
+ * authenticated write fails.
+ */
+export async function syncProfileTolerant(
+    displayName: string | null | undefined,
+): Promise<{ profile: UserProfile | null; deleted: boolean }> {
+    try {
+        return { profile: await syncProfile(displayName), deleted: false }
+    } catch (err) {
+        const res = (err as { response?: { status?: number; data?: unknown } } | null)?.response
+        if (res?.status === 410) return { profile: null, deleted: true }
+        throw err
+    }
+}
+
+/**
+ * Erase the signed-in account (App Store requirement: an account created in
+ * the app must be deletable from inside it).
+ *
+ * The server anonymises the profile — name, photo, phone, settings and every
+ * block go; tournaments the user organised and results other people played
+ * against them stay, rendered as "Obrisani korisnik" — and deletes the
+ * Firebase user when it can. The client still calls Firebase's `deleteUser`
+ * afterwards as a second path, because a server-side Admin SDK delete can
+ * fail on its own while the profile is already gone. Silent: the caller
+ * (`pages/profile/DeleteAccountCard`) signs out and toasts once at the end,
+ * after both halves have run.
+ */
+export async function deleteAccount(): Promise<void> {
+    await http.delete("/user/me", { silent: true })
+}
+
+/* ── Blocks ─────────────────────────────────────────────────────────────── */
+
+/** One blocked user, as listed on "Blokirani korisnici". */
+export type BlockedUser = {
+    uid: string
+    slug: string | null
+    displayName: string | null
+    avatarUrl: string | null
+    avatarPreset: string | null
+}
+
+export async function listBlocks(): Promise<BlockedUser[]> {
+    const { data } = await http.get<BlockedUser[]>("/user/me/blocks", { silent: true })
+    return data
+}
+
+/**
+ * Block a user by Firebase UID. Server effects, both ways: their public
+ * profile 404s for you and yours for them, and tournaments they created drop
+ * out of your `/tournaments` list — which is why every caller invalidates
+ * `qk.tournaments` as well as `qk.blocks`. Silent so the caller can word the
+ * consequence ("Korisnik je blokiran…") instead of a bare "Spremljeno".
+ */
+export async function blockUser(uid: string): Promise<void> {
+    await http.put(`/user/me/blocks/${encodeURIComponent(uid)}`, undefined, { silent: true })
+}
+
+export async function unblockUser(uid: string): Promise<void> {
+    await http.delete(`/user/me/blocks/${encodeURIComponent(uid)}`, { silent: true })
 }
 
 export async function uploadAvatar(file: File): Promise<UserProfile> {
@@ -163,5 +246,10 @@ export async function fetchMyGameStats(): Promise<GameStatsDto> {
         "/user/me/game-stats",
         { silent: true },
     )
+    return data
+}
+
+export async function fetchMyGameReliability(): Promise<GameReliabilityDto> {
+    const { data } = await http.get<GameReliabilityDto>("/user/me/game-reliability", { silent: true })
     return data
 }

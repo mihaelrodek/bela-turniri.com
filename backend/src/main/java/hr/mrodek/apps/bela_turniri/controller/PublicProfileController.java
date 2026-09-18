@@ -2,8 +2,8 @@ package hr.mrodek.apps.bela_turniri.controller;
 
 import hr.mrodek.apps.bela_turniri.dtos.PairMatchHistoryDto;
 import hr.mrodek.apps.bela_turniri.dtos.PublicProfileDto;
+import hr.mrodek.apps.bela_turniri.services.CurrentUser;
 import hr.mrodek.apps.bela_turniri.services.PublicProfileService;
-import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
@@ -12,7 +12,6 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 
 /**
  * Anonymous-readable profile pages. Anyone can hit these — there is no
@@ -34,30 +33,29 @@ import org.eclipse.microprofile.jwt.JsonWebToken;
 public class PublicProfileController {
 
     @Inject PublicProfileService profileService;
-    @Inject SecurityIdentity identity;
-    @Inject JsonWebToken jwt;
 
     /**
-     * True when no Firebase ID token was presented (or it didn't verify).
+     * The caller, via {@link CurrentUser} rather than a hand-rolled
+     * {@code jwt.getSubject()} dance (CLAUDE.md: "Do not compare
+     * {@code jwt.getSubject()} by hand in controllers").
      *
-     * We check {@code jwt.getSubject()} instead of
-     * {@code identity.isAnonymous()} because Quarkus OIDC runs in
-     * non-proactive mode (proactive=false) — under that setting,
-     * SecurityIdentity stays anonymous on endpoints without
-     * {@code @Authenticated} even when a valid bearer token is in the
-     * request. Injecting JsonWebToken and reading the subject DOES force
-     * verification, so this is the reliable signal.
+     * <p>Same semantics as before: {@code CurrentUser.uid()} reads the subject
+     * straight off {@link org.eclipse.microprofile.jwt.JsonWebToken}, which is
+     * what forces verification. {@code SecurityIdentity} would NOT do — with
+     * {@code quarkus.http.auth.proactive=false} it stays anonymous on an
+     * endpoint without {@code @Authenticated} even when a valid bearer token
+     * was sent, and this endpoint has none.
+     *
+     * <p>The viewer matters twice here: it un-redacts phone numbers for a
+     * signed-in caller, and it is what the block check
+     * ({@code UserBlockRepository.existsEitherWay}) is run against.
      */
-    private boolean isAnonymous() {
-        return jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank();
-    }
+    @Inject CurrentUser currentUser;
 
     @GET
     @Path("/{slug}")
     public PublicProfileDto getBySlug(@PathParam("slug") String slug) {
-        boolean anon = isAnonymous();
-        String viewerUid = (jwt != null) ? jwt.getSubject() : null;
-        return profileService.getBySlug(slug, viewerUid, anon);
+        return profileService.getBySlug(slug, currentUser.uidOrNull(), currentUser.isAnonymous());
     }
 
     @GET

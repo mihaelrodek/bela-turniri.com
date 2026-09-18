@@ -5,7 +5,7 @@ import { handTricks, suitStrength, weakestCard } from "../src/evaluate"
 import { heuristicBot } from "../src/heuristicBot"
 import { view } from "./helpers"
 
-const noRng = (): number => 0.5 // heuristic bot never consults rng
+const noRng = (): number => 0.5 // heuristic card play is deterministic
 
 describe("heuristicBot.chooseBid (README §5)", () => {
     it("passes below the 5.5 threshold when it can", () => {
@@ -277,6 +277,46 @@ describe("heuristicBot.chooseCard — priority branches (README §5)", () => {
         expect(heuristicBot.chooseCard(v, legal, noRng)).toBe("9HERC")
     })
 
+    it("partner opened low trump and I lack the nine → the JACK, not king or ten", () => {
+        const legal: Card[] = ["JHERC", "10HERC", "KHERC"]
+        const v = view({
+            seat: 0,
+            hand: [...legal, "7PIK"],
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 0 },
+            trick: {
+                leader: 2,
+                turn: 0,
+                cards: [{ seat: 2, card: "7HERC" }, { seat: 3, card: "7PIK" }],
+            },
+        })
+        expect(heuristicBot.chooseCard(v, legal, noRng)).toBe("JHERC")
+    })
+
+    it("does not return a lone trump ten underneath an outstanding nine", () => {
+        const hand: Card[] = ["10HERC", "7PIK", "8PIK"]
+        const previous = {
+            no: 1,
+            leader: 2 as const,
+            winner: 2 as const,
+            plays: [
+                { seat: 2 as const, card: "7HERC" as const },
+                { seat: 3 as const, card: "8HERC" as const },
+                { seat: 0 as const, card: "QHERC" as const },
+                { seat: 1 as const, card: "KHERC" as const },
+            ],
+            cards: ["7HERC", "8HERC", "QHERC", "KHERC"] as Card[],
+        }
+        const v = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 2 },
+            played: [...previous.cards],
+            trickHistory: [previous],
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+        expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("7PIK")
+    })
+
     it("branch 2: partner holds the trick, I'm not last → cheapest legal card", () => {
         const v = view({
             seat: 0,
@@ -313,6 +353,18 @@ describe("heuristicBot.chooseCard — priority branches (README §5)", () => {
 })
 
 describe("heuristicBot.chooseCard — leading a trick", () => {
+    it("opens a lone trump ten when the partner called that suit", () => {
+        const hand: Card[] = ["10PIK", "7HERC", "8HERC", "7TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            dealer: 3,
+            bidding: { turn: 0, passes: [], trump: "PIK", caller: 2 },
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+        expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("10PIK")
+    })
+
     it("leads the trump jack when my team called and I hold it", () => {
         const v = view({
             seat: 0,
@@ -321,6 +373,67 @@ describe("heuristicBot.chooseCard — leading a trick", () => {
             trick: { leader: 0, turn: 0, cards: [] },
         })
         expect(heuristicBot.chooseCard(v, ["JHERC", "7PIK", "APIK"], noRng)).toBe("JHERC")
+    })
+
+    it("as the caller with jack and a low trump, always opens the jack", () => {
+        const hand: Card[] = ["JPIK", "8PIK", "AHERC", "7HERC", "10KARA", "7TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 1, passes: [], trump: "PIK", caller: 0 },
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+
+        expect(heuristicBot.chooseCard(v, hand, () => 0.2)).toBe("JPIK")
+        expect(heuristicBot.chooseCard(v, hand, () => 0.95)).toBe("JPIK")
+    })
+
+    it("does not randomly replace the caller's jack with a low trump", () => {
+        const hand: Card[] = ["JPIK", "8PIK", "7HERC", "8HERC", "10KARA", "7TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 1, passes: [], trump: "PIK", caller: 0 },
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+
+        expect(heuristicBot.chooseCard(v, hand, () => 0.95)).toBe("JPIK")
+    })
+
+    it("applies the caller's jack lead whenever it opens a trick", () => {
+        const hand: Card[] = ["JPIK", "8PIK", "AHERC", "7TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            played: ["7PIK", "9PIK", "10PIK", "QPIK", "KPIK", "APIK"],
+            bidding: { turn: 1, passes: [], trump: "PIK", caller: 0 },
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+
+        expect(heuristicBot.chooseCard(v, hand, () => 0.2)).toBe("JPIK")
+    })
+
+    it("does not override the caller's special jack-nine-ace sequence", () => {
+        const hand: Card[] = ["JPIK", "9PIK", "APIK", "7HERC", "8HERC", "7TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 1, passes: [], trump: "PIK", caller: 0 },
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+
+        expect(heuristicBot.chooseCard(v, hand, () => 0.2)).toBe("9PIK")
+    })
+
+    it("as the caller with a J-Q-K declaration, leads the jack rather than the queen", () => {
+        const hand: Card[] = ["JHERC", "QHERC", "KHERC", "7PIK", "8PIK"]
+        const v = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 0 },
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+        expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("JHERC")
     })
 
     it("leads an ace of a non-trump suit when the 10 of that suit backs it up", () => {
@@ -367,7 +480,7 @@ describe("heuristicBot.chooseCard — leading a trick", () => {
             seat: 0,
             hand,
             dealer: 3,
-            bidding: { turn: 1, passes: [], trump: "HERC", caller: 2 },
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 1 },
             trick: { leader: 0, turn: 0, cards: [] },
         })
         expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("7PIK")
@@ -430,15 +543,16 @@ describe("heuristicBot.chooseCard — leading a trick", () => {
     })
 
     it("does not draw when our side has nothing to cash afterwards", () => {
-        // Partner called of his own accord and the opponents still hold trumps,
-        // but not one card of mine will ever take a trick — stripping the table
-        // would achieve nothing.
+        // After the mandatory opening lead is over, partner called and the
+        // opponents still hold trumps, but not one card of mine will ever take
+        // a trick — continuing to strip the table would achieve nothing.
         const hand: Card[] = ["7HERC", "8HERC", "7PIK", "8TREF"]
         const v = view({
             seat: 0,
             hand,
             dealer: 3,
             bidding: { turn: 1, passes: [], trump: "HERC", caller: 2 },
+            played: ["7KARA", "8KARA", "9KARA", "QKARA"],
             trick: { leader: 0, turn: 0, cards: [] },
         })
         expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("7PIK")
@@ -491,6 +605,19 @@ describe("heuristicBot.chooseCard — leading a trick", () => {
             trick: { leader: 0, turn: 0, cards: [] },
         })
         expect(heuristicBot.chooseCard(v, ["7HERC", "AHERC", "APIK", "8TREF"], noRng)).not.toMatch(/HERC$/)
+    })
+
+    it("on defence, follows an ace win with the master nine to capture the remaining trump ten", () => {
+        const hand: Card[] = ["9HERC", "7PIK", "8PIK", "7TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            handSizes: { 0: 4, 1: 4, 2: 4, 3: 4 },
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 1 },
+            played: ["JHERC", "AHERC", "KHERC", "QHERC", "8HERC", "7HERC"],
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+        expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("9HERC")
     })
 
     it("does not draw trumps when the partner's declarations deny the jack and I have none", () => {

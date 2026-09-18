@@ -154,6 +154,7 @@ export function viewFor(state: GameState, seat: Seat | null, opts?: ViewOptions)
         declarationsRevealed: revealed,
         declarationsScoringTeam: revealed ? state.declarationsScoringTeam : null,
         belaDeclared: state.belaDeclared,
+        belotSeat: state.belotSeat ?? null,
         dealScore: state.dealScore,
         score: { ...state.score },
         history: state.history.slice(),

@@ -47,7 +47,7 @@ export interface Timings {
     /**
      * How long a scored deal stays on screen before the next one is dealt.
      * Unconditional since 2026-09-08 — nobody has to confirm a summary. Kept
-     * just above the client's 3 s auto-dismiss so the dialog is gone first.
+     * just above the client's 7 s auto-dismiss so the dialog is gone first.
      */
     dealDoneAutoMs: number
     /** Empty room is deleted this long after the last member leaves. */
@@ -67,12 +67,12 @@ export interface RateLimits {
 }
 
 export const DEFAULT_TIMINGS: Timings = {
-    declarationsMs: 5200,
+    declarationsMs: 8_000,
     turnTimeoutMs: DEFAULTS.turnTimeoutMs,
     reconnectGraceMs: DEFAULTS.reconnectGraceMs,
     botThinkMinMs: DEFAULTS.botThinkMinMs,
     botThinkMaxMs: DEFAULTS.botThinkMaxMs,
-    dealDoneAutoMs: 3_500,
+    dealDoneAutoMs: 8_000,
     emptyRoomTtlMs: 5 * 60_000,
     finishedRoomTtlMs: 10 * 60_000,
     heartbeatMs: 25_000,
@@ -106,11 +106,12 @@ export type EnvLike = Record<string, string | undefined>
 export function loadConfig(env: EnvLike = process.env, overrides: Partial<Config> = {}): Config {
     const projectId = env["FIREBASE_PROJECT_ID"]?.trim()
     const rawLevel = env["GAME_LOG_LEVEL"]?.trim().toLowerCase()
+    const devAllowAnon = envBool(env["GAME_DEV_ALLOW_ANON"])
     const base: Config = {
         port: envInt(env["GAME_PORT"], 8285),
         host: env["GAME_HOST"]?.trim() || "0.0.0.0",
         firebaseProjectId: projectId && projectId.length > 0 ? projectId : null,
-        devAllowAnon: envBool(env["GAME_DEV_ALLOW_ANON"]),
+        devAllowAnon,
         corsOrigins: envList(env["GAME_CORS_ORIGINS"]),
         logLevel: isLogLevel(rawLevel) ? rawLevel : "info",
         // Dev default, not the docker one: `backend` only resolves inside the
@@ -118,7 +119,11 @@ export function loadConfig(env: EnvLike = process.env, overrides: Partial<Config
         // anyway. Defaulting to the docker name meant every local run silently
         // failed its profile/stats calls against a host that cannot resolve.
         backendInternalUrl: env["BACKEND_INTERNAL_URL"]?.trim() || "http://localhost:8085/api",
-        gameResultsToken: env["GAME_RESULTS_TOKEN"]?.trim() || null,
+        // Match Quarkus' documented dev/test fallback when anonymous dev
+        // users are enabled. Production never enables that flag and still
+        // requires an explicit shared secret.
+        gameResultsToken: env["GAME_RESULTS_TOKEN"]?.trim()
+            || (devAllowAnon ? "dev-secret-change-me" : null),
     }
     return { ...base, ...overrides }
 }

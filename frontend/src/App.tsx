@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState, type ComponentType } from 'react'
 import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { Container, Flex, Spinner, Text } from '@chakra-ui/react'
 import NavBar from './components/NavBar'
@@ -6,13 +6,35 @@ import MobileTabBar from './components/MobileTabBar'
 import PushBootstrap from './components/PushBootstrap'
 import ThemeSync from './components/ThemeSync'
 import LocaleSync from './components/LocaleSync'
-import BlokOutbox from './blok/BlokOutbox'
 import SiteFooter from './components/SiteFooter'
-import GameIdentityGate from "./game/components/GameIdentityGate"
 import { RequireAuth } from "./components/RequireAuth"
-import GameFeatureGate from "./game/GameFeatureGate"
 import { readStickyRoomId } from "./game/activeRoomKey"
 import { lazyWithReload } from "./utils/lazyWithReload"
+import { loadNamespace, type LazyNamespace } from "./i18n"
+import { useViewTransitionLocation } from "./hooks/useViewTransitionLocation"
+
+/**
+ * A lazy route that also needs one of the four ROUTE-SCOPED dictionary
+ * namespaces (`admin`, `legal`, `game`, `blok` — see src/i18n/index.ts).
+ *
+ * The namespace chunk is awaited TOGETHER WITH the page chunk, inside the
+ * same `React.lazy` factory, so the route's <Suspense> fallback covers both
+ * and the page's FIRST paint already has its strings. Loading the namespace
+ * in an effect instead would paint one frame of raw "legal.privacy.title"
+ * keys, which is the whole thing this split has to avoid.
+ *
+ * `lazyWithReload` keeps its stale-chunk reload and its offline handling for
+ * both halves, and `.preload()` (used by usePrefetchRoute) warms both too,
+ * because the combined factory is what gets attached.
+ */
+function lazyRoute<P extends object = Record<string, unknown>>(
+    factory: () => Promise<{ default: ComponentType<P> }>,
+    namespace: LazyNamespace,
+) {
+    return lazyWithReload<P>(() =>
+        Promise.all([factory(), loadNamespace(namespace)]).then(([mod]) => mod),
+    )
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
    Eager imports — small components on the critical path. The tournaments
@@ -33,34 +55,52 @@ import NotFoundPage from "./pages/NotFoundPage"
    off the critical path for the landing route.
    ────────────────────────────────────────────────────────────────────── */
 const CreateTournamentPage = lazyWithReload(() => import('./pages/CreateTournamentPage'))
-const TournamentDetailsPage = lazyWithReload(() => import('./pages/TournamentDetailsPage'))
-const PublicProfilePage = lazyWithReload(() => import('./pages/PublicProfilePage'))
+/* `admin` rides along: the organiser's `CjenikTab` (drink price list) is a
+   section of this page and reads `admin.cjenik.*`. */
+const TournamentDetailsPage = lazyRoute(() => import('./pages/TournamentDetailsPage'), 'admin')
+/* `blok` rides along: the profile's "Blok" tab (BlokHistoryCard →
+   BlokGamesList) renders saved scorepad series. The admin-only tabs pull
+   `admin` themselves — see PublicProfilePage's own lazy imports. */
+const PublicProfilePage = lazyRoute(() => import('./pages/PublicProfilePage'), 'blok')
 const MapPage = lazyWithReload(() => import('./pages/MapPage'))
 const CalendarPage = lazyWithReload(() => import('./pages/CalendarPage'))
 const FindPairPage = lazyWithReload(() => import('./pages/FindPairPage'))
 const ClaimPairPage = lazyWithReload(() => import('./pages/ClaimPairPage'))
 const ClaimNamePage = lazyWithReload(() => import('./pages/ClaimNamePage'))
 const ContactPage = lazyWithReload(() => import('./pages/ContactPage'))
-const PrivacyPage = lazyWithReload(() => import('./pages/PrivacyPage'))
-const TermsPage = lazyWithReload(() => import('./pages/TermsPage'))
+const PrivacyPage = lazyRoute(() => import('./pages/PrivacyPage'), 'legal')
+const TermsPage = lazyRoute(() => import('./pages/TermsPage'), 'legal')
 /* Bela blok — offline scorepad for a table game (src/blok/BLOK.md). Its own
    localStorage-backed subtree, no auth, no backend calls — split out purely
    because it's a heavy-ish page that most visitors never open. */
-const BlokPage = lazyWithReload(() => import('./blok/pages/BlokPage'))
+const BlokPage = lazyRoute(() => import('./blok/pages/BlokPage'), 'blok')
 /* Public, read-only view of a shared "Bela blok" session (BLOK-HISTORY.md
    §5.2) — /blok/z/{token}, no sign-in, no localStorage of its own. Its own
    chunk since most visitors to /blok never open a share link. */
-const SharedBlokPage = lazyWithReload(() => import('./pages/SharedBlokPage'))
+const SharedBlokPage = lazyRoute(() => import('./pages/SharedBlokPage'), 'blok')
 /* Online bela. Its own subtree (src/game) with a WebSocket client, a table
    renderer and the shared @bela/engine types — none of which any other route
    touches, so it is strictly a separate chunk. */
-const GameLobbyPage = lazyWithReload(() => import('./game/pages/GameLobbyPage'))
-const GameRoomPage = lazyWithReload(() => import('./game/pages/GameRoomPage'))
+const GameLobbyPage = lazyRoute(() => import('./game/pages/GameLobbyPage'), 'game')
+const GameRoomPage = lazyRoute(() => import('./game/pages/GameRoomPage'), 'game')
 /* App-wide game chrome. Both live in the game chunk and are mounted only when
    they can possibly matter, so a visitor who never opens /igra never
    downloads them (see GameChrome below). */
-const ActiveRoomWidget = lazyWithReload(() => import('./game/components/ActiveRoomWidget'))
-const GameRoomExitGuard = lazyWithReload(() => import('./game/components/GameRoomExitGuard'))
+const ActiveRoomWidget = lazyRoute(() => import('./game/components/ActiveRoomWidget'), 'game')
+const GameRoomExitGuard = lazyRoute(() => import('./game/components/GameRoomExitGuard'), 'game')
+/* The two gates that WRAP the game pages. Lazy for the same reason the pages
+   are: eagerly imported they dragged the avatar art set, `AvatarPicker`,
+   `@bela/protocol`'s LIMITS and the "dolazi uskoro" page into the entry
+   bundle for every visitor who never opens /igra. They sit inside the route
+   <Suspense> below, so the one extra round-trip they add is on the /igra
+   navigation that was going to fetch the game chunk anyway. */
+const GameFeatureGate = lazyRoute(() => import('./game/GameFeatureGate'), 'game')
+const GameIdentityGate = lazyRoute(() => import('./game/components/GameIdentityGate'), 'game')
+/* The scorepad's outbox (see its own file for why it is mounted app-wide).
+   Renders nothing and only ever acts for a signed-in player with a queued
+   series, so nothing is lost by letting its chunk — which carries the whole
+   blok store — arrive after first paint instead of inside the entry bundle. */
+const BlokOutbox = lazyWithReload(() => import('./blok/BlokOutbox'))
 
 /** Suspense fallback while a route chunk is being fetched. The min-height
  *  matches roughly what a page's first screenful occupies so the layout
@@ -146,13 +186,17 @@ function GameChrome() {
 }
 
 export default function App() {
+    // Route changes cross-fade (View Transitions API) — see the hook. The
+    // router still owns the real location; `<Routes>` just renders this
+    // one-frame-behind copy so the browser can snapshot the old page first.
+    const displayed = useViewTransitionLocation()
     // Warm the heaviest "next click" chunk while the browser is idle. From the
     // tournaments list the overwhelmingly common navigation is into a
     // tournament's detail page, so we prefetch that lazy chunk after first
     // paint — opening a tournament then feels instant.
     useEffect(() => {
         const prefetch = () => {
-            import("./pages/TournamentDetailsPage").catch(() => {})
+            void TournamentDetailsPage.preload().catch(() => {})
         }
         const ric = typeof window.requestIdleCallback === "function"
             ? window.requestIdleCallback
@@ -193,16 +237,27 @@ export default function App() {
                     different route — sends what is queued at that moment. It
                     is the ONLY mount; see src/blok/BlokOutbox.tsx for why two
                     would be worse than none, and why a signed-out player still
-                    makes no request. */}
-                <BlokOutbox />
-                <Container maxW="6xl" py={6}>
+                    makes no request. It is lazy (see the declaration above), so
+                    it needs its own boundary out here: the route <Suspense>
+                    below would not cover a sibling, and a fallback of `null` is
+                    exactly right for a component that renders nothing. */}
+                <Suspense fallback={null}><BlokOutbox /></Suspense>
+                <Container
+                    className="app-page-container"
+                    maxW="6xl"
+                    py={6}
+                    css={{
+                        paddingInlineStart: "max(var(--chakra-spacing-4), env(safe-area-inset-left, 0px))",
+                        paddingInlineEnd: "max(var(--chakra-spacing-4), env(safe-area-inset-right, 0px))",
+                    }}
+                >
                 {/* All user-facing routes use Croatian slugs. English slugs
                     (/tournaments, /profile, /calendar, …) are kept around
                     purely as <Navigate replace> aliases so existing
                     in-browser links don't break — server-side 301 redirects
                     in Caddy handle the SEO side. */}
                 <Suspense fallback={<RouteLoading />}>
-                <Routes>
+                <Routes location={displayed}>
                     <Route path="/" element={<Navigate to="/turniri" replace />} />
 
                     {/* Croatian (canonical) routes. */}

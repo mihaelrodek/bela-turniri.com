@@ -2,6 +2,57 @@
 <html lang="hr">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- ── First-screen data seed ────────────────────────────────────────
+         First thing after the charset, and a classic (non-module) script on
+         purpose: it runs during the initial parse, before a byte of the
+         module graph is requested, so the first screen's DATA crosses the
+         network alongside the code instead of queueing behind it. Backend:
+         ShellController / ShellRenderService. Client: src/shell/seed.ts.
+
+         Seeded routes only: the listing (/turniri, and / — App.tsx redirects
+         it there) and one tournament (/turniri/<uuid-or-slug>, section tab
+         included, since that is a tab within the same page). /turniri/novi is
+         the create wizard, not a tournament.
+
+         Best-effort throughout: the promise never rejects, failure resolves
+         to null, and main.tsx waits at most ~400 ms before rendering anyway. -->
+    <script>
+      (function () {
+          try {
+              /* Web only. A native build (Capacitor) loads from capacitor://
+                 or http://localhost and points REST at VITE_API_URL instead
+                 (src/platform/index.ts), so a relative /api/seed would just
+                 404 against the WebView's own origin. The native bridge
+                 injects window.Capacitor before page scripts run, which is
+                 what makes this detectable this early; the app's own
+                 Capacitor module has not been parsed yet. Parking no promise
+                 also means main.tsx waits for nothing on native. */
+              if (location.protocol !== "http:" && location.protocol !== "https:") return
+              if (window.Capacitor) return
+
+              var p = location.pathname
+              var seeded = p === "/" || p === "/turniri"
+              if (!seeded && p.indexOf("/turniri/") === 0) {
+                  var segment = p.slice("/turniri/".length).split("/")[0]
+                  seeded = !!segment && segment !== "novi"
+              }
+              if (!seeded) return
+              window.__belaSeed = fetch("/api/seed?path=" + encodeURIComponent(p), {
+                  /* No credentials, no Authorization: the response is the
+                     anonymous variant for everyone, which is exactly what
+                     makes it publicly cacheable. */
+                  credentials: "omit",
+                  headers: { Accept: "application/json" },
+              })
+                  .then(function (r) { return r.ok ? r.json() : null })
+                  .catch(function () { return null })
+          } catch (e) {
+              /* The shell must never fail to boot because of the seed. */
+          }
+      })()
+    </script>
+
     <!-- /favicon.ico FIRST and as a real file. Google (and every crawler that
          gives up on parsing HTML) probes the root path blind; without this
          file that request falls through to the SPA and returns index.html
@@ -13,19 +64,39 @@
          clip the suits when it rounds the corners on the home screen. -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <!-- Two OS-preference-conditioned tags for the FIRST paint, before any
-         JS runs (React hasn't mounted yet, so it can't pick one). Once
-         ColorModeProvider mounts it appends a third, unconditional
-         `theme-color` meta (src/color-mode.tsx, `ThemeColorSync`) that
-         tracks the app's OWN live mode — which can differ from the OS
-         preference, since light is forced by default and the user can
-         toggle independently — and browsers use the LAST matching tag in
-         document order, so that one takes over from mount onward. The dark
-         value here (#111111) is `bg.canvas`'s dark value in src/system.ts
-         (Chakra's gray.950); light (#ffffff) matches
+    <!-- Light is the app default, so the browser chrome also starts light
+         before JS runs. Once ColorModeProvider mounts it appends a second,
+         dynamic `theme-color` meta (src/color-mode.tsx, `ThemeColorSync`) that
+         tracks the saved live mode. Browsers use the last matching tag in
+         document order, so that one takes over after mount. White matches
          manifest.webmanifest's background_color. -->
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" />
+
+    <!-- ── Colour mode, before the first paint ───────────────────────────
+         ColorModeProvider (next-themes, attribute="class", storageKey
+         "theme") can only put class="dark" on <html> once React has mounted,
+         so everything painted before that — the shell below, the page
+         background, the browser chrome — was white for a dark-mode user, who
+         then watched it snap. This reads the same key and applies the same
+         class during parse. next-themes re-applies it identically on mount:
+         a head start, not a second source of truth.
+
+         `enableSystem` is false in color-mode.tsx (light is the default when
+         nothing is stored), so `prefers-color-scheme` gets no vote here
+         either. #161719 is the `bg.canvas` dark token / THEME_COLOR_DARK. -->
+    <script>
+      (function () {
+          try {
+              if (localStorage.getItem("theme") !== "dark") return
+              document.documentElement.classList.add("dark")
+              document.documentElement.style.colorScheme = "dark"
+              var meta = document.querySelector('meta[name="theme-color"]')
+              if (meta) meta.setAttribute("content", "#161719")
+          } catch (e) {
+              /* private mode / site data blocked — stay on the light default */
+          }
+      })()
+    </script>
 
     <!-- Warm up the connections the app reaches for early: map tiles on
          /karta (CARTO Voyager basemap) and the location picker used when
@@ -191,12 +262,96 @@
          present always, even when content fits, so the content area's
          width is identical between routes. Falls back gracefully on older
          browsers (no jump, just the original behaviour). -->
+    <!-- ── Static boot shell ─────────────────────────────────────────────
+         The markup inside #root (bottom of this file) is the app's silhouette
+         — header bar with the real logo, the toolbar row, three listing cards
+         — drawn by the HTML parser before any JS exists. React clears the
+         container on its first commit, so the swap is one paint with no blank
+         frame between.
+
+         Colours are hand-copied src/system.ts tokens (this has to be inline,
+         parsed before the theme bundle exists): bg.canvas #dae7de/#161719,
+         bg.panel rgba(255,255,255,.61)/rgba(24,24,27,.61), border.subtle
+         #f4f4f5/#27272a, border.glass rgba(0,0,0,.08)/rgba(255,255,255,.10).
+         The dark half keys off `:root.dark`, already applied by the script
+         above.
+
+         Geometry mirrors the real thing so nothing jumps on mount: NAVBAR_H
+         (48/52, components/navChrome.ts), the app Container (maxW 6xl = 72rem,
+         px 1rem, py 24px, App.tsx) and ListingCardSkeleton (150/170px poster
+         then 4 bars, components/ListingCard.tsx). The grid breakpoints are
+         foldable.css's container queries written as media queries — container
+         queries would need the JS layout to exist. -->
     <style>
       html { scrollbar-gutter: stable; }
+
+      /* Only `html`, never `body`: Chakra's own `html, body { background-color:
+         bg.canvas }` (globalCss in src/system.ts) takes over the visible
+         surface the moment its stylesheet lands, and body's opaque box covers
+         the viewport anyway. Painting the root here just means the pre-JS
+         frames are already the right colour instead of white. */
+      html { background-color: #dae7de; }
+      html.dark { background-color: #161719; }
+
+      .boot { --boot-line: rgba(0, 0, 0, 0.08); --boot-sk: rgba(0, 0, 0, 0.07);
+              --boot-panel: rgba(255, 255, 255, 0.61); --boot-border: #f4f4f5; }
+      :root.dark .boot { --boot-line: rgba(255, 255, 255, 0.10); --boot-sk: rgba(255, 255, 255, 0.08);
+              --boot-panel: rgba(24, 24, 27, 0.61); --boot-border: #27272a; }
+
+      .boot-bar { border-bottom: 1px solid var(--boot-line); padding-top: env(safe-area-inset-top, 0px); }
+      .boot-bar-row { display: flex; align-items: center; gap: 12px; height: 48px;
+                      max-width: 72rem; margin: 0 auto; padding: 0 1rem; }
+      .boot-logo { width: 28px; height: 28px; display: block; }
+      .boot-page { max-width: 72rem; margin: 0 auto; padding: 24px 1rem 0; }
+      .boot-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+      .boot-card { border: 1px solid var(--boot-border); border-radius: 0.75rem;
+                   overflow: hidden; background: var(--boot-panel); }
+      .boot-poster { height: 150px; }
+      .boot-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+
+      .boot-sk { background: var(--boot-sk); border-radius: 6px; animation: boot-pulse 1.6s ease-in-out infinite; }
+      .boot-toolbar { height: 40px; margin-bottom: 1rem; }
+      .boot-navpill { height: 20px; width: 180px; margin-left: auto; }
+      .boot-l1 { height: 16px; width: 75%; }
+      .boot-l2 { height: 12px; width: 45%; }
+      .boot-l3 { height: 8px;  width: 100%; }
+      .boot-l4 { height: 20px; width: 35%; }
+
+      @keyframes boot-pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.55 } }
+      @media (prefers-reduced-motion: reduce) { .boot-sk { animation: none } }
+
+      @media (min-width: 48em) {
+        .boot-bar-row { height: 52px; }
+        .boot-poster { height: 170px; }
+      }
+      @media (min-width: 42rem) { .boot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      @media (min-width: 68rem) { .boot-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="boot" aria-hidden="true">
+      <div class="boot-bar"><div class="boot-bar-row">
+        <img class="boot-logo" src="/bela-turniri-symbol.svg" alt="" width="28" height="28" />
+        <span class="boot-sk boot-navpill"></span>
+      </div></div>
+      <div class="boot-page">
+        <div class="boot-sk boot-toolbar"></div>
+        <div class="boot-grid">
+          <div class="boot-card"><div class="boot-sk boot-poster"></div><div class="boot-body">
+            <span class="boot-sk boot-l1"></span><span class="boot-sk boot-l2"></span>
+            <span class="boot-sk boot-l3"></span><span class="boot-sk boot-l4"></span>
+          </div></div>
+          <div class="boot-card"><div class="boot-sk boot-poster"></div><div class="boot-body">
+            <span class="boot-sk boot-l1"></span><span class="boot-sk boot-l2"></span>
+            <span class="boot-sk boot-l3"></span><span class="boot-sk boot-l4"></span>
+          </div></div>
+          <div class="boot-card"><div class="boot-sk boot-poster"></div><div class="boot-body">
+            <span class="boot-sk boot-l1"></span><span class="boot-sk boot-l2"></span>
+            <span class="boot-sk boot-l3"></span><span class="boot-sk boot-l4"></span>
+          </div></div>
+        </div>
+      </div>
+    </div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

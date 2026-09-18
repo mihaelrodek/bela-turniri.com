@@ -1,14 +1,17 @@
 import type { CSSProperties, ReactNode } from "react"
-import { Box, Flex, Image, Text } from "@chakra-ui/react"
+import { Box, Flex, Text } from "@chakra-ui/react"
 import BelaAvatar from "../../components/avatars/BelaAvatar"
 import { isAvatarId } from "../../components/avatars/avatarArt"
-import type { SeatInfo, Suit } from "@bela/protocol"
+import type { Reaction, SeatInfo, Suit } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import type { TurnCountdown } from "../hooks/useTurnCountdown"
 import { suitKey } from "../util/cards"
 import { occupantName, type Occupant } from "../util/seats"
+import { botAvatarPreset } from "../util/botAvatar"
+import { REACTION_TEXT_KEYS } from "../util/reactions"
+import AvatarPhoto from "./AvatarPhoto"
 import SuitGlyph from "./SuitGlyph"
-import { INK, INK_MUTED, SHORT } from "./tableStyles"
+import { INK, INK_MUTED, SHORT, TEAM, type TeamSide } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Seat — one player around the table.
@@ -32,39 +35,50 @@ import { INK, INK_MUTED, SHORT } from "./tableStyles"
    (`SEAT_ANCHORS`), never what is in it. The status slot keeps its height
    whether or not it has a chip, so a seat never jumps as the deal moves.
 
-   Four facts live permanently on the avatar, one per corner, in the SAME
-   corner on every seat — that is the whole reason they are corners and not a
-   row of chips:
+   Three facts can live on the avatar, in the SAME corner on every seat —
+   that is the whole reason they are corners and not a row of chips:
 
-       top-left      this is a bot
-       top-right     the emoji they just sent   (transient)
-       bottom-left   THEY CALLED TRUMP, with the suit  (all deal)
-       bottom-right  they are the dealer
+       top-left      THEY CALLED TRUMP, with the suit  (all deal)
+       top-right     they are the dealer
 
    Every mark is pinned by `pinAt()`, which puts it TANGENT to the outside of
    the turn ring — the dealer's "D" cutting through that ring is what made the
    old right-hand seat look broken.
 
-   Whose turn it is has to survive a phone at arm's length, so it is said four
-   times over on the seat that has it: a bright ring (the `turnDeadline`
-   countdown draining round it), a glow spilling onto the felt beneath, a
-   solid light name pill, and a small lift. The countdown is a RING rather
-   than a number because "nearly out of time" is a shape you catch in
-   peripheral vision; the seconds only appear once it turns urgent.
+   The active player has a clear avatar ring and a neutral name pill.
+   Human turn deadlines drain around the avatar without moving the seat.
+
+   WHICH PAIR a seat belongs to is the `team` prop, painted from `TEAM`
+   (tableStyles.ts, DESIGN §6): our green, theirs gold, on the ring and on the
+   name pill. Position said it before — partner opposite, opponents on the
+   flanks — and position still says it; the colour just means you do not have
+   to re-derive it every time you look up from your own cards. The urgent
+   countdown overrides it with red, because "two seconds left" outranks
+   "these are the opponents".
    ────────────────────────────────────────────────────────────────────── */
 
 /** What a seat is currently saying out loud, if anything. */
 export type SeatBid = { kind: "pass" } | { kind: "suit"; suit: Suit }
 
-/** Marks pinned around the avatar. One size for all of them keeps the four
- *  corners visually equal weight; the reaction bubble is the one exception,
- *  because it is a 16 px emoji and has to hold one. */
+/** Permanent marks pinned around the avatar. The temporary reaction is a
+ *  separate speech bubble because it now carries a short phrase. */
 const MARK = 18
-const BUBBLE = 30
 
 /** The ring's own thickness, i.e. how far the avatar's outer edge sits from
  *  the photo. Shared by `pinAt` so a mark can be placed outside it. */
 const RING = 3
+
+/**
+ * A Chakra colour token as something raw CSS can use.
+ *
+ * The ring is a `conic-gradient` and the spotlight a `radial-gradient`, and a
+ * gradient string is handed to the browser verbatim — Chakra never looks
+ * inside it for tokens. `TEAM.them` is already a literal and passes straight
+ * through; `TEAM.us` is a ramp token and becomes its CSS variable.
+ */
+function tokenColor(token: string): string {
+    return token.startsWith("#") ? token : `var(--chakra-colors-${token.replace(".", "-")})`
+}
 
 function initialsOf(name: string): string {
     return (
@@ -81,7 +95,8 @@ function initialsOf(name: string): string {
  * Where a corner mark goes: on the 45° diagonal, just outside the turn ring.
  *
  * Computed rather than hand-tuned because the avatar comes in two sizes (the
- * felt's seats and the smaller one in `MySeatBar`) and a fixed `bottom: -4px`
+ * felt's seats and the smaller one `GameRoomPage` docks in the corner for my
+ * own seat) and a fixed `bottom: -4px`
  * that clears the ring at 44 px cuts straight through it at 32 px. Distances
  * are from the centre of the frame, which is `size/2 + RING` in from either
  * edge.
@@ -98,9 +113,10 @@ function pinAt(size: number, corner: "tl" | "tr" | "bl" | "br", mark: number): C
 }
 
 /**
- * The avatar and everything pinned to it. Exported because `MySeatBar` shows
- * exactly this for my own seat and nothing else — my name and my turn are
- * already said by the pill next to it.
+ * The avatar and everything pinned to it. Exported because `GameRoomPage`
+ * shows exactly this for my own seat, docked in the corner, and nothing
+ * else — my name is not repeated, and my turn is already said by the pill
+ * over the hand.
  */
 export function SeatAvatar({
     occupant,
@@ -111,7 +127,8 @@ export function SeatAvatar({
     callerTrump = null,
     countdown = null,
     reaction = null,
-    reducedMotion = false,
+    reactionAlign = "center",
+    team = "us",
 }: {
     occupant: Occupant | null
     name: string
@@ -119,58 +136,52 @@ export function SeatAvatar({
     size?: number
     isTurn?: boolean
     isDealer?: boolean
+    /** Which pair this seat plays for, relative to ME (`TEAM` in
+     *  tableStyles.ts). Defaults to "us" so my own corner avatar in
+     *  `GameRoomPage` needs no argument. */
+    team?: TeamSide
     /** Trump suit when THIS seat called it — the marker that has to last the
      *  whole deal, not just the moment they said it. */
     callerTrump?: Suit | null
     countdown?: TurnCountdown | null
-    reaction?: string | null
+    reaction?: Reaction | null
+    /** Keep a flank seat's speech bubble inside the table. */
+    reactionAlign?: "left" | "center" | "right"
     reducedMotion?: boolean
 }) {
     const { t } = useTranslation()
     const disconnected = occupant?.kind === "PLAYER" && !occupant.connected
     const avatarUrl = occupant?.kind === "PLAYER" ? occupant.user.avatarUrl : null
-    // Same order of preference as `PlayerAvatar` (photo > picked face >
+    // Same order of preference as `PlayerAvatar` (picked face > photo >
     // initials), kept in step by hand because the felt draws its own avatar:
     // this one carries the turn-clock ring and the seat marks.
-    const avatarPreset = occupant?.kind === "PLAYER" ? occupant.user.avatarPreset : null
+    const avatarPreset = occupant?.kind === "PLAYER"
+        ? occupant.user.avatarPreset
+        : occupant?.kind === "BOT"
+            ? occupant.avatarPreset ?? botAvatarPreset(occupant.name)
+            : null
 
     // A conic gradient is the cheapest ring that animates without SVG: the
     // filled arc is the remaining fraction of the turn clock, the rest is the
     // unspent part of it, drawn dim so the ring reads as a dial and not as a
     // border that happens to be two colours.
-    const ringTint = countdown?.urgent ? "red-400" : "brand-300"
+    //
+    // The lit colour is the SEAT'S TEAM, so the same ring carries both facts;
+    // urgency takes it over, because a seat about to time out is no longer
+    // telling you who it plays with. Off turn the ring stays on — dimmed to
+    // the team's soft tint — so the pairs are legible between moves too.
+    const teamColor = TEAM[team]
+    const liveTint = countdown?.urgent ? "var(--chakra-colors-red-400)" : tokenColor(teamColor)
     const ring = isTurn && countdown
-        ? `conic-gradient(from 0deg, var(--chakra-colors-${ringTint}) ${countdown.fraction * 360}deg, rgba(255,255,255,0.16) 0deg)`
+        ? `conic-gradient(from 0deg, ${liveTint} ${countdown.fraction * 360}deg, rgba(255,255,255,0.16) 0deg)`
         : isTurn
-            ? "var(--chakra-colors-brand-300)"
-            : undefined
+            ? liveTint
+            : "transparent"
 
     const frame = size + RING * 2
 
     return (
         <Box position="relative" w={`${frame}px`} h={`${frame}px`} flexShrink={0}>
-            {/* The turn's spotlight: it spills onto the felt around the seat,
-                so the active player is findable before you have read a single
-                word. Behind everything, and never interactive. */}
-            {isTurn && (
-                <Box
-                    position="absolute"
-                    inset={`-${Math.round(size * 0.45)}px`}
-                    rounded="full"
-                    pointerEvents="none"
-                    zIndex={0}
-                    backgroundImage={`radial-gradient(circle, var(--chakra-colors-${ringTint}) 0%, transparent 68%)`}
-                    opacity={0.34}
-                    css={reducedMotion ? undefined : {
-                        animation: "belaTurnPulse 1.8s ease-in-out infinite",
-                        "@keyframes belaTurnPulse": {
-                            "0%, 100%": { opacity: 0.22, transform: "scale(0.92)" },
-                            "50%": { opacity: 0.42, transform: "scale(1.06)" },
-                        },
-                    }}
-                />
-            )}
-
             <Box
                 position="absolute"
                 inset="0"
@@ -178,9 +189,7 @@ export function SeatAvatar({
                 p={`${RING}px`}
                 rounded="full"
                 background={ring}
-                boxShadow={isTurn
-                    ? "0 0 0 1px var(--chakra-colors-brand-100), 0 0 22px rgba(127,196,150,0.55)"
-                    : "0 2px 6px rgba(0,0,0,0.45)"}
+                boxShadow="none"
                 transition="box-shadow 0.2s ease"
             >
                 <Box
@@ -191,19 +200,19 @@ export function SeatAvatar({
                     display="flex"
                     alignItems="center"
                     justifyContent="center"
-                    bg="brand.950/80"
+                    bg="bg.opaque"
                     borderWidth="1px"
                     borderStyle={occupant === null ? "dashed" : "solid"}
-                    borderColor={occupant === null ? "brand.600" : "brand.800"}
+                    borderColor="border"
                     color={INK}
                     fontWeight="semibold"
                     fontSize={size >= 40 ? "sm" : "xs"}
                     opacity={disconnected ? 0.5 : 1}
                 >
-                    {avatarUrl ? (
-                        <Image src={avatarUrl} alt="" w="100%" h="100%" objectFit="cover" loading="lazy" />
-                    ) : isAvatarId(avatarPreset) ? (
+                    {isAvatarId(avatarPreset) ? (
                         <BelaAvatar id={avatarPreset} boxSize="100%" />
+                    ) : avatarUrl ? (
+                        <AvatarPhoto src={avatarUrl} fallback={initialsOf(name)} />
                     ) : occupant === null ? (
                         <Text fontSize="md" color={INK_MUTED} aria-hidden="true">+</Text>
                     ) : (
@@ -212,17 +221,9 @@ export function SeatAvatar({
                 </Box>
             </Box>
 
-            {occupant?.kind === "BOT" && (
-                <Mark at={pinAt(size, "tl", MARK)} bg="brand.700" color={INK} label={t("game.bot.label")}>
-                    <Box as="span" fontSize="8px" fontWeight="bold" letterSpacing="wide">
-                        {t("game.bot.label")}
-                    </Box>
-                </Mark>
-            )}
-
             {callerTrump && (
                 <Mark
-                    at={pinAt(size, "bl", MARK)}
+                    at={pinAt(size, "tl", MARK)}
                     bg="brand.50"
                     color="brand.950"
                     label={t("game.seat.calledTrump", { suit: t(suitKey(callerTrump)) })}
@@ -231,43 +232,79 @@ export function SeatAvatar({
                 </Mark>
             )}
 
+            {/* The dealer's "D" as a struck COIN: a metal gradient, a darker
+                milled edge and the letter cut into it. It is the one mark
+                that is about an object a player can picture (the buck at a
+                real table), and a flat amber disc was reading as one more
+                status chip. */}
             {isDealer && (
                 <Mark
-                    at={pinAt(size, "br", MARK)}
-                    bg="orange.300"
-                    color="brand.950"
+                    at={pinAt(size, "tr", MARK)}
+                    bg="linear-gradient(160deg, #f6dd93 0%, #d9a521 52%, #a97c12 100%)"
+                    color="#4a3406"
                     label={t("game.seat.dealer")}
+                    edge="rgba(255, 236, 178, 0.85)"
                 >
-                    <Box as="span" fontSize="11px" fontWeight="bold">{t("game.seat.dealerShort")}</Box>
+                    <Box as="span" fontSize="11px" fontWeight="bold" lineHeight="1">
+                        {t("game.seat.dealerShort")}
+                    </Box>
                 </Mark>
             )}
 
             {reaction && (
-                <Flex
+                <Box
                     position="absolute"
-                    style={pinAt(size, "tr", BUBBLE)}
-                    w={`${BUBBLE}px`}
-                    h={`${BUBBLE}px`}
-                    align="center"
-                    justify="center"
-                    rounded="full"
-                    bg="brand.950/88"
-                    borderWidth="1px"
-                    borderColor="brand.600"
-                    fontSize="16px"
-                    lineHeight="1"
-                    zIndex={3}
+                    bottom={`calc(100% + 7px)`}
+                    left={reactionAlign === "right" ? "auto" : reactionAlign === "left" ? "0" : "50%"}
+                    right={reactionAlign === "right" ? "0" : "auto"}
+                    transform={reactionAlign === "center" ? "translateX(-50%)" : undefined}
+                    zIndex={8}
                     pointerEvents="none"
-                    css={{
-                        animation: "belaReactionPop 180ms cubic-bezier(0.22, 1.2, 0.36, 1)",
-                        "@keyframes belaReactionPop": {
-                            from: { transform: "scale(0.4)", opacity: 0 },
-                            to: { transform: "scale(1)", opacity: 1 },
-                        },
-                    }}
                 >
-                    <Box as="span" aria-hidden="true">{reaction}</Box>
-                </Flex>
+                    <Flex
+                        position="relative"
+                        w="max-content"
+                        maxW="min(180px, calc(100vw - 32px))"
+                        px="3"
+                        py="1.5"
+                        align="center"
+                        justify="center"
+                        rounded="xl"
+                        bg="brand.50"
+                        color="brand.950"
+                        borderWidth="1px"
+                        borderColor="brand.300"
+                        boxShadow="0 5px 18px rgba(0,0,0,0.28)"
+                        fontSize="11px"
+                        fontWeight="semibold"
+                        lineHeight="short"
+                        textAlign="center"
+                        whiteSpace="normal"
+                        css={{
+                            animation: "belaReactionPop 180ms cubic-bezier(0.22, 1.2, 0.36, 1)",
+                            "@keyframes belaReactionPop": {
+                                from: { transform: "translateY(5px) scale(0.88)", opacity: 0 },
+                                to: { transform: "translateY(0) scale(1)", opacity: 1 },
+                            },
+                            "&::after": {
+                                content: "''",
+                                position: "absolute",
+                                top: "100%",
+                                left: reactionAlign === "left"
+                                    ? `${frame / 2 - 5}px`
+                                    : reactionAlign === "right" ? "auto" : "50%",
+                                right: reactionAlign === "right" ? `${frame / 2 - 5}px` : "auto",
+                                transform: reactionAlign === "center" ? "translateX(-50%)" : undefined,
+                                borderLeft: "5px solid transparent",
+                                borderRight: "5px solid transparent",
+                                borderTop: "6px solid var(--chakra-colors-brand-50)",
+                            },
+                        }}
+                    >
+                        <Box as="span" aria-hidden="true" fontSize="14px" mr="1.5" lineHeight="1">{reaction}</Box>
+                        {t(REACTION_TEXT_KEYS[reaction])}
+                    </Flex>
+                </Box>
             )}
         </Box>
     )
@@ -282,12 +319,17 @@ function Mark({
     bg,
     color,
     label,
+    edge,
     children,
 }: {
     at: CSSProperties
+    /** A token, or any raw CSS background — the dealer's coin is a gradient. */
     bg: string
     color: string
     label: string
+    /** An optional lit inner edge, for the marks that are meant to look
+     *  struck rather than printed. */
+    edge?: string
     children: ReactNode
 }) {
     return (
@@ -300,9 +342,13 @@ function Mark({
             justify="center"
             rounded="full"
             zIndex={2}
-            bg={bg}
+            background={bg}
             color={color}
-            boxShadow="0 0 0 2px var(--chakra-colors-brand-950), 0 1px 4px rgba(0,0,0,0.5)"
+            boxShadow={[
+                edge ? `inset 0 1px 0 ${edge}` : null,
+                "0 0 0 2px var(--chakra-colors-bg-opaque)",
+                "0 1px 4px rgba(0,0,0,0.5)",
+            ].filter(Boolean).join(", ")}
             lineHeight="1"
             title={label}
             aria-label={label}
@@ -322,7 +368,9 @@ export default function Seat({
     countdown = null,
     bid = null,
     reaction = null,
+    reactionAlign = "center",
     reducedMotion = false,
+    team = "us",
 }: {
     info: SeatInfo
     isMe?: boolean
@@ -334,9 +382,12 @@ export default function Seat({
     countdown?: TurnCountdown | null
     /** This deal's bid, shown as a chip while the bidding runs. */
     bid?: SeatBid | null
-    /** Emoji from `chat.reaction`, floated for ~2 s and then withdrawn. */
-    reaction?: string | null
+    /** Quick phrase from `chat.reaction`, floated briefly above the avatar. */
+    reaction?: Reaction | null
+    reactionAlign?: "left" | "center" | "right"
     reducedMotion?: boolean
+    /** My pair or theirs, relative to the viewer (`TEAM`, DESIGN §6). */
+    team?: TeamSide
 }) {
     const { t } = useTranslation()
     const occupant = info.occupant
@@ -344,8 +395,8 @@ export default function Seat({
     const disconnected = occupant?.kind === "PLAYER" && !occupant.connected
 
     // At most one chip, in falling order of urgency, in a slot that keeps its
-    // height when empty. Anything PERMANENT about the seat — bot, dealer,
-    // called trump — is a mark on the avatar instead, so this line only ever
+    // height when empty. Anything PERMANENT about the seat — dealer or called
+    // trump — is a mark on the avatar instead, so this line only ever
     // carries what is true right now.
     const chip: ReactNode = disconnected
         ? <Chip tone="danger">{t("game.seat.disconnected")}</Chip>
@@ -366,11 +417,6 @@ export default function Seat({
             gap="0"
             w="var(--seat-w)"
             minH="var(--seat-h)"
-            // The lift is the fourth channel on the active seat: it comes off
-            // the felt towards you. Small on purpose — a seat that jumps is a
-            // seat that moves the name you were reading.
-            transform={isTurn ? "translateY(-3px)" : undefined}
-            transition={reducedMotion ? undefined : "transform 0.2s ease"}
         >
             <SeatAvatar
                 occupant={occupant}
@@ -381,22 +427,24 @@ export default function Seat({
                 callerTrump={callerTrump}
                 countdown={countdown}
                 reaction={reaction}
+                reactionAlign={reactionAlign}
                 reducedMotion={reducedMotion}
+                team={team}
             />
 
             <Box
-                mt="1"
+                mt="0.5"
                 w="100%"
                 px="1.5"
                 py="0.5"
                 rounded="full"
                 textAlign="center"
-                bg={isTurn ? "brand.200" : "brand.950/72"}
-                color={isTurn ? "brand.950" : INK}
+                bg={isTurn ? "bg.opaque" : "transparent"}
+                color={INK}
                 borderWidth="1px"
-                borderColor={isTurn ? "brand.100" : "brand.700/70"}
-                boxShadow={isTurn ? "0 0 14px rgba(127,196,150,0.45)" : undefined}
-                fontSize="11px"
+                borderColor={isTurn ? "border" : "transparent"}
+                boxShadow={isTurn ? "0 2px 8px rgba(0,0,0,0.06)" : undefined}
+                fontSize={{ base: "11px", md: "12px" }}
                 fontWeight={isTurn || isMe ? "bold" : "medium"}
                 lineHeight="1.45"
                 // The pill gets the seat's FULL width now. The old flank seat
@@ -441,7 +489,7 @@ export default function Seat({
 /** The one chip shape the seat uses, so every state stays one size. */
 function Chip({ children, tone }: { children: ReactNode; tone: "muted" | "accent" | "danger" }) {
     const palette = {
-        muted: { bg: "brand.950/72", color: INK_MUTED, border: "brand.700/70" },
+        muted: { bg: "bg.opaque", color: INK_MUTED, border: "border" },
         accent: { bg: "brand.300", color: "brand.950", border: "brand.100" },
         danger: { bg: "red.400", color: "white", border: "red.400" },
     }[tone]

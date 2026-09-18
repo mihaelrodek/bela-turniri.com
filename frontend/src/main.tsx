@@ -19,7 +19,9 @@ import SwUpdateToast from "./components/SwUpdateToast"
 import CookieConsent from "./components/CookieConsent"
 import WhatsNewFab from "./whatsNew/WhatsNewFab"
 import WhatsNewDialogMount from "./whatsNew/WhatsNewDialogMount"
+import { installSeed } from "./shell/seed"
 import App from "./App"
+import "./platform/foldable.css"
 
 
 // Everything below the query provider. Built once as an element so the two
@@ -95,7 +97,7 @@ const withQueryCache = persister ? (
     <QueryClientProvider client={queryClient}>{appTree}</QueryClientProvider>
 )
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+const rootTree = (
     <React.StrictMode>
         <ChakraProvider value={system ?? defaultSystem}>
             {/* True `position: fixed`, mounted at the very top level (above
@@ -126,3 +128,25 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         </ChakraProvider>
     </React.StrictMode>
 )
+
+/* ── First render ──────────────────────────────────────────────────────────
+   Gated on the first-screen data seed (src/shell/seed.ts): index.html fires
+   `GET /api/seed?path=…` before the module graph is even requested, and this
+   drops the answer into the query cache under the pages' own `qk` keys, so
+   TournamentsPage's first render is a cache hit rather than three requests
+   and a skeleton.
+
+   The wait is capped at ~400 ms and is a no-op on every route that isn't
+   seeded (`installSeed` resolves immediately when index.html parked no
+   promise), so a slow or missing backend can never hold the app behind an
+   optional request — and until this resolves the user is looking at the
+   static shell in index.html, not a blank page. A seed that lands after the
+   deadline is still applied to whatever hasn't been fetched by then.
+
+   React clears #root's static children on its first commit, so the shell and
+   the app swap in a single paint. */
+function mount() {
+    ReactDOM.createRoot(document.getElementById("root")!).render(rootTree)
+}
+
+void installSeed(queryClient).then(mount, mount)

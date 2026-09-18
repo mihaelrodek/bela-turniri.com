@@ -40,7 +40,7 @@ export function ChatToggle({
                 size="xs"
                 variant="ghost"
                 color={INK}
-                _hover={{ bg: "brand.700" }}
+                _hover={{ bg: "bg.muted" }}
                 aria-label={label}
                 title={label}
                 onClick={onToggle}
@@ -132,7 +132,7 @@ export default function Chat({
                     size="2xs"
                     variant="ghost"
                     color={INK_MUTED}
-                    _hover={{ bg: "brand.700", color: INK }}
+                    _hover={{ bg: "bg.muted", color: INK }}
                     aria-label={t("game.chat.close")}
                     onClick={onClose}
                 >
@@ -162,8 +162,8 @@ export default function Chat({
                         placeholder={t("game.chat.placeholder")}
                         aria-label={t("game.chat.placeholder")}
                         disabled={disabled}
-                        bg="brand.950/62"
-                        borderColor="brand.700"
+                        bg="bg.opaque"
+                        borderColor="border"
                         color={INK}
                         _placeholder={{ color: INK_MUTED }}
                         onChange={(e) => setText(e.target.value)}

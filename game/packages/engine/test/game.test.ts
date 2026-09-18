@@ -12,6 +12,7 @@ import {
     nextSeat,
     reduce,
     sortHand,
+    teamOf,
     viewFor,
 } from "../src/index"
 import { allCards, expectEngineError, makeState, playing, won } from "./helpers"
@@ -124,6 +125,45 @@ describe("newGame (README §1.2)", () => {
 })
 
 describe("bidding (README §1.2)", () => {
+    it("awards the target and ends immediately when a player receives a belot", () => {
+        const state = newGame({ targetScore: 501, seed: "belot", noDeclarations: true, allowBela: false })
+        const holder = nextSeat(state.dealer)
+        const suitCards = fullDeck().filter((card) => cardSuit(card) === "HERC")
+        const otherCards = fullDeck().filter((card) => cardSuit(card) !== "HERC")
+        const others = SEATS.filter((seat) => seat !== holder)
+
+        state.hands[holder] = suitCards.slice(0, 6)
+        others.forEach((seat, index) => {
+            state.hands[seat] = otherCards.slice(index * 6, index * 6 + 6)
+        })
+        state.stock = [
+            ...suitCards.slice(6),
+            ...otherCards.slice(18),
+        ]
+
+        const result = reduce(state, { type: "BID", seat: holder, trump: "TREF" })
+        const winner = teamOf(holder)
+        const loser: Team = winner === "A" ? "B" : "A"
+
+        expect(result.state.phase).toBe("GAME_OVER")
+        expect(result.state.belotSeat).toBe(holder)
+        expect(result.state.winner).toBe(winner)
+        expect(result.state.score[winner]).toBe(501)
+        expect(result.state.score[loser]).toBe(0)
+        expect(result.state.hands[holder]).toEqual(suitCards)
+        expect(result.state.dealScore).toMatchObject({
+            belot: winner,
+            cardPoints: { A: 0, B: 0 },
+            declarationPoints: { A: 0, B: 0 },
+            total: { [winner]: 501, [loser]: 0 },
+        })
+        expect(result.events.map((event) => event.type)).toEqual([
+            "BID", "TRUMP_SET", "HAND_COMPLETED", "BELOT", "DEAL_SCORED", "GAME_OVER",
+        ])
+        expect(result.events).toContainEqual({ type: "BELOT", seat: holder, suit: "HERC" })
+        expect(result.events.some((event) => event.type === "DECLARATIONS_REVEALED")).toBe(false)
+    })
+
     it("rejects a bid or a pass from the wrong seat", () => {
         const state = newGame(cfg("bid1"))
         const wrong = ((state.bidding.turn + 1) % 4) as Seat

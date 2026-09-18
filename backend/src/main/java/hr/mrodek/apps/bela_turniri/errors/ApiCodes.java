@@ -39,9 +39,41 @@ public final class ApiCodes {
         return coded(Response.Status.BAD_REQUEST, code);
     }
 
+    /**
+     * 429 with {@code code} as the whole body.
+     *
+     * <p>{@code Response.Status} has no TOO_MANY_REQUESTS constant in the
+     * JAX-RS 3.1 enum, hence the numeric literal. One caller today:
+     * {@code RATE_LIMITED} from {@code POST /reports}. Note that the
+     * self-registration throttle next door answers 409 with the same code
+     * string for historical reasons — the SPA keys on the body, not the
+     * status, so the two do not have to agree.
+     */
+    public static WebApplicationException tooManyRequests(String code) {
+        return new WebApplicationException(
+                Response.status(429)
+                        .type(MediaType.APPLICATION_JSON)
+                        .entity(code)
+                        .build());
+    }
+
     /** 404 with {@code code} as the whole body. */
     public static WebApplicationException notFound(String code) {
         return coded(Response.Status.NOT_FOUND, code);
+    }
+
+    /**
+     * 410 with {@code code} as the whole body.
+     *
+     * <p>One caller today: {@code ACCOUNT_DELETED} from {@code POST
+     * /user/me/sync}. 410 rather than 404 or 403 because the distinction is
+     * the whole message — the account existed, the caller is genuinely holding
+     * a valid Firebase token for it, and it is gone for good. A 404 would read
+     * as "not created yet" and the SPA's sync retry would loop; a 403 would
+     * read as "ask an admin".
+     */
+    public static WebApplicationException gone(String code) {
+        return coded(Response.Status.GONE, code);
     }
 
     /**

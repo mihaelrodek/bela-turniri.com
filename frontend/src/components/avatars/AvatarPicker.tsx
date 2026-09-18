@@ -50,6 +50,15 @@ export default function AvatarPicker({ value, onChange, size = "56px", label }: 
                         title={t(`profile.avatar.name.${id}`)}
                         data-selected={selected ? "" : undefined}
                         onClick={() => onChange(id)}
+                        /* Grid items stretch to the full column width by
+                           default. That turned the selected ring into a wide
+                           pill in the compact game settings sheet. Keep every
+                           hit target square so the ring follows the round
+                           face at every picker size. */
+                        boxSize={`calc(${size} + 14px)`}
+                        justifySelf="center"
+                        display="grid"
+                        placeItems="center"
                         rounded="full"
                         lineHeight="0"
                         p="1"

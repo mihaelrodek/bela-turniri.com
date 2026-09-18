@@ -42,8 +42,46 @@ import react from "@vitejs/plugin-react"
    builds of the same source differ.
    ────────────────────────────────────────────────────────────────────── */
 
-/** The module `App.tsx` lazily imports for the `/blok` route. */
-const BLOK_ROUTE_MODULE = "src/blok/pages/BlokPage.tsx"
+/**
+ * The modules `App.tsx` reaches through `React.lazy` that MUST still be on the
+ * device with no signal, each named by source path so a renamed output chunk
+ * cannot silently empty the precache.
+ *
+ *  • `BlokPage` — the offline scorepad itself, the whole point of the cache.
+ *  • `BlokOutbox` — app-shell chrome, mounted on EVERY route. It is lazy so
+ *    the blok store stays out of the entry bundle, but that makes it the one
+ *    lazy import whose failure is not scoped to a route: it is a sibling of
+ *    the router, so an offline import error there reaches the root
+ *    ErrorBoundary and replaces the entire app — including /blok — with the
+ *    offline notice. Precached, the worker answers from cache and the outbox
+ *    mounts offline exactly as it did when it was an eager import.
+ *  • `i18n/hr/blok.ts` — the scorepad's STRINGS. The `blok` dictionary
+ *    namespace is route-scoped (src/i18n/index.ts): App.tsx's /blok route
+ *    awaits `loadNamespace("blok")` next to the page chunk, which is a
+ *    DYNAMIC import and therefore outside BlokPage's static closure — the
+ *    walk below would never reach it. Without it the offline scorepad boots
+ *    and then renders every label as a raw "blok.…" key. Croatian only, on
+ *    purpose: `sl/index.ts` is not precached either, so a Slovenian player
+ *    offline already falls back to Croatian text, which is the behaviour this
+ *    keeps rather than doubling the cache for it.
+ *
+ * 4. `src/firebaseAuthModule.ts` (2026-09-14, deferred-Firebase change): the
+ *    only file with a static `firebase/*` import, reached from `firebase.ts`
+ *    through one memoised `import()` so the SDK is off the eager path (see
+ *    `AuthContext.tsx`). That makes it a dynamic-import root too, and without
+ *    it `vendor-firebase` falls out of the offline cache entirely: an
+ *    installed PWA opened with no signal would fail to resolve auth state,
+ *    read as signed-out, and show "Prijava" in the navbar even for a user
+ *    who is very much signed in — while `BlokOutbox` (which gates uploads on
+ *    `user !== null`) silently queues them, which is correct offline, but the
+ *    identity shown on screen would not be.
+ */
+const OFFLINE_ROUTE_MODULES = [
+    "src/blok/pages/BlokPage.tsx",
+    "src/blok/BlokOutbox.tsx",
+    "src/i18n/hr/blok.ts",
+    "src/firebaseAuthModule.ts",
+]
 
 function precacheManifest(): Plugin {
     return {
@@ -71,23 +109,26 @@ function precacheManifest(): Plugin {
                 for (const imported of entry.imports) walk(imported)
             }
 
-            let blokFound = false
+            const found = new Set<string>()
             for (const [fileName, entry] of Object.entries(bundle)) {
                 if (entry.type !== "chunk") continue
                 const facade = entry.facadeModuleId?.replaceAll("\\", "/") ?? ""
                 if (entry.isEntry) walk(fileName)
-                if (facade.endsWith(BLOK_ROUTE_MODULE)) {
-                    blokFound = true
+                for (const module of OFFLINE_ROUTE_MODULES) {
+                    if (!facade.endsWith(module)) continue
+                    found.add(module)
                     walk(fileName)
                 }
             }
 
             // Loud, not silent: a precache without the scorepad in it would
             // still "work" in every test that is not run on a plane.
-            if (!blokFound) {
+            const missing = OFFLINE_ROUTE_MODULES.filter((m) => !found.has(m))
+            if (missing.length > 0) {
                 this.error(
-                    `precache manifest: no chunk for ${BLOK_ROUTE_MODULE}. `
-                    + "Did the route move? The offline scorepad depends on this.",
+                    `precache manifest: no chunk for ${missing.join(", ")}. `
+                    + "Did the module move, or is it no longer lazily imported? "
+                    + "The offline scorepad depends on this.",
                 )
             }
 
@@ -184,30 +225,105 @@ export default defineConfig({
     build: {
         rollupOptions: {
             output: {
-                // ALL third-party code goes into ONE vendor chunk. App code
-                // stays out of it, so the cache benefit remains (a code
-                // change only busts the small entry bundle; the browser keeps
-                // the cached vendor chunk across deploys).
+                // The app shell's third-party code goes into ONE `vendor`
+                // chunk. App code stays out of it, so the cache benefit
+                // remains (a code change only busts the small entry bundle;
+                // the browser keeps the cached vendor chunk across deploys).
                 //
-                // Why a single chunk and not per-library: splitting React,
-                // Chakra and react-leaflet into separate chunks created a
-                // cross-chunk initialization cycle, so react-leaflet ran its
-                // top-level `createContext()` before the React chunk had
-                // initialized → "Cannot read properties of undefined (reading
-                // 'createContext')". Keeping everything that touches React in
-                // one chunk makes that impossible.
+                // `vendor` is EAGER: the entry chunk imports it statically, so
+                // index.html modulepreloads it and every visitor pays for
+                // everything inside on the very first paint. That makes the
+                // rule below the one that matters:
+                //
+                //   A library may leave `vendor` for a chunk of its own ONLY
+                //   IF nothing that stays in `vendor` imports it — i.e. it is
+                //   reached exclusively from a lazily-imported route/dialog.
+                //
+                // That one-way edge (`vendor-x` → `vendor`, never back) is
+                // also what keeps the historical crash away. Splitting React,
+                // Chakra and react-leaflet apart *while `vendor` still
+                // imported them* created a cross-chunk CYCLE, and the browser
+                // then executed react-leaflet's top-level `createContext()` /
+                // `forwardRef` before the React chunk had initialized →
+                // "Cannot read properties of undefined". A chunk nothing in
+                // `vendor` imports cannot be in a cycle with it: its own
+                // static import of `vendor` orders React first.
+                //
+                // Every carve-out below therefore states WHO reaches it. If a
+                // future eager component imports one of these libraries, the
+                // rule for it must be deleted in the same commit — otherwise
+                // the cycle (and the crash) comes back.
                 manualChunks(id) {
                     if (!id.includes("node_modules")) return undefined
-                    // ONLY plain `leaflet` gets its own chunk — it's the heavy
-                    // part (~150 kB) and imports no React, so it can never hit
-                    // the cross-chunk init crash. Anything React-touching
-                    // (react-leaflet, react-joyride, react-datepicker, …) MUST
-                    // stay in the one vendor chunk: splitting react-leaflet out
-                    // shipped "Cannot read properties of undefined (reading
-                    // 'forwardRef')" — it executed before the React chunk had
-                    // initialized. Don't re-split those.
-                    if (id.includes("node_modules/leaflet/")) {
+                    // Leaflet (~150 kB) AND its React bindings. react-leaflet
+                    // used to stay in `vendor`, which meant the eager vendor
+                    // chunk statically imported `vendor-map` and index.html
+                    // modulepreloaded 150 kB of mapping library on every
+                    // route — /turniri, /blok, /prijava, all of them. Both
+                    // halves are reached ONLY from lazily-loaded modules
+                    // (`pages/MapPage`, `components/LocationMapPicker`,
+                    // `components/MapBaseLayer`, all behind React.lazy), so
+                    // moving the bindings in here removes that edge entirely.
+                    if (
+                        id.includes("node_modules/leaflet/")
+                        || id.includes("node_modules/react-leaflet/")
+                        || id.includes("node_modules/@react-leaflet/")
+                    ) {
                         return "vendor-map"
+                    }
+                    // react-datepicker + date-fns (~160 kB together). Reached
+                    // only from the organiser console — `CreateTournamentPage`
+                    // and `tournament/sections/DetailsEditForm`, both lazy —
+                    // and date-fns has no other importer in the app. NOTE:
+                    // react-datepicker's `@floating-ui/react` dependency is
+                    // deliberately NOT pulled along: Chakra uses it too, so it
+                    // must stay in `vendor` or this chunk and `vendor` would
+                    // import each other.
+                    if (
+                        id.includes("node_modules/react-datepicker/")
+                        || id.includes("node_modules/date-fns/")
+                    ) {
+                        return "vendor-datepicker"
+                    }
+                    // The product tour (~80 kB): react-joyride, its floater
+                    // and popper.js, plus the small helpers that only they
+                    // depend on (verified with a reverse-dependency scan —
+                    // `react-is`/`prop-types`/`deepmerge`/`clsx` are shared
+                    // with other packages and stay in `vendor`). `PageTour` is
+                    // `React.lazy` in both pages that show a tour, and the
+                    // tour only ever runs on an explicit "pomoć" tap or a
+                    // first-visit flag.
+                    if (
+                        id.includes("node_modules/react-joyride/")
+                        || id.includes("node_modules/react-floater/")
+                        || id.includes("node_modules/popper.js/")
+                        || id.includes("node_modules/tree-changes/")
+                        || id.includes("node_modules/is-lite/")
+                        || id.includes("node_modules/deep-diff/")
+                        || id.includes("node_modules/scrollparent/")
+                        || id.includes("node_modules/react-innertext/")
+                        || id.includes("node_modules/@gilbarbara/")
+                    ) {
+                        return "vendor-tour"
+                    }
+                    // Avatar cropping — only `components/AvatarCropDialog`,
+                    // itself lazily imported by the profile page, and only
+                    // once a user actually picks an image file.
+                    if (id.includes("node_modules/react-image-crop/")) {
+                        return "vendor-crop"
+                    }
+                    // MapLibre GL (~800 kB) + its Leaflet adapter, used ONLY
+                    // when VITE_MAP_PROVIDER=openfreemap. Kept apart from
+                    // `vendor-map` because the raster path must not pay for a
+                    // WebGL renderer it never draws with. It is reached
+                    // exclusively through the `import()`
+                    // in `components/MapBaseLayer.tsx`, so nothing static
+                    // pulls this chunk in — without the rule below Rollup
+                    // would fold it into the eager `vendor` chunk and ship a
+                    // WebGL renderer to every CARTO deployment that never
+                    // draws a single vector tile.
+                    if (id.includes("node_modules/maplibre-gl/") || id.includes("node_modules/@maplibre/")) {
+                        return "vendor-maplibre"
                     }
                     // `@capacitor-firebase/messaging`'s browser-fallback class
                     // (only ever reached from a lazy chunk of its own — see the
@@ -219,7 +335,21 @@ export default defineConfig({
                     // come BEFORE the general firebase check so it wins; leaving
                     // it to Rollup's default chunking merges it with the one
                     // lazy chunk that imports it instead.
-                    if (id.includes("node_modules/@firebase/messaging/") || id.includes("node_modules/firebase/messaging/")) {
+                    // `@firebase/installations` rides along for the same
+                    // reason and by the same route: it is a dependency of
+                    // `@firebase/messaging` and of NOTHING else this app pulls
+                    // in (analytics, performance and remote-config are the
+                    // other Firebase packages that want it, and none of them
+                    // is installed as a direct dependency here — verified by a
+                    // reverse-dependency scan of node_modules). Left to the
+                    // general rule below it was swept into the EAGER
+                    // "vendor-firebase" chunk and shipped to every visitor to
+                    // support a code path that only ever runs natively.
+                    if (
+                        id.includes("node_modules/@firebase/messaging/")
+                        || id.includes("node_modules/firebase/messaging/")
+                        || id.includes("node_modules/@firebase/installations/")
+                    ) {
                         return undefined
                     }
                     // Firebase touches no React and is only reached through the

@@ -18,6 +18,7 @@
 
 import type {
     ActiveSeatInfo,
+    AvatarPreset,
     GameEndRule,
     RoomOccupant,
     RoomState,
@@ -29,19 +30,22 @@ import type {
     TargetScore,
     TrickReview,
     UserInfo,
+    WinRateRequirement,
 } from "@bela/protocol"
 import { DEFAULT_GAME_END_RULE, DEFAULT_TRICK_REVIEW } from "@bela/protocol"
 import type { Timings } from "./config.js"
 import { ProtocolError } from "./errors.js"
-import { botName } from "./bots.js"
+import { botAvatar, botName } from "./bots.js"
 import { GameRoom } from "./gameRoom.js"
+import { reportGameAbandonment } from "./statsReporter.js"
+import type { LiveActivityHub } from "./liveActivity.js"
 import { log } from "./log.js"
 import type { Connection } from "./ws.js"
 
 /** Internal seat slot — same as the protocol `SeatInfo["occupant"]` plus the uid. */
 export type SeatSlot =
     | { kind: "PLAYER"; uid: string; user: UserInfo; ready: boolean; connected: boolean }
-    | { kind: "BOT"; name: string }
+    | { kind: "BOT"; name: string; avatarPreset?: AvatarPreset }
     | null
 
 /** What a room needs from the registry that owns it. */
@@ -135,8 +139,11 @@ export interface RoomInit {
     host: UserInfo
     targetScore: TargetScore
     private: boolean
+    minWinRatePercent?: WinRateRequirement
     lobby: RoomHost
     timings: Timings
+    /** Lock-screen fan-out (README §3 "Live Activity"); absent = off. */
+    liveActivity?: LiveActivityHub | null
 }
 
 export class Room {
@@ -159,9 +166,11 @@ export class Room {
     hostUid: string
     status: RoomStatus
     targetScore: TargetScore
+    readonly minWinRatePercent: WinRateRequirement
     readonly seats: [SeatSlot, SeatSlot, SeatSlot, SeatSlot]
     readonly conns: Set<Connection>
     game: GameRoom | null
+    readonly liveActivity: LiveActivityHub | null
 
     private readonly lobby: RoomHost
     private deleteTimer: ReturnType<typeof setTimeout> | null
@@ -177,6 +186,7 @@ export class Room {
         this.status = "LOBBY"
         this.targetScore = init.targetScore
         this.private = init.private
+        this.minWinRatePercent = init.minWinRatePercent ?? 0
         this.allowSpectators = init.allowSpectators === true
         this.noDeclarations = init.noDeclarations === true
         this.allowBela = belaCounts(this.noDeclarations, init.allowBela)
@@ -188,6 +198,7 @@ export class Room {
         this.game = null
         this.lobby = init.lobby
         this.timings = init.timings
+        this.liveActivity = init.liveActivity ?? null
         this.deleteTimer = null
         this.holds = new Map()
         this.disposed = false
@@ -201,6 +212,19 @@ export class Room {
 
     slotAt(seat: Seat): SeatSlot {
         return this.seats[seat]
+    }
+
+    analyticsOptions(): Record<string, unknown> {
+        return {
+            targetScore: this.targetScore,
+            gameEndRule: this.gameEndRule,
+            private: this.private,
+            minWinRatePercent: this.minWinRatePercent,
+            allowSpectators: this.allowSpectators,
+            noDeclarations: this.noDeclarations,
+            allowBela: this.allowBela,
+            trickReview: this.trickReview,
+        }
     }
 
     seatOfUid(uid: string): Seat | null {
@@ -305,7 +329,7 @@ export class Room {
         const slot = this.seats[seat]
         if (!slot) return { seat, occupant: null }
         if (slot.kind === "BOT") {
-            return { seat, occupant: { kind: "BOT", name: slot.name } }
+            return { seat, occupant: { kind: "BOT", name: slot.name, ...(slot.avatarPreset ? { avatarPreset: slot.avatarPreset } : {}) } }
         }
         return {
             seat,
@@ -319,12 +343,17 @@ export class Room {
         }
     }
 
-    /** One seat for the PUBLIC lobby list: a display name, nothing else. */
+    /** One seat for the PUBLIC lobby list: presentation data, never identity. */
     private occupantOf(seat: Seat): RoomOccupant {
         const slot = this.seats[seat]
         if (!slot) return null
-        if (slot.kind === "BOT") return { kind: "BOT", name: slot.name }
-        return { kind: "PLAYER", name: slot.user.name, connected: slot.connected }
+        if (slot.kind === "BOT") return { kind: "BOT", name: slot.name, ...(slot.avatarPreset ? { avatarPreset: slot.avatarPreset } : {}) }
+        return {
+            kind: "PLAYER",
+            name: slot.user.name,
+            connected: slot.connected,
+            avatarPreset: slot.user.avatarPreset ?? null,
+        }
     }
 
     /**
@@ -332,7 +361,7 @@ export class Room {
      * not, so it must stay free of anything private: the join code is redacted
      * unless the receiver is a member (`includePrivateCode`), uids never
      * travel at all (`hostUid` lives on `RoomState`), and `occupants` carries
-     * display names only.
+     * only public names and app-provided avatar preset ids.
      */
     toSummary(includePrivateCode = false): RoomSummary {
         return {
@@ -345,6 +374,7 @@ export class Room {
             noDeclarations: this.noDeclarations,
             private: this.private,
             allowSpectators: this.allowSpectators,
+            minWinRatePercent: this.minWinRatePercent,
             seatsTaken: this.seatsTaken(),
             humans: this.humanSeats().length,
             occupants: [
@@ -410,12 +440,10 @@ export class Room {
      * Enforce admission before attaching a new connection (README §3.2).
      *
      * Anyone already here — a seat holder walking back in, or a second tab of
-     * the same uid — is always let through. For a newcomer the ONLY question
-     * is `canAdmitNewcomer()`, the same predicate `toSummary().joinable`
-     * publishes: pass it and `attach` either seats them (a free seat in the
-     * lobby) or lets them watch (spectators on). Fail it and the join is
-     * REFUSED here — never silently downgraded to spectating, which is how a
-     * room with three empty seats used to tell the second player it was full.
+     * the same uid — is always let through. A newcomer must satisfy the room's
+     * personal win-rate gate and its capacity predicate. Passing both means
+     * `attach` either seats them (a free seat in the lobby) or lets them watch
+     * (spectators on); failure is explicit, never a silent downgrade.
      */
     assertCanJoin(conn: Connection, codeProvided: boolean): void {
         const uid = conn.user?.uid
@@ -425,6 +453,13 @@ export class Room {
             throw new ProtocolError("ROOM_CODE_REQUIRED", "Za ulaz u privatnu sobu potrebna je šifra.")
         }
         if (returningPlayer || alreadyHere) return
+        const winRate = conn.user?.gameStats?.global.winRate ?? 0
+        if (winRate * 100 < this.minWinRatePercent) {
+            throw new ProtocolError(
+                "WIN_RATE_TOO_LOW",
+                `Za ulaz je potrebno najmanje ${this.minWinRatePercent}% pobjeda.`,
+            )
+        }
         if (this.canAdmitNewcomer()) return
         // Two distinct refusals, because the fix differs: a running table that
         // never wanted an audience vs. a table with nowhere left to sit.
@@ -462,6 +497,7 @@ export class Room {
         // Whichever route brought them back (`hello`, `room.join`,
         // `room.joinByCode`), being here again cancels the hold.
         this.cancelHold(user.uid)
+        this.liveActivity?.rejoin(this.id, user.uid)
         const seat = this.seatOfUid(user.uid)
         let reconnected = false
         if (seat !== null) {
@@ -507,6 +543,10 @@ export class Room {
         this.conns.delete(conn)
         conn.roomId = null
         if (user && leavingSeat !== null && !this.hasConnFor(user.uid)) {
+            // Walking out ends the lock-screen activity even though the seat
+            // is still held: the player chose to leave, and a reconnect-style
+            // stream of updates would contradict that. `room.join` resumes it.
+            this.endLiveActivity(user.uid)
             // Every active table gets the same reconnect window, including a
             // single player with three bots. A refresh and an app setting
             // change must never destroy the room merely because nobody else
@@ -529,6 +569,7 @@ export class Room {
 
     /** Close a running room that can no longer sustain a human-vs-human game. */
     private dissolveAfterPlayersLeft(): void {
+        this.game?.abandon("INSUFFICIENT_HUMANS")
         const remaining = [...this.conns]
         this.conns.clear()
         for (const member of remaining) {
@@ -549,6 +590,8 @@ export class Room {
     abandonSeat(uid: string): void {
         this.cancelHold(uid)
         if (this.seatOfUid(uid) === null) return
+        this.reportConfirmedAbandonment(uid)
+        this.endLiveActivity(uid)
         this.releaseSeat(uid)
         if (this.isHost(uid)) this.transferHost(uid)
         log.info("seat.abandoned", { room: this.id, uid })
@@ -607,11 +650,14 @@ export class Room {
             // grace, but it must not turn into a one-person or bot-only game
             // when that grace expires.
             if (this.status === "PLAYING" && this.otherHumanCount(uid) < 2) {
+                this.reportConfirmedAbandonment(uid)
                 this.dissolveAfterPlayersLeft()
                 return
             }
             // Hold expired (README §3 "Timeri"): mid-game the bot takes the seat
             // for good; in the lobby the seat simply opens up again.
+            this.endLiveActivity(uid)
+            this.reportConfirmedAbandonment(uid)
             this.seats[seat] = this.status === "PLAYING" ? this.makeBotSlot(seat) : null
             if (this.isHost(uid)) this.transferHost(uid)
             log.info("seat.holdExpired", { room: this.id, seat, uid, reason })
@@ -622,6 +668,22 @@ export class Room {
         if (typeof timer.unref === "function") timer.unref()
         this.holds.set(uid, { seat, reason, until, timer })
         log.info("seat.hold", { room: this.id, seat, uid, reason, until })
+    }
+
+    /** A player earns the reconnect window; only losing that seat is a leave. */
+    private reportConfirmedAbandonment(uid: string): void {
+        // A solo practice table is not a reliability signal. At least one
+        // other human must have been left waiting when the player gave up the
+        // seat; bot-only games remain consequence-free.
+        if (this.status === "PLAYING" && this.game && this.otherHumanCount(uid) > 0) {
+            reportGameAbandonment(this.game.runId, uid)
+        }
+    }
+
+    /** `end` for one seated uid, only while a game is actually running. */
+    private endLiveActivity(uid: string): void {
+        if (this.status !== "PLAYING" || !this.game) return
+        this.liveActivity?.endFor(this, this.game.liveSnapshot(), uid)
     }
 
     private transferHost(leavingUid: string): void {
@@ -641,8 +703,9 @@ export class Room {
         }
     }
 
-    private makeBotSlot(seat: Seat): SeatSlot {
-        return { kind: "BOT", name: botName(seat) }
+    private makeBotSlot(_seat: Seat): SeatSlot {
+        const usedNames = this.seats.flatMap((slot) => slot?.kind === "BOT" ? [slot.name] : [])
+        return { kind: "BOT", name: botName(usedNames), avatarPreset: botAvatar() }
     }
 
     /* ───────────────────────── seat commands ───────────────────────── */
@@ -857,6 +920,7 @@ export class Room {
         this.game?.dispose()
         this.status = "PLAYING"
         this.game = new GameRoom(this, this.timings)
+        this.liveActivity?.beginGame(this)
         log.info("room.start", { room: this.id, target: this.targetScore })
         this.broadcastState()
         this.lobby.changed()
@@ -908,6 +972,12 @@ export class Room {
         this.cancelDeleteTimer()
         for (const hold of this.holds.values()) clearTimeout(hold.timer)
         this.holds.clear()
+        // A running game that vanishes (dissolved, server shutdown) still owes
+        // its players an `end` — otherwise their lock screen waits 12 h.
+        if (this.status === "PLAYING" && this.game) {
+            this.liveActivity?.endAll(this, this.game.liveSnapshot())
+        }
+        this.liveActivity?.forgetRoom(this.id)
         this.game?.dispose()
         this.game = null
     }

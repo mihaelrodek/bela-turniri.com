@@ -51,6 +51,7 @@ export const profile = {
     "tab.presets": "Predlošci",
     "tab.invoices": "Računi",
     "tab.dashboard": "Dashboard",
+    "tab.gameAnalytics": "Analitika igre",
     "tab.playersList": "Popis igrača",
     "tab.contactMessages": "Poruke",
 
@@ -266,6 +267,8 @@ export const profile = {
     "gameStats.losses.few": "{n} poraza",
     "gameStats.losses.other": "{n} poraza",
     "gameStats.winRate": "Postotak pobjeda",
+    "gameStats.karma": "Karma",
+    "gameStats.abandons": "Napuštanja",
     "gameStats.categoryStats": "{wins}/{n} ({winRate}%)",
     "gameStats.targetScore.501": "Do 501",
     "gameStats.targetScore.701": "Do 701",
@@ -316,6 +319,67 @@ export const profile = {
     "blok.meta": "Do {target} · {rule}",
     "blok.rule.dosta": "dosta",
     "blok.rule.prolaz": "prolaz",
+
+    /* ═══════════════════════════════════════════════════════════════════
+       SIGURNOST KORISNIKA — prijava sadržaja, blokiranje, brisanje računa
+       ═══════════════════════════════════════════════════════════════════
+       Tri značajke koje App Store traži za aplikaciju s korisničkim
+       sadržajem. Sve tri žive u ovom rječniku jer su jedna obitelj, iako se
+       dijalog za prijavu otvara i sa stranice turnira — natpisi ULAZA
+       („Prijavi turnir”, „Prijavi par”) su u `tournament`, sve ostalo ovdje.
+       Strojni kodovi (`SPAM`, `CANNOT_REPORT_SELF`…) se nikad ne prevode;
+       ključevi ispod samo daju čitljiv tekst za svaki od njih. */
+
+    // --- Prijava sadržaja (components/ReportDialog.tsx) ---------------------
+    "actions.more": "Više opcija",
+    "report.title": "Prijavi sadržaj",
+    "report.body": "Prijavljuješ: {target}. Prijavu pregledava administrator.",
+    "report.profileItem": "Prijavi profil",
+    "report.reason.SPAM": "Neželjeni sadržaj (spam)",
+    "report.reason.OFFENSIVE": "Uvredljiv ili neprimjeren sadržaj",
+    "report.reason.PERSONAL_DATA": "Tuđi osobni podaci",
+    "report.reason.OTHER": "Nešto drugo",
+    "report.messageLabel": "Opis (nije obavezno)",
+    "report.messagePlaceholder": "Ukratko opiši što nije u redu…",
+    "report.submit": "Pošalji prijavu",
+    "report.success": "Hvala, prijava je zaprimljena.",
+    "report.error.rateLimited": "Previše prijava, pokušaj kasnije",
+    "report.error.self": "Ne možeš prijaviti vlastiti sadržaj",
+    "report.error.notFound": "Sadržaj više ne postoji",
+    "report.error.generic": "Slanje prijave nije uspjelo",
+
+    // --- Blokiranje --------------------------------------------------------
+    "blocks.blockItem": "Blokiraj korisnika",
+    "blocks.confirmTitle": "Blokirati korisnika?",
+    "blocks.confirmBody":
+        "{name} više neće vidjeti tvoj profil, niti ti njegov. Turniri koje je taj korisnik organizirao nestaju s tvog popisa. Blokadu možeš poništiti u postavkama profila.",
+    "blocks.blocked": "{name} je blokiran",
+    "blocks.failed": "Blokiranje nije uspjelo",
+    "blocks.heading": "Blokirani korisnici",
+    "blocks.description": "Korisnici koje si blokirao — njihov profil i turniri su ti skriveni.",
+    "blocks.loadFailed": "Nije moguće učitati popis blokiranih.",
+    "blocks.empty": "Nemaš blokiranih korisnika.",
+    "blocks.unblock": "Odblokiraj",
+    "blocks.unblocked": "Blokada je uklonjena",
+
+    // --- Brisanje računa (pages/profile/DeleteAccountCard.tsx) --------------
+    /* Riječ koju korisnik mora upisati. VELIKIM SLOVIMA i bez dijakritike u
+       usporedbi — tipkovnica na mobitelu sama piše veliko slovo, pa se
+       uspoređuje neosjetljivo na velika/mala slova. */
+    "deleteAccount.confirmWord": "OBRIŠI",
+    "deleteAccount.heading": "Brisanje računa",
+    "deleteAccount.what":
+        "Brisanjem računa nestaju tvoj profil, profilna slika, broj telefona i sve postavke.",
+    "deleteAccount.keeps":
+        "Turniri koje si organizirao i rezultati koje su drugi odigrali ostaju, ali uz tvoje ime piše „Obrisani korisnik”.",
+    "deleteAccount.button": "Obriši račun",
+    "deleteAccount.dialogTitle": "Obrisati račun?",
+    "deleteAccount.dialogBody": "Ova radnja se ne može poništiti.",
+    "deleteAccount.typePrompt": "Za potvrdu upiši {word}:",
+    "deleteAccount.confirmButton": "Obriši račun",
+    "deleteAccount.done": "Račun je obrisan",
+    "deleteAccount.failed": "Brisanje računa nije uspjelo",
+    "deleteAccount.recentLogin": "Prijavi se ponovno pa pokušaj opet",
 }
 
 /** Contract every other locale's `profile` namespace must satisfy. */

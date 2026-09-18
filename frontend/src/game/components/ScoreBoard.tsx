@@ -7,7 +7,7 @@ import { useTranslation } from "../../i18n"
 import { teamOf } from "../util/seats"
 import SuitGlyph from "./SuitGlyph"
 import TrumpBadge from "./TrumpBadge"
-import { GLASS, INK, INK_MUTED, SHORT } from "./tableStyles"
+import { INK, INK_MUTED, SHORT, TEAM, type TeamSide } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
    ScoreBoard — the panel across the top of the felt.
@@ -41,8 +41,18 @@ import { GLASS, INK, INK_MUTED, SHORT } from "./tableStyles"
    added into the big number: the big number is card points taken, and a player
    reading "how much do we still need" wants those two quantities separately.
 
-   The deal number, the target and the history toggle share one thin footer
-   row, out of the way of the trump cell.
+   HUD v3 (DESIGN §6) changed the packaging, not the facts:
+
+   - each side is now a CARD in its team's colour (`TEAM`, tableStyles.ts) —
+     ours green, theirs gold, the same two colours the seats wear, so the
+     score and the ring of players finally agree about who is who;
+   - a 2 px PROGRESS BAR under each card runs the match total toward the
+     target. "512, do 1001" is two numbers and a subtraction; a bar half full
+     is the same fact without the arithmetic, and it is the question every
+     player asks between deals. The numbers stay under it for anyone who
+     wants them exactly;
+   - the old footer row is gone: it existed to carry "do 1001", and the bar
+     carries that now. Only the history chevron survives it.
    ────────────────────────────────────────────────────────────────────── */
 
 function seatName(seats: RoomState["seats"], seat: Seat, fallback: string): string {
@@ -55,12 +65,16 @@ export default function ScoreBoard({
     view,
     seats,
     targetScore,
+    header,
+    actions,
     noDeclarations = false,
     allowBela = true,
 }: {
     view: PlayerView
     seats: RoomState["seats"]
     targetScore: number
+    header?: ReactNode
+    actions?: ReactNode
     /** The room's house rules. They change how the deal SCORES, so they are
      *  stated on the table itself and not only on the room screen — and in a
      *  colour you cannot mistake for decoration. */
@@ -85,20 +99,69 @@ export default function ScoreBoard({
 
     return (
         <Box
-            {...GLASS}
-            rounded="l3"
+            // NO PANEL AT ALL (2026-09-18, user request, third pass): not
+            // `{...GLASS}`, no background, no rounded corners, no shadow, no
+            // backdrop blur. Every one of those reads as a "box around the
+            // score" even with the border gone, which is the thing that was
+            // actually being complained about. What is left is the score
+            // itself sitting on the table, and ONE hairline under it as the
+            // delimiter between the score and the playing surface.
+            bg="transparent"
+            boxShadow="none"
+            borderColor="border.subtle"
+            borderTopWidth="0"
+            borderInlineStartWidth="0"
+            borderInlineEndWidth="0"
+            borderBottomWidth="1px"
+            position="relative"
+            zIndex={10}
             px="3"
-            py="2"
-            css={{ ...GLASS.css, [SHORT]: { paddingTop: "4px", paddingBottom: "4px" } }}
+            pt="1"
+            pb="1.5"
+            css={{ [SHORT]: { paddingTop: "4px", paddingBottom: "4px" } }}
         >
-            <Flex align="center" justify="space-between" gap="2">
-                <TeamColumn
+            {header}
+            <Flex position="relative" align="stretch" justify="space-between" gap={{ base: "1.5", md: "2" }}>
+                {/* Purely right, under the settings gear, level with "Zvanja"
+                    (2026-09-18, user request — moved off the Zvanja row
+                    itself). `insetEnd="0"` matches the gear's own inset
+                    (TableHeader.tsx) since neither this Flex nor the header
+                    above it adds any extra margin from the panel's own
+                    padding edge; `bottom="0"` rides the bottom of whichever
+                    column is tallest, which is this middle one whenever it
+                    carries a rule chip or is simply not shorter than a team
+                    card — i.e. lines up with the LAST thing in the middle
+                    column, "Zvanja", in every state this panel renders. */}
+                {hasHistory && (
+                    <IconButton
+                        position="absolute"
+                        insetEnd="0"
+                        bottom="0"
+                        size="2xs"
+                        variant="plain"
+                        color={INK_MUTED}
+                        minW="20px"
+                        h="20px"
+                        aria-label={t("game.score.historyTitle")}
+                        aria-expanded={open}
+                        onClick={() => setOpen((v) => !v)}
+                    >
+                        {open ? <FiChevronUp /> : <FiChevronDown />}
+                    </IconButton>
+                )}
+
+                <TeamCard
                     label={usLabel}
+                    team="us"
                     dealPoints={view.currentDealPoints[myTeam]}
                     declarationPoints={declarationPoints[myTeam]}
                     declarationLabel={t("game.score.declarationBonus")}
                     total={view.score[myTeam]}
-                    totalLabel={t("game.score.matchTotal", { total: view.score[myTeam] })}
+                    progressLabel={t("game.score.progress", {
+                        total: view.score[myTeam],
+                        target: targetScore,
+                    })}
+                    targetScore={targetScore}
                     align="start"
                 />
 
@@ -113,58 +176,65 @@ export default function ScoreBoard({
                         trump={trump}
                         callerName={caller === null ? null : seatName(seats, caller, t("game.seat.empty"))}
                         fallback={t("game.table.phaseBidding")}
+                        // Whose deal this is, in the same two colours the
+                        // seats and the cards use — so "who has to make it"
+                        // is answered by the cell's own border, not only by
+                        // the name inside it.
+                        callerTeam={caller === null ? null : teamOf(caller) === myTeam ? "us" : "them"}
                     />
+                    {actions}
                 </VStack>
 
-                <TeamColumn
+                <TeamCard
                     label={themLabel}
+                    team="them"
                     dealPoints={view.currentDealPoints[theirTeam]}
                     declarationPoints={declarationPoints[theirTeam]}
                     declarationLabel={t("game.score.declarationBonus")}
                     total={view.score[theirTeam]}
-                    totalLabel={t("game.score.matchTotal", { total: view.score[theirTeam] })}
+                    progressLabel={t("game.score.progress", {
+                        total: view.score[theirTeam],
+                        target: targetScore,
+                    })}
+                    targetScore={targetScore}
                     align="end"
                 />
             </Flex>
 
-            {/* Footer: what we are playing to, and the way into the history.
-                The deal number and the trick count used to sit here too and
-                were dropped (2026-09-08): neither is something a player acts
-                on. The deal number is bookkeeping, and the trick count is
-                already legible from the table — what matters about the tricks
-                is the POINTS in them, which is the big number above. */}
-            <HStack gap="1.5" mt="0.5" justify="center" color={INK_MUTED} fontSize="2xs" lineHeight="1.3">
-                <Text>{t("game.score.target", { target: targetScore })}</Text>
-                {hasHistory && (
-                    <IconButton
-                        size="2xs"
-                        variant="plain"
-                        color={INK_MUTED}
-                        minW="16px"
-                        h="16px"
-                        aria-label={t("game.score.historyTitle")}
-                        aria-expanded={open}
-                        onClick={() => setOpen((v) => !v)}
-                    >
-                        {open ? <FiChevronUp /> : <FiChevronDown />}
-                    </IconButton>
-                )}
-            </HStack>
-
+            {/* The history panel itself: wider than the old version (2026-09-18,
+                user request — "bigger, full width") — it now bleeds to the
+                same edges as the glass panel around it, `left="0" right="0"`,
+                instead of stopping at the inner padding, and its rows carry
+                more type and breathing room to match. */}
             {open && hasHistory && (
-                <Box mt="2" pt="2" borderTopWidth="1px" borderColor="brand.700/70" maxH="132px" overflowY="auto">
+                <Box
+                    position="absolute"
+                    top="calc(100% - 6px)"
+                    left="0"
+                    right="0"
+                    zIndex={20}
+                    px="3"
+                    py="2.5"
+                    rounded="l2"
+                    bg="bg.opaque"
+                    borderWidth="1px"
+                    borderColor="border"
+                    boxShadow="0 12px 30px rgba(0,0,0,0.28)"
+                    maxH="220px"
+                    overflowY="auto"
+                >
                     {view.history.map((deal) => (
                         <HStack
                             key={deal.dealNo}
                             gap="2"
                             justify="space-between"
-                            py="0.5"
-                            fontSize="2xs"
+                            py="1"
+                            fontSize="xs"
                             color={INK}
                         >
                             <HStack gap="1.5" minW="0">
-                                <Text color={INK_MUTED} minW="14px">{deal.dealNo}.</Text>
-                                <SuitGlyph suit={deal.trump} size={11} />
+                                <Text color={INK_MUTED} minW="16px">{deal.dealNo}.</Text>
+                                <SuitGlyph suit={deal.trump} size={13} />
                                 <Text color={INK_MUTED} lineClamp={1}>
                                     {seatName(seats, deal.caller, t("game.seat.empty"))}
                                 </Text>
@@ -173,10 +243,10 @@ export default function ScoreBoard({
                                 </Text>
                             </HStack>
                             <HStack gap="2" fontVariantNumeric="tabular-nums" flexShrink={0}>
-                                <Text minW="30px" textAlign="end" fontWeight="bold">
+                                <Text minW="34px" textAlign="end" fontWeight="bold">
                                     {deal.total[myTeam]}
                                 </Text>
-                                <Text minW="30px" textAlign="end" color={INK_MUTED}>
+                                <Text minW="34px" textAlign="end" color={INK_MUTED}>
                                     {deal.total[theirTeam]}
                                 </Text>
                             </HStack>
@@ -214,16 +284,20 @@ function RuleChip({ children }: { children: ReactNode }) {
     )
 }
 
-function TeamColumn({
+function TeamCard({
     label,
+    team,
     dealPoints,
     declarationPoints,
     declarationLabel,
     total,
-    totalLabel,
+    progressLabel,
+    targetScore,
     align,
 }: {
     label: string
+    /** Which pair this card is, relative to the viewer (`TEAM`, DESIGN §6). */
+    team: TeamSide
     /** This deal, from completed tricks — the big number. */
     dealPoints: number
     /** Declarations (+ an announced bela) this team has banked; 0 for the pair
@@ -231,14 +305,34 @@ function TeamColumn({
     declarationPoints: number
     declarationLabel: string
     total: number
-    totalLabel: string
+    /** Spoken form of the bar, for anyone who cannot see a 2 px line. */
+    progressLabel: string
+    targetScore: number
     align: "start" | "end"
 }) {
+    // Clamped, because the deal that wins the match usually overshoots the
+    // target and a bar past 100 % would render as a bar that lost its end.
+    const progress = Math.max(0, Math.min(1, targetScore > 0 ? total / targetScore : 0))
+
     return (
-        <VStack gap="0" align={align} minW="0" flex="1">
+        <VStack
+            gap="0"
+            align="center"
+            minW="0"
+            flex="1"
+            px={{ base: "1.5", md: "2" }}
+            pt="0.5"
+            pb="1"
+            rounded="l2"
+            bg="transparent"
+            borderWidth="1px"
+            // The team's own colour as a hairline: enough to bind the card to
+            // the seats that share it, too quiet to fight the big number.
+            borderColor="transparent"
+        >
             <Text
                 fontSize="2xs"
-                color={INK_MUTED}
+                color={TEAM[team]}
                 textTransform="uppercase"
                 letterSpacing="widest"
                 fontWeight="bold"
@@ -250,13 +344,14 @@ function TeamColumn({
                 It sits INBOARD (right of the left column, left of the right
                 one) so the two big numbers keep the outer edges. */}
             <HStack
+                position="relative"
                 gap="1"
                 align="baseline"
-                flexDirection={align === "end" ? "row-reverse" : "row"}
+                justify="center"
+                w="100%"
             >
                 <Text
-                    textStyle="mono"
-                    fontSize={{ base: "2xl", md: "3xl" }}
+                    fontSize={{ base: "2xl", md: "4xl" }}
                     lineHeight="1.05"
                     fontWeight="bold"
                     color={INK}
@@ -267,10 +362,13 @@ function TeamColumn({
                 </Text>
                 {declarationPoints > 0 && (
                     <Text
-                        textStyle="mono"
+                        position="absolute"
+                        top="50%"
+                        transform="translateY(-50%)"
+                        {...(align === "end" ? { right: "calc(50% + 28px)" } : { left: "calc(50% + 28px)" })}
                         fontSize="xs"
                         fontWeight="bold"
-                        color="brand.200"
+                        color={TEAM[team]}
                         fontVariantNumeric="tabular-nums"
                         whiteSpace="nowrap"
                         title={declarationLabel}
@@ -280,15 +378,50 @@ function TeamColumn({
                     </Text>
                 )}
             </HStack>
+
+            {/* Match total, under the deal number. The deal figure resets
+                every hand; a player mid-deal still wants "how much have we
+                banked overall" without opening the history panel — the bar
+                alone answers "how close" but not "how much". */}
             <Text
                 fontSize="2xs"
+                lineHeight="1.2"
                 color={INK_MUTED}
                 fontVariantNumeric="tabular-nums"
-                lineClamp={1}
-                title={`${total}`}
             >
-                {totalLabel}
+                {total}
             </Text>
+
+            {/* The bar. 2 px, full width of the card, and it fills from the
+                card's OUTER edge inward (`row-reverse` on the right-hand
+                card) so the two bars grow toward each other and the gap
+                between them is the gap in the match. */}
+            <Box
+                w="100%"
+                h="2px"
+                mt="1"
+                rounded="full"
+                bg="border.subtle"
+                overflow="hidden"
+                display="flex"
+                flexDirection={align === "end" ? "row-reverse" : "row"}
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={targetScore}
+                aria-valuenow={total}
+                aria-label={progressLabel}
+            >
+                <Box
+                    h="100%"
+                    rounded="full"
+                    bg={TEAM[team]}
+                    style={{ width: `${progress * 100}%` }}
+                    // Points arrive once a deal, so this can afford to move;
+                    // 160 ms is under the reaction-time floor where motion
+                    // starts to feel like waiting.
+                    transition="width 160ms ease-out"
+                />
+            </Box>
         </VStack>
     )
 }

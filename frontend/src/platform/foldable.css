@@ -1,0 +1,263 @@
+:root {
+    --fold-left: 0px;
+    --fold-top: 0px;
+    --fold-width: 0px;
+    --fold-height: 0px;
+}
+
+.app-page-container {
+    container: app-page / inline-size;
+}
+
+.responsive-card-grid,
+.responsive-room-grid {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+:root[data-fold-orientation="vertical"] .fold-two-pane-grid,
+:root[data-fold-orientation="vertical"] .fold-mobile-action-bar .fold-split-actions,
+:root[data-fold-orientation="vertical"] .fold-control-strip {
+    grid-template-columns: minmax(0, 1fr) var(--fold-width) minmax(0, 1fr) !important;
+    column-gap: 0 !important;
+}
+
+:root[data-fold-orientation="vertical"] .fold-two-pane-grid {
+    grid-template-areas:
+        "head . list"
+        "summary . list"
+        "actions . list" !important;
+}
+
+:root[data-fold-orientation="vertical"] .fold-mobile-action-bar .fold-split-actions,
+:root[data-fold-orientation="vertical"] .fold-control-strip {
+    display: grid !important;
+}
+
+:root[data-fold-orientation="vertical"] .fold-mobile-action-bar .fold-split-actions > :first-child { grid-column: 1; }
+:root[data-fold-orientation="vertical"] .fold-mobile-action-bar .fold-split-actions > :nth-child(2) { grid-column: 3; }
+
+:root[data-fold-orientation="vertical"] .fold-control-strip {
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr))
+        var(--fold-width)
+        repeat(3, minmax(0, 1fr)) !important;
+}
+
+:root[data-fold-orientation="vertical"] .fold-control-strip > :nth-child(3) { grid-column: 4; }
+
+:root[data-fold-orientation="vertical"] .fold-bottom-nav-grid {
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr))
+        var(--fold-width)
+        repeat(3, minmax(0, 1fr)) !important;
+}
+
+:root[data-fold-orientation="vertical"] .fold-bottom-nav-grid > :nth-child(3) { grid-column: 4; }
+
+:root[data-fold-orientation="vertical"] .fold-master-detail {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) var(--fold-width) minmax(0, 1fr) !important;
+    gap: 0 !important;
+}
+
+:root[data-fold-orientation="vertical"] .fold-master-detail > :first-child { grid-column: 1; }
+:root[data-fold-orientation="vertical"] .fold-master-detail > :nth-child(2) { grid-column: 3; }
+:root[data-fold-orientation="vertical"] .fold-master-detail-single { display: none !important; }
+
+:root[data-fold-orientation="vertical"] .fold-contain-start-pane {
+    width: calc((100% - var(--fold-width)) / 2) !important;
+    max-width: calc((100% - var(--fold-width)) / 2) !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+}
+
+/* The live card table is one interaction surface. On a separating vertical
+   fold it stays wholly inside the first segment; controls and cards then use
+   their phone geometry even though the full viewport is tablet-wide. */
+:root[data-fold-orientation="vertical"] .fold-game-board {
+    width: calc(var(--fold-segment-start-width) - 16px) !important;
+    max-width: calc(var(--fold-segment-start-width) - 16px) !important;
+    transform: translateX(calc((var(--fold-segment-start-width) - 100vw) / 2 + 8px));
+}
+
+:root[data-fold-orientation="vertical"] .fold-game-hand {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+:root[data-fold-orientation="vertical"] .fold-game-hand-grid {
+    grid-template-columns: repeat(4, 72px) !important;
+    width: 306px !important;
+}
+
+:root[data-fold-orientation="vertical"] .fold-game-header-label {
+    display: none !important;
+}
+
+:root[data-fold-orientation="vertical"] .fold-game-board .fold-control-strip {
+    display: flex !important;
+}
+
+:root[data-fold-orientation="vertical"] .fold-game-table {
+    --seat-w: 92px !important;
+    --seat-x: max(93px, min(calc(0.42 * var(--box-h)), 160px)) !important;
+    --seat-clear-x: 93px !important;
+}
+
+:root[data-fold-orientation="vertical"] [data-scope="dialog"][data-part="positioner"] {
+    width: var(--fold-segment-start-width);
+    right: auto;
+}
+
+:root[data-fold-orientation="vertical"] [data-scope="dialog"][data-part="content"] {
+    max-width: calc(var(--fold-segment-start-width) - 2rem) !important;
+}
+
+:root[data-fold-orientation="horizontal"] [data-scope="dialog"][data-part="positioner"] {
+    height: var(--fold-segment-start-height);
+    bottom: auto;
+}
+
+:root[data-fold-orientation="horizontal"] [data-scope="dialog"][data-part="content"] {
+    max-height: calc(var(--fold-segment-start-height) - 2rem) !important;
+    overflow-y: auto;
+}
+
+@media (horizontal-viewport-segments: 2) {
+    :root {
+        --fold-left: env(viewport-segment-left 1 0);
+        --fold-top: env(viewport-segment-top 0 0);
+        --fold-width: calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0));
+        --fold-height: env(viewport-segment-height 0 0);
+        --fold-segment-start-width: env(viewport-segment-width 0 0);
+        --fold-segment-end-left: env(viewport-segment-left 1 0);
+    }
+
+    .fold-two-pane-grid,
+    .fold-mobile-action-bar .fold-split-actions,
+    .fold-control-strip {
+        grid-template-columns: minmax(0, 1fr) var(--fold-width) minmax(0, 1fr) !important;
+        column-gap: 0 !important;
+    }
+
+    .fold-two-pane-grid {
+        grid-template-areas:
+            "head . list"
+            "summary . list"
+            "actions . list" !important;
+    }
+
+    .fold-mobile-action-bar .fold-split-actions,
+    .fold-control-strip { display: grid !important; }
+    .fold-mobile-action-bar .fold-split-actions > :first-child { grid-column: 1; }
+    .fold-mobile-action-bar .fold-split-actions > :nth-child(2) { grid-column: 3; }
+
+    .fold-control-strip {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr))
+            var(--fold-width)
+            repeat(3, minmax(0, 1fr)) !important;
+    }
+    .fold-control-strip > :nth-child(3) { grid-column: 4; }
+
+    .fold-bottom-nav-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr))
+            var(--fold-width)
+            repeat(3, minmax(0, 1fr)) !important;
+    }
+    .fold-bottom-nav-grid > :nth-child(3) { grid-column: 4; }
+
+    .fold-master-detail {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) var(--fold-width) minmax(0, 1fr) !important;
+        gap: 0 !important;
+    }
+    .fold-master-detail > :first-child { grid-column: 1; }
+    .fold-master-detail > :nth-child(2) { grid-column: 3; }
+    .fold-master-detail-single { display: none !important; }
+
+    .fold-contain-start-pane {
+        width: calc((100% - var(--fold-width)) / 2) !important;
+        max-width: calc((100% - var(--fold-width)) / 2) !important;
+        margin-left: 0 !important;
+        margin-right: auto !important;
+    }
+
+    .fold-game-board {
+        width: calc(var(--fold-segment-start-width) - 16px) !important;
+        max-width: calc(var(--fold-segment-start-width) - 16px) !important;
+        transform: translateX(calc((var(--fold-segment-start-width) - 100vw) / 2 + 8px));
+    }
+
+    .fold-game-hand {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .fold-game-hand-grid {
+        grid-template-columns: repeat(4, 72px) !important;
+        width: 306px !important;
+    }
+
+    .fold-game-header-label { display: none !important; }
+    .fold-game-board .fold-control-strip { display: flex !important; }
+    .fold-game-table {
+        --seat-w: 92px !important;
+        --seat-x: max(93px, min(calc(0.42 * var(--box-h)), 160px)) !important;
+        --seat-clear-x: 93px !important;
+    }
+
+    [data-scope="dialog"][data-part="positioner"] {
+        width: var(--fold-segment-start-width);
+        right: auto;
+    }
+
+    [data-scope="dialog"][data-part="content"] {
+        max-width: calc(var(--fold-segment-start-width) - 2rem) !important;
+    }
+}
+
+:root[data-fold-orientation="vertical"] .fold-center-action {
+    left: calc((100% - var(--fold-width)) / 4) !important;
+}
+
+@media (horizontal-viewport-segments: 2) {
+    .fold-center-action {
+        left: calc((100% - var(--fold-width)) / 4) !important;
+    }
+}
+
+@media (vertical-viewport-segments: 2) {
+    :root {
+        --fold-left: env(viewport-segment-left 0 1);
+        --fold-top: env(viewport-segment-top 0 1);
+        --fold-width: env(viewport-segment-width 0 0);
+        --fold-height: calc(env(viewport-segment-top 0 1) - env(viewport-segment-bottom 0 0));
+        --fold-segment-start-height: env(viewport-segment-height 0 0);
+        --fold-segment-end-top: env(viewport-segment-top 0 1);
+    }
+
+    [data-scope="dialog"][data-part="positioner"] {
+        height: var(--fold-segment-start-height);
+        bottom: auto;
+    }
+
+    [data-scope="dialog"][data-part="content"] {
+        max-height: calc(var(--fold-segment-start-height) - 2rem) !important;
+        overflow-y: auto;
+    }
+}
+
+@container app-page (min-width: 42rem) {
+    .responsive-card-grid,
+    .responsive-room-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@container app-page (min-width: 68rem) {
+    .responsive-card-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}

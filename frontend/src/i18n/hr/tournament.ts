@@ -223,6 +223,8 @@ export const tournament = {
     "pairs.emptyTitle": "Još nema parova",
     "pairs.emptyDescription": "Dodaj prvi par klikom na \"Dodaj par\" iznad.",
     "pairs.emptyDescriptionReadonly": "Organizator još nije prijavio nijedan par.",
+    "pairs.finishedEmptyTitle": "Turnir nije odigran",
+    "pairs.finishedEmptyDescription": "Turnir je završen bez odigranih mečeva.",
     /* Master/detail: the list column, and the panel beside it. */
     "pairs.noName": "Bez imena",
     "pairs.backToList": "Natrag na popis parova",
@@ -314,6 +316,8 @@ export const tournament = {
     "bracket.notStartedTitle": "Turnir još nije započeo",
     "bracket.notStartedOwner": "Klikni \"Startaj turnir\" iznad kad su svi parovi spremni.",
     "bracket.notStartedViewer": "Organizator još nije pokrenuo turnir. Provjeri kasnije.",
+    "bracket.finishedWithoutPlayTitle": "Turnir nije odigran",
+    "bracket.finishedWithoutPlayDescription": "Turnir je završen bez odigranih mečeva.",
     "bracket.noRoundsTitle": "Još nema rundi",
     "bracket.noRoundsOwnerStarted": "Klikni \"Generiraj prvu rundu\" da započneš ždrijeb.",
     "bracket.noRoundsOwnerDraft": "Prvo startaj turnir kad su svi parovi spremni.",
@@ -636,6 +640,16 @@ export const tournament = {
     "blokLinks.logbook": "Zapisnik",
     "blokLinks.logbookTitle":
         "Otvori zapisnik povezanog bloka — javna poveznica, otvara se u novoj kartici",
+
+    /* ═══════════════════════════════════════════════════════════════════
+       PRIJAVA SADRŽAJA — ulazi sa stranice turnira
+       ═══════════════════════════════════════════════════════════════════
+       Samo dva natpisa: stavka izbornika u zaglavlju turnira i gumb u panelu
+       para. Sam dijalog (razlozi, poruka, poruke o greškama) je u `profile`
+       rječniku — ista se komponenta otvara i s profila igrača, pa njezin
+       tekst ne smije biti razdvojen na dva mjesta. */
+    "report.tournamentItem": "Prijavi turnir",
+    "report.pairItem": "Prijavi par",
 }
 
 /** Contract every other locale's `tournament` namespace must satisfy. */

@@ -18,9 +18,12 @@ type Section = {
 
 const SECTIONS: Section[] = [
     { headingKey: "service", bodyKeys: ["body"] },
-    { headingKey: "accounts", bodyKeys: ["body1", "body2"] },
-    { headingKey: "organiserContent", bodyKeys: ["body1", "body2"] },
+    { headingKey: "accounts", bodyKeys: ["body1", "body2", "body3"] },
+    { headingKey: "organiserContent", bodyKeys: ["body1", "body2", "body3"] },
     { headingKey: "prohibitedConduct", bodyKeys: ["body"] },
+    { headingKey: "reportsAndBlocking", bodyKeys: ["body"] },
+    { headingKey: "onlineGame", bodyKeys: ["body1", "body2"] },
+    { headingKey: "payments", bodyKeys: ["body"] },
     { headingKey: "ip", bodyKeys: ["body"] },
     { headingKey: "liability", bodyKeys: ["body"] },
     { headingKey: "termination", bodyKeys: ["body"] },

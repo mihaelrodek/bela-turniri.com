@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+    <changeSet id="20260917-game-analytics-events" author="codex">
+        <createTable tableName="game_analytics_events">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="event_id" type="varchar(80)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="run_id" type="varchar(36)"/>
+            <column name="event_type" type="varchar(24)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="occurred_at" type="timestamp with time zone">
+                <constraints nullable="false"/>
+            </column>
+            <column name="payload" type="text">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="game_analytics_events"
+                             columnNames="run_id,event_type"
+                             constraintName="uq_game_analytics_run_type"/>
+        <createIndex tableName="game_analytics_events" indexName="idx_game_analytics_type_time">
+            <column name="event_type"/>
+            <column name="occurred_at"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

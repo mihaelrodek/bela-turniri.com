@@ -416,7 +416,10 @@ export default function TournamentDetailsPage() {
         () => pairs.filter((p) => !!p.paid && !p.pendingApproval).length,
         [pairs],
     )
-    const canStart = canEditTournament && paidApprovedCount >= 2
+    const canStart =
+        canEditTournament &&
+        t?.status !== "FINISHED" &&
+        paidApprovedCount >= 2
 
     /* "The tournament is under way" — pair editing is locked. STARTED is
        checked explicitly: a tournament can be started before the first round
@@ -488,7 +491,6 @@ export default function TournamentDetailsPage() {
         onEdit: startDetailsEdit,
         onDelete: () => setDeleteTournamentOpen(true),
         onOpenQr: () => setQrOpen(true),
-        onBackToList: () => navigate("/turniri"),
     }
 
     return (
@@ -669,7 +671,10 @@ export default function TournamentDetailsPage() {
                         <Box data-tour="detail-content-cjenik">
                             <CjenikTab
                                 tournamentRef={t.uuid ?? t.slug ?? ""}
-                                canEdit={canEditTournament || waiterCanEditCjenik}
+                                canEdit={
+                                    t.status !== "FINISHED" &&
+                                    (canEditTournament || waiterCanEditCjenik)
+                                }
                                 // Only set for the "gazda konobara" branch — the
                                 // organiser's own bearer already authorises them,
                                 // and sending a stray waiter header alongside it
@@ -677,7 +682,7 @@ export default function TournamentDetailsPage() {
                                 // a waiter: those key a per-USER template, and a
                                 // waiter has no account to key one to.
                                 waiterToken={!canEditTournament && waiterCanEditCjenik ? waiterToken : null}
-                                canUseTemplates={canEditTournament}
+                                canUseTemplates={canEditTournament && t.status !== "FINISHED"}
                             />
                         </Box>
                     ) : tab === "racuni" ? (

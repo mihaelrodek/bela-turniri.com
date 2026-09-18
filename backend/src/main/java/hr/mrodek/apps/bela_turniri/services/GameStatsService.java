@@ -41,6 +41,7 @@ public class GameStatsService {
     @Inject GameResultRepository resultRepo;
     @Inject GameResultPlayerRepository playerRepo;
     @Inject EntityManager em;
+    @Inject GameReliabilityService gameReliability;
 
     /**
      * Record one finished game.
@@ -87,6 +88,9 @@ public class GameStatsService {
             // from each other, so they can never disagree later.
             row.setWon(winnerTeam.equals(p.team()));
             playerRepo.persist(row);
+            if (!Boolean.TRUE.equals(p.isBot()) && !Boolean.TRUE.equals(p.isGuest())) {
+                gameReliability.recordCompleted(p.uid());
+            }
         }
         return true;
     }

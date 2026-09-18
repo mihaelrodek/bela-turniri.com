@@ -17,4 +17,6 @@ export const whatsNew = {
     "dialog.badge": "NOVOSTI",
     "dialog.closeAria": "Zatvori",
     "dialog.closeCta": "Zatvori",
+    "dialog.older.show": "Prikaži starije obavijesti",
+    "dialog.older.hide": "Sakrij starije obavijesti",
 }

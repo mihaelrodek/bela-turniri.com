@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      App Store guideline 1.2 (user-generated content): an app that carries
+      content other people wrote needs a way to REPORT that content and a way
+      to BLOCK the person who wrote it. Two tables, because they are two
+      different things — a report is a message to the operator, a block is a
+      setting that changes what the reporter sees.
+
+      ── content_reports ────────────────────────────────────────────────────
+      A queue, not a relationship. `target_type` + `target_id` is a polymorphic
+      pointer at one of three things: a tournament (by uuid), a pair (by id) or
+      a profile (by uid). Deliberately NOT three FK columns:
+
+        * the target of a report may be DELETED while the report is still open
+          — a dangling FK would either block the delete or cascade the report
+          away, and the report is the one row that has to survive to show the
+          operator what happened;
+        * the three ids have three different types (uuid / bigint / varchar),
+          so one nullable FK per type is three mostly-null columns and a check
+          constraint to keep them exclusive.
+
+      `target_id` is varchar(64): a uuid is 36, a Firebase uid 28, a pair id a
+      handful of digits. The service resolves it back to a real row (and 404s
+      when it cannot) before the insert, so the column only ever holds a
+      pointer that was valid at report time.
+
+      `resolved_at` / `resolution` / `admin_note` are the triage half and are
+      null until an admin acts. Resolution is 'DISMISSED' or 'ACTIONED' — the
+      minimum that lets the operator answer "what did you do about it".
+
+      The index is on (resolved_at, created_at), which is the admin inbox's
+      only query shape: open reports first, newest first. Postgres reads that
+      index backwards for the `resolved_at is null order by created_at desc`
+      page as happily as forwards for the resolved one.
+
+      ── user_blocks ───────────────────────────────────────────────────────
+      A pure edge table: (blocker, blocked) IS the primary key, which makes
+      "block again" a no-op instead of a duplicate row and gives the effect
+      queries their index for free. No FKs, for the same reason nothing else
+      in this schema has one on a uid: Firebase UIDs are plain strings here.
+
+      The reverse index exists because the block is enforced in BOTH
+      directions on the profile page — a blocked user must not be able to read
+      the blocker's profile either, which is a lookup by `blocked_uid`.
+
+      tableExists / MARK_RAN, like the rest of this directory.
+    -->
+
+    <changeSet id="2026-09-13-content-reports" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="content_reports"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="content_reports">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"
+                             primaryKeyName="pk_content_reports"/>
+            </column>
+
+            <column name="reporter_uid" type="varchar(128)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- 'TOURNAMENT' | 'PAIR' | 'PROFILE' -->
+            <column name="target_type" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- tournament uuid / pair id / profile uid -->
+            <column name="target_id" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- 'SPAM' | 'OFFENSIVE' | 'PERSONAL_DATA' | 'OTHER' -->
+            <column name="reason" type="varchar(32)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Free text from the reporter, capped at 1000 chars by the DTO. -->
+            <column name="message" type="text"/>
+
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="resolved_at" type="timestamptz"/>
+
+            <!-- 'DISMISSED' | 'ACTIONED', null while open -->
+            <column name="resolution" type="varchar(16)"/>
+
+            <column name="admin_note" type="text"/>
+        </createTable>
+
+        <!-- The admin inbox: open first, newest first. -->
+        <createIndex tableName="content_reports" indexName="idx_content_reports_status_created">
+            <column name="resolved_at"/>
+            <column name="created_at"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="content_reports"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="2026-09-13-user-blocks" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="user_blocks"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="user_blocks">
+            <column name="blocker_uid" type="varchar(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="blocked_uid" type="varchar(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="user_blocks"
+                       columnNames="blocker_uid, blocked_uid"
+                       constraintName="pk_user_blocks"/>
+
+        <!-- "who blocked me" — the reverse half of the profile 404. -->
+        <createIndex tableName="user_blocks" indexName="idx_user_blocks_blocked_uid">
+            <column name="blocked_uid"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="user_blocks"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

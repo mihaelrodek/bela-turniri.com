@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    N5.3 "Nadolazeći turniri" widget provider info.
+
+    updatePeriodMillis is deliberately 0: the OS's own minimum period (30 min)
+    would otherwise call AppWidgetProvider.onUpdate on the main thread on a
+    schedule we don't control. Refreshing is entirely owned by
+    TournamentsWidgetWorker (WorkManager, ~1h, NetworkType.CONNECTED),
+    scheduled from onUpdate/onEnabled — see UpcomingTournamentsWidgetProvider.kt.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="110dp"
+    tools:targetApi="31"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_upcoming_tournaments"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:previewImage="@mipmap/ic_launcher"
+    android:description="@string/widget_description" />

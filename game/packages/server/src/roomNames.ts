@@ -32,6 +32,20 @@ const NOUNS: readonly string[] = [
     "toranj", "most", "mlin", "vinograd", "voćnjak", "livada", "gaj",
 ] as const
 
+const FEMININE_NOUNS = new Set([
+    "vrana", "lisica", "sova", "roda", "patka", "lipa", "livada",
+])
+
+function agree(adjective: string, noun: string): string {
+    if (!FEMININE_NOUNS.has(noun)) return adjective
+    const irregular: Record<string, string> = { sladak: "slatka", novi: "nova" }
+    if (irregular[adjective]) return irregular[adjective]
+    if (adjective.endsWith("it")) return `${adjective}a`
+    if (adjective.endsWith("i")) return `${adjective.slice(0, -1)}a`
+    if (adjective.endsWith("k")) return `${adjective}a`
+    return `${adjective}a`
+}
+
 function pick<T>(list: readonly T[]): T {
     const item = list[Math.floor(Math.random() * list.length)]
     // Lists above are non-empty constants; this is unreachable but keeps TS happy.
@@ -41,5 +55,7 @@ function pick<T>(list: readonly T[]): T {
 
 /** `adjective-noun`, e.g. "medeni-fakultet". Always matches `/^[a-z]+-[a-z]+$/`. */
 export function randomRoomName(): string {
-    return `${pick(ADJECTIVES)}-${pick(NOUNS)}`
+    const adjective = pick(ADJECTIVES)
+    const noun = pick(NOUNS)
+    return `${agree(adjective, noun)}-${noun}`
 }

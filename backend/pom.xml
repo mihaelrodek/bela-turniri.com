@@ -131,6 +131,17 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Nightly cron jobs. One job today: ContactMessageRetentionJob,
+             which enforces the contact-form retention window the privacy
+             policy promises (IP dropped after 30 days, row after 12 months).
+             `quarkus.scheduler.enabled=false` in the %test profile keeps it
+             from firing during tests — the test drives the two queries
+             directly instead. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-scheduler</artifactId>
+        </dependency>
+
         <!-- Docs & health -->
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -194,7 +205,7 @@
         <dependency>
             <groupId>com.google.firebase</groupId>
             <artifactId>firebase-admin</artifactId>
-            <version>9.4.3</version>
+            <version>9.10.0</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.google.cloud</groupId>

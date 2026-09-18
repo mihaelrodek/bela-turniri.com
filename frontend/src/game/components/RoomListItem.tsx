@@ -2,6 +2,7 @@ import { Badge, Box, HStack, Text, VStack } from "@chakra-ui/react"
 import { FiChevronRight, FiEye, FiLock } from "react-icons/fi"
 import type { RoomOccupant, RoomSummary } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
+import { botAvatarPreset } from "../util/botAvatar"
 import PlayerAvatar from "./PlayerAvatar"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -10,7 +11,8 @@ import PlayerAvatar from "./PlayerAvatar"
    The row used to render four anonymous circles, because `RoomSummary` only
    carried counts: you could not tell a table of friends from a table of bots,
    and clicking a full one failed only after the join went out. It now carries
-   `occupants` (display names, bots marked as bots — no uids, README §3) and
+   `occupants` (public names and preset faces, bots marked as bots — no uids,
+   README §3) and
    `joinable`, the SERVER's own answer to "could a newcomer enter?". A row that
    is not joinable is refused here, with the same reason the server would give.
 
@@ -44,7 +46,14 @@ function Occupant({ occupant, emptyLabel }: { occupant: RoomOccupant; emptyLabel
                and the felt give them, so a table of bots reads as one. */
             opacity={occupant?.kind === "BOT" ? 0.6 : 1}
         >
-            <PlayerAvatar size="sm" empty={!occupant} name={occupant?.name} />
+            <PlayerAvatar
+                size="sm"
+                empty={!occupant}
+                name={occupant?.name}
+                avatarPreset={occupant?.kind === "BOT"
+                    ? occupant.avatarPreset ?? botAvatarPreset(occupant.name)
+                    : occupant?.avatarPreset}
+            />
         </Box>
     )
 }
@@ -74,6 +83,7 @@ export default function RoomListItem({
        OWN room stays open to us whatever it says. */
     const full = !room.joinable && !mine
     const blocked = disabled || full
+    const playing = room.status === "PLAYING"
     const names = room.occupants.map((o) => o?.name ?? t("game.lobby.emptySeat")).join(", ")
 
     return (
@@ -88,13 +98,17 @@ export default function RoomListItem({
             textAlign="left"
             rounded="xl"
             borderWidth="1px"
-            borderColor={mine ? "brand.400" : "border.subtle"}
+            borderColor={playing ? "orange.400/60" : mine ? "brand.400" : "border.subtle"}
             bg="bg"
             p="2.5"
             minH="44px"
             cursor={blocked ? "not-allowed" : "pointer"}
             transition="background-color 0.15s ease, border-color 0.15s ease"
-            _hover={blocked ? undefined : { borderColor: "brand.400", boxShadow: "md", transform: "translateY(-2px)" }}
+            _hover={blocked ? undefined : {
+                borderColor: playing ? "orange.400" : "brand.400",
+                boxShadow: "md",
+                transform: "translateY(-2px)",
+            }}
             aria-label={t("game.lobby.enterAria", { name: room.name })}
             title={disabled ? t("game.lobby.blockedRoom") : full ? t("game.lobby.fullBlocked") : undefined}
         >
@@ -125,6 +139,11 @@ export default function RoomListItem({
                             <Badge size="sm" variant="subtle" colorPalette="brand">
                                 {room.targetScore}
                             </Badge>
+                            {room.minWinRatePercent > 0 && (
+                                <Badge size="sm" variant="subtle" colorPalette="orange">
+                                    {t("game.room.minWinRateShort", { percent: room.minWinRatePercent })}
+                                </Badge>
+                            )}
                         </HStack>
                     </HStack>
                     {/* Who is in there, in seat order — four faces, no text.

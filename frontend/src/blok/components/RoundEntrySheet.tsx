@@ -94,9 +94,8 @@ import Keypad from "./Keypad"
    buttons can close the drawer underneath.
    ────────────────────────────────────────────────────────────────────── */
 
-/** 52 px — the keypad's 56 px is the floor for the most-used control; the
- *  ones you touch a few times a deal sit one step under it. */
-const CONTROL_H = "52px"
+/** The drawer defines a smaller value on shorter phone screens. */
+const CONTROL_H = "var(--blok-entry-control-h, 52px)"
 
 function sum(values: number[]): number {
     return values.reduce((total, value) => total + value, 0)
@@ -159,6 +158,14 @@ export default function RoundEntrySheet({
                         maxW={{ base: "100%", md: "520px" }}
                         mx="auto"
                         roundedTop={{ base: "0", md: "l3" }}
+                        css={{
+                            "--blok-entry-control-h": "52px",
+                            "--blok-entry-section-gap": "16px",
+                            "@media (max-height: 900px)": {
+                                "--blok-entry-control-h": "46px",
+                                "--blok-entry-section-gap": "8px",
+                            },
+                        }}
                     >
                         <EntryForm
                             caller={caller}
@@ -567,7 +574,7 @@ function EntryForm({
             </HStack>
 
             <Drawer.Body px="4" py="2">
-                <VStack align="stretch" gap="4">
+                <VStack align="stretch" gap="var(--blok-entry-section-gap, 16px)">
                     <DeclarationChips
                         added={declarations[active]}
                         // Both sides: the per-deal caps are about the deck, not

@@ -26,6 +26,12 @@ export type AuthValue = {
     signUp: (email: string, password: string, displayName?: string) => Promise<void>
     /** Google OAuth sign-in (popup on desktop; SDK handles redirect fallback). */
     signInWithGoogle: () => Promise<void>
+    /**
+     * Sign in with Apple. Mandatory on iOS (App Store guideline 4.8: an app
+     * offering a third-party social login must also offer Apple's), and
+     * offered on the web too so the same account works in both places.
+     */
+    signInWithApple: () => Promise<void>
     /** Sign out the current user. */
     signOut: () => Promise<void>
 }

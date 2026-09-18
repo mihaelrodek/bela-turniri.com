@@ -213,7 +213,7 @@ describe("seat hold on an explicit leave", () => {
         await until(() => room.slotAt(0)?.kind === "BOT", 3000)
         expect(room.holdFor("dev:igrac")).toBeNull()
         const slot = room.slotAt(0)
-        if (slot?.kind === "BOT") expect(slot.name).toBe("Bot Ivo")
+        if (slot?.kind === "BOT") expect(slot.name).toMatch(/^Bot [A-Z][a-z]+$/)
     })
 
     it("restores the seat and the game state when the same uid rejoins in time", async () => {

@@ -29,8 +29,8 @@ export default function GameOption({ label, shortLabel, hint, checked, disabled,
     const { t } = useTranslation()
     return (
         <HStack
-            gap={compact ? "2" : "4"} w="full" minH="44px" alignItems="center" justifyContent="space-between"
-            px={compact ? "2.5" : "3"} py={compact ? "2" : "2.5"} rounded="lg"
+            gap={compact ? "2" : "4"} w="full" minH={compact ? "40px" : "44px"} alignItems="center" justifyContent="space-between"
+            px={compact ? "2" : "3"} py={compact ? "1" : "2.5"} rounded="lg"
             bg="bg.subtle" borderWidth="1px" borderColor="border.subtle"
             opacity={disabled ? 0.6 : 1}
         >

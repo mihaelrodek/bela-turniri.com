@@ -19,6 +19,7 @@ import {
     FiChevronDown,
     FiChevronRight,
     FiDollarSign,
+    FiFlag,
     FiHeart,
     FiInfo,
     FiPhone,
@@ -33,7 +34,9 @@ import { FaMedal, FaTrophy } from "react-icons/fa"
 
 import type { PairShort } from "../types/pairs"
 import type { PairRequest } from "../api/pairRequests"
+import { useAuth } from "../auth/authContextValue"
 import EmptyState from "./EmptyState"
+import ReportDialog from "./ReportDialog"
 import { CONTENT_STICKY_TOP, NAVBAR_H } from "./navChrome"
 import { usePlural, useTranslation } from "../i18n"
 
@@ -508,11 +511,17 @@ export default function PairsSection(props: PairsSectionProps) {
             >
                 <EmptyState
                     icon={FiUser}
-                    title={tr("tournament.pairs.emptyTitle")}
+                    title={tr(
+                        finished
+                            ? "tournament.pairs.finishedEmptyTitle"
+                            : "tournament.pairs.emptyTitle",
+                    )}
                     description={
-                        canEdit
-                            ? tr("tournament.pairs.emptyDescription")
-                            : tr("tournament.pairs.emptyDescriptionReadonly")
+                        finished
+                            ? tr("tournament.pairs.finishedEmptyDescription")
+                            : canEdit
+                                ? tr("tournament.pairs.emptyDescription")
+                                : tr("tournament.pairs.emptyDescriptionReadonly")
                     }
                 />
             </Box>
@@ -851,6 +860,7 @@ export default function PairsSection(props: PairsSectionProps) {
             {/* lg+: list beside panel, each pinned under the navbar so a long
                 roster scrolls without dragging the panel off screen. */}
             <Box
+                className={pairs.length === 0 ? undefined : "fold-master-detail"}
                 display={pairs.length === 0 ? "none" : { base: "none", lg: "grid" }}
                 gridTemplateColumns="minmax(0, 1fr) minmax(0, 1.15fr)"
                 gap="4"
@@ -881,7 +891,10 @@ export default function PairsSection(props: PairsSectionProps) {
             </Box>
 
             {/* Below lg: push-to-detail — one column, never both. */}
-            <Box display={pairs.length === 0 ? "none" : { base: "block", lg: "none" }}>
+            <Box
+                className={pairs.length === 0 ? undefined : "fold-master-detail-single"}
+                display={pairs.length === 0 ? "none" : { base: "block", lg: "none" }}
+            >
                 {selectedPair ? detailPane : listPane}
             </Box>
         </VStack>
@@ -931,6 +944,14 @@ function PairDetailPanel({
     onDeletePair: () => void
 }) {
     const { t: tr } = useTranslation()
+    /* The one thing in this file that is NOT a prop. A content report is not
+       tournament state: it changes nothing the page renders, nothing is
+       queued offline, and the page owns no piece of it — routing it through
+       props would mean a prop, a state field and a dialog on a page that
+       would never read any of them. Hidden from anonymous readers, same rule
+       as the tournament and profile entry points. */
+    const { user } = useAuth()
+    const [reportOpen, setReportOpen] = useState(false)
 
     const hasServerId = typeof pair.id === "number" && pair.id > 0
     const isPending = !!pair.pendingApproval
@@ -1147,8 +1168,29 @@ function PairDetailPanel({
                         )}
                         </>
                     )}
+                    {/* A pair with no server id yet exists only in this
+                        browser, so there is nothing for a report to point at. */}
+                    {!!user && hasServerId && (
+                        <Button
+                            size="xs"
+                            variant="ghost"
+                            colorPalette="red"
+                            onClick={() => setReportOpen(true)}
+                            title={tr("tournament.report.pairItem")}
+                        >
+                            <FiFlag /> {tr("tournament.report.pairItem")}
+                        </Button>
+                    )}
                 </HStack>
             </VStack>
+
+            <ReportDialog
+                targetType="PAIR"
+                targetId={String(pair.id)}
+                targetLabel={pair.name?.trim() || tr("tournament.pairs.noName")}
+                open={reportOpen}
+                onClose={() => setReportOpen(false)}
+            />
         </Box>
     )
 }

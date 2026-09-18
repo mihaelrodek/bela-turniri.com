@@ -1,45 +1,46 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState } from "react"
 import { CHAT_ENABLED } from "../chatEnabled"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { Box, Button, Flex, HStack, IconButton, Spinner, Text } from "@chakra-ui/react"
-import { FiArrowLeft, FiSettings } from "react-icons/fi"
+import { Box, Button, Flex, HStack, Spinner, Text, useBreakpointValue } from "@chakra-ui/react"
+import { FiArrowLeft } from "react-icons/fi"
 import type { Card, RoomState, Seat, Suit } from "@bela/protocol"
 import { trickWinner } from "@bela/engine"
 import type { Team, TrickCard } from "@bela/engine"
 import { CONTENT_STICKY_TOP, NAVBAR_SAFE_TOP } from "../../components/navChrome"
-import ConfirmDialog from "../../components/ConfirmDialog"
 import { useDocumentHead } from "../../hooks/useDocumentHead"
 import { useTranslation } from "../../i18n"
-import { showError } from "../../toaster"
+import { showError, toaster } from "../../toaster"
 import BelaPrompt from "../components/BelaPrompt"
-import BiddingPanel from "../components/BiddingPanel"
+import BiddingPanel, { ROW_H } from "../components/BiddingPanel"
 import Chat, { ChatToggle } from "../components/Chat"
 import DealSummary from "../components/DealSummary"
-import DeclarationsReveal, { BelaFlash } from "../components/DeclarationsReveal"
+import DeclarationsReveal, { BelaFlash, BelotFlash } from "../components/DeclarationsReveal"
 import GameOverDialog from "../components/GameOverDialog"
 import GameSettingsSheet from "../components/GameSettingsSheet"
 import Hand from "../components/Hand"
 import JoinByCodeDialog from "../components/JoinByCodeDialog"
-import MySeatBar from "../components/MySeatBar"
 import ReactionsBar from "../components/ReactionsBar"
 import ReconnectBanner from "../components/ReconnectBanner"
 import RoomPanel from "../components/RoomPanel"
 import ScoreBoard from "../components/ScoreBoard"
-import type { SeatBid } from "../components/Seat"
-import SuitGlyph from "../components/SuitGlyph"
+import { SeatAvatar, type SeatBid } from "../components/Seat"
 import Table from "../components/Table"
+import TableHeader, { StatusChip, TableActions } from "../components/TableHeader"
 import TrickHistory from "../components/TrickHistory"
 import { COLLECT_MS } from "../components/TrickArea"
-import { type TurnTone } from "../components/TurnPill"
+import TurnPill, { type TurnTone } from "../components/TurnPill"
 import { useReactionBubbles } from "../components/reactionBubbles"
-import { FELT, GLASS, INK, INK_MUTED, SHORT } from "../components/tableStyles"
+import { PLAY_AREA, GLASS, INK, INK_MUTED, SHORT } from "../components/tableStyles"
 import { useEventQueue } from "../hooks/useEventQueue"
 import { useGamePrefs } from "../hooks/useGamePrefs"
 import { useGameSocket } from "../hooks/useGameSocket"
+import { useLiveActivity } from "../hooks/useLiveActivity"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
-import { cardRank, cardSuit, makeCard, suitKey } from "../util/cards"
-import { teamOf } from "../util/seats"
-import { playSound } from "../util/sounds"
+import { useTurnCountdown } from "../hooks/useTurnCountdown"
+import { cardRank, cardSuit, makeCard } from "../util/cards"
+import { occupantName, teamOf } from "../util/seats"
+import { playHaptic } from "../util/haptics"
+import { playSound, primeAudio } from "../util/sounds"
 
 /* ──────────────────────────────────────────────────────────────────────────
    GameRoomPage (/igra/soba/:roomId) — the room, and then the table.
@@ -48,10 +49,13 @@ import { playSound } from "../util/sounds"
    the same place, and bouncing the player to another route when the host
    presses Start would drop the socket mid-deal.
 
-   LAYOUT (game/DESIGN.md §2.2, §2.11). ONE centred column of at most 720 px
-   on every screen, desktop included — a bela table is a table, not a
-   dashboard, and four seats scattered into the corners of a 27" monitor is
-   nobody's idea of a card game. The column is exactly `100dvh - chrome`
+   LAYOUT (game/DESIGN.md §2.2, §2.11, §6). ONE centred column on every
+   screen, desktop included — a bela table is a table, not a dashboard, and
+   four seats scattered into the corners of a 27" monitor is nobody's idea of
+   a card game. It steps 760 / 840 / 900 px with the breakpoints rather than
+   sitting at one width: a tablet and a laptop can hold a bigger table
+   comfortably, and past ~900 px the seats stop being one glance apart, so it
+   stops growing. The column is exactly `100dvh - chrome`
    tall, the Container's own bottom padding cancelled by `mb="-24px"`, and
    NOTHING inside it scrolls. MobileTabBar and SiteFooter both hide on /igra
    (see their route lists), so nothing else is below us to account for.
@@ -62,12 +66,8 @@ import { playSound } from "../util/sounds"
    is centred in it), never inside it — spreading four seats to the corners of
    a 900 px screen is what made the old layout read as mostly empty green.
 
-   Two surfaces, not one. The COLUMN is the room: `FELT`, dark in both themes,
-   with the scoreboard and the hand tray as dark glass panels on it. The
-   TABLE is an oval of lighter felt inside it (`TableSurface`), with the four
-   seats overlapping its rim and the trick landing on its centre. Before, the
-   column was the only surface there was, so the seats floated in a void and
-   the trick landed in the middle of nothing.
+   Transparent play area over the application background. Neutral panels
+   group scores and controls; player positions and card slots stay stable.
 
    The screen renders from TWO sources: `PlayerView` for everything that is
    simply true right now, and the event queue for the things that have to be
@@ -79,7 +79,12 @@ import { playSound } from "../util/sounds"
 /** Cards stay on the table this long before sliding to the winner. Counted
  *  from the moment TRICK_WON becomes the active event, i.e. AFTER the fourth
  *  card has had its own CARD_PLAYED dwell to land in. */
-const TRICK_HOLD_MS = 700
+const TRICK_HOLD_MS = 950
+
+/** The turn-clock haptic fires when this fraction of the turn is left — the
+ *  same point `useTurnCountdown` flips `urgent` and the seat ring turns red,
+ *  so the buzz and the visual warning arrive together. */
+const TURN_WARNING_FRACTION = 0.25
 
 /** Nothing on the felt, and a stable identity so the sync effect below does
  *  not fire on every render while the player has no view yet. */
@@ -115,11 +120,72 @@ export default function GameRoomPage() {
     const busy = pending > 0 || socket.declarationsPending || socket.status !== "open"
     const idle = active === null && pending === 0
 
+    // Lock-screen game state on the native apps; a no-op on the web.
+    useLiveActivity({
+        room,
+        view,
+        yourSeat: socket.yourSeat,
+        turnDeadline: socket.turnDeadline,
+        send: socket.send,
+    })
+
     const [chatOpen, setChatOpen] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
-    const [exitOpen, setExitOpen] = useState(false)
     const [accessCodeOpen, setAccessCodeOpen] = useState(false)
     const joinedOnce = useRef(false)
+
+    // Browsers block audio created outside a user gesture. Unlock Web Audio
+    // on the first tap or keypress at the table, so the next card/event can
+    // be heard without making a sound just for entering the room.
+    useEffect(() => {
+        const unlock = () => primeAudio()
+        window.addEventListener("pointerdown", unlock, { once: true, passive: true })
+        window.addEventListener("keydown", unlock, { once: true })
+        return () => {
+            window.removeEventListener("pointerdown", unlock)
+            window.removeEventListener("keydown", unlock)
+        }
+    }, [])
+
+    /* The engine completes the hand in the same state update that settles
+       trump. The event queue intentionally presents those as separate human
+       moments, so retain the actual six-card hand from bidding plus two backs
+       until HAND_COMPLETED itself reaches the front of that queue. Slicing
+       the new eight-card, already-sorted hand here would temporarily replace
+       cards before the talon was revealed. On a reconnect there is no event
+       backlog to replay; an idle, already-playing view is therefore hydrated
+       immediately. */
+    const [talonRevealedDeal, setTalonRevealedDeal] = useState<number | null>(() =>
+        view && view.phase !== "BIDDING" ? view.dealNo : null,
+    )
+    const hydrateTalonAfterConnect = useRef(socket.status !== "open")
+    const observedDeal = useRef<number | null>(view?.dealNo ?? null)
+    const biddingHand = useRef<{ dealNo: number; cards: Card[] } | null>(null)
+    if (view?.phase === "BIDDING" && view.hand.length === 6 && biddingHand.current?.dealNo !== view.dealNo) {
+        biddingHand.current = { dealNo: view.dealNo, cards: view.hand.slice() }
+    }
+    useEffect(() => {
+        if (socket.status !== "open") {
+            hydrateTalonAfterConnect.current = true
+            return
+        }
+        if (!view) return
+        const firstViewForDeal = observedDeal.current !== view.dealNo
+        observedDeal.current = view.dealNo
+        if (view.phase === "BIDDING") {
+            setTalonRevealedDeal(null)
+            hydrateTalonAfterConnect.current = false
+            return
+        }
+        if (
+            active?.type === "HAND_COMPLETED"
+            || hydrateTalonAfterConnect.current
+            || (firstViewForDeal && active === null)
+        ) {
+            setTalonRevealedDeal(view.dealNo)
+            hydrateTalonAfterConnect.current = false
+        }
+    }, [view, active, socket.status])
 
     /* When another player's exit dissolves the room, the server sends every
        remaining member `room.left`. Do not strand them on a permanent
@@ -156,7 +222,7 @@ export default function GameRoomPage() {
     const trickWon = active !== null && active.type === "TRICK_WON" ? active : null
     const revealed = active !== null && active.type === "DECLARATIONS_REVEALED" ? active : null
     const bela = active !== null && active.type === "BELA" ? active : null
-    const trumpSet = active !== null && active.type === "TRUMP_SET" ? active : null
+    const belot = active !== null && active.type === "BELOT" ? active : null
 
     /* ── the trick, as the QUEUE has released it ──────────────────────────
        `view.trick` is the truth but it is not a sequence: the server can put
@@ -215,18 +281,6 @@ export default function GameRoomPage() {
         ? trickWinner(trickCards, trumpSuit)
         : null
 
-    /* The seed for the trick's scatter (`cardScatter`). It may only change
-       while the felt is EMPTY: the view increments `tricksWon` in the same
-       frame the fourth card is played, so seeding straight off the running
-       count made the three cards already lying there jump to new angles the
-       instant the last one landed. */
-    const tricksPlayed = view ? view.tricksWon.A + view.tricksWon.B : 0
-    const [trickIndex, setTrickIndex] = useState(0)
-    useEffect(() => {
-        if (trickCards.length !== 0) return
-        setTrickIndex(tricksPlayed)
-    }, [trickCards.length, tricksPlayed])
-
     /* ── hydration: the felt after a (re)join ─────────────────────────────
        Cards played before this client was listening exist ONLY in the view.
        `game.state` carries the whole `trick` (the server's `sendStateTo`
@@ -234,9 +288,7 @@ export default function GameRoomPage() {
        never repeats a `CARD_PLAYED`, so nothing would ever hand those cards
        to the queue. Seed it straight from the view once per connected
        session — on mount, and again after every reconnect — instead of
-       waiting for the queue to fall idle. The scatter seed is taken from the
-       same view, or a trick joined in progress would be drawn with trick 0's
-       angles. */
+       waiting for the queue to fall idle. */
     const hydratedRef = useRef(false)
     useEffect(() => {
         if (socket.status !== "open") {
@@ -246,7 +298,6 @@ export default function GameRoomPage() {
         if (hydratedRef.current || !view) return
         hydratedRef.current = true
         setQueuedTrick(view.trick.cards as TrickCard[])
-        setTrickIndex(view.tricksWon.A + view.tricksWon.B)
     }, [socket.status, view])
 
     /* Which card is FLYING IN right now — the one the queue has just
@@ -265,7 +316,7 @@ export default function GameRoomPage() {
         // The felt is cleared when the SWEEP finishes, not when the event
         // does. Leaving the four cards in place for the tail of the dwell put
         // them back in the middle the moment `collectTo` went null again —
-        // four cards sailing home 400 ms after being won.
+        // four cards sailing home after being won.
         const done = setTimeout(() => {
             setQueuedTrick(NO_TRICK)
             setCollectTo(null)
@@ -352,13 +403,13 @@ export default function GameRoomPage() {
         if (room) setAccessCodeOpen(false)
     }, [room])
 
-    // ── sound ────────────────────────────────────────────────────────────
+    // ── sound + haptics ──────────────────────────────────────────────────
+
     // The two events the queue PACES are voiced when it releases them, so the
     // click lands with the card rather than with the frame that carried it.
     useEffect(() => {
         if (active === null) return
         if (active.type === "CARD_PLAYED") playSound("card")
-        else if (active.type === "TRICK_WON") playSound("trick")
     }, [active])
 
     // Everything else rides the raw event stream, which is the only place a
@@ -378,21 +429,39 @@ export default function GameRoomPage() {
             if (item.id <= soundCursor.current) continue
             soundCursor.current = item.id
             switch (item.event.type) {
-                case "DEALT": playSound("deal"); break
-                case "BELA": playSound("bela"); break
-                case "GAME_OVER": playSound(item.event.winner === myTeam ? "win" : "lose"); break
+                case "DEALT":
+                    if (item.event.dealNo === 1) playSound("gameStart")
+                    break
+                case "GAME_OVER":
+                    playSound(item.event.winner === myTeam ? "gameWon" : "gameLost")
+                    playHaptic("gameOver")
+                    break
                 default: break
             }
         }
-    }, [socket.events, myTeam])
+    }, [socket.events])
 
-    const wasMyTurn = useRef(false)
+    /* The turn clock entering its urgent quarter. Armed as one timeout per
+       turn, from the server's absolute deadline; a turn that is already
+       inside that quarter when we see it (a rejoin) stays quiet rather than
+       buzzing out of nowhere. */
+    const turnDeadline = socket.turnDeadline
+    // My own avatar's turn ring, now docked in the corner instead of next to
+    // the pill (DESIGN change 2026-09-18) — it still needs the live
+    // countdown MySeatBar used to compute for it.
+    const myCountdown = useTurnCountdown(turnDeadline, socket.turnDurationMs ?? 0)
+    // Bigger on web (2026-09-18, user request) — a phone's avatar has to
+    // stay small enough to leave room for the cards, a wide screen does not.
+    const myAvatarSize = useBreakpointValue<number>({ base: 34, md: 44 }) ?? 34
     const turn = view?.turn ?? null
+    const turnTimeoutMs = room?.turnTimeoutMs ?? 0
     useEffect(() => {
-        const mine = mySeat !== null && turn === mySeat
-        if (mine && !wasMyTurn.current) playSound("yourTurn")
-        wasMyTurn.current = mine
-    }, [turn, mySeat])
+        if (mySeat === null || turn !== mySeat || turnDeadline === null || turnTimeoutMs <= 0) return
+        const delay = turnDeadline - turnTimeoutMs * TURN_WARNING_FRACTION - Date.now()
+        if (delay <= 0) return
+        const id = setTimeout(() => playHaptic("turnWarning"), delay)
+        return () => clearTimeout(id)
+    }, [mySeat, turn, turnDeadline, turnTimeoutMs])
 
     // ── chat unread ──────────────────────────────────────────────────────
     useEffect(() => {
@@ -405,8 +474,10 @@ export default function GameRoomPage() {
     }, [socket.chat, chatOpen])
 
     const leave = () => {
-        setExitOpen(false)
-        socket.send({ t: "room.leave" })
+        // Clear sticky membership immediately as well as notifying the
+        // server. Sending the frame directly left a short window in which the
+        // lobby could try to rejoin a room that the server had just dissolved.
+        socket.leaveRoom()
         navigate(`/igra${mock ? "?mock=1" : ""}`)
     }
 
@@ -475,6 +546,21 @@ export default function GameRoomPage() {
         socket.send({ t: "game.play", card })
     }
 
+    const rejectCard = () => {
+        const id = "game-illegal-card"
+        const toast = {
+            // Warning has an opaque orange surface and an icon in the shared
+            // toaster. The former info surface inherited the translucent
+            // panel colour and disappeared into the mobile header.
+            type: "warning" as const,
+            title: t("game.hand.illegalPlay"),
+            duration: 3200,
+            closable: true,
+        }
+        if (toaster.isVisible(id)) toaster.update(id, toast)
+        else toaster.create({ id, ...toast })
+    }
+
     const answerBela = (bela: boolean) => {
         if (belaAsk === null) return
         socket.send({ t: "game.play", card: belaAsk, bela })
@@ -504,6 +590,26 @@ export default function GameRoomPage() {
         turnLabel = t(revealed ? "game.declarations.reviewing" : "game.declarations.calculating")
     }
 
+    const talonVisible = view !== null
+        && view.phase !== "BIDDING"
+        && talonRevealedDeal === view.dealNo
+    const storedBiddingHand = biddingHand.current
+    const retainedBiddingHand = storedBiddingHand !== null && storedBiddingHand.dealNo === view?.dealNo
+        ? storedBiddingHand.cards
+        : null
+    const displayedHand = view === null || view.phase === "BIDDING" || talonVisible
+        ? view?.hand ?? []
+        : retainedBiddingHand ?? view.hand.slice(0, 6)
+    const displayedHandPhase = view !== null && talonVisible ? view.phase : "BIDDING"
+
+    /* Short, visible milestones occupy the table as overlays, so explaining
+       a phase never inserts a row and moves the hand or the seats. The same
+       text is a polite live region for screen-reader users. */
+    let phaseNotice: { title: string; hint?: string } | null = null
+    if (active === null && socket.declarationsPending && !revealed) {
+        phaseNotice = { title: t("game.phase.declarations") }
+    }
+
     /* Bid chips under the seats: who has said "Dalje" this deal. The caller
        needs no chip — the moment they name a suit it becomes the trump
        medallion on their avatar, and that one stays for the whole deal. */
@@ -511,13 +617,21 @@ export default function GameRoomPage() {
     if (view && view.phase === "BIDDING") {
         for (const seat of view.bidding.passes) bids[seat] = { kind: "pass" }
     }
+    const isBidding = view?.phase === "BIDDING" && mySeat !== null
 
     return (
         <Flex
+            className="fold-game-board"
             direction="column"
             position="relative"
             w={{ base: inLobbyPhase ? "100%" : "calc(100% + 32px)", md: "100%" }}
-            maxW="720px"
+            // The column widens with the screen now (DESIGN §6): 720 px was
+            // one number for a phone, a tablet and a 27-inch monitor, and on
+            // the last two it left the table marooned in the middle of a wide
+            // window. The steps are deliberately small — a card table read
+            // from one seat has a natural size, and past ~900 px the seats
+            // stop being one glance apart.
+            maxW={{ base: "720px", md: "760px", lg: "840px", xl: "900px" }}
             mx={{ base: inLobbyPhase ? "auto" : "-16px", md: "auto" }}
             mt={{ base: inLobbyPhase ? "0" : "-24px", md: "0" }}
             h={{
@@ -579,96 +693,84 @@ export default function GameRoomPage() {
                         position="relative"
                         overflow="hidden"
                         rounded={{ base: "0", md: "l3" }}
-                        borderWidth={{ base: "0", md: "1px" }}
-                        borderColor="brand.950"
-                        boxShadow="inset 0 0 70px rgba(0,0,0,0.45)"
-                        {...FELT}
+                        borderWidth="0"
+                        boxShadow="none"
+                        {...PLAY_AREA}
                     >
-                        {/* Header: leave, room, state, chat, settings. */}
-                        <HStack gap="1" px="2" pt="1.5" pb="1" flexShrink={0}>
-                            <IconButton
-                                size="xs"
-                                variant="ghost"
-                                color={INK}
-                                _hover={{ bg: "brand.700" }}
-                                aria-label={t("game.room.leave")}
-                                title={t("game.room.leave")}
-                                onClick={() => setExitOpen(true)}
-                            >
-                                <FiArrowLeft />
-                            </IconButton>
-
-                            <Text fontSize="xs" color={INK_MUTED} lineClamp={1} flex="1">
-                                {room.name}
-                            </Text>
-
-                            {mySeat === null && (
-                                <StatusChip>{t("game.table.spectating")}</StatusChip>
-                            )}
-                            {socket.status !== "open" && (
-                                <StatusChip tone="warn">{t(`game.connection.${socket.status}`)}</StatusChip>
-                            )}
-                            {socket.autoPlayed && (
-                                <StatusChip>{t("game.table.autoPlayed")}</StatusChip>
-                            )}
-
-                            <Button size="xs" variant="ghost" color={INK} disabled={!view.declarationsRevealed}
-                                onClick={() => setDeclarationsOpen((value) => !value)}>{t("game.declarations.title")}</Button>
-                            {room.trickReview !== "off" && (
-                                <Button size="xs" variant="ghost" color={INK}
-                                    aria-label={t("game.tricks.open")} title={t("game.tricks.open")}
-                                    onClick={() => setTricksOpen((value) => !value)}>{t("game.tricks.title")}</Button>
-                            )}
-                            {CHAT_ENABLED ? (
-                                <ChatToggle
-                                    open={chatOpen}
-                                    unread={unread}
-                                    onToggle={() => setChatOpen((v) => !v)}
-                                />
-                            ) : null}
-                            <IconButton
-                                size="xs"
-                                variant="ghost"
-                                color={INK}
-                                _hover={{ bg: "brand.700" }}
-                                aria-label={t("game.table.settings")}
-                                title={t("game.table.settings")}
-                                onClick={() => setSettingsOpen(true)}
-                            >
-                                <FiSettings />
-                            </IconButton>
-                        </HStack>
-
                         {/* "Veza je pala" strip: top of the felt, under the
                             header. Renders null unless a seat hold is
                             running, so it costs no height the rest of the
                             time — the wrapper is here to keep it out of the
                             flex column's shrinking. */}
                         <Box px="2" flexShrink={0}>
-                            <ReconnectBanner />
+                            <ReconnectBanner holdUntil={socket.holdUntil} status={socket.status} />
                         </Box>
 
-                        <Box px="2" flexShrink={0}>
+                        {/* No horizontal padding on this wrapper: the score
+                            panel's bottom hairline is the delimiter between
+                            the score and the playing surface, and a delimiter
+                            that stops 8 px short of both edges reads as the
+                            underline of a box rather than a divider. The
+                            panel keeps its own inner `px` for the content. */}
+                        <Box flexShrink={0}>
                             <ScoreBoard
                                 view={view}
                                 seats={room.seats}
                                 targetScore={room.targetScore}
+                                header={
+                                    <TableHeader
+                                        targetScore={room.targetScore}
+                                        gameEndRule={room.gameEndRule}
+                                        chips={
+                                            <>
+                                                {mySeat === null && <StatusChip>{t("game.table.spectating")}</StatusChip>}
+                                                {socket.status !== "open" && (
+                                                    <StatusChip tone="warn">{t(`game.connection.${socket.status}`)}</StatusChip>
+                                                )}
+                                            </>
+                                        }
+                                        onSettings={() => setSettingsOpen(true)}
+                                    />
+                                }
+                                actions={
+                                    <TableActions
+                                        chat={CHAT_ENABLED ? (
+                                            <ChatToggle
+                                                open={chatOpen}
+                                                unread={unread}
+                                                onToggle={() => setChatOpen((v) => !v)}
+                                            />
+                                        ) : null}
+                                        declarationsEnabled={view.declarationsRevealed}
+                                        declarationPoints={socket.declarationsPending || (revealed !== null && !declHidden)
+                                            ? 0
+                                            : (view.declarationPoints?.A ?? 0) + (view.declarationPoints?.B ?? 0)}
+                                        onDeclarations={() => setDeclarationsOpen((value) => !value)}
+                                        tricksEnabled={room.trickReview !== "off"}
+                                        tricksPlayed={view.tricksWon.A + view.tricksWon.B}
+                                        onTricks={() => setTricksOpen((value) => !value)}
+                                    />
+                                }
                                 noDeclarations={room.noDeclarations}
                                 allowBela={room.allowBela}
                             />
                         </Box>
 
-                        {/* The table, centred in whatever height is left. It
-                            has a bounded height of its own (`tableGeometry`),
-                            so a tall screen gets room around the table rather
-                            than a void inside it. */}
-                        <Flex flex="1" minH="0" direction="column" justify="center">
+                        {/* The table, pinned near the top of whatever height
+                            is left instead of dead-centred (2026-09-18, user
+                            request: the partner seat sat too far below the
+                            score panel on a tall screen) — a small `pt`
+                            keeps a little air between them without the
+                            centring pushing the gap open further as the
+                            screen gets taller. Leftover slack now collects
+                            below the table instead of splitting around it. */}
+                        <Flex flex="1" minH="0" direction="column" justify="flex-start" pt="2">
                             <Table
                                 room={room}
                                 view={view}
                                 turnDeadline={socket.turnDeadline}
+                                turnDurationMs={socket.turnDurationMs}
                                 trickCards={trickCards}
-                                trickIndex={trickIndex}
                                 holdingSeat={holdingSeat}
                                 flyIn={flyIn}
                                 collectTo={collectTo}
@@ -681,7 +783,7 @@ export default function GameRoomPage() {
                         {/* Overlays sit on the WHOLE felt, not inside the
                             seats block: that block is deliberately bounded
                             now, and a declarations list is taller than it. */}
-                        {trumpSet && (
+                        {phaseNotice && (
                             <Flex
                                 position="absolute"
                                 inset="0"
@@ -699,10 +801,16 @@ export default function GameRoomPage() {
                                     gap="2"
                                     boxShadow="0 0 30px rgba(0,0,0,0.5)"
                                 >
-                                    <SuitGlyph suit={trumpSet.trump} size={20} />
-                                    <Text fontSize="sm" fontWeight="bold" color={INK}>
-                                        {t("game.table.trumpSet", { suit: t(suitKey(trumpSet.trump)) })}
-                                    </Text>
+                                    <Box role="status" aria-live="polite" aria-atomic="true">
+                                        <Text fontSize="sm" fontWeight="bold" color={INK} textAlign="center">
+                                            {phaseNotice.title}
+                                        </Text>
+                                        {phaseNotice.hint && (
+                                            <Text fontSize="xs" color={INK_MUTED} textAlign="center">
+                                                {phaseNotice.hint}
+                                            </Text>
+                                        )}
+                                    </Box>
                                 </HStack>
                             </Flex>
                         )}
@@ -729,6 +837,14 @@ export default function GameRoomPage() {
                         )}
 
                         {bela && <BelaFlash seats={room.seats} seat={bela.seat} />}
+                        {belot && (
+                            <BelotFlash
+                                seats={room.seats}
+                                seat={belot.seat}
+                                suit={belot.suit}
+                                reducedMotion={reducedMotion}
+                            />
+                        )}
 
                         {/* The question, over the hand tray and nothing else.
                             `BelaFlash` above is the answer landing: it is what
@@ -740,77 +856,141 @@ export default function GameRoomPage() {
                             />
                         )}
 
-                        {/* My seat AND the status pill, one row: the avatar
-                            keeps the turn ring and the dealer's "D", the pill
-                            says whose move it is, and my own name is not
-                            repeated back at me. On a landscape phone the
-                            reactions join the same row to buy the felt
+                        {/* Just the status pill now, centred over the hand:
+                            "did I move" is what a glance up asks, and my own
+                            name/avatar answer a different question (DESIGN
+                            change 2026-09-18 — the avatar moved to the
+                            bottom-left corner, see below). On a landscape
+                            phone the reactions join this row to buy the felt
                             another 30 px. */}
                         <Flex
                             justify="center"
                             align="center"
                             gap="2"
                             px="2"
-                            py="1"
+                            py="0"
                             flexShrink={0}
                         >
-                            <MySeatBar
-                                info={mySeat === null ? null : room.seats[mySeat]}
-                                isTurn={mySeat !== null && view.turn === mySeat}
-                                isDealer={mySeat !== null && view.dealer === mySeat}
-                                // Same medallion the felt's seats wear, so
-                                // "I called this deal" reads the same way
-                                // wherever the caller happens to be sitting.
-                                callerTrump={mySeat !== null && view.bidding.caller === mySeat
-                                    ? view.bidding.trump
-                                    : null}
-                                turnDeadline={socket.turnDeadline}
-                                turnTimeoutMs={room.turnTimeoutMs}
-                                reaction={mySeat === null ? null : bubbles[mySeat] ?? null}
-                                reducedMotion={reducedMotion}
-                                tone={tone}
-                                label={turnLabel}
-                            />
-                            <Box display="none" css={{ [SHORT]: { display: "block" } }}>
-                                <ReactionsBar
-                                    disabled={socket.status !== "open"}
-                                    onReact={(reaction) => socket.sendReaction(reaction)}
-                                />
-                            </Box>
+                            <TurnPill tone={tone} label={turnLabel} />
+                            {view?.phase !== "BIDDING" && (
+                                <Box display="none" css={{ [SHORT]: { display: "block" } }}>
+                                    <ReactionsBar
+                                        disabled={socket.status !== "open"}
+                                        onReact={(reaction) => socket.sendReaction(reaction)}
+                                    />
+                                </Box>
+                            )}
                         </Flex>
 
-                        {view.phase === "BIDDING" && (
-                            <Box px="2" pb="1" flexShrink={0}>
+                        {/* The hand, dead-centre of the row: reactions live
+                            in their own slot below (back at the bottom,
+                            2026-09-18), so nothing narrows the box the hand
+                            centres itself in. The avatar DOES dock to this
+                            box (below), vertically centred on the hand's own
+                            left edge. */}
+                        <Box
+                            position="relative"
+                            px="2"
+                            pt="0"
+                            flexShrink={0}
+                            css={{ paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))" }}
+                        >
+                            <Hand
+                                cards={displayedHand}
+                                legal={view.legalMoves}
+                                phase={displayedHandPhase}
+                                disabled={busy || declarationsOpen || tricksOpen || belaAsk !== null || (!!revealed && !declHidden)}
+                                onPlay={playCard}
+                                onInvalidPlay={rejectCard}
+                            />
+
+                            {/* My own avatar — turn ring, dealer's "D", caller
+                                medallion, reaction bubble — docked left of
+                                the hand, vertically centred on it, on every
+                                width (2026-09-18, user request: same left
+                                position on mobile and web, not the bottom
+                                corner it started in; bigger on web via
+                                `myAvatarSize`). A spectator has no seat, so
+                                they get nothing here.
+
+                                `insetStart="5"`: a fixed inset, not a
+                                calc-to-the-grid's-edge one. Widening the hand
+                                (2026-09-18, "prosiri velicinu karta") left as
+                                little as ~15 px of margin around the grid at
+                                the wide breakpoint — less than the avatar's
+                                own frame — so no inset value can hug the
+                                grid's true edge there without overlapping the
+                                first card; a fixed, known-safe inset (the
+                                same value that already clears the
+                                caller-trump medallion's overhang, see below)
+                                is the robust choice over a formula that
+                                breaks every time the card size changes. */}
+                            {mySeat !== null && (
+                                <Box
+                                    position="absolute"
+                                    insetStart="5"
+                                    top="50%"
+                                    transform="translateY(-50%)"
+                                    zIndex={8}
+                                >
+                                    <SeatAvatar
+                                        occupant={room.seats[mySeat].occupant}
+                                        name={occupantName(room.seats[mySeat].occupant, t("game.seat.empty"))}
+                                        size={myAvatarSize}
+                                        isTurn={view.turn === mySeat}
+                                        isDealer={view.dealer === mySeat}
+                                        // Same medallion the felt's seats wear, so
+                                        // "I called this deal" reads the same way
+                                        // wherever the caller happens to be sitting.
+                                        callerTrump={view.bidding.caller === mySeat ? view.bidding.trump : null}
+                                        countdown={view.turn === mySeat ? myCountdown : null}
+                                        reaction={bubbles[mySeat] ?? null}
+                                        // Same convention as the felt's own left-flank
+                                        // seat (Table.tsx): pins the bubble's LEFT edge
+                                        // to the avatar so it grows rightward — the
+                                        // default "center" ran it half off the left
+                                        // edge of the screen (bug reported 2026-09-18).
+                                        reactionAlign="left"
+                                        reducedMotion={reducedMotion}
+                                    />
+                                </Box>
+                            )}
+                        </Box>
+
+                        {/* Reactions back at the bottom (2026-09-18, user
+                            request — reverted the brief side-rail detour):
+                            this slot stays in the flow, reserving
+                            BiddingPanel's own row height, whether or not it
+                            is actually my bid. Letting it collapse to nothing
+                            the instant a suit is called shrinks the column's
+                            fixed height, and the felt's `flex="1"` block
+                            above grows to fill the gap, visibly shifting
+                            every seat down (2026-09-18, user-reported jump).
+                            The two are mutually exclusive and close enough in
+                            height (46 px vs 44 px) that swapping one for the
+                            other never triggers that jump on its own. */}
+                        <Box
+                            px="2"
+                            pt="1.5"
+                            flexShrink={0}
+                            minH={ROW_H}
+                            css={{ paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))" }}
+                        >
+                            {isBidding ? (
                                 <BiddingPanel
                                     view={view}
                                     busy={busy}
                                     onBid={(trump: Suit) => socket.send({ t: "game.bid", trump })}
                                     onPass={() => socket.send({ t: "game.pass" })}
                                 />
-                            </Box>
-                        )}
-
-                        <Box flexShrink={0} px="2">
-                            <Hand
-                                cards={view.hand}
-                                legal={view.legalMoves}
-                                disabled={busy || declarationsOpen || tricksOpen || belaAsk !== null || (!!revealed && !declHidden)}
-                                onPlay={playCard}
-                            />
-                        </Box>
-
-                        <Box
-                            flexShrink={0}
-                            pt="1.5"
-                            css={{
-                                paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
-                                [SHORT]: { display: "none" },
-                            }}
-                        >
-                            <ReactionsBar
-                                disabled={socket.status !== "open"}
-                                onReact={(reaction) => socket.sendReaction(reaction)}
-                            />
+                            ) : (
+                                <Box css={{ [SHORT]: { display: "none" } }}>
+                                    <ReactionsBar
+                                        disabled={socket.status !== "open"}
+                                        onReact={(reaction) => socket.sendReaction(reaction)}
+                                    />
+                                </Box>
+                            )}
                         </Box>
 
                         {CHAT_ENABLED ? (
@@ -853,6 +1033,9 @@ export default function GameRoomPage() {
                     score={view.score}
                     myTeam={myTeam}
                     spectator={mySeat === null}
+                    belotName={view.belotSeat == null || !room
+                        ? null
+                        : seatName(room.seats, view.belotSeat, t("game.seat.empty"))}
                     onDismiss={() => setOverDismissed(true)}
                 />
             )}
@@ -867,41 +1050,9 @@ export default function GameRoomPage() {
                 isHost={socket.me?.uid != null && room?.hostUid === socket.me.uid}
                 onChangeOptions={(patch) => socket.send({ t: "room.setOptions", ...patch })}
             />
-
-            <ConfirmDialog
-                open={exitOpen}
-                title={t("game.exit.title")}
-                description={t("game.exit.description")}
-                confirmLabel={t("game.exit.leave")}
-                cancelLabel={t("game.exit.stay")}
-                destructive
-                onConfirm={leave}
-                onCancel={() => setExitOpen(false)}
-            />
         </Flex>
     )
 }
 
-/** The header's little state chips — connection, autoplay, spectating. */
-function StatusChip({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "warn" }) {
-    return (
-        <Flex
-            align="center"
-            px="1.5"
-            py="0.5"
-            rounded="full"
-            flexShrink={0}
-            bg={tone === "warn" ? "orange.400" : "brand.950/62"}
-            color={tone === "warn" ? "brand.950" : INK_MUTED}
-            borderWidth="1px"
-            borderColor={tone === "warn" ? "orange.400" : "brand.700/70"}
-            fontSize="9px"
-            fontWeight="bold"
-            textTransform="uppercase"
-            letterSpacing="wide"
-            whiteSpace="nowrap"
-        >
-            {children}
-        </Flex>
-    )
-}
+/* `StatusChip` moved to `TableHeader.tsx` with the rest of the header's
+   vocabulary — it is imported above and used in the `chips` slot. */

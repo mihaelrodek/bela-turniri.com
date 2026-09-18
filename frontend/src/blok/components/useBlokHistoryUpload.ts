@@ -5,7 +5,7 @@ import {
     uploadBlokSession,
     type BlokHistoryRecord,
 } from "../blokHistoryApi"
-import { t } from "../../i18n"
+import { loadNamespace, t } from "../../i18n"
 import { showSuccess } from "../../toaster"
 import { blokActions, gamesInSession } from "../store"
 
@@ -235,7 +235,18 @@ export function useBlokHistoryUpload({
                 // back rather than the render's `pendingSessions`, which is a
                 // frame old and still contains the one just completed.
                 if (blokActions.read().pendingSessions.length === 0) {
-                    showSuccess(t("blok.newGame.saved"))
+                    // `blok` is a ROUTE-SCOPED dictionary namespace (see
+                    // src/i18n/index.ts) and this hook runs from `BlokOutbox`,
+                    // which is mounted app-wide — the upload that drains the
+                    // queue typically happens on /turniri or /prijava, nowhere
+                    // near /blok, so the namespace may not be loaded. Fetch it
+                    // before the toast rather than attaching it to the outbox's
+                    // own chunk: the outbox mounts on EVERY route, so that
+                    // would put the whole scorepad dictionary back on the
+                    // critical path of the landing page.
+                    void loadNamespace("blok")
+                        .catch(() => {})
+                        .then(() => showSuccess(t("blok.newGame.saved")))
                 }
             })
             .catch((err: unknown) => {

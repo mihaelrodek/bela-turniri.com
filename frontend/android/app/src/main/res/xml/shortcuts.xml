@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    N5.4 static app shortcuts (long-press the launcher icon). Each intent is
+    explicit (action + targetPackage + targetClass) so it opens MainActivity
+    directly regardless of App Links / assetlinks.json verification state —
+    see MainActivity's appUrlOpen handling in NativeShell.tsx for where the
+    resulting Intent.data ends up.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedAttribute">
+    <!-- shortcutId/shortcutShortLabel/shortcutLongLabel only take effect on
+         API 25+; below that the launcher simply has no long-press shortcuts
+         menu, so there is nothing to ignore below minSdk 24 here. -->
+    <shortcut
+        android:shortcutId="blok"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_notepad"
+        android:shortcutShortLabel="@string/shortcut_blok_short"
+        android:shortcutLongLabel="@string/shortcut_blok_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.belaturniri.app"
+            android:targetClass="com.belaturniri.app.MainActivity"
+            android:data="https://bela-turniri.com/blok" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="new_tournament"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_plus"
+        android:shortcutShortLabel="@string/shortcut_new_tournament_short"
+        android:shortcutLongLabel="@string/shortcut_new_tournament_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.belaturniri.app"
+            android:targetClass="com.belaturniri.app.MainActivity"
+            android:data="https://bela-turniri.com/turniri/novi" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="play"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_cards"
+        android:shortcutShortLabel="@string/shortcut_play_short"
+        android:shortcutLongLabel="@string/shortcut_play_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.belaturniri.app"
+            android:targetClass="com.belaturniri.app.MainActivity"
+            android:data="https://bela-turniri.com/igra" />
+    </shortcut>
+</shortcuts>

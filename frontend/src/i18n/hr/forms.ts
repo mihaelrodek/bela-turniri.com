@@ -18,10 +18,24 @@ export const forms = {
     "auth.password": "Lozinka",
     "auth.orDivider": "ili",
     "auth.invalidEmail": "Neispravan format email adrese.",
+    // Social sign-in failures a user can actually hit — shared by both pages
+    // (src/auth/authErrors.ts). A cancelled sign-in shows nothing at all.
+    "auth.error.popupBlocked": "Preglednik je blokirao skočni prozor. Dopusti skočne prozore i pokušaj ponovno.",
+    "auth.error.accountExistsDifferentCredential": "Već postoji račun s tom email adresom, ali s drugim načinom prijave. Prijavi se na način koji si koristio prvi put.",
+    "auth.error.providerNotEnabled": "Ovaj način prijave trenutačno nije dostupan.",
+    "auth.error.network": "Nema veze s internetom. Provjeri mrežu i pokušaj ponovno.",
+    // 16+ / terms gate — the sentence is split because two parts are links.
+    "auth.consent.checkboxPrefix": "Imam najmanje 16 godina i prihvaćam",
+    "auth.consent.noticePrefix": "Nastavkom potvrđuješ da imaš 16+ godina i prihvaćaš",
+    "auth.consent.terms": "Uvjete korištenja",
+    "auth.consent.and": "i",
+    "auth.consent.privacy": "Politiku privatnosti",
+    "auth.consent.required": "Moraš potvrditi da imaš najmanje 16 godina i prihvaćaš uvjete.",
 
     // --- LoginPage.tsx -------------------------------------------------------
     "login.heading": "Prijava",
     "login.googleButton": "Nastavi s Googleom",
+    "login.appleButton": "Prijavi se s Appleom",
     "login.submit": "Prijavi se",
     "login.forgotPassword": "Zaboravljena lozinka?",
     "login.noAccount": "Nemaš račun?",
@@ -37,6 +51,7 @@ export const forms = {
     // --- RegisterPage.tsx ------------------------------------------------------
     "register.heading": "Registracija",
     "register.googleButton": "Registriraj se s Googleom",
+    "register.appleButton": "Registriraj se s Appleom",
     "register.nameLabel": "Ime",
     "register.nameOptional": "(opcionalno)",
     "register.namePlaceholder": "npr. Marko",

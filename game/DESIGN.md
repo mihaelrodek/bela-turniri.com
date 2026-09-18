@@ -51,7 +51,7 @@ istom mjestu. Vidi README §3.3.)
   dijele animacijom iz sredine u slotove.
 - Zvanje aduta: red 4 ikone boja + "Dalje"; djelitelj bez "Dalje".
 - Nakon prvog štiha modal **"Zvanja"** ("Nitko nije imao zvanja" ili popis).
-- Dno: red **emoji reakcija** (😢 🔥 😡 🎉 🙃 😜) — reakcija iskoči kraj avatara.
+- Dno: red **brzih reakcija** (😏 👏 🍀 🤦 ⏳ 🤝) — tekst reakcije iskoči iznad avatara pošiljatelja.
 - Nema highlighta legalnih karata (klik na ilegalnu se ignorira) — **mi to radimo bolje**.
 
 **Postavke.** Uredi profil, Jezik (zastavice), Zvuk toggle, **Smanji
@@ -84,14 +84,15 @@ animacije** toggle, **Vrsta karata: Francuske / Mađarice / Moderne**
 4. **Ruka s fiksnim slotovima** + praznine; legalne karte podignute i
    svijetle, ilegalne zatamnjene (naša prednost); tap-target ≥ 44 px; na
    uskom ekranu 8 karata se **preklapaju** (negativni margin), ne scrollaju.
-5. **Štih**: nagnute karte prema sjedalu, let 250 ms iz sjedala, poluprozirno
-   u letu, dwell 700 ms, fade prema pobjedniku. `prefers-reduced-motion` +
+5. **Štih**: nagnute karte prema sjedalu, let 320 ms iz sjedala, poluprozirno
+   u letu, dwell 950 ms, fade prema pobjedniku. `prefers-reduced-motion` +
    ručni toggle "Smanji animacije".
 6. **Turn**: najjači signal je na **sjedalu**, ne u pilulici — vidi §4.3.
    Pilula "Tvoj potez" / "X je na potezu" / "X zove" ostaje kao potvrda
    teksta ispod stola.
 7. **Zvanja** modal nakon prvog štiha s kartama (naše `DECLARATIONS_REVEALED`),
-   "Bela!" flash. **Sažetak podjele** (prolaz/pad, štiglja, zvanja) i
+   "Bela!" flash. Rijetki **belot** (svih osam karata iste boje) dobiva zaseban
+   prikaz cijele ruke prije završnog rezultata. **Sažetak podjele** (prolaz/pad, štiglja, zvanja) i
    "Sljedeća podjela" — bela.fun to nema tako jasno; zadržati naše.
 8. **Emoji reakcije** (6 komada, rate-limit 1/3 s) — protokol `chat.react`.
 9. **Lobby/soba** kao bela.fun: lista soba s avatarima `2 vs 2`, search,
@@ -127,27 +128,67 @@ varijable na korijenu stola; `util/seats.ts` (`SEAT_ANCHORS`),
 `TableSurface` i `TrickArea` **samo ih čitaju**. Nema više triju skupova
 magičnih brojeva u tri datoteke.
 
-| var | base | ≥48em | ≤700px vis. | ≤560px vis. |
+**Ažurirano 2026-09-13 (HUD v3, §6).** Kutija više nema fiksnu visinu: sve se
+izvodi iz `--box-h`, koji je `clamp()` po `vh`, pa stol **raste s ekranom**
+umjesto da pliva u njemu. Sjedala su i dalje prva, a stol se računa iz njih —
+obrnuto bi na uskom ekranu (gdje je cloth ograničen na 94 %) gurnulo sjedala
+u hrpu štiha.
+
+| var | base | ≥48em | TIGHT (≤700px vis.) | SHORT (≤560px vis.) |
 |---|---|---|---|---|
+| `--box-h` | `clamp(352, 44vh, 470)` | `clamp(392, 50vh, 520)` | `clamp(320, 42vh, 372)` | `100%` |
 | `--seat-w` | 92 | 116 | — | — |
 | `--seat-h` | 94 | — | — | 76 |
-| `--seat-x` | 84 | 116 | 76 | 138 |
-| `--seat-y` | 94 | 102 | 84 | 64 |
-| `--cy-free` | 116 | 124 | 100 | 78 |
+| `--seat-clear-x` | 108 | — | 93 | 72 |
+| `--seat-clear-y` | 120 | — | 104 | 80 |
+| `--seat-overlap` | 18 | — | — | 14 |
+| `--seat-x` | `max(clear-x, min(.46·box, 200))` = 162…200 | `…min(.46·box, 240)` = 180…240 | `…min(.46·box, 170)` = 147…170 | 170 |
+| `--seat-y` | `max(clear-y, min(.32·box, 176))` = 120…150 | `…min(.32·box, 190)` = 125…166 | `…min(.32·box, 150)` = 104…119 | 84 |
+| `--cy-free` | `--seat-y + 8` | `--seat-y + 10` | `--seat-y + 8` | 92 |
 
-`--seat-x/-y` su razmaci od **središta stola** do unutarnjeg ruba sjedala i
-moraju nadmašiti polovicu hrpe štiha (`REST_X` 34 + pola karte 36 + 6 px
-rasipanja = 76 px vodoravno, 22 + 60 + 6 = 88 px okomito — `TrickArea.tsx`).
+Stara tablica (2026-09-08), za usporedbu: `--seat-x` 126/168/104/160,
+`--seat-y` 126/146/110/72, `--cy-free` 134/142/112/78, visina kutije fiksnih
+354/382/316 px.
+
+**Čistoća prema štihu.** `--seat-x/-y` su razmaci od **središta stola** do
+unutarnjeg ruba sjedala i moraju nadmašiti polovicu hrpe štiha
+(`TrickArea.tsx`): karta miruje na `REST_X` 66 / `REST_Y` 54 od središta, `md`
+karta je 72 × 120 (dakle 36 / 60 do vlastitog ruba), a `cardScatter` je baci
+još do 6 px dalje:
+
+```
+vodoravno  66 + 36 + 6 = 108 px   → --seat-clear-x
+okomito    54 + 60 + 6 = 120 px   → --seat-clear-y
+```
+
+`TrickArea` skalira cijelu hrpu na 0,86 pod TIGHT i 0,66 pod SHORT, pa se s
+njom skaliraju i te dvije granice (93/104 i 72/80). Razmaci su `max()` prema
+njima, pa **nijedna veličina ekrana ne može gurnuti sjedalo u štih** — to je
+invarijanta koju ova datoteka čuva.
+
+**Cloth se izvodi iz sjedala**, ne obratno:
+`--table-w = min(94%, 2·seat-x + 2·overlap)`,
+`--table-h = min(2·cy-bottom − 10, 2·seat-y + 2·overlap)`, pa sjedala uvijek
+sjede **na rubu** (preklapaju rim za `--seat-overlap`). Tipične izmjere:
+390 px telefon → ~352 × 246, iPhone SE → ~330 × 214, 768 tablet → ~507 × 338,
+≥1280 desktop → ~514 × 342, landscape telefon → ~376 × 174.
+
+**Sve je čista duljina.** `--box-h` je `clamp()` po `vh`, pa je
+`calc(0.46 · var(--box-h))` px na obje osi. Postotak bi se u `left:` razriješio
+prema **širini**, a u `top:` prema **visini** — ista varijabla bi značila dvije
+različite udaljenosti. Jedini postoci su `--table-w`-ov cap od 94 % (koristi se
+isključivo kao širina) i `--table-cy` (isključivo kao top offset).
 
 **Središte stola nije 50 % kutije** nego `--cy-bottom` iznad njezina dna
 (`--table-cy = 100% − --cy-bottom`). Donje sjedalo je moje i crta se u
 `MySeatBar` ispod filca, pa je simetrična kutija rezervirala cijelo prazno
 sjedalo između bočnih sjedala i ladice s kartama — to je bila ona prazna
 trećina. Gledatelj **ima** donje sjedalo, pa mu se `--cy-bottom` proširi na
-`--seat-y + --seat-h`. Visina kutije = `--seat-y + --seat-h + --cy-bottom`
-→ **304 px** (base) / **320 px** (≥48em) umjesto ranijih 348 / 384. Svaki je
-anchor omotan u `min()` prema rubu kutije, pa se na kratkom prozoru layout
-degradira na rub umjesto da izgura sjedalo van filca.
+`--seat-y + --seat-h`, `--box-h` dobije 90 px veći pod i gornju granicu, a
+okomiti razmak raste sporije (0,22 umjesto 0,32 × `--box-h`) jer njegov prsten
+mora stati **dvaput**. Svaki je anchor i dalje omotan u `min()` prema rubu
+kutije, pa se na kratkom prozoru layout degradira na rub umjesto da izgura
+sjedalo van filca.
 
 ### 4.2 Anatomija sjedala — ista na sve četiri strane
 Stupac fiksne širine `--seat-w`, isti dijelovi, isti redoslijed, isti razmaci;
@@ -169,7 +210,7 @@ pa vrijedi i za manji avatar u `MySeatBar`):
 | kut | oznaka |
 |---|---|
 | gore lijevo | BOT |
-| gore desno | emoji reakcija (prolazna) |
+| iznad avatara | tekst brze reakcije (prolazan oblačić) |
 | **dolje lijevo** | **medaljon aduta — ovo sjedalo zove** |
 | **dolje desno** | **"D" djelitelj** |
 
@@ -177,12 +218,23 @@ Status-čip nosi samo ono što je trenutno istinito, po padajućoj hitnosti:
 `Nije spojen` → `{n} s` (kad prsten pocrveni) → `Na potezu` → `Dalje`.
 Pilula ima punu širinu sjedala pa se imena više ne krate.
 
+**Izmjene 2026-09-13 (§6).** Anatomija, mjere i četiri kuta ostaju isti; mijenja
+se samo **boja**: prsten i pilula nose **boju tima** (`TEAM`, §6) — prsten je
+upaljen i kad sjedalo nije na potezu (meki tint), a na potezu postaje puni
+conic s bojom tima (crven kad je hitno). BOT čip je tiši (`brand.900` +
+`INK_MUTED`) jer je trajan i ne smije se natjecati s dvije oznake koje se
+mijenjaju svaku podjelu; **„D” je zlatni kovani novčić** (metalni gradijent,
+osvijetljen unutarnji rub, tamno slovo) umjesto plosnatog amber diska. Ime je
+`11px` na base, `12px` od `md`. Podizanje sjedala na potezu je 4 px (bilo 3).
+
 ### 4.3 Tko je na redu — četiri kanala odjednom
 Na **sjedalu**: svijetli prsten s `turnDeadline` odbrojavanjem (conic
 gradient; crven kad je hitno), **spotlight** koji se prelijeva na filc (puls
 1,8 s, ugašen uz `reducedMotion`), puna svijetla pilula s imenom i podizanje
 sjedala za 3 px. Ispod stola i dalje stoji `TurnPill` s tekstom. Prstenova
 sekunda ispisuje se tek kad postane hitno.
+Kad je pravi igrač na potezu, isti serverski timer crta se i kao obrub oko
+donje `TurnPill` oznake. Botova oznaka ostaje mirna, bez odbrojavanja.
 
 ### 4.4 Tko zove — traje cijelo mješanje
 `bidding.caller` + `bidding.trump` → medaljon s ikonom aduta na avataru
@@ -261,3 +313,95 @@ obje, a odgovor odlazi kao zastavica na istom potezu, pa za stolom nitko ne
 - Panel se sam zatvara čim pitanje prestane biti naše: potez je otišao dalje
   (istekao timer, bot odigrao umjesto nas), podjela je gotova, ili karte više
   nema u ruci.
+
+## 6. HUD v3 (2026-09-13)
+
+Dijagnoza koja je pokrenula ovaj krug (screenshot ~1700 px): prazan filc oko
+malog clotha, „Zvanja” i „Štihovi” kao tekstualni ghost gumbi koji izgledaju
+kao naslovi, semafor bez ikakvog osjećaja napretka prema cilju, timovi
+nekodirani bojom, predimenzionirana ladica s kartama na širokom ekranu i tri
+slične tamnozelene plohe bez hijerarhije.
+
+Odgovor je **jedan HUD sloj** (gore semafor + kontrole, dolje ladica +
+akcije) od dosljednog tamnog stakla, a između njih **stol kao fizički
+objekt** na kojem sjedala sjede na rubu.
+
+### 6.1 Boja tima — `TEAM` u `tableStyles.ts`
+```
+TEAM = { us: "brand.300", them: "#d9a521" }   // naša zelena, njihovo zlato
+TEAM_SOFT = isti par na 55 % alfe            // hairline, glow, prsten u mirovanju
+```
+Zlato je bundevina boja s mađarica — jedina nova semantička boja u igri i
+jedini novi literal. Čita se na **četiri mjesta i nigdje drugdje**:
+`Seat` (prsten + pilula s imenom), `ScoreBoard` (kartica tima, „+150”, traka
+napretka), `TrumpBadge` (obrub ćelije = tim zvača), `Hand` (glow legalnih
+karata koristi `TEAM_SOFT.us` jer je ruka uvijek moja). Kanal je **redundantan**
+— raspored, natpisi i brojevi i dalje govore isto — pa se ništa ne gubi ako ga
+igrač ne primijeti; zato nije ni dostupnost-kritičan, a par zeleno/zlatno ionako
+ne kolabira kod crveno-zelene sljepoće.
+
+### 6.2 Semafor: kartice tima + traka napretka
+Dvije **kartice** (MI / ONI) s hairlineom u boji tima i središnja trump ćelija
+čiji obrub nosi boju **zvačeva** tima. Veliki broj ostaje tekuća podjela
+(`2xl` base, `4xl` od `md`), „+150” uz njega u boji tima, ispod jedan redak
+`ukupno 512 · do 1001` (tabular-nums). Pod njim je **traka od 2 px**:
+`ukupno / cilj`, puni se od **vanjskog** ruba kartice prema unutra, pa dvije
+trake rastu jedna prema drugoj. „512, do 1001” je dva broja i oduzimanje;
+polupuna traka je isti podatak bez računanja. Stari podnožni redak je nestao
+(cilj je u traci), ostao je samo chevron za povijest i to samo kad povijest
+postoji. Traka ima `role="progressbar"` i `aria-label` (`game.score.progress`)
+jer 2 px nije nešto što se vidi.
+
+### 6.3 Stol: stadion s rubom, teksturom i vinjetom
+`border-radius: 999px` na pravokutniku širem od visine — silueta stola za
+kartanje, a ne još jedan panel u nizu panela. Slojevi izvana prema unutra:
+**rim** (tamna traka, kao `border` istog elementa da postoji samo jedan
+radijus; osvijetljen gornji rub, stvarna sjena prema sobi) → **cloth**
+(radijalni gradijent, vinjeta kao `inset` sjena jer bi gradijent bandao) →
+**tekstura** (`feTurbulence` kao inline SVG data-URI, `soft-light` 11 % na
+clothu, `overlay` 4 % u sobi — ubija bandanje i daje filc) → **disk** za štih
+(jedan slabi prsten, bez križića). Tekstura je `::before` sa `z-index: -1` uz
+`isolation: isolate` na domaćinu: sloj s `mix-blend-mode` iznad sadržaja bi se
+miješao u imena i brojeve.
+
+Visina raste s ekranom (`--box-h`, §4.1), cloth se izvodi iz sjedala, a
+sjedala preklapaju rim za `--seat-overlap`.
+
+### 6.4 Ladica: 4 × 2 na telefonu, **1 × 8 od 48em**
+Isti fiksni sortirani slotovi (pravilo 1 iz §2.4 se ne mijenja), samo drugi
+oblik mreže: osam `md` karata je 618 px, kolona je ondje 760 px, pa red stane
+bez smanjivanja karte i vraća ~130 px feltu. Legalne karte dok sam na potezu
+dobiju **lift 6 px + glow** (`0 0 0 2px TEAM_SOFT.us, 0 10px 24px rgba(0,0,0,.45)`)
+na **slotu**, ne na karti: `PlayingCard` zadržava vlastitu fiziku (hover lift,
+focus ring), a glow nacrtan na karti bi ga odrezao njezin `overflow: hidden`.
+Ilegalne karte se i dalje **ne zatamnjuju**. Dok je igrač na potezu sve su
+karte gumbi; dodir nedopuštene karte objašnjava da se trenutačno ne može
+odigrati, dok samo dopuštena šalje potez. Uz
+`reducedMotion` ostaju i lift i glow (to je statični stil), gasi se samo
+prijelaz između stanja.
+
+### 6.5 Zaglavlje: `TableHeader.tsx`
+Nova komponenta. Lijevo strelica natrag + ime sobe (`sm`, semibold, INK) +
+statusni čipovi (`StatusChip` se preselio ovamo iz `GameRoomPage`), desno
+**grupa pill gumba s ikonom i badgeom**: „Zvanja” (`FiFileText`, badge = bodovi
+zvanja kad ih ima, disabled dok nisu otkrivena) i „Štihovi” (`FiLayers`, badge =
+broj odigranih štihova), pa chat i zupčanik. Ispod `md` natpisi nestaju, ostaju
+ikona + badge, a riječ živi u `aria-label`/`title`. Komponenta **nema stanja** —
+sve brojke računa stranica koja ima `view`.
+
+### 6.6 Ostalo
+- **`TurnPill`** dobiva ikonu stanja (`FiPlay` / `FiTarget` / `FiClock` /
+  `FiMoreHorizontal`, `aria-hidden`); ton „you” je `TEAM.us` puni s blagim glowom.
+- **`ReactionsBar`** je **jedan segmentirani glass pill**: šest gumba 44 × 44 bez
+  vlastitih obruba, hairline samo *između* njih, a cooldown gasi cijeli segment
+  na 45 % umjesto šest diskova posebno.
+- **Površine**: `FELT` je tamniji i mirniji + tekstura; `GLASS` je
+  `brand.950/72` s hairlineom `brand.600/40` i **gornjim highlightom**
+  (`inset 0 1px 0 rgba(255,255,255,.06)`) — tri neosvijetljena pravokutnika
+  jedan iznad drugoga čitaju se kao jedna ploha sa šavovima.
+- **Kolona** (`GameRoomPage`): `base 100%` → `md 760` → `lg 840` → `xl 900`.
+  Okomiti redoslijed: HUD → stol (`flex 1`) → `MySeatBar` → `BiddingPanel`
+  (samo kad je moj red) → ladica → reakcije. `SHORT` i `TIGHT` ponašanja iz §4
+  su netaknuta.
+- **Motion**: nove tranzicije su ≤ 160 ms; `reducedMotion` gasi kretanje, ne
+  izgled.

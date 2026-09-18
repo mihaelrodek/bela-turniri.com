@@ -97,6 +97,15 @@ public class SlugService {
     public UserProfile ensureProfile(String uid, String displayName) {
         if (uid == null || uid.isBlank()) return null;
         UserProfile existing = profileRepo.findByUid(uid).orElse(null);
+        // A deleted account is never resurrected. The row survives deletion
+        // (AccountDeletionService explains why), and this is the method that
+        // would otherwise quietly refill it with a fresh display name the next
+        // time the Firebase credential was used — turning "obriši račun" into
+        // "log out until you sign in again". 410 rather than a silent no-op so
+        // the client gets an unambiguous signal instead of an empty profile.
+        if (existing != null && existing.isDeleted()) {
+            throw hr.mrodek.apps.bela_turniri.errors.ApiCodes.gone("ACCOUNT_DELETED");
+        }
         if (existing == null) {
             existing = new UserProfile();
             existing.setUserUid(uid);

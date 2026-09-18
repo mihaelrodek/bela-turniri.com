@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -41,7 +42,29 @@
                 <data android:pathPrefix="/profil/" />
             </intent-filter>
 
+            <!-- N5.4: static app shortcuts, shown on long-press of the
+                 launcher icon. See res/xml/shortcuts.xml. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+
         </activity>
+
+        <!-- N5.3: "Nadolazeći turniri" home-screen widget. Not exported —
+             the system delivers APPWIDGET_UPDATE to this app's own receiver
+             by explicit package, so no other app needs to reach it directly.
+             See UpcomingTournamentsWidgetProvider.kt / TournamentsWidgetWorker.kt. -->
+        <receiver
+            android:name=".widget.UpcomingTournamentsWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/upcoming_tournaments_widget_info" />
+        </receiver>
 
         <!-- FCM messages carry `channel_id: "bela"` (see FcmSender, backend);
              this tells the FCM SDK which channel to file a notification under
@@ -54,6 +77,27 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="bela" />
+
+        <!-- N4.4: @capacitor-firebase/messaging registers its own
+             FirebaseMessagingService (io.capawesome...MessagingService) for the
+             com.google.firebase.MESSAGING_EVENT intent, and Android only ever
+             delivers that intent to a single declared service. BelaMessagingService
+             subclasses the plugin's service (calls super.onMessageReceived() for
+             everything, see BelaMessagingService.kt) so JS-side push handling is
+             unaffected; here the plugin's own entry is removed by exact
+             android:name (the merger keys <service> by that attribute, and our
+             subclass necessarily has a different one so a same-name "replace"
+             isn't possible) and our subclass is registered in its place. -->
+        <service
+            android:name="io.capawesome.capacitorjs.plugins.firebase.messaging.MessagingService"
+            tools:node="remove" />
+        <service
+            android:name=".BelaMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -70,7 +114,11 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- COARSE only. The "turniri u blizini" filter asks the browser API for
+         `enableHighAccuracy: false` (hooks/useUserLocation.ts) — city-level is
+         all it uses. Declaring FINE made Android 12+ offer "precise" and had to
+         be disclosed as precise location in Play's Data safety form for a
+         capability the app never exercises (store audit, 2026-09-13). -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 

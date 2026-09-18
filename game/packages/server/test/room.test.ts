@@ -6,6 +6,45 @@ let server: GameServer | null = null
 const clients: TestClient[] = []
 
 describe("room visibility and rules", () => {
+    it("enforces the room's minimum overall win percentage", async () => {
+        server = await startTestServer({
+            authenticator: {
+                authenticate: async ({ devName }) => {
+                    const name = devName ?? "Igrac"
+                    const winRate = name === "Ispod" ? 0.49 : 0.6
+                    return {
+                        uid: `test:${name}`,
+                        name,
+                        avatarUrl: null,
+                        gameStats: {
+                            global: { games: 100, wins: Math.round(winRate * 100), losses: 100 - Math.round(winRate * 100), winRate },
+                            byTargetScore: {},
+                        },
+                    }
+                },
+            },
+        })
+        const host = await connect("Domacin")
+        host.send({ t: "room.create", targetScore: 501, private: false, minWinRatePercent: 50 })
+        const created = await host.nextOfType("room.joined")
+        expect(created.room.minWinRatePercent).toBe(50)
+
+        const below = await connect("Ispod")
+        below.send({ t: "room.join", roomId: created.room.id })
+        expect((await below.nextOfType("error")).code).toBe("WIN_RATE_TOO_LOW")
+
+        const qualified = await connect("Iznad")
+        qualified.send({ t: "room.join", roomId: created.room.id })
+        expect((await qualified.nextOfType("room.joined")).room.id).toBe(created.room.id)
+    })
+
+    it("rejects an unsupported win percentage requirement", async () => {
+        server = await startTestServer()
+        const host = await connect("Domacin")
+        host.send({ t: "room.create", targetScore: 501, private: false, minWinRatePercent: 55 as 50 })
+        expect((await host.nextOfType("error")).code).toBe("BAD_REQUEST")
+    })
+
     it("lists private rooms without exposing their code and requires the code for entry", async () => {
         server = await startTestServer()
         const watcher = await connect("Watcher")
@@ -281,13 +320,13 @@ describe("chat.react", () => {
         guest.send({ t: "room.join", roomId: joined.room.id })
         await guest.nextOfType("room.joined")
 
-        host.send({ t: "chat.react", reaction: "🔥" })
+        host.send({ t: "chat.react", reaction: "👏" })
         const reaction = await guest.nextOfType("chat.reaction")
-        expect(reaction.reaction).toBe("🔥")
+        expect(reaction.reaction).toBe("👏")
         expect(reaction.from.uid).toBe("dev:domacin")
         expect(reaction.seat).toBe(0)
 
-        host.send({ t: "chat.react", reaction: "🎉" })
+        host.send({ t: "chat.react", reaction: "🍀" })
         const err = await host.nextOfType("error")
         expect(err.code).toBe("RATE_LIMITED")
     })
@@ -305,7 +344,7 @@ describe("chat.react", () => {
         guest.send({ t: "room.join", roomId: joined.room.id })
         expect((await guest.nextOfType("room.joined")).yourSeat).toBeNull()
 
-        guest.send({ t: "chat.react", reaction: "😢" })
+        guest.send({ t: "chat.react", reaction: "🤝" })
         const reaction = await host.nextOfType("chat.reaction")
         expect(reaction.seat).toBeNull()
     })
@@ -393,7 +432,7 @@ describe("room seats", () => {
         const occupant = withBot.room.seats[1]?.occupant
         expect(occupant?.kind).toBe("BOT")
         if (occupant?.kind === "BOT") {
-            expect(occupant.name).toBe("Bot Ana")
+            expect(occupant.name).toMatch(/^Bot [A-Z][a-z]+$/)
         }
 
         host.send({ t: "room.removeBot", seat: 1 })

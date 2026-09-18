@@ -1,4 +1,5 @@
-import { lazy, type ComponentType } from "react"
+import { lazy, type ComponentType, type LazyExoticComponent } from "react"
+import { isOffline } from "../platform/useNetworkStatus"
 
 /** sessionStorage flag so the recovery reload happens at most once per tab. */
 const KEY = "chunk-reload-once"
@@ -14,10 +15,6 @@ const KEY = "chunk-reload-once"
  * of check that quietly stops matching.
  */
 export const OFFLINE_CHUNK_ERROR = "BelaOfflineChunkError"
-
-function isOffline(): boolean {
-    return typeof navigator !== "undefined" && navigator.onLine === false
-}
 
 /**
  * Wrap a lazy import so a FAILED dynamic import — almost always a stale chunk
@@ -40,10 +37,14 @@ function isOffline(): boolean {
  * component (e.g. the avatar cropper on the profile page) gets the same
  * stale-chunk recovery for free.
  */
+type LazyWithPreload<P extends object = Record<string, unknown>> = LazyExoticComponent<ComponentType<P>> & {
+    preload: () => Promise<{ default: ComponentType<P> }>
+}
+
 export function lazyWithReload<P extends object = Record<string, unknown>>(
     factory: () => Promise<{ default: ComponentType<P> }>,
-) {
-    return lazy(async () => {
+): LazyWithPreload<P> {
+    const lazyComponent = lazy(async () => {
         try {
             const mod = await factory()
             sessionStorage.removeItem(KEY) // fresh build loaded fine
@@ -53,7 +54,7 @@ export function lazyWithReload<P extends object = Record<string, unknown>>(
             // attempt and the post-reload attempt are both "the file is not
             // here", and a device that went offline between them must not be
             // told to refresh either.
-            if (isOffline()) {
+            if (await isOffline()) {
                 const offline = new Error(OFFLINE_CHUNK_ERROR)
                 offline.name = OFFLINE_CHUNK_ERROR
                 throw offline
@@ -67,6 +68,13 @@ export function lazyWithReload<P extends object = Record<string, unknown>>(
             throw err // already reloaded once → let the ErrorBoundary catch it
         }
     })
+
+    // Expose preload method for route prefetching on hover/focus
+    // Cast to mutable version to attach the property
+    const component = lazyComponent as unknown as LazyWithPreload<P>
+    component.preload = factory
+
+    return component
 }
 
 export default lazyWithReload

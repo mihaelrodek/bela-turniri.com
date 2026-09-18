@@ -71,6 +71,12 @@ export const common = {
     "nav.login": "Prijava",
     "nav.profil": "Profil",
     "nav.novosti": "Novosti",
+    /* Both live HERE, not in `game`/`blok`, because the two nav bars are
+       app-shell chrome: they render on every route, and their namespaces
+       are route-scoped lazy chunks (see i18n/index.ts). A label in a lazy
+       namespace would paint as a raw key until that chunk arrived. */
+    "nav.igraj": "Igraj",
+    "nav.blok": "Blok",
     "nav.logout": "Odjavi se",
     "nav.profileMenuAriaLabel": "Profil meni",
     "nav.avatarAlt": "Profilna slika",
@@ -306,6 +312,11 @@ export const common = {
     "footer.privacyLink": "Privatnost",
     "footer.termsLink": "Uvjeti",
     "footer.copyright": "© {year} bela-turniri.com",
+
+    // --- Deleted-account guard (auth/AuthContext.tsx) ----------------------
+    // Shown once when /user/me/sync answers 410 ACCOUNT_DELETED, i.e. the
+    // Firebase session outlived the profile it belonged to.
+    "account.deleted": "Ovaj račun je obrisan.",
 
     // --- Native push (platform/NativeShell.tsx) -----------------------------
     // Fallback title for a foreground FCM notification with no title of its

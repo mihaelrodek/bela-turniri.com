@@ -90,7 +90,7 @@ export function seatsFromMe(mySeat: Seat | null): Seat[] {
  *  the two meet in the middle rather than colliding.) */
 export const SEAT_ANCHORS: Record<TablePosition, CSSProperties> = {
     top: {
-        bottom: "min(calc(100% - var(--seat-h)), calc(var(--cy-bottom) + var(--seat-y)))",
+        bottom: "min(calc(100% - var(--seat-h)), calc(var(--cy-bottom) + var(--seat-y) + 12px))",
         left: "50%",
         transform: "translateX(-50%)",
     },
@@ -116,35 +116,21 @@ export const SEAT_ANCHORS: Record<TablePosition, CSSProperties> = {
    anatomy, four anchors (Seat.tsx) — so nothing needs to ask. */
 
 /**
- * Deterministic 0..1 noise from two small integers. Used for the trick's
- * scatter: a card must land at the same angle and offset on every re-render
- * of the same trick (a trick that reshuffles itself looks broken) but two
- * consecutive tricks must not look like a stamped copy of each other.
- */
-export function seatNoise(seat: Seat, trickIndex: number, salt = 0): number {
-    const x = Math.sin((seat + 1) * 127.1 + (trickIndex + 1) * 311.7 + salt * 74.7) * 43758.5453
-    return x - Math.floor(x)
-}
-
-/**
- * How a thrown card lies on the felt: tilted TOWARD its own seat by 12–22°,
- * plus a couple of pixels of scatter. Stable for a given (seat, trick).
+ * How a thrown card lies on the felt. Every table position has one fixed
+ * offset and angle, so consecutive tricks form the same readable pile.
  */
 export function cardScatter(
     seat: Seat,
     mySeat: Seat | null,
-    trickIndex: number,
 ): { tilt: number; dx: number; dy: number } {
     const position = positionOf(seat, mySeat)
-    const magnitude = 12 + seatNoise(seat, trickIndex, 1) * 10
-    // Flanks lean away from their own side; the two centre seats take their
-    // sign from the noise so the pile never looks mirror-symmetric.
-    const sign = position === "left" ? -1 : position === "right" ? 1 : seatNoise(seat, trickIndex, 2) < 0.5 ? -1 : 1
-    return {
-        tilt: magnitude * sign,
-        dx: (seatNoise(seat, trickIndex, 3) - 0.5) * 12,
-        dy: (seatNoise(seat, trickIndex, 4) - 0.5) * 12,
+    const placement: Record<TablePosition, { tilt: number; dx: number; dy: number }> = {
+        top: { tilt: 8, dx: -3, dy: -3 },
+        right: { tilt: 14, dx: 3, dy: -2 },
+        bottom: { tilt: -8, dx: 3, dy: 3 },
+        left: { tilt: -14, dx: -3, dy: 2 },
     }
+    return placement[position]
 }
 
 /**

@@ -1,6 +1,5 @@
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios"
-import { signOut } from "firebase/auth"
-import { auth } from "../firebase"
+import { loadFirebaseAuth } from "../firebase"
 import { getLocale, t } from "../i18n"
 import { apiBase } from "../platform"
 import { showError, showSuccess, statusFallback } from "../toaster"
@@ -62,6 +61,21 @@ export const http = axios.create({
 })
 
 /**
+ * The `Auth` singleton, once the deferred Firebase chunk has landed.
+ *
+ * `null` only when the chunk itself failed to download (offline cold start) —
+ * in that case there can be no session to authenticate anyway, so the caller
+ * proceeds anonymously instead of failing the request outright.
+ */
+async function authOrNull() {
+    try {
+        return (await loadFirebaseAuth()).auth
+    } catch {
+        return null
+    }
+}
+
+/**
  * Attach the current Firebase ID token (if any) to every outgoing request.
  * The Firebase SDK caches and auto-refreshes the token internally, so calling
  * `getIdToken()` is cheap and always returns a fresh, unexpired JWT.
@@ -70,12 +84,26 @@ export const http = axios.create({
  * policies allow GETs without auth and only require it on writes.
  */
 http.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+    // EVERY request waits for the auth SDK, anonymous ones included. That is
+    // deliberate and unavoidable: whether a bearer belongs on this request is
+    // exactly the thing that cannot be known before the module has loaded and
+    // restored the persisted session. Guessing "no user yet, send it bare"
+    // would reintroduce the bug the authStateReady() await below fixes —
+    // auth-dependent reads (own profile, the organiser-only fields on a
+    // tournament) intermittently coming back in their anonymous shape.
+    //
+    // The cost is bounded: `AuthProvider` starts `loadFirebaseAuth()` in its
+    // very first effect, so the download is already in flight before any
+    // request reaches this interceptor, and it is the same download the app
+    // used to make BEFORE the first paint (as a static import). What the
+    // deferral buys is the shell + seeded list painting without it; what it
+    // costs is that the first API call cannot overtake it.
+    const auth = await authOrNull()
+    if (!auth) return config
     // Wait for the persisted session to be restored before reading
     // currentUser. On a cold page load currentUser is null for a moment even
     // for a signed-in user — the very first requests then went out WITHOUT
-    // the bearer, so auth-dependent reads (own profile, the organiser-only
-    // fields on a tournament) intermittently returned the anonymous variant.
-    // Resolves immediately once known; guests resolve to null just as fast.
+    // the bearer. Resolves immediately once known; guests resolve just as fast.
     await auth.authStateReady()
     const u = auth.currentUser
     if (u) {
@@ -228,7 +256,8 @@ async function goToLoginWithNext() {
     // hash is deliberately dropped: `safeNextPath` only ever hands back a
     // path + query, and a fragment is client-only state anyway.
     try {
-        await signOut(auth)
+        const auth = await authOrNull()
+        if (auth) await auth.signOut()
     } catch {
         /* best-effort — navigate regardless */
     }
@@ -261,6 +290,9 @@ http.interceptors.response.use(
     async (err: AxiosError) => {
         const cfg = (err.config ?? {}) as InternalAxiosRequestConfig
         const status = err.response?.status
+        // Already resolved in practice — the request interceptor above awaited
+        // the very same memoised promise before this request went out.
+        const auth = await authOrNull()
         const suppress =
             cfg.silent === true
             || cfg.silentErrorStatuses === true
@@ -288,11 +320,11 @@ http.interceptors.response.use(
         // session). Force ONE token refresh and replay the original request
         // before declaring the session dead — `_retried` makes a second 401 on
         // the replay fall through to the sign-out path instead of looping.
-        if (status === 401 && auth.currentUser && !cfg._retried && err.config) {
+        if (status === 401 && auth?.currentUser && !cfg._retried && err.config) {
             cfg._retried = true
             let refreshed = false
             try {
-                await auth.currentUser.getIdToken(true)
+                await auth.currentUser!.getIdToken(true)
                 refreshed = true
             } catch {
                 // Refresh failed — the session really is gone; fall through to
@@ -312,7 +344,7 @@ http.interceptors.response.use(
         // someone was signed in — an anonymous 401 just means the endpoint
         // needs auth and the calling UI already handles that, so it rejects
         // silently rather than nagging a guest to "sign in again".
-        if (status === 401 && auth.currentUser && cfg.silent !== true) {
+        if (status === 401 && auth?.currentUser && cfg.silent !== true) {
             showError(t("common.sessionExpired"))
             // Signs the dead session out and then redirects (throttled).
             void goToLoginWithNext()

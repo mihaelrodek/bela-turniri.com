@@ -22,7 +22,6 @@ import {
     MapContainer,
     Marker,
     Popup,
-    TileLayer,
     useMap,
 } from "react-leaflet"
 
@@ -36,7 +35,7 @@ import { formatDateShort, formatTime } from "../utils/format"
 import { positiveAmount } from "../components/listingShared"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 import { MAP_TARGET_PARAM } from "../utils/mapLink"
-import { mapTiles } from "../utils/mapTiles"
+import { MapBaseLayer } from "../components/MapBaseLayer"
 import { useTranslation, usePlural } from "../i18n"
 
 /** Stable empty default for the query's `data` — a fresh `[]` literal each
@@ -930,14 +929,11 @@ export default function MapPage() {
                         scrollWheelZoom
                         style={{ height: "100%", width: "100%" }}
                     >
-                        {/* Basemap (CARTO Voyager by default — keyless, neutral,
-                            readable) resolved in utils/mapTiles.ts, which lets a
-                            keyed provider be swapped in via env vars. */}
-                        <TileLayer
-                            attribution={mapTiles.attribution}
-                            url={mapTiles.url}
-                            maxZoom={mapTiles.maxZoom}
-                        />
+                        {/* Basemap (CARTO Voyager raster by default) resolved in
+                            utils/mapTiles.ts, which lets a keyed raster provider
+                            or keyless OpenFreeMap vector tiles be swapped in via
+                            env vars; MapBaseLayer renders whichever applies. */}
+                        <MapBaseLayer />
 
                         {placed.map((t) => {
                             const bucket = classify(t.startAt)

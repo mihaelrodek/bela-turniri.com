@@ -21,6 +21,8 @@ import type { ProfileLookup } from "./profiles.js"
 import type { Authenticator } from "./auth.js"
 import { loadConfig, resolveTimings } from "./config.js"
 import type { Config, EnvLike, RateLimits, Timings } from "./config.js"
+import { createLiveActivityNotifier, LiveActivityHub } from "./liveActivity.js"
+import type { LiveActivityNotifier } from "./liveActivity.js"
 import { Lobby } from "./lobby.js"
 import { log, setLogLevel } from "./log.js"
 import { Hub } from "./ws.js"
@@ -44,6 +46,8 @@ export interface ServerOptions {
     authenticator?: Authenticator
     /** Injectable for tests; defaults to the backend-backed profile channel. */
     profiles?: ProfileLookup
+    /** Injectable for tests; defaults to `POST /internal/live-activity` on the backend. */
+    liveActivity?: LiveActivityNotifier
 }
 
 export interface GameServer {
@@ -53,6 +57,7 @@ export interface GameServer {
     readonly timings: Timings
     readonly lobby: Lobby
     readonly hub: Hub
+    readonly liveActivity: LiveActivityHub
     port(): number
     url(): string
     roomCount(): number
@@ -90,13 +95,14 @@ export async function createServer(options: ServerOptions = {}): Promise<GameSer
 
     const timings = resolveTimings(options.timings)
     const rates = resolveRates(options.rateLimits)
-    const lobby = new Lobby(timings)
+    const liveActivity = new LiveActivityHub(options.liveActivity ?? createLiveActivityNotifier(cfg))
+    const lobby = new Lobby(timings, liveActivity)
     // One lookup for both directions: the authenticator reads profiles through
     // it on every hello, and the hub writes the in-game name through it — so a
     // write invalidates the very cache the next read consults.
     const profiles = options.profiles ?? createProfileLookup(cfg)
     const auth = options.authenticator ?? createAuthenticator(cfg, profiles)
-    const hub = new Hub({ cfg, timings, rates, auth, lobby, profiles })
+    const hub = new Hub({ cfg, timings, rates, auth, lobby, profiles, liveActivity })
 
     const httpServer = createHttpServer((req: IncomingMessage, res: ServerResponse) => {
         const path = pathnameOf(req.url)
@@ -160,6 +166,7 @@ export async function createServer(options: ServerOptions = {}): Promise<GameSer
         closed = true
         hub.close()
         lobby.dispose()
+        liveActivity.dispose()
         await new Promise<void>((resolve) => {
             wss.close(() => resolve())
         })
@@ -175,6 +182,7 @@ export async function createServer(options: ServerOptions = {}): Promise<GameSer
         timings,
         lobby,
         hub,
+        liveActivity,
         port,
         url: () => `ws://127.0.0.1:${port()}/ws/game`,
         roomCount: () => lobby.size(),

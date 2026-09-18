@@ -64,6 +64,8 @@ export const common: CommonDict = {
     "nav.login": "Prijava",
     "nav.profil": "Profil",
     "nav.novosti": "Novosti",
+    "nav.igraj": "Igraj",
+    "nav.blok": "Blok",
     "nav.logout": "Odjavi se",
     "nav.profileMenuAriaLabel": "Meni profila",
     "nav.avatarAlt": "Profilna slika",
@@ -292,6 +294,9 @@ export const common: CommonDict = {
     "footer.privacyLink": "Zasebnost",
     "footer.termsLink": "Pogoji",
     "footer.copyright": "© {year} bela-turniri.com",
+
+    // --- Deleted-account guard (auth/AuthContext.tsx) ----------------------
+    "account.deleted": "Ta račun je izbrisan.",
 
     // --- Native push (platform/NativeShell.tsx) -----------------------------
     "push.fallbackTitle": "Bela Turniri",

@@ -18,6 +18,7 @@
        "another deal follows" and nothing has to auto-advance a finished game
      • GAME_OVER                → the room is marked FINISHED and, once,
        `statsReporter.reportGameResult` tells the backend about it (README §8)
+       and every seated human's Live Activity gets its `end` (README §3)
    ────────────────────────────────────────────────────────────────────── */
 
 import {
@@ -35,6 +36,9 @@ import { codeFromEngine, ProtocolError } from "./errors.js"
 import { chooseBid, chooseCard, makeBot, thinkDelay } from "./bots.js"
 import type { Bot } from "./bots.js"
 import { newSeed } from "./ids.js"
+import { randomUUID } from "node:crypto"
+import { reportGameAbandoned, reportGameCompleted, reportGameStarted } from "./analyticsReporter.js"
+import type { LiveActivitySnapshot } from "./liveActivity.js"
 import { log } from "./log.js"
 import type { Room } from "./room.js"
 import { reportGameResult } from "./statsReporter.js"
@@ -60,10 +64,15 @@ export class GameRoom {
     private botTimer: Timer | null
     private dealDoneTimer: Timer | null
     private turnDeadline: number | null
+    private turnDurationMs: number | null
     private lastAutoPlayed: boolean
     private scheduledSeat: Seat | null
     private scheduledAsBot: boolean | null
     private disposed: boolean
+    private readonly analyticsRunId: string
+    private readonly startedAt: number
+    private autoPlayedActions: number
+    private analyticsTerminalReported: boolean
 
     constructor(room: Room, timings: Timings) {
         this.room = room
@@ -73,18 +82,29 @@ export class GameRoom {
         this.botTimer = null
         this.dealDoneTimer = null
         this.turnDeadline = null
+        this.turnDurationMs = null
         this.lastAutoPlayed = false
         this.scheduledSeat = null
         this.scheduledAsBot = null
         this.disposed = false
+        this.analyticsRunId = randomUUID()
+        this.startedAt = Date.now()
+        this.autoPlayedActions = 0
+        this.analyticsTerminalReported = false
         // `trickReview` travels in the engine config because `viewFor(state,
         // seat)` — the only place the redaction can be enforced — has nothing
         // but the state to read it from. It changes no rule of play.
         this.state = newGame({ targetScore: room.targetScore, gameEndRule: room.gameEndRule, seed: newSeed(), noDeclarations: room.noDeclarations, allowBela: room.allowBela, trickReview: room.trickReview })
     }
 
+    /** Stable id for lifecycle reports belonging to this one started game. */
+    get runId(): string {
+        return this.analyticsRunId
+    }
+
     /** First broadcast + first timer, right after `room.start`. */
     begin(): void {
+        reportGameStarted(this.analyticsRunId, this.room, this.startedAt)
         this.schedule()
         this.broadcastState()
     }
@@ -134,6 +154,7 @@ export class GameRoom {
     }
 
     private apply(action: GameAction, autoPlayed: boolean): void {
+        if (autoPlayed && action.type !== "NEXT_DEAL") this.autoPlayedActions += 1
         const result = reduce(this.state, action)
         this.state = result.state
         if (result.events.some((event) => event.type === "DECLARATIONS_REVEALED")) {
@@ -170,6 +191,7 @@ export class GameRoom {
             declarationsPending: this.declarationsUntil > Date.now(),
             view,
             turnDeadline: this.turnDeadline,
+            turnDurationMs: this.turnDurationMs,
             autoPlayed: this.lastAutoPlayed,
         }
     }
@@ -181,6 +203,14 @@ export class GameRoom {
             const seat = uid ? this.room.seatOfUid(uid) : null
             conn.send(this.stateMessage(seat, cache))
         }
+        // Rides on the same broadcast every client already gets, so the lock
+        // screen can never show a state the table has not seen (README §3).
+        this.room.liveActivity?.onGameState(this.room, this.liveSnapshot())
+    }
+
+    /** What the Live Activity fan-out reads: the state and the running deadline. */
+    liveSnapshot(): LiveActivitySnapshot {
+        return { state: this.state, turnDeadline: this.turnDeadline }
     }
 
     /** Used on join / reconnect so a late arrival is immediately in sync. */
@@ -228,6 +258,7 @@ export class GameRoom {
 
         if (this.declarationsUntil > Date.now()) {
             this.turnDeadline = null
+            this.turnDurationMs = null
             this.scheduledSeat = null
             this.scheduledAsBot = null
             this.botTimer = unref(setTimeout(() => {
@@ -240,19 +271,24 @@ export class GameRoom {
 
         if (st.phase === "GAME_OVER") {
             this.turnDeadline = null
+            this.turnDurationMs = null
             this.scheduledSeat = null
             this.scheduledAsBot = null
             // `apply()` only reaches this branch once per game (the engine's
             // `reduce()` sets GAME_OVER exactly once, and once here neither
             // `apply()` nor `onPresenceChanged()` calls `schedule()` again —
             // see their guards), so this is exactly-once, not per-broadcast.
-            reportGameResult(this.room, st)
+            this.analyticsTerminalReported = true
+            reportGameCompleted(this.analyticsRunId, this.room, st, this.startedAt, this.autoPlayedActions)
+            reportGameResult(this.room, st, this.analyticsRunId)
+            this.room.liveActivity?.endAll(this.room, this.liveSnapshot())
             this.room.onGameOver()
             return
         }
 
         if (st.phase === "DEAL_DONE") {
             this.turnDeadline = null
+            this.turnDurationMs = null
             this.scheduledSeat = null
             this.scheduledAsBot = null
             // Always auto-advance, whether or not a human is watching
@@ -279,8 +315,9 @@ export class GameRoom {
         this.scheduledAsBot = asBot
 
         if (asBot) {
-            this.turnDeadline = null
             const delay = thinkDelay(this.t.botThinkMinMs, this.t.botThinkMaxMs)
+            this.turnDeadline = Date.now() + delay
+            this.turnDurationMs = delay
             this.botTimer = unref(
                 setTimeout(() => {
                     this.botTimer = null
@@ -289,6 +326,7 @@ export class GameRoom {
             )
         } else {
             this.turnDeadline = Date.now() + this.t.turnTimeoutMs
+            this.turnDurationMs = this.t.turnTimeoutMs
             this.turnTimer = unref(
                 setTimeout(() => {
                     this.turnTimer = null
@@ -400,6 +438,19 @@ export class GameRoom {
     dispose(): void {
         this.disposed = true
         this.clearTimers()
+    }
+
+    abandon(reason: string): void {
+        if (this.analyticsTerminalReported || this.state.phase === "GAME_OVER") return
+        this.analyticsTerminalReported = true
+        reportGameAbandoned(
+            this.analyticsRunId,
+            this.room,
+            this.state,
+            this.startedAt,
+            this.autoPlayedActions,
+            reason,
+        )
     }
 }
 

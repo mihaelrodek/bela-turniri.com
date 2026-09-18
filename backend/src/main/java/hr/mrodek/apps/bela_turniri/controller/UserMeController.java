@@ -1,5 +1,6 @@
 package hr.mrodek.apps.bela_turniri.controller;
 
+import hr.mrodek.apps.bela_turniri.dtos.BlockedUserDto;
 import hr.mrodek.apps.bela_turniri.dtos.GameStatsDto;
 import hr.mrodek.apps.bela_turniri.services.GameNameService;
 import hr.mrodek.apps.bela_turniri.dtos.MyTournamentParticipationDto;
@@ -14,9 +15,14 @@ import hr.mrodek.apps.bela_turniri.model.UserProfile;
 import hr.mrodek.apps.bela_turniri.repository.PairsRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserPairPresetRepository;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
+import hr.mrodek.apps.bela_turniri.services.AccountDeletionService;
 import hr.mrodek.apps.bela_turniri.services.AvatarPresetService;
+import hr.mrodek.apps.bela_turniri.services.UserBlockService;
 import hr.mrodek.apps.bela_turniri.services.CurrentUser;
+import hr.mrodek.apps.bela_turniri.services.DisplayNames;
 import hr.mrodek.apps.bela_turniri.services.GameStatsService;
+import hr.mrodek.apps.bela_turniri.services.GameReliabilityService;
+import hr.mrodek.apps.bela_turniri.dtos.GameReliabilityDto;
 import hr.mrodek.apps.bela_turniri.services.MessageService;
 import hr.mrodek.apps.bela_turniri.services.PushDeviceService;
 import hr.mrodek.apps.bela_turniri.services.SlugService;
@@ -61,9 +67,13 @@ public class UserMeController {
     @Inject MessageService messages;
     @Inject CurrentUser currentUser;
     @Inject GameStatsService gameStatsService;
+    @Inject GameReliabilityService gameReliabilityService;
     @Inject GameNameService gameNameService;
     @Inject PushDeviceService pushDevices;
     @Inject AvatarPresetService avatarPresets;
+    @Inject AccountDeletionService accountDeletion;
+    @Inject UserBlockService blocks;
+    @Inject DisplayNames displayNames;
 
     @GET
     @Path("/tournaments")
@@ -128,10 +138,12 @@ public class UserMeController {
                     t.getStartAt(),
                     isPrimary,
                     p.isPendingApproval(),
-                    primaryProfile != null ? primaryProfile.getDisplayName() : null,
-                    primaryProfile != null ? primaryProfile.getSlug() : null,
-                    coProfile != null ? coProfile.getDisplayName() : null,
-                    coProfile != null ? coProfile.getSlug() : null,
+                    // A partner whose account has been deleted renders as
+                    // "Obrisani korisnik" with no link — one rule, in DisplayNames.
+                    displayNames.nameOf(primaryProfile),
+                    displayNames.slugOf(primaryProfile),
+                    displayNames.nameOf(coProfile),
+                    displayNames.slugOf(coProfile),
                     isPrimary ? p.getClaimToken() : null
             ));
         }
@@ -153,6 +165,13 @@ public class UserMeController {
     @Path("/game-stats")
     public GameStatsDto gameStats() {
         return gameStatsService.statsFor(currentUser.requireUid());
+    }
+
+    /** Current user's reliable-play score and confirmed abandonment count. */
+    @GET
+    @Path("/game-reliability")
+    public GameReliabilityDto gameReliability() {
+        return gameReliabilityService.forUser(currentUser.requireUid());
     }
 
     @GET
@@ -272,6 +291,71 @@ public class UserMeController {
         var profile = slugService.ensureProfile(uid, displayName);
         // ensureProfile returns the persisted entity with the slug guaranteed.
         return toDto(profile);
+    }
+
+    /* ===================== account deletion ===================== */
+
+    /**
+     * {@code DELETE /user/me} — "obriši račun" (App Store guideline 5.1.1(v)).
+     *
+     * <p>ANONYMISATION, not erasure: the person disappears, the tournaments
+     * other people played in stay intact. The full per-table checklist lives
+     * in {@link AccountDeletionService}, which is also where the reason the
+     * profile row and its slug survive is written down.
+     *
+     * <p><b>204 on a second call too</b>, not 404. The client that sends this
+     * is immediately signing itself out and deleting its own Firebase user;
+     * a retry after a dropped response, or a second device that had not
+     * noticed yet, must not be told "no such account" — that reads as a
+     * failure and invites the user to try again forever. The service is
+     * idempotent, so the second call is a genuine no-op and 204 is the honest
+     * answer to "make sure this account is gone".
+     *
+     * <p>{@code @Transactional} on the controller method per CLAUDE.md: the
+     * whole checklist commits together or not at all. The two steps that reach
+     * outside the database — releasing the avatar object and deleting the
+     * Firebase Auth user — are best-effort and never fail the request.
+     */
+    @DELETE
+    @Transactional
+    public Response deleteAccount() {
+        accountDeletion.deleteAccount(currentUser.requireUid());
+        return Response.noContent().build();
+    }
+
+    /* ===================== blocks ===================== */
+
+    /**
+     * {@code GET /user/me/blocks} — the caller's block list, newest first.
+     * Enough to recognise each person and undo the block, nothing more.
+     */
+    @GET
+    @Path("/blocks")
+    @Transactional   // touch the lazy avatar relation on each blocked profile
+    public List<BlockedUserDto> listBlocks() {
+        return blocks.list(currentUser.requireUid());
+    }
+
+    /**
+     * {@code PUT /user/me/blocks/{uid}} — block someone. Idempotent (the
+     * (blocker, blocked) pair is the primary key). 400
+     * {@code CANNOT_BLOCK_SELF}, 404 for a uid nobody owns.
+     */
+    @PUT
+    @Path("/blocks/{uid}")
+    @Transactional
+    public Response block(@PathParam("uid") String uid) {
+        blocks.block(currentUser.requireUid(), uid);
+        return Response.noContent().build();
+    }
+
+    /** {@code DELETE /user/me/blocks/{uid}} — unblock. Idempotent, always 204. */
+    @DELETE
+    @Path("/blocks/{uid}")
+    @Transactional
+    public Response unblock(@PathParam("uid") String uid) {
+        blocks.unblock(currentUser.requireUid(), uid);
+        return Response.noContent().build();
     }
 
     /* ===================== native push devices ===================== */

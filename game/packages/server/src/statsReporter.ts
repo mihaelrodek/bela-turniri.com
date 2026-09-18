@@ -12,7 +12,7 @@
    its caller never needs to await it.
    ────────────────────────────────────────────────────────────────────── */
 
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import type { GameState, Seat, Team } from "@bela/engine"
 import { loadConfig } from "./config.js"
 import { log } from "./log.js"
@@ -59,7 +59,7 @@ export interface GameResultBody {
     players: ResultPlayer[]
 }
 
-function buildBody(room: Room, state: GameState, winner: Team): GameResultBody {
+function buildBody(room: Room, state: GameState, winner: Team, resultId?: string): GameResultBody {
     const players: ResultPlayer[] = SEATS.map((seat) => {
         const slot = room.slotAt(seat)
         const human = isHumanSlot(slot)
@@ -72,7 +72,7 @@ function buildBody(room: Room, state: GameState, winner: Team): GameResultBody {
         }
     })
     return {
-        resultId: randomUUID(),
+        resultId: resultId ?? randomUUID(),
         playedAt: new Date().toISOString(),
         targetScore: room.targetScore,
         winnerTeam: winner,
@@ -90,13 +90,51 @@ let warnedNoToken = false
  * (`POST {backendInternalUrl}/internal/game-results`, README §8.4).
  * Fire-and-forget: never throws, callers don't need to await it.
  */
-export function reportGameResult(room: Room, state: GameState): void {
-    doReport(room, state).catch((err: unknown) => {
+export function reportGameResult(room: Room, state: GameState, resultId?: string): void {
+    doReport(room, state, resultId).catch((err: unknown) => {
         log.error("stats.report.unexpected", { err })
     })
 }
 
-async function doReport(room: Room, state: GameState): Promise<void> {
+/**
+ * Report a confirmed abandonment. This is called only by Room after its
+ * reconnect grace has elapsed (or after an explicit final abandon), never
+ * merely because a websocket closed. The deterministic id keeps an eventual
+ * retry idempotent at the backend.
+ */
+export function reportGameAbandonment(runId: string, uid: string): void {
+    doReportAbandonment(runId, uid).catch((err: unknown) => {
+        log.error("reliability.report.unexpected", { err })
+    })
+}
+
+async function doReportAbandonment(runId: string, uid: string): Promise<void> {
+    if (!uid || uid.startsWith("guest:") || uid.startsWith("dev:")) return
+    const cfg = loadConfig(process.env)
+    if (!cfg.gameResultsToken) {
+        log.warn("reliability.report.noToken", { msg: "GAME_RESULTS_TOKEN nije postavljen — karma se ne može spremiti." })
+        return
+    }
+    const eventId = createHash("sha256").update(`${runId}:${uid}:ABANDONED`).digest("hex")
+    let res: Response
+    try {
+        res = await fetch(`${cfg.backendInternalUrl}/internal/game-reliability-events`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Internal-Token": cfg.gameResultsToken,
+            },
+            body: JSON.stringify({ eventId, userUid: uid, eventType: "ABANDONED", occurredAt: new Date().toISOString() }),
+            signal: AbortSignal.timeout(5_000),
+        })
+    } catch (err) {
+        log.warn("reliability.report.networkError", { err })
+        return
+    }
+    if (!res.ok) log.warn("reliability.report.badStatus", { status: res.status })
+}
+
+async function doReport(room: Room, state: GameState, resultId?: string): Promise<void> {
     if (!isEligible(room)) {
         log.debug("stats.report.skipped", { reason: "not-eligible" })
         return
@@ -119,7 +157,7 @@ async function doReport(room: Room, state: GameState): Promise<void> {
         return
     }
 
-    const body = buildBody(room, state, state.winner)
+    const body = buildBody(room, state, state.winner, resultId)
     let res: Response
     try {
         res = await fetch(`${cfg.backendInternalUrl}/internal/game-results`, {

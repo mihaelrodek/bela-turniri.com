@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react"
 import { t as tStatic } from "../i18n"
 import { showError, showSuccess } from "../toaster"
+import { isNative } from "../platform"
+import { nativeFilesystem, nativeShare } from "../platform/nativeIo"
 
 /* ──────────────────────────────────────────────────────────────────────────
    tournamentQr — the one place that knows how to address, render and save a
@@ -50,6 +52,21 @@ export function publicTournamentUrl(uuid: string, slug?: string | null): string 
     return `${window.location.origin}/turniri/${tournamentQrRef(uuid, slug)}`
 }
 
+/** Base64 payload of a Blob, without the `data:…;base64,` prefix —
+ *  `Filesystem.writeFile` wants raw base64 when no `encoding` is given (the
+ *  PNG is binary, so there is no text encoding to name). */
+function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onerror = () => reject(reader.error ?? new Error("FileReader failed"))
+        reader.onloadend = () => {
+            const result = reader.result as string
+            resolve(result.slice(result.indexOf(",") + 1))
+        }
+        reader.readAsDataURL(blob)
+    })
+}
+
 /**
  * Downloads the tournament's QR PNG as `qr-{ref}.png`, toasting success or
  * failure. Returns the pending flag so a caller can put its button into a
@@ -69,6 +86,30 @@ export function useTournamentQrDownload(ref: string) {
             const res = await fetch(tournamentQrImageUrl(ref))
             if (!res.ok) throw new Error(`HTTP ${res.status}`)
             const blob = await res.blob()
+            if (isNative) {
+                // Same reasoning as `downloadIcs`: a WebView has no download
+                // manager to hand an object URL's anchor click to. Write the
+                // PNG into the app cache as base64 and hand its file:// URI
+                // to the OS share sheet — "Save Image" is one of iOS's share
+                // targets, Android offers Photos/Files.
+                const base64 = await blobToBase64(blob)
+                const fileName = `qr-${ref}.png`.replace(/[^a-zA-Z0-9.-]/g, "")
+                const { Filesystem, Directory } = await nativeFilesystem()
+                const written = await Filesystem.writeFile({
+                    directory: Directory.Cache,
+                    path: fileName,
+                    data: base64,
+                })
+                const Share = await nativeShare()
+                try {
+                    await Share.share({ title: fileName, url: written.uri })
+                    showSuccess(tStatic("common.qr.downloadSuccess"))
+                } catch {
+                    // Cancelling the share sheet is a no-op, not a failure —
+                    // matches the web path's silent "click away" outcome.
+                }
+                return
+            }
             const objectUrl = URL.createObjectURL(blob)
             const a = document.createElement("a")
             a.href = objectUrl

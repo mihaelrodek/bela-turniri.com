@@ -18,6 +18,18 @@ import { InstallAppButton } from "./InstallAppButton"
 import LanguagePicker from "./LanguagePicker"
 import { NAVBAR_H } from "./navChrome"
 import { open as openWhatsNew, useHasUnseenWhatsNew } from "../whatsNew/store"
+import { usePrefetchRoute } from "../hooks/usePrefetchRoute"
+import {
+    calendarPageFactory,
+    profilePageFactory,
+} from "../routes/lazyPages"
+
+/** Map route paths to their chunk factories for prefetching. */
+const PREFETCH_MAP: Record<string, (() => Promise<unknown>) | undefined> = {
+    "/kalendar": calendarPageFactory,
+    "/karta": undefined, // Leaflet is heavy; excluded from prefetch
+    "/profil": profilePageFactory,
+}
 
 /**
  * Inner height of the bar, i.e. NAVBAR_H minus the 1px bottom hairline.
@@ -48,7 +60,7 @@ const BAR_H = {
  * would have gone the wrong way in dark and read as a hole in the capsule.
  */
 function NavButton({
-                       to, exact, icon, accent, children, onClick,
+                       to, exact, icon, accent, isNew, children, onClick,
                    }: {
     to: string
     exact?: boolean
@@ -64,12 +76,14 @@ function NavButton({
      * claims you are on a page you are not.
      */
     accent?: boolean
+    isNew?: boolean
     children: React.ReactNode
     onClick?: () => void
 }) {
     const resolved = useResolvedPath(to)
     const match = useMatch({ path: resolved.pathname, end: !!exact })
     const isActive = !!match
+    const prefetch = usePrefetchRoute(PREFETCH_MAP[to])
 
     return (
         <Button
@@ -91,12 +105,20 @@ function NavButton({
             color={isActive ? undefined : accent ? "colorPalette.fg" : "fg.soft"}
             _hover={isActive ? undefined : accent ? { bg: "colorPalette.muted" } : { bg: "bg.muted", color: "fg" }}
             onClick={onClick}
+            onPointerEnter={prefetch}
+            onFocus={prefetch}
         >
             <RouterLink to={to}>
                 {/* The icon is decorative here — the link's own text is the
                     accessible name, so no aria-label and no title. */}
                 {icon && <Box as="span" display="inline-flex" flexShrink="0" aria-hidden="true">{icon}</Box>}
-                {children}
+                <Box as="span" position="relative" display="inline-flex" alignItems="center">
+                    {children}
+                    {isNew && !isActive && <Box as="span" position="absolute" top="calc(100% + 5px)" left="50%" transform="translateX(-50%)" px="2" py="1"
+                        rounded="full" bg="orange.400" color="gray.950" borderWidth="1px" borderColor="orange.200"
+                        boxShadow="0 3px 8px rgba(234, 88, 12, 0.45)" fontSize="9px" fontWeight="900" lineHeight="1"
+                        letterSpacing="0.08em">NOVO</Box>}
+                </Box>
             </RouterLink>
         </Button>
     )
@@ -133,6 +155,7 @@ type NavItem = {
     exact?: boolean
     /** Filled even when it is not the current page — see `NavButton`. */
     accent?: boolean
+    isNew?: boolean
 }
 
 function buildNavItems(t: (key: string) => string): NavItem[] {
@@ -144,12 +167,12 @@ function buildNavItems(t: (key: string) => string): NavItem[] {
         // label lives in the `game` namespace, not in `common`.
         // The same card mark the mobile bar's centre disc carries — the two
         // bars are one navigation seen at two widths (MobileTabBar's header).
-        { to: "/igra", label: t("game.nav.igraj"), icon: <CardsIcon size={16} />, accent: true },
+        { to: "/igra", label: t("common.nav.igraj"), icon: <CardsIcon size={16} />, accent: true, isNew: true },
         { to: "/karta", label: t("common.nav.karta"), icon: <FiMap size={16} /> },
         // Bela blok (src/blok) — public offline scorepad, no feature flag, no
         // auth. Its label lives in the `blok` namespace with the rest of that
         // subtree.
-        { to: "/blok", label: t("blok.nav"), icon: <FiEdit3 size={16} /> },
+        { to: "/blok", label: t("common.nav.blok"), icon: <FiEdit3 size={16} /> },
     ]
 }
 
@@ -627,6 +650,7 @@ export default function NavBar() {
                                 exact={item.exact}
                                 icon={item.icon}
                                 accent={item.accent}
+                                isNew={item.isNew}
                             >
                                 {item.label}
                             </NavButton>

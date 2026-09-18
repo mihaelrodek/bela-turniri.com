@@ -73,6 +73,21 @@ function dealStock(
     return out
 }
 
+/** A belot is a complete suit in one eight-card hand. Check in dealing order
+ * so even the astronomically rarer case of several complete suits has one
+ * deterministic winner: the first player after the dealer. */
+export function findBelot(hands: Record<Seat, Card[]>, dealer: Seat): { seat: Seat; suit: Suit } | null {
+    for (let step = 0; step < 4; step++) {
+        const seat = seatFrom(dealer + 1 + step)
+        const hand = hands[seat]
+        const first = hand[0]
+        if (hand.length !== 8 || first === undefined) continue
+        const suit = cardSuit(first)
+        if (hand.every((card) => cardSuit(card) === suit)) return { seat, suit }
+    }
+    return null
+}
+
 function startDeal(
     base: Pick<GameState, "config" | "score" | "history">,
     dealNo: number,
@@ -94,6 +109,7 @@ function startDeal(
         declarations: EMPTY_DECLARATIONS(),
         declarationsScoringTeam: null,
         belaDeclared: null,
+        belotSeat: null,
         belaRefused: null,
         dealScore: null,
         score: base.score,
@@ -113,6 +129,7 @@ function startDeal(
  * Returns the winner, or null when the game goes on.
  */
 function gameWinner(config: GameConfig, score: Record<Team, number>, dealScore: GameState["dealScore"]): Team | null {
+    if (dealScore?.belot) return dealScore.belot
     const target = config.targetScore
     if (score.A === score.B) return null
     if ((config.gameEndRule ?? "prolaz") === "dosta") {
@@ -181,6 +198,57 @@ function applyBid(
 
     const hands = dealStock(state.hands, state.stock, state.dealer)
     events.push({ type: "HAND_COMPLETED" })
+
+    /* Belot — all eight cards of one suit — is decided the instant complete
+       hands exist. It is independent of the ordinary-declarations switch and
+       ends the game before a card is led. Award the configured target exactly
+       as the paper Blok does; adding a fixed 1001 would be wrong in 501/701. */
+    const belot = findBelot(hands, state.dealer)
+    if (belot !== null) {
+        const winner = teamOf(belot.seat)
+        const callerTeam = teamOf(seat)
+        const total: Record<Team, number> = { A: 0, B: 0 }
+        total[winner] = state.config.targetScore
+        const dealScore = {
+            dealNo: state.dealNo,
+            trump,
+            caller: seat,
+            callerTeam,
+            cardPoints: { A: 0, B: 0 },
+            declarationPoints: { A: 0, B: 0 },
+            stiglja: null,
+            belot: winner,
+            // There is no fall on an unplayed belot deal.
+            passed: true,
+            total,
+        }
+        const score: Record<Team, number> = {
+            A: state.score.A + total.A,
+            B: state.score.B + total.B,
+        }
+        events.push(
+            { type: "BELOT", seat: belot.seat, suit: belot.suit },
+            { type: "DEAL_SCORED", dealScore },
+            { type: "GAME_OVER", winner, score: { ...score } },
+        )
+        return {
+            state: {
+                ...state,
+                phase: "GAME_OVER",
+                hands,
+                stock: [],
+                bidding: { turn: seat, passes: state.bidding.passes, trump, caller: seat },
+                declarations: EMPTY_DECLARATIONS(),
+                declarationsScoringTeam: null,
+                belotSeat: belot.seat,
+                dealScore,
+                score,
+                history: [...state.history, dealScore],
+                winner,
+            },
+            events,
+        }
+    }
 
     const declarations = EMPTY_DECLARATIONS()
     if (!state.config.noDeclarations) {

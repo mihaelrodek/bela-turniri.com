@@ -571,8 +571,6 @@ export default function TournamentsPage() {
     // (widen it) vs. the generic "no filter matches" (clear them).
     const noneNearby = nearMeActive && filteredUpcoming.length === 0 && upcoming.length > 0
 
-    const gridCols = { base: "1fr", md: "1fr 1fr", lg: "repeat(3, 1fr)" }
-
     /** Both sections render through the same switch, so "Mreža"/"Popis" is a
      *  property of the page rather than of one list. */
     function renderItems(items: ListingTournament[], variant: "upcoming" | "finished") {
@@ -595,7 +593,7 @@ export default function TournamentsPage() {
             )
         }
         return (
-            <Grid templateColumns={gridCols} gap="4">
+            <Grid className="responsive-card-grid" gap="4">
                 {items.map((item, idx) => (
                     <Box
                         key={item.uuid}
@@ -622,7 +620,7 @@ export default function TournamentsPage() {
             <ListingRowSkeleton />
         </VStack>
     ) : (
-        <Grid templateColumns={gridCols} gap="4">
+        <Grid className="responsive-card-grid" gap="4">
             <ListingCardSkeleton />
             <ListingCardSkeleton />
             <ListingCardSkeleton />
@@ -1270,7 +1268,7 @@ export default function TournamentsPage() {
                                 )
                             }
                             return (
-                                <Grid templateColumns={gridCols} gap="4">
+                                <Grid className="responsive-card-grid" gap="4">
                                     {finished.map((item, idx) => (
                                         <Box key={item.uuid}>
                                             {wrap(<ListingCard item={item} variant="finished" />, idx)}

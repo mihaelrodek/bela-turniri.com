@@ -615,6 +615,32 @@ export function shouldDrawTrumpsForPartner(view: PlayerView): boolean {
     return !provablyNoTrumpJack(view, partnerOf(seat))
 }
 
+/**
+ * The opening lead promised to a partner who voluntarily called trump.
+ * Calling is read as holding the jack, so the opening seat feeds that suit
+ * even when its only trump is the 10. A forced dealer call says nothing, and
+ * a public declaration that excludes the partner's jack cancels the promise.
+ * This is first-trick-only: later returns use `trumpDrawCard` and never throw
+ * an expensive 10/A underneath an outstanding 9/J.
+ */
+export function openingTrumpForCallingPartner(
+    view: PlayerView,
+    legal: readonly Card[],
+): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null) return null
+    if (!partnerCalledTrump(view) || callerWasForced(view)) return null
+    if (view.played.length > 0 || view.trick.cards.length > 0) return null
+
+    const partner = partnerOf(seat)
+    if (provablyNoTrumpJack(view, partner)) return null
+
+    const trumps = legal.filter((card) => cardSuit(card) === trump)
+    if (trumps.length === 0) return null
+    return trumpDrawCard(view, trumps) ?? weakestCard(trumps, trump)
+}
+
 /** How the trump suit is distributed among the seats I cannot see. */
 export interface TrumpOutlook {
     /** Trumps still held by the other three seats together. */
@@ -752,6 +778,34 @@ export function trumpDrawCard(view: PlayerView, legal: readonly Card[]): Card | 
     // opening book below is better than an expensive trump.
     const cheap = trumps.filter((card) => cardPoints(card, trump) <= CHEAP_TRUMP_POINTS)
     return cheap.length > 0 ? weakestCard(cheap, trump) : null
+}
+
+/**
+ * On defence, cash a master trump when it pulls a valuable opposing trump.
+ *
+ * This is deliberately narrower than normal trump drawing. The defending
+ * pair does not clear trumps merely because it can, but a master 9 should be
+ * led when the only relevant trump still outside the hand is the caller's 10:
+ * the 9 cannot lose and captures ten points. A remaining 7 or 8 is worth no
+ * such lead, so low trumps do not trigger it. When several cards in our hand
+ * are all masters against the cards outside it, spend the weakest one: an ace
+ * that already covers the opponent's ten does the same job as the jack and
+ * keeps the stronger control for the next trick.
+ */
+export function defensiveTrumpCapture(view: PlayerView, legal: readonly Card[]): Card | null {
+    const trump = view.bidding.trump
+    if (trump === null || !iAmDefending(view)) return null
+
+    const trumps = legal.filter((card) => cardSuit(card) === trump)
+    const masters = trumps.filter((card) => isMasterCard(view, card))
+    if (masters.length === 0) return null
+
+    const outstanding = outstandingCardsInSuit(view, trump)
+    if (outstanding.length !== 1) return null
+    const target = outstanding[0] as Card
+    return cardPoints(target, trump) >= 10 && opponentCanHold(view, target)
+        ? weakestCard(masters, trump)
+        : null
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -1052,11 +1106,8 @@ export function aceToCash(view: PlayerView, legal: readonly Card[]): Card | null
  *   - holding J, 9 and A: start with the ACE when I also hold a plain ace
  *     ("don't throw your backed 10 away, there is time"), otherwise 9, then A,
  *     and the jack last;
- *   - the jack is never led "u glavu" on three trumps or fewer unless I hold
- *     the top plain cards — leading it there hands the lead back with nothing
- *     behind it.
  * Returns null when this seat is not the caller or the sequence does not apply,
- * and `trumpDrawCard` then keeps its own rule.
+ * and the caller's deterministic jack rule or `trumpDrawCard` then applies.
  */
 export function callerTrumpLead(view: PlayerView, legal: readonly Card[]): Card | null {
     const seat = view.seat
@@ -1078,27 +1129,6 @@ export function callerTrumpLead(view: PlayerView, legal: readonly Card[]): Card 
         return plainAce ? ace : nine
     }
 
-    // "Podigravati dečka u glavu, kad nemaš više od tri aduta, jedino ćeš ako
-    // imaš sve najjače strance" (TRIK): otherwise go UNDER with the 7 or 8.
-    // The jack wins its one trick and hands the lead straight back to a hand
-    // with nothing to cash.
-    //
-    // The test is about the PLAIN suits (`plainSuitsAllTopped`), not about any
-    // master in hand — the trump jack is itself a master, so the obvious
-    // spelling of this condition can never be false.
-    const myTrumps = myLength(view, trump)
-    if (trumps.includes(jack) && myTrumps <= 3 && !plainSuitsAllTopped(view)) {
-        // "Poželjnije ići ISPOD sa 7 ili 8 adutskom umjesto dečka" — with the
-        // SEVEN or the EIGHT, and the rank matters. This used to take the
-        // "weakest" other trump whatever it was, which on a hand of jack and
-        // ten led the TEN: ten points handed over to open a trick you did not
-        // want to win, which is the opposite of going under (reported
-        // 2026-09-09). No cheap trump, no exception — the jack it is.
-        const cheap = trumps.filter(
-            (card) => card !== jack && cardPoints(card, trump) <= CHEAP_TRUMP_POINTS,
-        )
-        if (cheap.length > 0) return weakestCard(cheap, trump)
-    }
     return null
 }
 
@@ -1153,18 +1183,17 @@ export function fillPreferringTen(
  * "Ako je suigrač zvao i podigrava sedmicu ili osmicu aduta, obavezno ćeš
  * staviti devetku iako bi mogao staviti manjeg aduta" (TRIK).
  *
- * The reason is that the cheap card is not the safe one: the queen is cheaper
- * than the nine and beats his eight, but the ten, ace and jack all beat the
- * queen, so the trick can still be taken away. The nine only falls to the
- * jack. He opened low because he wants the trumps drawn; the nine is the card
- * that actually draws them.
+ * The reason is that the cheap card is not the safe one: the queen or king is
+ * cheaper than the nine and beats his eight, but the ten, ace and nine can
+ * still be outside. The nine is preferred when held; without it, the jack is
+ * the only card that certainly extracts it instead of gambling on its seat.
  *
  * Deliberately narrow — it is about a LOW TRUMP OPENING and nothing else. The
- * general version of it ("take the cheapest card that cannot be overtaken")
+ * general version of it ("always take with the strongest card")
  * makes the bot ruff its own partner's ace with the trump jack, which is the
  * opposite of the rule it came from. Returns null when it does not apply.
  */
-export function nineOnPartnersLowTrump(view: PlayerView, legal: readonly Card[]): Card | null {
+export function highTrumpOnPartnersLowTrump(view: PlayerView, legal: readonly Card[]): Card | null {
     const seat = view.seat
     const trump = view.bidding.trump
     if (seat === null || trump === null) return null
@@ -1176,7 +1205,9 @@ export function nineOnPartnersLowTrump(view: PlayerView, legal: readonly Card[])
     if (cardSuit(opener.card) !== trump || (rank !== "7" && rank !== "8")) return null
 
     const nine = makeCard("9", trump)
-    return legal.includes(nine) ? nine : null
+    if (legal.includes(nine)) return nine
+    const jack = makeCard("J", trump)
+    return legal.includes(jack) ? jack : null
 }
 
 /* ── Defensive leads (TRIK, §"PROTIVNIK ZVAO") ───────────────────────────── */

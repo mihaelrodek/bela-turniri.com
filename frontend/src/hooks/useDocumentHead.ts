@@ -68,6 +68,23 @@ export type DocumentHead = {
      * variants.
      */
     jsonLd?: object | object[]
+    /**
+     * URL of the page's LCP image (a tournament poster, a profile avatar) —
+     * injects `<link rel="preload" as="image" fetchpriority="high">` into
+     * the head on mount, so the browser starts the request before React
+     * commits the `<img>` itself (which still needs to fetch the tournament/
+     * profile data first). Same `isSafeImageUrl` allowlist as `ogImage`.
+     * Removed on unmount; never restores a "previous" value because this
+     * hook only ever adds one, route-scoped.
+     */
+    preloadImage?: string
+    /** `imagesrcset` to pair with `preloadImage`, so the preload matches
+     *  whatever `srcSet` the real `<img>` renders with (same URL fetched
+     *  once, not twice under two different query strings). Ignored without
+     *  `preloadImage`. */
+    preloadImageSrcSet?: string
+    /** `imagesizes` to pair with `preloadImageSrcSet`. */
+    preloadImageSizes?: string
 }
 
 // Tab title is intentionally identical for every route. Per-page titles
@@ -93,6 +110,13 @@ export function useDocumentHead(head: DocumentHead) {
         }
         if (head.ogType) setMeta("property", "og:type", head.ogType)
         if (head.canonical) setCanonical(head.canonical)
+        if (head.preloadImage && isSafeImageUrl(head.preloadImage)) {
+            setImagePreload({
+                href: head.preloadImage,
+                imageSrcSet: head.preloadImageSrcSet,
+                imageSizes: head.preloadImageSizes,
+            })
+        }
         // og:url defaults to the canonical when not explicitly set —
         // they're the same thing on every page we care about. Facebook's
         // scraper flags missing og:url as a required-property warning.
@@ -116,6 +140,7 @@ export function useDocumentHead(head: DocumentHead) {
             restoreMeta(previousMeta)
             restoreCanonical(previousCanonical)
             removeRouteJsonLd()
+            removeImagePreload()
         }
     }, [
         head.description,
@@ -124,6 +149,9 @@ export function useDocumentHead(head: DocumentHead) {
         head.ogImage,
         head.ogType,
         head.canonical,
+        head.preloadImage,
+        head.preloadImageSrcSet,
+        head.preloadImageSizes,
         // Stringify the JSON-LD for the dep array — comparing object
         // references would re-run the effect on every render whenever
         // the caller builds a fresh literal each time, which is the
@@ -218,6 +246,31 @@ function appendJsonLd(item: object) {
 function removeRouteJsonLd() {
     const nodes = document.head.querySelectorAll('script[data-bela-jsonld="route"]')
     nodes.forEach((n) => n.parentElement?.removeChild(n))
+}
+
+/**
+ * Route-scoped `<link rel="preload" as="image">`. Uses `setAttribute` for
+ * `imagesrcset`/`imagesizes`/`fetchpriority` rather than the (incompletely
+ * typed, inconsistently cased across browsers) DOM properties — the HTML
+ * attribute names are the actual interop-safe surface here.
+ */
+function setImagePreload(spec: { href: string; imageSrcSet?: string; imageSizes?: string }) {
+    removeImagePreload()
+    const el = document.createElement("link")
+    el.rel = "preload"
+    el.as = "image"
+    el.href = spec.href
+    if (spec.imageSrcSet) el.setAttribute("imagesrcset", spec.imageSrcSet)
+    if (spec.imageSizes) el.setAttribute("imagesizes", spec.imageSizes)
+    el.setAttribute("fetchpriority", "high")
+    el.setAttribute("data-bela-preload-image", "route")
+    document.head.appendChild(el)
+}
+
+function removeImagePreload() {
+    document.head
+        .querySelectorAll('link[data-bela-preload-image="route"]')
+        .forEach((n) => n.parentElement?.removeChild(n))
 }
 
 function restoreCanonical(previous: string | null) {

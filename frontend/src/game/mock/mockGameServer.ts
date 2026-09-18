@@ -29,7 +29,8 @@ import type {
     TrickState,
     WonTrick,
 } from "@bela/engine"
-import { isAvatarId } from "../../components/avatars/avatarArt"
+import { findBelot } from "@bela/engine"
+import { AVATAR_IDS, isAvatarId } from "../../components/avatars/avatarArt"
 import { t } from "../../i18n"
 import { SUITS, cardRank, cardSuit, makeCard } from "../util/cards"
 import { SEATS, nextSeat, teamOf } from "../util/seats"
@@ -62,11 +63,19 @@ import {
    dynamic `import()` so none of it reaches a production bundle.
    ────────────────────────────────────────────────────────────────────── */
 
-const BOT_THINK_MS = 1200
-const DECLARATIONS_MS = 5200
+const BOT_THINK_MS = 2300
+const DECLARATIONS_MS = 8_000
 const NETWORK_MS = 40
 /** The backend's `GameNameService.CHANGE_INTERVAL`, mirrored for the mock. */
 const NAME_CHANGE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
+
+const MOCK_STATS: NonNullable<UserInfo["gameStats"]> = {
+    global: { games: 31, wins: 18, losses: 13, winRate: 0.581 },
+    byTargetScore: {
+        "501": { games: 12, wins: 8, losses: 4, winRate: 0.667 },
+        "1001": { games: 19, wins: 10, losses: 9, winRate: 0.526 },
+    },
+}
 
 /* Rooms and their games live at MODULE scope, not on the connection: the
    lobby page and the room page each own their own socket, so a room created
@@ -78,8 +87,21 @@ const rooms = new Map<string, RoomState>()
 const games = new Map<string, MockGame>()
 let seeded = false
 
-function botUser(seat: Seat): string {
-    return t("game.mock.botName", { n: seat + 1 })
+const MOCK_BOT_NAMES = [
+    "Bot Ivo", "Bot Ana", "Bot Mate", "Bot Jana", "Bot Luka", "Bot Ema",
+    "Bot Filip", "Bot Petra", "Bot Tin", "Bot Nina", "Bot Karlo", "Bot Sara",
+    "Bot Toni", "Bot Dora", "Bot Marko", "Bot Lea", "Bot Ivan", "Bot Mia",
+    "Bot Marin", "Bot Klara", "Bot Stjepan", "Bot Lucija", "Bot Josip", "Bot Tea",
+] as const
+
+function botUser(usedNames: readonly string[] = []): string {
+    const available = MOCK_BOT_NAMES.filter((name) => !usedNames.includes(name))
+    const pool = available.length > 0 ? available : MOCK_BOT_NAMES
+    return pool[Math.floor(Math.random() * pool.length)] ?? "Bot Ivo"
+}
+
+function botAvatar() {
+    return AVATAR_IDS[Math.floor(Math.random() * AVATAR_IDS.length)] ?? AVATAR_IDS[0]
 }
 
 /* Small stand-in for the real server's `roomNames.ts` (game/packages/server) —
@@ -116,7 +138,12 @@ function countSeats(room: RoomState): void {
         const o = s.occupant
         if (!o) return null
         if (o.kind === "BOT") return { kind: "BOT", name: o.name }
-        return { kind: "PLAYER", name: o.user.name, connected: o.connected }
+        return {
+            kind: "PLAYER",
+            name: o.user.name,
+            connected: o.connected,
+            avatarPreset: o.user.avatarPreset ?? null,
+        }
     }) as RoomState["occupants"]
     room.joinable = canAdmitNewcomer(room)
 }
@@ -154,6 +181,7 @@ function summary(room: RoomState): RoomSummary {
         noDeclarations: room.noDeclarations,
         private: room.private,
         allowSpectators: room.allowSpectators,
+        minWinRatePercent: room.minWinRatePercent,
         seatsTaken: room.seatsTaken,
         humans: room.humans,
         occupants: room.occupants,
@@ -185,6 +213,7 @@ class MockGame {
     declarationsRevealed = false
     scoringTeam: Team | null = null
     belaDeclared: Team | null = null
+    belotSeat: Seat | null = null
     belaAnnounced = false
     /** The seat that DECLINED to announce bela this deal (engine
      *  `GameState.belaRefused`, README §1.4). Final for the deal, and never in
@@ -224,6 +253,7 @@ class MockGame {
         this.declarationsRevealed = false
         this.scoringTeam = null
         this.belaDeclared = null
+        this.belotSeat = null
         this.belaAnnounced = false
         this.belaRefused = null
         this.tricks = []
@@ -256,11 +286,44 @@ class MockGame {
     private completeHands(): void {
         for (const seat of SEATS) this.hands[seat] = [...this.hands[seat], ...this.stock.splice(0, 2)]
         this.stock = []
+        this.events.push({ type: "HAND_COMPLETED" })
+
+        const belot = findBelot(this.hands, this.dealer)
+        if (belot !== null) {
+            const winner = teamOf(belot.seat)
+            const caller = this.bidding.caller ?? this.dealer
+            const total: Record<Team, number> = { A: 0, B: 0 }
+            total[winner] = this.targetScore
+            const dealScore: DealScore = {
+                dealNo: this.dealNo,
+                trump: this.bidding.trump ?? belot.suit,
+                caller,
+                callerTeam: teamOf(caller),
+                cardPoints: { A: 0, B: 0 },
+                declarationPoints: { A: 0, B: 0 },
+                stiglja: null,
+                belot: winner,
+                passed: true,
+                total,
+            }
+            this.belotSeat = belot.seat
+            this.dealScore = dealScore
+            this.history = [...this.history, dealScore]
+            this.score = { A: this.score.A + total.A, B: this.score.B + total.B }
+            this.winner = winner
+            this.phase = "GAME_OVER"
+            this.events.push(
+                { type: "BELOT", seat: belot.seat, suit: belot.suit },
+                { type: "DEAL_SCORED", dealScore },
+                { type: "GAME_OVER", winner, score: { ...this.score } },
+            )
+            return
+        }
+
         if (!this.noDeclarations) {
             for (const seat of SEATS) this.declarations[seat] = findDeclarations(this.hands[seat])
         }
         this.scoringTeam = declarationsScoringTeam(this.declarations, this.dealer)
-        this.events.push({ type: "HAND_COMPLETED" })
         this.declarationsRevealed = true
         if (!this.noDeclarations) {
             this.declarationsUntil = Date.now() + DECLARATIONS_MS
@@ -494,6 +557,7 @@ class MockGame {
             declarationsRevealed: this.declarationsRevealed,
             declarationsScoringTeam: this.declarationsRevealed ? this.scoringTeam : null,
             belaDeclared: this.belaDeclared,
+            belotSeat: this.belotSeat,
             dealScore: this.dealScore,
             score: { ...this.score },
             history: [...this.history],
@@ -554,7 +618,7 @@ class MockServer {
 
     constructor(handlers: GameTransportHandlers) {
         this.handlers = handlers
-        this.me = { uid: "mock-me", name: t("game.mock.youName"), avatarUrl: null }
+        this.me = { uid: "mock-me", name: t("game.mock.youName"), avatarUrl: null, gameStats: MOCK_STATS }
         if (!seeded) {
             seeded = true
             this.seedRooms()
@@ -590,12 +654,15 @@ class MockServer {
         const now = Date.now()
         const demo = this.makeRoom(t("game.mock.roomName"), 1001, false, "mock-host")
         demo.createdAt = now - 120_000
-        demo.seats[1] = { seat: 1, occupant: { kind: "BOT", name: botUser(1) } }
+        demo.seats[1] = { seat: 1, occupant: { kind: "BOT", name: botUser(), avatarPreset: botAvatar() } }
         demo.seats[2] = {
             seat: 2,
             occupant: {
                 kind: "PLAYER",
-                user: { uid: "mock-host", name: t("game.mock.otherName"), avatarUrl: null },
+                user: { uid: "mock-host", name: t("game.mock.otherName"), avatarUrl: null, gameStats: {
+                    global: { games: 47, wins: 29, losses: 18, winRate: 0.617 },
+                    byTargetScore: { "1001": { games: 21, wins: 12, losses: 9, winRate: 0.571 } },
+                } },
                 ready: true,
                 connected: true,
             },
@@ -618,6 +685,7 @@ class MockServer {
             gameEndRule: "prolaz",
             private: isPrivate,
             allowSpectators: false,
+            minWinRatePercent: 0,
             noDeclarations: false,
             allowBela: true,
             trickReview: "off",
@@ -645,6 +713,10 @@ class MockServer {
         const returning = room.seats.some((s) => s.occupant?.kind === "PLAYER" && s.occupant.user.uid === this.me.uid)
         if (room.private && !codeProvided && !returning) {
             this.error("ROOM_CODE_REQUIRED", ref)
+            return
+        }
+        if (!returning && (this.me.gameStats?.global.winRate ?? 0) * 100 < room.minWinRatePercent) {
+            this.error("WIN_RATE_TOO_LOW", ref)
             return
         }
         if (!returning && !canAdmitNewcomer(room)) {
@@ -691,8 +763,19 @@ class MockServer {
     handle(msg: ClientMessage): void {
         if (this.disposed) return
         switch (msg.t) {
+            case "liveActivity.tokens":
+                // iOS lock-screen tokens mean nothing without APNs behind
+                // them; accept the frame silently so `/igra?mock=1` never
+                // answers it with an error.
+                return
             case "hello":
-                if (msg.guest) this.me = { uid: `mock-guest:${msg.guest.secret.slice(0, 12)}`, name: msg.guest.name, avatarUrl: null, guest: true }
+                if (msg.guest) this.me = {
+                    uid: `mock-guest:${msg.guest.secret.slice(0, 12)}`,
+                    name: msg.guest.name,
+                    avatarUrl: null,
+                    guest: true,
+                    gameStats: MOCK_STATS,
+                }
                 this.emit({ t: "hello.ok", user: this.me, v: msg.v }, 30)
                 return
             case "ping":
@@ -709,6 +792,7 @@ class MockServer {
                 room.noDeclarations = msg.noDeclarations === true
                 room.allowBela = !room.noDeclarations || msg.allowBela !== false
                 room.allowSpectators = msg.allowSpectators === true
+                room.minWinRatePercent = msg.minWinRatePercent ?? 0
                 room.trickReview = msg.trickReview ?? "off"
                 room.seats[0] = {
                     seat: 0,
@@ -795,7 +879,11 @@ class MockServer {
                 }
                 room.seats[msg.seat] = {
                     seat: msg.seat,
-                    occupant: { kind: "BOT", name: botUser(msg.seat) },
+                    occupant: {
+                        kind: "BOT",
+                        name: botUser(room.seats.flatMap((seat) => seat.occupant?.kind === "BOT" ? [seat.occupant.name] : [])),
+                        avatarPreset: botAvatar(),
+                    },
                 }
                 this.pushRoom()
                 return
@@ -1012,8 +1100,18 @@ class MockServer {
         }
         const events = game.events
         game.events = []
-        const deadline = game.turn() === null || game.declarationsUntil > Date.now() ? null : Date.now() + DEFAULTS.turnTimeoutMs
-        this.emit({ t: "game.state", view: game.view(this.mySeat), declarationsPending: game.declarationsUntil > Date.now(), turnDeadline: deadline, autoPlayed: false }, ms)
+        const turn = game.turn()
+        const paused = turn === null || game.declarationsUntil > Date.now()
+        const playerTurn = turn !== null && room?.seats[turn]?.occupant?.kind === "PLAYER"
+        const turnDeadline = paused || !playerTurn ? null : Date.now() + DEFAULTS.turnTimeoutMs
+        this.emit({
+            t: "game.state",
+            view: game.view(this.mySeat),
+            declarationsPending: game.declarationsUntil > Date.now(),
+            turnDeadline,
+            turnDurationMs: turnDeadline === null ? null : DEFAULTS.turnTimeoutMs,
+            autoPlayed: false,
+        }, ms)
         if (events.length > 0) this.emit({ t: "game.events", events }, ms)
     }
 

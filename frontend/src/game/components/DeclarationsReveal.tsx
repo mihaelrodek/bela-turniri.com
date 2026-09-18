@@ -1,8 +1,10 @@
-import { Box, Flex, HStack, Text, VStack } from "@chakra-ui/react"
+import { Box, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react"
+import { FiX } from "react-icons/fi"
 import type { RoomState, Seat } from "@bela/protocol"
-import type { Declaration, Team } from "@bela/engine"
+import type { Declaration, Suit, Team } from "@bela/engine"
 import { useTranslation } from "../../i18n"
 import { SEATS, teamOf } from "../util/seats"
+import { RANKS, makeCard, suitKey } from "../util/cards"
 import PlayingCard from "./PlayingCard"
 import { GLASS_STRONG, INK, INK_MUTED } from "./tableStyles"
 
@@ -24,7 +26,7 @@ import { GLASS_STRONG, INK, INK_MUTED } from "./tableStyles"
    line saying so and how much went with it; their own cards are theirs to
    know, but nobody else's are shown, and no cards are drawn for that line.
 
-   It dismisses itself after 3.4 s (the event queue's dwell) or on a tap,
+   It dismisses itself after the event queue's dwell or through its close button,
    whichever comes first: the automatic opening preview is brief and
    must never be something you have to close.
    ────────────────────────────────────────────────────────────────────── */
@@ -61,11 +63,103 @@ export function BelaFlash({ seats, seat }: { seats: RoomState["seats"]; seat: Se
                     },
                 }}
             >
-                <Text fontSize="3xl" fontWeight="bold" color="brand.200" lineHeight="1.1">
+                <Text fontSize="3xl" fontWeight="bold" color="brand.fg" lineHeight="1.1">
                     {t("game.bela.title")}
                 </Text>
                 <Text fontSize="sm" color={INK_MUTED}>
                     {t("game.bela.by", { name: seatName(seats, seat, t("game.seat.empty")) })}
+                </Text>
+            </VStack>
+        </Flex>
+    )
+}
+
+/** A full-suit hand is rare enough to deserve its own unmistakable moment.
+ * The engine has already ended the game when this renders; the overlay only
+ * reveals the eight-card hand before the ordinary result dialog appears. */
+export function BelotFlash({
+    seats,
+    seat,
+    suit,
+    reducedMotion,
+}: {
+    seats: RoomState["seats"]
+    seat: Seat
+    suit: Suit
+    reducedMotion: boolean
+}) {
+    const { t } = useTranslation()
+    const name = seatName(seats, seat, t("game.seat.empty"))
+
+    return (
+        <Flex
+            position="absolute"
+            inset="0"
+            align="center"
+            justify="center"
+            px="3"
+            pointerEvents="none"
+            zIndex={10}
+            bg="bg.opaque"
+            backdropFilter="blur(5px)"
+            role="status"
+            css={{
+                animation: reducedMotion ? undefined : "belotBackdropIn 280ms ease-out",
+                "@keyframes belotBackdropIn": { from: { opacity: 0 }, to: { opacity: 1 } },
+            }}
+        >
+            <VStack
+                gap="2"
+                w="100%"
+                maxW="390px"
+                rounded="l3"
+                borderWidth="1px"
+                borderColor="brand.300"
+                bg="bg.opaque"
+                px={{ base: "4", sm: "6" }}
+                py={{ base: "5", sm: "6" }}
+                boxShadow="0 0 70px rgba(246, 196, 83, 0.34), 0 20px 60px rgba(0,0,0,0.6)"
+                css={{
+                    animation: reducedMotion ? undefined : "belotPanelIn 520ms cubic-bezier(0.16, 1, 0.3, 1)",
+                    "@keyframes belotPanelIn": {
+                        from: { transform: "scale(.7) translateY(24px)", opacity: 0 },
+                        to: { transform: "scale(1) translateY(0)", opacity: 1 },
+                    },
+                }}
+            >
+                <Text fontSize={{ base: "4xl", sm: "5xl" }} lineHeight="1" fontWeight="black" color="yellow.300" letterSpacing="widest">
+                    {t("game.belot.title")}
+                </Text>
+                <Text fontSize="sm" fontWeight="bold" color={INK} textAlign="center">
+                    {t("game.belot.by", { name, suit: t(suitKey(suit)) })}
+                </Text>
+
+                <Box display="grid" gridTemplateColumns="repeat(4, 48px)" gap="1.5" justifyContent="center" my="2">
+                    {RANKS.map((rank, index) => (
+                        <Box
+                            key={rank}
+                            w="48px"
+                            h="72px"
+                            overflow="hidden"
+                            rounded="6px"
+                            css={{
+                                animation: reducedMotion ? undefined : "belotCardIn 420ms cubic-bezier(.16,1,.3,1) both",
+                                animationDelay: reducedMotion ? undefined : `${220 + index * 70}ms`,
+                                "@keyframes belotCardIn": {
+                                    from: { transform: "translateY(28px) rotate(-5deg)", opacity: 0 },
+                                    to: { transform: "translateY(0) rotate(0)", opacity: 1 },
+                                },
+                            }}
+                        >
+                            <Box transform="scale(.78)" transformOrigin="top left">
+                                <PlayingCard card={makeCard(rank, suit)} size="sm" />
+                            </Box>
+                        </Box>
+                    ))}
+                </Box>
+
+                <Text fontSize="xs" color="yellow.200" fontWeight="bold">
+                    {t("game.belot.wins")}
                 </Text>
             </VStack>
         </Flex>
@@ -111,9 +205,8 @@ export default function DeclarationsReveal({
             justify="center"
             px="3"
             zIndex={8}
-            bg="brand.950/55"
+            bg="blackAlpha.500"
             backdropFilter="blur(2px)"
-            cursor={onDismiss ? "pointer" : "default"}
             onClick={onDismiss}
             css={{
                 animation: "belaRevealIn 180ms ease-out",
@@ -131,8 +224,24 @@ export default function DeclarationsReveal({
                 maxW="420px"
                 maxH="94%"
                 overflowY="auto"
+                position="relative"
                 boxShadow="0 18px 40px rgba(0,0,0,0.55)"
+                onClick={(event) => event.stopPropagation()}
             >
+                {onDismiss && (
+                    <IconButton
+                        aria-label={t("game.common.close")}
+                        title={t("game.common.close")}
+                        variant="ghost"
+                        size="xs"
+                        position="absolute"
+                        top="2"
+                        right="2"
+                        onClick={onDismiss}
+                    >
+                        <FiX />
+                    </IconButton>
+                )}
                 <Text fontSize="sm" fontWeight="bold" textAlign="center" color={INK} letterSpacing="wide">
                     {t("game.declarations.title")}
                 </Text>
@@ -142,37 +251,41 @@ export default function DeclarationsReveal({
                         {t("game.declarations.none")}
                     </Text>
                 ) : (
-                    withDeclarations.map((seat) => (
-                        <Box
-                            key={seat}
-                            rounded="l2"
-                            px="2"
-                            py="1.5"
-                            bg="brand.800/70"
-                            borderWidth="1px"
-                            borderColor="brand.500"
-                        >
+                    withDeclarations.map((seat) => {
+                        const declarations = perSeat[seat] ?? []
+                        const points = totalPoints(declarations)
+
+                        return (
+                            <Box
+                                key={seat}
+                                rounded="l2"
+                                px="2"
+                                py="1.5"
+                                bg="bg.subtle"
+                                borderWidth="1px"
+                                borderColor="border"
+                            >
                             <HStack justify="space-between" gap="2">
-                                <Text fontSize="xs" fontWeight="bold" color={INK} lineClamp={1}>
-                                    {seatName(seats, seat, t("game.seat.empty"))}
-                                </Text>
-                                <Text
-                                    fontSize="9px"
-                                    fontWeight="bold"
-                                    textTransform="uppercase"
-                                    letterSpacing="wide"
-                                    color="brand.200"
-                                >
-                                    {t("game.declarations.scores")}
-                                </Text>
+                                <HStack gap="1.5" minW="0">
+                                    <Text fontSize="xs" fontWeight="bold" color={INK} lineClamp={1}>
+                                        {seatName(seats, seat, t("game.seat.empty"))}
+                                    </Text>
+                                    <Text
+                                        fontSize="xs"
+                                        fontWeight="black"
+                                        color="brand.fg"
+                                        fontVariantNumeric="tabular-nums"
+                                        flexShrink={0}
+                                    >
+                                        + {points}
+                                    </Text>
+                                </HStack>
                             </HStack>
 
-                            {/* Cards and the points, nothing else. The old
-                                "terca (20)" / "kvarta (50)" caption is gone
-                                (2026-09-08): nobody at a table says it, the
-                                cards already are the declaration, and the
-                                number is right there. */}
-                            {(perSeat[seat] ?? []).map((declaration) => (
+                            {/* The cards are enough to explain the declaration;
+                                its combined value lives beside the player's
+                                name, where it is easier to scan. */}
+                            {declarations.map((declaration) => (
                                 <HStack key={declaration.cards.join("-")} gap="2" mt="1.5" wrap="wrap">
                                     <HStack gap="0" flex="1" minW="0">
                                         {declaration.cards.map((card, i) => (
@@ -181,21 +294,11 @@ export default function DeclarationsReveal({
                                             </Box>
                                         ))}
                                     </HStack>
-                                    <Text textStyle="mono" fontSize="xs" fontWeight="bold" color={INK}>
-                                        {declaration.points}
-                                    </Text>
                                 </HStack>
                             ))}
-                        </Box>
-                    ))
-                )}
-
-                {scoringTeam !== null && (
-                    <Text fontSize="xs" color={INK_MUTED} textAlign="center">
-                        {scoringTeam === myTeam
-                            ? t("game.declarations.weScore")
-                            : t("game.declarations.theyScore")}
-                    </Text>
+                            </Box>
+                        )
+                    })
                 )}
 
                 {/* Our own declarations lost. One line, no cards: the viewer
@@ -207,11 +310,6 @@ export default function DeclarationsReveal({
                     </Text>
                 )}
 
-                {onDismiss && (
-                    <Text fontSize="2xs" color={INK_MUTED} textAlign="center" opacity={0.8}>
-                        {t("game.declarations.tapToClose")}
-                    </Text>
-                )}
             </VStack>
         </Flex>
     )

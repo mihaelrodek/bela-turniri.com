@@ -1,22 +1,24 @@
-import { Box, Image, Text } from "@chakra-ui/react"
+import { Box, Text } from "@chakra-ui/react"
+import type { ReactNode } from "react"
 import BelaAvatar from "../../components/avatars/BelaAvatar"
 import { isAvatarId } from "../../components/avatars/avatarArt"
+import AvatarPhoto from "./AvatarPhoto"
 
 /* ──────────────────────────────────────────────────────────────────────────
    PlayerAvatar — one round avatar, shared by the lobby's room cards, the
    room's seat rows and its "2 vs 2" preview (game/DESIGN.md §1 "Lobby"/"Soba").
 
-   Four states, in this order of preference: a photo (`avatarUrl`), the picked
-   face (`avatarPreset`, drawn by `BelaAvatar`), initials from `name` when
+   Four states, in this order of preference: the picked face (`avatarPreset`,
+   drawn by `BelaAvatar`), a photo (`avatarUrl`), initials from `name` when
    there is neither, or `empty` — a dashed circle with a "+" for a seat nobody
    has taken, the exact same visual `Seat.tsx` uses on the live table so the
    lobby list and the room preview never look like a different app from the
    felt.
 
-   The photo wins over the preset because an uploaded photo is a deliberate,
-   more specific statement of "this is me"; the preset is what everyone who
-   never uploaded one gets, which is nearly everyone, and initials are now
-   only the fallback for a seat whose face this build does not recognise.
+   This matches `UserAvatar`: choosing a character leaves an older uploaded
+   photo stored, so a valid preset must win until the user explicitly switches
+   back to the photo. Initials remain the fallback for a face this build does
+   not recognise.
    ────────────────────────────────────────────────────────────────────── */
 
 const SIZES = {
@@ -45,17 +47,20 @@ export default function PlayerAvatar({
     avatarPreset = null,
     size = "md",
     empty = false,
+    emptyIcon,
     online = false,
     dimmed = false,
 }: {
     /** Ignored when `empty`. */
     name?: string | null
     avatarUrl?: string | null
-    /** Picked face id; used only when there is no `avatarUrl`. */
+    /** Picked face id. A valid preset wins over an older `avatarUrl`. */
     avatarPreset?: string | null
     size?: PlayerAvatarSize
     /** A seat nobody has taken — dashed circle, no name/photo. */
     empty?: boolean
+    /** Optional context-specific mark for an empty seat. */
+    emptyIcon?: ReactNode
     /** Green dot (bottom-right) — the seat's player is currently connected. */
     online?: boolean
     /** Disconnected / not-yet-taken in a context where `empty` isn't quite right. */
@@ -84,11 +89,13 @@ export default function PlayerAvatar({
                 opacity={dimmed ? 0.55 : 1}
             >
                 {empty ? (
-                    <Text color="fg.muted" aria-hidden="true">+</Text>
-                ) : avatarUrl ? (
-                    <Image src={avatarUrl} alt="" w="100%" h="100%" objectFit="cover" loading="lazy" />
+                    <Box color="fg.muted" display="flex" aria-hidden="true">
+                        {emptyIcon ?? <Text>+</Text>}
+                    </Box>
                 ) : isAvatarId(avatarPreset) ? (
                     <BelaAvatar id={avatarPreset} boxSize="100%" />
+                ) : avatarUrl ? (
+                    <AvatarPhoto src={avatarUrl} fallback={initialsOf(name ?? "?")} />
                 ) : (
                     initialsOf(name ?? "?")
                 )}

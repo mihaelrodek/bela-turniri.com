@@ -85,6 +85,47 @@ public class UserProfile {
     @Column(name = "locale", length = 5)
     private String locale;
 
+    /**
+     * Reliability score for online Bela. It starts at 100, loses points only
+     * after a confirmed mid-game abandonment, and recovers through completed
+     * games. The event ledger is the audit source; these two columns are the
+     * fast, per-user values used by the game server.
+     */
+    @Column(name = "game_karma", nullable = false)
+    private int gameKarma = 100;
+
+    /** Number of confirmed mid-game abandonments, never reset automatically. */
+    @Column(name = "game_abandons", nullable = false)
+    private long gameAbandons = 0;
+
+    /**
+     * When this account was deleted by its owner, or null for a live account.
+     *
+     * <p>Deletion here is ANONYMISATION, not erasure: the row and its
+     * {@link #slug} survive so that old links 404 cleanly instead of the slug
+     * being re-issued to the next person whose name normalises to it, while
+     * every personal field above is cleared. See
+     * {@code AccountDeletionService} for the full per-table checklist and
+     * {@code db/changelog/account_deletion.xml} for why it works this way.
+     *
+     * <p>Three behaviours hang off this single column:
+     * <ul>
+     *   <li>{@code GET /public/users/{slug}} 404s;</li>
+     *   <li>{@code POST /user/me/sync} refuses with 410 {@code ACCOUNT_DELETED}
+     *       instead of lazily re-creating a profile;</li>
+     *   <li>anywhere this uid's name would be rendered, the i18n string
+     *       {@code profile.deletedUser} is rendered instead
+     *       ({@code DisplayNames}).</li>
+     * </ul>
+     */
+    @Column(name = "deleted_at")
+    private OffsetDateTime deletedAt;
+
+    /** Convenience for the many call sites that only care about the boolean. */
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
     @UpdateTimestamp
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;

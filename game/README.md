@@ -57,6 +57,14 @@ naveden i ne mijenja se bez izmjene ovog dokumenta.
 5. Tim igrača koji je zvao = **zvao je** (`callerTeam`). On mora "proći" (v. 1.6).
 6. Nakon zvanja svakom se podijele **još 2 karte** (ukupno 8). Talona nema.
 
+**Belot (osam karata iste boje).** Kad su podijeljene zadnje dvije karte,
+engine provjerava drži li jedan igrač svih osam karata jedne boje. Takav belot
+odmah završava partiju prije prvog štiha: njegovu timu upisuje se puni
+`targetScore` (501/701/1001), drugom timu 0. Nije obično zvanje, ne ovisi o
+postavkama `noDeclarations` ni `allowBela`, a zvač i odabrani adut ne mogu ga
+poništiti. Miješanje ostaje jednoliko i nema umjetno povećane šanse; ishod je
+samo prirodno vrlo rijedak. Engine emitira `BELOT`, `DEAL_SCORED` i `GAME_OVER`.
+
 ### 1.3 Rang i vrijednost karata
 | | Adut (redoslijed, jačina) | Ne-adut |
 |---|---|---|
@@ -344,6 +352,7 @@ interface DealScore {
   cardPoints: Record<Team, number>       // uklj. +10 zadnji štih i +90 štiglja
   declarationPoints: Record<Team, number>// samo obranjena zvanja + bela
   stiglja: Team | null
+  belot?: Team | null                    // osam karata iste boje; podjela se ne igra
   passed: boolean                        // je li zvač prošao
   total: Record<Team, number>            // ono što se stvarno dodaje score-u
 }
@@ -439,8 +448,8 @@ Ključni tokovi:
   `RoomSummary` je **javan** — ide svakom pretplatniku, i onome tko nikad neće
   ući u sobu — pa nosi samo ono što smije vidjeti bilo tko: uz `name`, `status`,
   `targetScore`, `private`, `allowSpectators`, `seatsTaken`, `humans` i
-  `createdAt` još i `occupants` (4 mjesta redom, `RoomOccupant` = *samo* ime +
-  `connected`, ili `{kind:"BOT",name}`, ili `null`) te `joinable`. Nema uid-a
+  `createdAt` još i `occupants` (4 mjesta redom, `RoomOccupant` = javno ime,
+  `connected` i id ugrađenog avatara, ili `{kind:"BOT",name}`, ili `null`) te `joinable`. Nema uid-a
   (`hostUid` živi na `RoomState`, ne na sažetku) i nema šifre privatne sobe —
   `code` je `""` svima osim članovima te sobe. `joinable` je serverov vlastiti
   odgovor na „može li netko novi uopće ući” (`Room.canAdmitNewcomer`, ista
@@ -658,6 +667,46 @@ statistiku. Grupiranje nose dvije kartice (+ `role="group"` i `aria-label`
 `DealSummary`, `GameOverDialog`, `ActiveRoomWidget`) ostaje relativan prema
 igraču — „moji bodovi” su moji — jer to je bodovanje, ne raspored sjedenja.
 
+### 3.4 Live Activity (iOS) / Live Update (Android) — N4.3
+
+Zaključani ekran prikazuje stanje partije. Klijent u prvom planu ga osvježava
+sam iz socketa; server pokriva ostalo, preko backenda
+(`POST /api/internal/live-activity`, `X-Internal-Token`, isti tajni ključ kao
+§8.4), koji poruku šalje kroz FCM. Kod: `packages/server/src/liveActivity.ts`.
+
+- **Poruka** (samo iOS): `liveActivity.tokens { activityToken?, pushToStartToken? }`
+  — barem jedno polje, svako neprazan string ≤ `LIMITS.liveActivityTokenMax`
+  (512), inače `BAD_REQUEST`. Pohrana po uid-u, spaja se s prethodnom, TTL
+  12 h (Appleov strop za Live Activity). Android ne šalje ništa — FCM token
+  uređaja već je u `push_devices`.
+- **ContentState** (`LiveActivityState` u protokolu) gradi se **po primatelju**:
+  `scoreUs`/`scoreThem`, `yourTurn` i `winner` ovise o njegovu sjedalu (0/2 = A,
+  1/3 = B). Sva polja su uvijek prisutna.
+- **`update`** ide sjedećem čovjeku (ne gostu) samo kad (a) mu je veza **pala**
+  (`connected: false`, čuvanje sjedala §3.1) **ili** je registrirao iOS token,
+  **i** (b) se nešto što aktivnost prikazuje stvarno promijenilo (bodovi,
+  sjedalo na potezu, faza, adut, rok). Usporedba se radi na svakom
+  `gameRoom.broadcastState` i s onim što je igrač zadnje vidio **i dok je bio
+  spojen** — sam pad veze ne šalje ništa.
+- **Throttle**: najviše 1 `update` po uid-u u sekundi, trailing edge — prvi
+  odmah, zadnji iz naleta kad sekunda istekne.
+- **`end`** (faza `gameOver`, `winner` ako ga engine ima) svakom sjedećem
+  čovjeku: na `GAME_OVER`, na izričit `room.leave`/napuštanje sjedala, na
+  istek čuvanja, i kad se soba s partijom u tijeku ukloni. Nakon `end` tokeni
+  tog uid-a se brišu i više nema `update`-a dok se ne vrati (`attach`) ili ne
+  krene nova partija.
+- Notifier nikad ne baca i ne blokira igru (3 s timeout); bez
+  `GAME_RESULTS_TOKEN` je isključen uz jednu log liniju.
+- **Backend**: Android dobiva FCM DATA poruku (`type=bela_live_update`, `event`,
+  `state` kao JSON string, prioritet HIGH) na svaki `android` uređaj; mrtvi
+  tokeni se brišu kao u `PushService`. iOS šalje preko
+  `ApnsConfig.Builder#setLiveActivityToken` iz firebase-admin 9.10.0 (pinano od
+  2026-09-13); bez te metode na classpathu grana je no-op uz jedan WARN, a
+  `LiveActivitySenderTest` to prvi uhvati.
+  Push-to-start se preskače (nijedan firebase-admin ga ne podržava).
+- Testovi: `packages/server/test/liveActivity.test.ts`,
+  `LiveActivityInternalControllerTest`, `LiveActivitySenderTest`.
+
 ## 4. Server (`@bela/server`)
 - `ws` biblioteka, jedan proces, sve u memoriji (v1: bez baze). Namjerno
   napuštena prazna soba nestaje odmah; nakon puknute veze vrijedi reconnect
@@ -674,7 +723,7 @@ igraču — „moji bodovi” su moji — jer to je bodovanje, ne raspored sjede
   Odsutan čovjek nije bot: njemu teče normalan `turnTimeoutMs` i bot odigra tek
   na isteku (§3.1). Ranije je vraćalo `!slot.connected`, pa je bot počinjao
   igrati istog trenutka kad bi nekome puknula veza.
-- Botovi igraju s malim kašnjenjem (900–1700 ms) da se svako zvanje i odigrana
+- Botovi igraju s mirnijim kašnjenjem (1800–2800 ms) da se svako zvanje i odigrana
   karta mogu jasno pratiti, a tempo i dalje ostane prirodan.
 - Env: `GAME_PORT=8285`, `FIREBASE_PROJECT_ID`, `GAME_DEV_ALLOW_ANON`, `GAME_CORS_ORIGINS`.
 - Dockerfile (multi-stage, node:22-alpine), `docker-compose.prod.yaml` servis `game`,

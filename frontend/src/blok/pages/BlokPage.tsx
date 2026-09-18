@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { Box, Button, HStack, IconButton, Text, VStack } from "@chakra-ui/react"
-import { FiArrowRight, FiPlus, FiRotateCcw, FiShare2 } from "react-icons/fi"
+import { Box, Button, Dialog, HStack, IconButton, Portal, Text, VStack } from "@chakra-ui/react"
+import { FiArrowRight, FiPlus, FiRotateCcw, FiSave, FiShare2, FiX } from "react-icons/fi"
 
 import ConfirmDialog from "../../components/ConfirmDialog"
 import { CONTENT_STICKY_TOP, NAVBAR_H } from "../../components/navChrome"
@@ -29,6 +29,7 @@ import { saveSessionNow } from "../components/useBlokHistoryUpload"
 import { useBlokLiveUpload } from "../components/useBlokLiveUpload"
 import { finalizeBlokLink, useBlokLinkSync } from "../components/useBlokLinkSync"
 import { sidePalette, useSideNames } from "../components/blokSide"
+import { useKeyboardOpen } from "../../platform/useKeyboardOpen"
 
 /* ──────────────────────────────────────────────────────────────────────────
    BlokPage (/blok) — the scorepad's only screen.
@@ -126,6 +127,7 @@ const EMPTY_TALLY: Record<BlokSide, number> = { us: 0, them: 0 }
    Croatian in code exactly like `/turniri` and `/prijava` are. */
 const RESUME_PARAM = "radnja"
 const RESUME_SHARE = "podijeli"
+const RESUME_NEW_GAME = "nova-igra"
 
 export default function BlokPage() {
     const { t } = useTranslation()
@@ -206,6 +208,12 @@ export default function BlokPage() {
        `BlokSummary` (2026-09-09, user request). */
     const [gamesOpen, setGamesOpen] = useState(false)
     const actionBarRef = useRef<HTMLDivElement | null>(null)
+    // Native only (always false on the web — see the hook). The bar is
+    // `position: fixed` to the viewport bottom; `Keyboard.resize: "body"`
+    // (capacitor.config.ts) moves the INPUT above the keyboard but does not
+    // move a fixed element, so without this it would float on top of the
+    // very field the keyboard just opened for.
+    const keyboardOpen = useKeyboardOpen()
     const [barReserve, setBarReserve] = useState<string>(ACTION_BAR_RESERVE)
     useEffect(() => {
         const el = actionBarRef.current
@@ -548,6 +556,7 @@ export default function BlokPage() {
         navigate("/blok", { replace: true })
         if (!signedIn) return
         if (action === RESUME_SHARE) void shareSeries()
+        if (action === RESUME_NEW_GAME) setPending({ kind: "newGame" })
     }, [authLoading, signedIn, searchParams, navigate, shareSeries])
 
     /* ── "NOVA IGRA" — it CLOSES the series (BLOK-HISTORY.md §2.2, §5.6) ───
@@ -579,20 +588,20 @@ export default function BlokPage() {
        afterwards there is nothing left to send from. `finalizeBlokLink` is
        fire-and-forget and no-ops when there is no approved link, so the close
        itself is as instantaneous offline as it ever was. */
-    const onCloseSeries = useCallback(() => {
-        finalizeBlokLink(link, seriesWins, game.sessionId, signedIn)
-        resetSession(signedIn)
+    const onCloseSeries = useCallback((save: boolean) => {
+        finalizeBlokLink(link, seriesWins, game.sessionId, signedIn, save && signedIn)
+        resetSession(save && signedIn)
+        setPending(null)
+    }, [link, seriesWins, game.sessionId, resetSession, signedIn])
+
+    const saveAndStartNewGame = useCallback(() => {
         if (!signedIn) {
-            toaster.create({
-                // A stable id so a second close refreshes the same toast
-                // instead of stacking another copy of the same sentence.
-                id: "blok-history-signed-out",
-                type: "info",
-                title: t("blok.newGame.signedOutNote"),
-                duration: 5000,
-            })
+            setPending(null)
+            goSignIn(RESUME_NEW_GAME)
+            return
         }
-    }, [link, seriesWins, game.sessionId, resetSession, signedIn, t])
+        onCloseSeries(true)
+    }, [signedIn, goSignIn, onCloseSeries])
 
     const confirmPending = useCallback(() => {
         if (!pending) return
@@ -609,11 +618,10 @@ export default function BlokPage() {
                 unlink(pending.uuid)
                 break
             case "newGame":
-                onCloseSeries()
-                break
+                return
         }
         setPending(null)
-    }, [pending, removeRound, discardCurrent, unlink, onCloseSeries])
+    }, [pending, removeRound, discardCurrent, unlink])
 
     const confirmCopy = useMemo(() => {
         switch (pending?.kind) {
@@ -623,36 +631,18 @@ export default function BlokPage() {
                 return { title: t("blok.menu.delete"), body: t("blok.confirm.deleteGame") }
             case "unlink":
                 return { title: t("blok.link.unlink"), body: t("blok.link.confirmUnlink") }
-            case "newGame": {
-                /* WHAT IS SAVED, AND THAT THE SERIES GOES BACK TO 0:0 — both
-                   said plainly, because both are what the tap does (§5.6).
-
-                   Three sentences rather than one that hedges. Nothing to file
-                   is its own case: "serija (0 igara) sprema se…" would be a
-                   lie told by a template. Signed in versus guest is a real
-                   difference, not a nuance — one files, the other only clears.
-                   And the unfinished game is a fourth fact appended only when
-                   it exists, which is why it is a sentence of its own rather
-                   than a clause welded into the other three: joining two whole
-                   translated sentences with a space builds no grammar in
-                   either language, while a clause would have. The count goes
-                   through the plural family — Slovenian has a dual, so "2 igri"
-                   and "5 iger" are different words. */
-                const body =
-                    filedGames === 0
-                        ? t("blok.newGame.confirmNothing")
-                        : t(
-                            signedIn
-                                ? "blok.newGame.confirmSignedIn"
-                                : "blok.newGame.confirmSignedOut",
-                            { games: tp("blok.newGame.games", filedGames) },
-                        ) + (unfinishedCurrent ? ` ${t("blok.newGame.confirmUnfinished")}` : "")
-                return { title: t("blok.menu.newGame"), body }
-            }
+            case "newGame":
+                return { title: "", body: "" }
             default:
                 return { title: "", body: "" }
         }
-    }, [pending, t, tp, signedIn, filedGames, unfinishedCurrent])
+    }, [pending, t])
+
+    const newGameDescription = filedGames === 0
+        ? t("blok.newGame.confirmNothing")
+        : t(signedIn ? "blok.newGame.confirmSignedIn" : "blok.newGame.confirmSignedOut", {
+            games: tp("blok.newGame.games", filedGames),
+        }) + (unfinishedCurrent ? ` ${t("blok.newGame.confirmUnfinished")}` : "")
 
     /* The two big buttons carry the side NAMES, and a renamed side is the
        whole reason anyone renames one — "Perhaj i G…" defeats the feature.
@@ -696,7 +686,7 @@ export default function BlokPage() {
                 the next game where VI was. It is also what finally makes the
                 arrow under the summary point at something. */}
             {winner ? (
-                <HStack gap={{ base: "2.5", md: "3" }} w="100%">
+                <HStack className="fold-split-actions" gap={{ base: "2.5", md: "3" }} w="100%">
                     <Button
                         flex="1"
                         minW="0"
@@ -745,7 +735,7 @@ export default function BlokPage() {
                     </Button>
                 </HStack>
             ) : (
-            <HStack gap={{ base: "2.5", md: "3" }} w="100%">
+            <HStack className="fold-split-actions" gap={{ base: "2.5", md: "3" }} w="100%">
                 {BLOK_SIDES.map((side) => (
                     <Button
                     key={side}
@@ -788,6 +778,7 @@ export default function BlokPage() {
     return (
         <>
             <Box
+                className="fold-two-pane-grid"
                 display="grid"
                 gap={{ base: "3", md: "5" }}
                 // Base STRETCHES: the scroller is a `1fr` row and has to fill
@@ -1044,7 +1035,8 @@ export default function BlokPage() {
                 internal bottom padding clears the home indicator and keeps
                 the controls at the same comfortable height. */}
             <Box
-                display={{ base: "block", md: "none" }}
+                className="fold-mobile-action-bar"
+                display={{ base: keyboardOpen ? "none" : "block", md: "none" }}
                 ref={actionBarRef}
                 position="fixed"
                 left="0"
@@ -1059,6 +1051,8 @@ export default function BlokPage() {
                 pt="2.5"
                 css={{
                     paddingBottom: `calc(var(--chakra-spacing-3) + ${ACTION_BAR_GAP} + env(safe-area-inset-bottom, 0px))`,
+                    paddingInlineStart: "max(var(--chakra-spacing-3), env(safe-area-inset-left, 0px))",
+                    paddingInlineEnd: "max(var(--chakra-spacing-3), env(safe-area-inset-right, 0px))",
                 }}
             >
                 {actionBar}
@@ -1171,7 +1165,7 @@ export default function BlokPage() {
             />
 
             <ConfirmDialog
-                open={pending !== null}
+                open={pending !== null && pending.kind !== "newGame"}
                 title={confirmCopy.title}
                 description={confirmCopy.body}
                 /* Red for the ones that only take something away. "Nova igra"
@@ -1190,6 +1184,69 @@ export default function BlokPage() {
                 onConfirm={confirmPending}
                 onCancel={() => setPending(null)}
             />
+
+            <Dialog.Root
+                open={pending?.kind === "newGame"}
+                onOpenChange={(event) => { if (!event.open) setPending(null) }}
+                placement="center"
+                role="alertdialog"
+            >
+                <Portal>
+                    <Dialog.Backdrop />
+                    <Dialog.Positioner>
+                        <Dialog.Content maxW={{ base: "calc(100% - 2rem)", md: "md" }} rounded="2xl">
+                            <Dialog.Header pb="2">
+                                <HStack justify="space-between" align="center" w="full" gap="3">
+                                    <Dialog.Title>{t("blok.menu.newGame")}</Dialog.Title>
+                                    <Dialog.CloseTrigger asChild>
+                                        <IconButton
+                                            aria-label={t("common.close")}
+                                            variant="ghost"
+                                            size="sm"
+                                            flexShrink={0}
+                                        >
+                                            <FiX />
+                                        </IconButton>
+                                    </Dialog.CloseTrigger>
+                                </HStack>
+                            </Dialog.Header>
+                            <Dialog.Body pt="1" pb="5">
+                                <Dialog.Description color="fg.muted" lineHeight="1.55">
+                                    {newGameDescription}
+                                </Dialog.Description>
+                            </Dialog.Body>
+                            <Dialog.Footer pt="0">
+                                <VStack gap="3" w="full">
+                                    <Button
+                                        w="full"
+                                        minH="3.5rem"
+                                        size="lg"
+                                        colorPalette="brand"
+                                        disabled={filedGames === 0}
+                                        onClick={saveAndStartNewGame}
+                                    >
+                                        <FiSave />
+                                        {t("blok.newGame.saveAndContinue")}
+                                    </Button>
+                                    <Button
+                                        w="full"
+                                        minH="3.5rem"
+                                        size="lg"
+                                        variant="outline"
+                                        colorPalette="gray"
+                                        bg="bg.panel"
+                                        borderColor="border.emphasized"
+                                        onClick={() => onCloseSeries(false)}
+                                    >
+                                        {t("blok.newGame.continueWithoutSaving")}
+                                        <FiArrowRight />
+                                    </Button>
+                                </VStack>
+                            </Dialog.Footer>
+                        </Dialog.Content>
+                    </Dialog.Positioner>
+                </Portal>
+            </Dialog.Root>
         </>
     )
 }

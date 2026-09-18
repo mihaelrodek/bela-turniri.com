@@ -11,14 +11,19 @@ import {
     Text,
     VStack,
 } from "@chakra-ui/react"
-import { FcGoogle } from "react-icons/fc"
-import { FirebaseError } from "firebase/app"
 import { useAuth } from "../auth/authContextValue"
+import { firebaseErrorCode, socialAuthErrorMessage } from "../auth/authErrors"
+import { ConsentCheckbox } from "../components/auth/ConsentGate"
+import { SocialAuthButtons } from "../components/auth/SocialAuthButtons"
 import { nextFromState, pickSafeNext } from "../utils/safeNextPath"
 import { t, useTranslation } from "../i18n"
 
 function authErrorMessage(err: unknown): string {
-    const code = err instanceof FirebaseError ? err.code : ""
+    // Shared with LoginPage — cancellations and the social-provider codes are
+    // identical on both screens; "" means "handled, stay silent".
+    const social = socialAuthErrorMessage(err)
+    if (social !== null) return social
+    const code = firebaseErrorCode(err)
     switch (code) {
         case "auth/email-already-in-use":
             return t("forms.register.error.emailInUse")
@@ -26,9 +31,6 @@ function authErrorMessage(err: unknown): string {
             return t("forms.auth.invalidEmail")
         case "auth/weak-password":
             return t("forms.register.error.weakPassword")
-        case "auth/popup-closed-by-user":
-        case "auth/cancelled-popup-request":
-            return ""
         default:
             return err instanceof Error ? err.message : t("forms.register.error.generic")
     }
@@ -38,7 +40,7 @@ export default function RegisterPage() {
     const navigate = useNavigate()
     const location = useLocation()
     const [searchParams] = useSearchParams()
-    const { signUp, signInWithGoogle, user, loading: authLoading } = useAuth()
+    const { signUp, signInWithGoogle, signInWithApple, user, loading: authLoading } = useAuth()
     const { t } = useTranslation()
 
     const [name, setName] = useState("")
@@ -47,6 +49,10 @@ export default function RegisterPage() {
     const [confirm, setConfirm] = useState("")
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    // The Terms of Service require 16+, and every path on this page creates an
+    // account — email/password AND the two social buttons — so all three are
+    // gated on the same checkbox rather than only the form's submit.
+    const [consent, setConsent] = useState(false)
 
     // Honour ?next= from the URL (claim-name flow uses it), then the
     // navigation-state hint, then the default home for tournaments. Both
@@ -71,6 +77,10 @@ export default function RegisterPage() {
     async function onSubmit(e: React.FormEvent) {
         e.preventDefault()
         setError(null)
+        if (!consent) {
+            setError(t("forms.auth.consent.required"))
+            return
+        }
         if (!email.trim() || !password) {
             setError(t("forms.register.validation.required"))
             return
@@ -95,10 +105,18 @@ export default function RegisterPage() {
         }
     }
 
-    async function onGoogle() {
+    /** Both social buttons share one flow — only the provider call differs. */
+    async function onSocial(run: () => Promise<void>) {
         setError(null)
+        // Belt and braces: the buttons are already disabled without consent,
+        // but a social sign-in creates the account outright, so never start
+        // one on an unchecked box.
+        if (!consent) {
+            setError(t("forms.auth.consent.required"))
+            return
+        }
         try {
-            await signInWithGoogle()
+            await run()
             navigate(redirectTo, { replace: true })
         } catch (e: unknown) {
             const msg = authErrorMessage(e)
@@ -113,14 +131,15 @@ export default function RegisterPage() {
                     <VStack align="stretch" gap="4">
                         <Heading size="md">{t("forms.register.heading")}</Heading>
 
-                        <Button
-                            variant="outline"
-                            size="md"
-                            onClick={onGoogle}
-                            disabled={submitting}
-                        >
-                            <FcGoogle size={18} /> {t("forms.register.googleButton")}
-                        </Button>
+                        <ConsentCheckbox checked={consent} onChange={setConsent} />
+
+                        <SocialAuthButtons
+                            googleLabel={t("forms.register.googleButton")}
+                            appleLabel={t("forms.register.appleButton")}
+                            onGoogle={() => onSocial(signInWithGoogle)}
+                            onApple={() => onSocial(signInWithApple)}
+                            disabled={submitting || !consent}
+                        />
 
                         <HStack>
                             <Box flex="1" h="1px" bg="border.subtle" />
@@ -179,7 +198,7 @@ export default function RegisterPage() {
                                     variant="solid"
                                     colorPalette="blue"
                                     loading={submitting}
-                                    disabled={submitting}
+                                    disabled={submitting || !consent}
                                 >
                                     {t("forms.register.submit")}
                                 </Button>

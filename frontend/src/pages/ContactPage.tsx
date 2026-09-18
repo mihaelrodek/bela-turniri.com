@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { FormEvent } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import {
@@ -49,7 +49,7 @@ type SendState = "idle" | "sending" | "sent"
 
 export default function ContactPage() {
     const { t } = useTranslation()
-    const { user } = useAuth()
+    const { user, loading: authLoading } = useAuth()
 
     useDocumentHead({
         title: t("pages.contact.seo.title"),
@@ -69,6 +69,23 @@ export default function ContactPage() {
     const [website, setWebsite] = useState("")
     const [state, setState] = useState<SendState>("idle")
     const [touched, setTouched] = useState(false)
+
+    /**
+     * Backfill the prefill when the session resolves.
+     *
+     * The two `useState` initialisers above run on the very first render, and
+     * the Firebase SDK is loaded lazily (src/firebase.ts) — so for a signed-in
+     * user `user` is still null at that point and the latched "" would stick
+     * forever. Fill the fields in once, and only while they are still empty,
+     * so nothing the user has already typed is clobbered.
+     */
+    const prefilledRef = useRef(false)
+    useEffect(() => {
+        if (authLoading || !user || prefilledRef.current) return
+        prefilledRef.current = true
+        if (user.displayName) setName((prev) => prev || user.displayName!)
+        if (user.email) setEmail((prev) => prev || user.email!)
+    }, [authLoading, user])
 
     const trimmedName = name.trim()
     const trimmedEmail = email.trim()

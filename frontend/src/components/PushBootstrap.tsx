@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { usePushSubscription } from "../hooks/usePushSubscription"
 import { isNative, platform } from "../platform"
 import { nativeMessaging } from "../platform/native"
@@ -8,7 +9,7 @@ import { getLocale } from "../i18n"
 import { registerPushDevice, unregisterPushDevice } from "../api/push"
 
 /**
- * Mounted once at the app root. Two responsibilities:
+ * Mounted once at the app root. Multiple responsibilities:
  *
  *   1. Auto-subscribe the logged-in user to push — Web Push via the hook on
  *      the web build, FCM device registration below on native.
@@ -17,6 +18,10 @@ import { registerPushDevice, unregisterPushDevice } from "../api/push"
  *      The SW resolves to an existing open tab and asks it to route
  *      to the target URL — we honour that with a client-side navigate
  *      instead of a hard reload so the SPA state survives.
+ *   3. Enable SW navigation preload for faster perceived navigation.
+ *   4. Listen for {@code bela:api-refreshed} messages when the SW refreshes
+ *      tournament lists in the background (stale-while-revalidate), and
+ *      invalidate the relevant React Query caches so the UI updates.
  *
  * Notification TAP handling and the foreground toast live in
  * `platform/NativeShell.tsx` instead of here, next to the app's other native
@@ -26,6 +31,7 @@ import { registerPushDevice, unregisterPushDevice } from "../api/push"
 export default function PushBootstrap() {
     usePushSubscription()
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
     const { user, loading } = useAuth()
     // Only known in-memory: good enough for "unregister on sign-out within
     // this session", which is the case that matters (a shared/reset device
@@ -35,9 +41,10 @@ export default function PushBootstrap() {
     const lastTokenRef = useRef<string | null>(null)
     const attemptedRef = useRef(false)
 
-    // Web-only: SW message bridge for notification taps. See sw.js's
-    // `notificationclick` handler, which posts this message instead of a
-    // hard navigation so in-app state survives.
+    // Web-only: SW message bridge for notification taps and cache refreshes.
+    // See sw.js's `notificationclick` handler, which posts bela:navigate;
+    // and sw.js's apiStaleWhileRevalidate, which posts bela:api-refreshed when
+    // a tournaments list is refreshed in the background.
     useEffect(() => {
         if (isNative) return
         if (!("serviceWorker" in navigator)) return
@@ -45,11 +52,39 @@ export default function PushBootstrap() {
             const data = e?.data
             if (data && data.type === "bela:navigate" && typeof data.url === "string") {
                 navigate(data.url)
+            } else if (data && data.type === "bela:api-refreshed" && typeof data.url === "string") {
+                // Invalidate tournament list queries to trigger a refetch
+                // The URL is something like /api/tournaments?page=1
+                // Same three shapes the SW refreshes: the list, its count and
+                // one tournament's summary (`qk.tournaments*` / `qk.tournament`).
+                const refreshed = new URL(data.url, location.origin).pathname
+                if (/\/count$/.test(refreshed)) {
+                    queryClient.invalidateQueries({ queryKey: ["tournamentsCount"] })
+                } else if (/^\/api\/tournaments\/[^/]+$/.test(refreshed)) {
+                    queryClient.invalidateQueries({ queryKey: ["tournamentDetails", refreshed.split("/").pop()] })
+                } else {
+                    queryClient.invalidateQueries({ queryKey: ["tournaments"] })
+                }
             }
         }
         navigator.serviceWorker.addEventListener("message", onMessage)
         return () => navigator.serviceWorker.removeEventListener("message", onMessage)
-    }, [navigate])
+    }, [navigate, queryClient])
+
+    // Enable service worker navigation preload so the SW can start fetching
+    // the next page's HTML before React even asks for it. Non-blocking and
+    // safe if the registration doesn't exist or the browser doesn't support it.
+    useEffect(() => {
+        if (isNative) return
+        if (!("serviceWorker" in navigator)) return
+        navigator.serviceWorker.ready
+            .then((reg) => {
+                if (reg.navigationPreload && typeof reg.navigationPreload.enable === "function") {
+                    reg.navigationPreload.enable().catch(() => {})
+                }
+            })
+            .catch(() => {})
+    }, [])
 
     // Native: request notification permission and register the FCM token,
     // at the same moment the web path does (right after a login resolves —

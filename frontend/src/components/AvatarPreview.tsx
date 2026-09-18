@@ -175,6 +175,10 @@ export default function AvatarPreview({
                                 rounded="md"
                                 draggable={false}
                                 display="block"
+                                // Only ever mounted after a hover-delay or a
+                                // click — never on initial paint — so async
+                                // decode is free upside with no LCP risk.
+                                decoding="async"
                             />
                             <IconButton
                                 aria-label={t("common.close")}

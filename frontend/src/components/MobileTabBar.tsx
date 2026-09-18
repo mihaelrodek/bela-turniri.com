@@ -82,6 +82,7 @@ type TabDef = {
     exact?: boolean
     /** True when the route lives outside the bottom bar (e.g. /turniri/:uuid). */
     matchPrefixes?: string[]
+    isNew?: boolean
 }
 
 /** The tab that gets the raised disc: the middle one, "Igraj". Derived from
@@ -103,14 +104,14 @@ function buildTabs(t: (key: string) => string): TabDef[] {
         // Online bela (src/game) — centre slot, see the header comment. The
         // bar hides itself on /igra* (`hidden` below), so this tab hands the
         // game its own full screen.
-        { to: "/igra", label: t("game.nav.igraj"), icon: <CardsIcon />, matchPrefixes: ["/igra"] },
+        { to: "/igra", label: t("common.nav.igraj"), icon: <CardsIcon />, matchPrefixes: ["/igra"], isNew: true },
         { to: "/karta", label: t("common.nav.karta"), icon: <FiMap size={20} /> },
         // Bela blok (src/blok) — public offline scorepad, meant to be opened
         // one-handed at a real table, so mobile is its primary surface. Its own
         // bottom-docked entry buttons (BLOK.md §3.1) are why /blok is in the
         // `hidden` list below — same pattern as /turniri/novi's sticky submit
         // bar and the game table's docked hand.
-        { to: "/blok", label: t("blok.nav"), icon: <FiEdit3 size={20} />, matchPrefixes: ["/blok"] },
+        { to: "/blok", label: t("common.nav.blok"), icon: <FiEdit3 size={20} />, matchPrefixes: ["/blok"] },
     ]
 }
 
@@ -210,6 +211,8 @@ export default function MobileTabBar() {
                 // not a spacing token, and this is the only declaration left
                 // here now that the blur moved to `layerStyle="glass.bar"`.
                 paddingBottom: "env(safe-area-inset-bottom)",
+                paddingInlineStart: "max(var(--chakra-spacing-2), env(safe-area-inset-left, 0px))",
+                paddingInlineEnd: "max(var(--chakra-spacing-2), env(safe-area-inset-right, 0px))",
             }}
             px="2"
             pt="2"
@@ -219,6 +222,7 @@ export default function MobileTabBar() {
                 dead column behind. (It is a stable 5 today — the "Igraj" tab
                 no longer comes and goes with its production flag.) */}
             <Box
+                className="fold-bottom-nav-grid"
                 display="grid"
                 gridTemplateColumns={`repeat(${TABS.length}, 1fr)`}
                 w="100%"
@@ -244,6 +248,7 @@ export default function MobileTabBar() {
                                 flexDirection="column"
                                 alignItems="center"
                                 justifyContent="flex-end"
+                                position="relative"
                                 gap="2px"
                                 py="2"
                             >
@@ -288,6 +293,10 @@ export default function MobileTabBar() {
                                     disc was the only unlabelled thing in the
                                     bar — a green circle you had to press to
                                     find out what it did. */}
+                                {tab.isNew && !active && <Box position="absolute" top="-37px" px="2" py="1" rounded="full"
+                                    bg="orange.400" color="gray.950" borderWidth="1px" borderColor="orange.200"
+                                    boxShadow="0 3px 8px rgba(234, 88, 12, 0.5)" fontSize="9px" fontWeight="900" lineHeight="1"
+                                    letterSpacing="0.08em">NOVO</Box>}
                                 <Text
                                     fontSize="11px"
                                     lineHeight="1"
@@ -331,9 +340,15 @@ export default function MobileTabBar() {
                         >
                             <RouterLink to={tab.to} aria-label={tab.label} aria-current={active ? "page" : undefined}>
                                 {tab.icon}
-                                <Text fontSize="11px" mt="2px">
+                                <Box position="relative">
+                                    {tab.isNew && !active && <Box position="absolute" top="-19px" left="50%" transform="translateX(-50%)"
+                                        px="2" py="1" rounded="full" bg="orange.400" color="gray.950" borderWidth="1px" borderColor="orange.200"
+                                        boxShadow="0 3px 8px rgba(234, 88, 12, 0.5)" fontSize="9px" fontWeight="900" lineHeight="1"
+                                        letterSpacing="0.08em">NOVO</Box>}
+                                    <Text fontSize="11px" mt="2px">
                                     {tab.label}
-                                </Text>
+                                    </Text>
+                                </Box>
                             </RouterLink>
                         </Box>
                     )

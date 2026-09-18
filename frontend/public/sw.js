@@ -15,6 +15,12 @@
  *     cache is served ONLY when the network is unreachable. That lets the round
  *     view and the standings open — and survive a reload — with no signal.
  *     Network-first is the key: there's no stale-JSON surprise while connected.
+ *     ONE exception (2026-09-13): the public tournaments list, its count and a
+ *     tournament's summary are stale-while-revalidate — the snapshot is served
+ *     at once, the network copy replaces it in the background and the page is
+ *     told (`bela:api-refreshed`, handled in PushBootstrap) to refetch. Those
+ *     three change slowly and are the first paint of the app; the round view's
+ *     sub-resources stay network-first.
  *   - Writes (POST/PUT/PATCH/DELETE): never touched — straight to the network.
  *   - Cross-origin: never touched.
  *
@@ -290,14 +296,26 @@ self.addEventListener("fetch", (event) => {
     }
 
     // API reads: network-first with a last-snapshot fallback (see file header).
+    // Exception: /api/tournaments* lists use stale-while-revalidate for perceived
+    // speed (return cached list immediately, refresh in background).
     if (url.pathname.startsWith("/api/")) {
-        event.respondWith(apiNetworkFirst(req, url));
+        // Exactly the public list, its count and one tournament's summary
+        // (`/api/tournaments`, `/api/tournaments/count`, `/api/tournaments/<id>`);
+        // never the sub-resources (pairs, rounds, matches, standings), which
+        // the round view relies on being fresh while connected.
+        const isTournamentsList = /^\/api\/tournaments(\/count|\/[^/]+)?$/.test(url.pathname)
+            && !/^\/api\/tournaments\/(mine|multipart)$/.test(url.pathname);
+        if (isTournamentsList) {
+            event.respondWith(apiStaleWhileRevalidate(req, url));
+        } else {
+            event.respondWith(apiNetworkFirst(req, url));
+        }
         return;
     }
 
     // Everything else the SW owns is a top-level SPA navigation.
     if (req.mode !== "navigate") return;
-    event.respondWith(navigationNetworkFirst(req));
+    event.respondWith(navigationNetworkFirst(req, event));
 });
 
 /**
@@ -378,10 +396,82 @@ async function apiNetworkFirst(req, url) {
     }
 }
 
-// SPA navigation: network-first, fall back to the cached shell, and as a last
-// resort a tiny offline page.
-async function navigationNetworkFirst(req) {
+// Stale-while-revalidate for /api/tournaments* lists: return cached snapshot
+// immediately, then fetch fresh data in the background and notify clients to
+// invalidate via postMessage. Guarantees perceived speed for list pages.
+async function apiStaleWhileRevalidate(req, url) {
+    const authenticated = !!req.headers.get("authorization");
+    const cacheable =
+        !authenticated
+        && !NEVER_CACHE_API.some((p) => url.pathname.startsWith(p))
+        && !NEVER_CACHE_API_PATTERNS.some((re) => re.test(url.pathname));
+    let cache = null;
+    if (cacheable) {
+        try { cache = await caches.open(API_CACHE); } catch (_) { /* private mode */ }
+    }
+
+    // Return cached response immediately if available
+    if (cache) {
+        try {
+            const cached = await cache.match(req);
+            if (cached) {
+                // Refresh in background without blocking
+                fetch(req).then((resp) => {
+                    if (cache && resp && resp.status === 200 && resp.type === "basic") {
+                        const copy = resp.clone();
+                        cache.put(req, copy)
+                            .then(() => {
+                                // Notify all clients to invalidate the list query
+                                self.clients.matchAll().then((clients) => {
+                                    clients.forEach((client) => {
+                                        client.postMessage({
+                                            type: "bela:api-refreshed",
+                                            url: req.url,
+                                        });
+                                    });
+                                });
+                                trimCache(cache, API_CACHE_LIMIT);
+                            })
+                            .catch(() => {});
+                    }
+                }).catch(() => {});
+                return cached;
+            }
+        } catch (_) {}
+    }
+
+    // No cached response — fall back to network-first behavior
     try {
+        const resp = await fetch(req);
+        if (cache && resp && resp.status === 200 && resp.type === "basic") {
+            const copy = resp.clone();
+            cache.put(req, copy)
+                .then(() => trimCache(cache, API_CACHE_LIMIT))
+                .catch(() => {});
+        }
+        return resp;
+    } catch (_) {
+        return new Response(
+            JSON.stringify({ offline: true }),
+            {
+                status: 503,
+                headers: { "Content-Type": "application/json; charset=utf-8" },
+            }
+        );
+    }
+}
+
+// SPA navigation: network-first with optional preload support, fall back to
+// the cached shell, and as a last resort a tiny offline page.
+async function navigationNetworkFirst(req, event) {
+    try {
+        // Use preloadResponse if the browser preloaded this navigation fetch
+        let resp;
+        if (event && event.preloadResponse) {
+            resp = await event.preloadResponse;
+            if (resp && resp.status === 200) return resp;
+        }
+        // Preload didn't complete or wasn't available — fetch normally
         return await fetch(req);
     } catch (_) {
         const shell =

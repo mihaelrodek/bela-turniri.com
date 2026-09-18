@@ -22,6 +22,7 @@
    ────────────────────────────────────────────────────────────────────── */
 
 import { LIMITS, isAvatarPreset } from "@bela/protocol"
+import type { PlayerGameStats, GameStatRecord } from "@bela/protocol"
 import type { Config } from "./config.js"
 import { log } from "./log.js"
 
@@ -42,6 +43,8 @@ export interface AppProfile {
      * in their browser and arrives with the `hello`.
      */
     avatarPreset: string | null
+    /** Absent on older/fake profile providers; null when backend has no valid record. */
+    gameStats?: PlayerGameStats | null
 }
 
 /** Why a `setGameName` did not go through. */
@@ -91,9 +94,31 @@ function isLookupCandidate(uid: string): boolean {
     return !uid.startsWith("dev:")
 }
 
+function parseStatRecord(value: unknown): GameStatRecord | null {
+    if (typeof value !== "object" || value === null) return null
+    const row = value as Partial<GameStatRecord>
+    if (![row.games, row.wins, row.losses, row.winRate].every((v) => typeof v === "number" && Number.isFinite(v))) return null
+    return { games: row.games!, wins: row.wins!, losses: row.losses!, winRate: row.winRate! }
+}
+
+function parseGameStats(value: unknown): PlayerGameStats | null {
+    if (typeof value !== "object" || value === null) return null
+    const raw = value as { global?: unknown; byTargetScore?: unknown }
+    const global = parseStatRecord(raw.global)
+    if (!global) return null
+    const byTargetScore: PlayerGameStats["byTargetScore"] = {}
+    if (typeof raw.byTargetScore === "object" && raw.byTargetScore !== null) {
+        for (const key of ["501", "701", "1001"] as const) {
+            const row = parseStatRecord((raw.byTargetScore as Record<string, unknown>)[key])
+            if (row) byTargetScore[key] = row
+        }
+    }
+    return { global, byTargetScore }
+}
+
 function parseProfile(body: unknown): AppProfile | null {
     if (typeof body !== "object" || body === null) return null
-    const raw = body as { displayName?: unknown; avatarUrl?: unknown; gameName?: unknown; avatarPreset?: unknown }
+    const raw = body as { displayName?: unknown; avatarUrl?: unknown; gameName?: unknown; avatarPreset?: unknown; gameStats?: unknown }
     const displayName = typeof raw.displayName === "string" && raw.displayName.trim().length > 0
         ? raw.displayName.trim().slice(0, 60)
         : null
@@ -107,8 +132,9 @@ function parseProfile(body: unknown): AppProfile | null {
     // would reach `BelaAvatar`, which renders nothing for one, and the seat
     // would go blank instead of falling back to initials.
     const avatarPreset = isAvatarPreset(raw.avatarPreset) ? raw.avatarPreset : null
-    if (displayName === null && avatarUrl === null && gameName === null && avatarPreset === null) return null
-    return { displayName, avatarUrl, gameName, avatarPreset }
+    const gameStats = parseGameStats(raw.gameStats)
+    if (displayName === null && avatarUrl === null && gameName === null && avatarPreset === null && gameStats === null) return null
+    return { displayName, avatarUrl, gameName, avatarPreset, gameStats }
 }
 
 export function createProfileLookup(cfg: Config): ProfileLookup {
@@ -171,6 +197,14 @@ export function createProfileLookup(cfg: Config): ProfileLookup {
         },
 
         async setGameName(uid, name) {
+            // Synthetic dev users exist only in this process and cannot have
+            // a backend profile row. Let the socket update their connection
+            // and room state instead of turning every local rename into a
+            // misleading BAD_REQUEST. The real account/guest paths below
+            // still use the backend's seven-day rule.
+            if (cfg.devAllowAnon && uid.startsWith("dev:")) {
+                return { ok: true, name, nextChangeAt: 0 }
+            }
             if (!isLookupCandidate(uid) || !cfg.gameResultsToken) {
                 return { ok: false, error: "UNAVAILABLE" }
             }
@@ -224,6 +258,8 @@ function parseInstant(value: unknown): number {
     if (typeof value === "string") {
         const n = Number(value)
         if (Number.isFinite(n)) return n
+        const parsed = Date.parse(value)
+        if (Number.isFinite(parsed)) return parsed
     }
     return 0
 }

@@ -3,7 +3,7 @@ import type { Suit } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import { suitKey } from "../util/cards"
 import SuitGlyph from "./SuitGlyph"
-import { INK, INK_MUTED } from "./tableStyles"
+import { INK, INK_MUTED, type TeamSide } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
    TrumpBadge — the middle cell of the scoreboard (game/DESIGN.md §1 "Stol").
@@ -24,12 +24,12 @@ const CELL = {
     align: "center",
     justify: "center",
     rounded: "l2",
-    bg: "brand.950/85",
+    bg: "transparent",
     borderWidth: "1px",
-    borderColor: "brand.500",
-    boxShadow: "0 0 16px rgba(0,0,0,0.4)",
-    minW: "62px",
-    minH: "46px",
+    borderColor: "border",
+    boxShadow: "none",
+    minW: "66px",
+    minH: "54px",
     px: "2",
     py: "1",
 } as const
@@ -44,12 +44,16 @@ export default function TrumpBadge({
     callerName?: string | null
     /** Shown instead of the suit before trump is set. */
     fallback: string
+    /** Which pair the caller plays for, so the cell can be bound to them in
+     *  the table's two team colours (`TEAM`, DESIGN §6). Null before anyone
+     *  has called, when the cell has no side to take. */
+    callerTeam?: TeamSide | null
 }) {
     const { t } = useTranslation()
 
     if (!trump) {
         return (
-            <VStack {...CELL} borderColor="brand.700/70" gap="0" maxW="120px">
+            <VStack {...CELL} borderColor="border.subtle" gap="0" maxW="120px">
                 <Text
                     fontSize="2xs"
                     color={INK_MUTED}
@@ -68,6 +72,7 @@ export default function TrumpBadge({
     return (
         <VStack
             {...CELL}
+            borderWidth="0"
             gap="0.5"
             maxW="120px"
             title={t(suitKey(trump))}
@@ -77,7 +82,9 @@ export default function TrumpBadge({
                     : t("game.table.trumpSet", { suit: t(suitKey(trump)) })
             }
         >
-            <SuitGlyph suit={trump} size={22} />
+            {/* 28 px: the suit is the single most re-checked fact on the
+                table and it was drawn at caption size. */}
+            <SuitGlyph suit={trump} size={28} />
             {callerName && (
                 <Text
                     fontSize="10px"

@@ -1,5 +1,5 @@
 import type { Rank, Suit } from "@bela/engine"
-import { RANK_HU_MARK } from "../../util/cards"
+import { RANK_HU_MARK, type CardSize } from "../../util/cards"
 import { SUIT_PALETTE, ACE_PALETTE, FACE, HAIRLINE, INK, NUMERAL_FONT } from "./palette"
 import SuitGlyph, { Pip } from "./SuitGlyph"
 import CourtFigure from "./figures"
@@ -130,18 +130,55 @@ function AceFace({ suit }: { suit: Suit }) {
     )
 }
 
-export default function MadjaricaCard({ rank, suit }: { rank: Rank; suit: Suit }) {
+const ART_INSET: Record<CardSize, number> = { sm: 2, md: 3, lg: 4 }
+const ART_RADIUS: Record<CardSize, number> = { sm: 4, md: 6, lg: 8 }
+
+export default function MadjaricaCard({
+    rank,
+    suit,
+    size = "md",
+}: {
+    rank: Rank
+    suit: Suit
+    size?: CardSize
+}) {
+    const inset = ART_INSET[size]
+    const artStyle = {
+        display: "block",
+        position: "absolute" as const,
+        inset: `${inset}px`,
+        width: `calc(100% - ${inset * 2}px)`,
+        height: `calc(100% - ${inset * 2}px)`,
+        borderRadius: `${ART_RADIUS[size]}px`,
+        overflow: "hidden",
+    }
     const image = cardImage(rank, suit)
     if (image) {
         return (
-            <img
-                src={image}
-                alt=""
-                aria-hidden="true"
-                draggable={false}
-                decoding="async"
-                style={{ display: "block", width: "100%", height: "100%", objectFit: "contain" }}
-            />
+            <span aria-hidden="true" style={artStyle}>
+                <img
+                    src={image}
+                    alt=""
+                    draggable={false}
+                    decoding="async"
+                    style={{
+                        display: "block",
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        // Normalize only the scanned artwork. Keeping this off
+                        // the parent lets its margin retain the same quiet
+                        // grey-paper tone instead of being pushed to pure white.
+                        filter: "saturate(1.08) contrast(1.04) brightness(1.08)",
+                        // The source scans include a few uneven grey pixels at
+                        // their paper edge. Crop those inside the clean frame;
+                        // the wrapper above keeps this scale from eating into
+                        // the deliberate white margin around the artwork.
+                        transform: "scale(1.045)",
+                        transformOrigin: "center",
+                    }}
+                />
+            </span>
         )
     }
     return (
@@ -151,7 +188,7 @@ export default function MadjaricaCard({ rank, suit }: { rank: Rank; suit: Suit }
             height="100%"
             aria-hidden="true"
             focusable="false"
-            style={{ display: "block" }}
+            style={artStyle}
         >
             <rect x={1} y={1} width={198} height={298} rx={14} fill={FACE} stroke={INK} strokeWidth={2} />
             <rect x={8} y={8} width={184} height={284} rx={9} fill="none" stroke={HAIRLINE} strokeWidth={1.5} />

@@ -16,12 +16,14 @@
    ────────────────────────────────────────────────────────────────────── */
 
 import { useCallback } from "react"
+import { preload } from "react-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import type { TournamentCard } from "../types/tournaments"
 import { fetchTournamentDetails } from "../api/tournaments"
 import { qk } from "../queryClient"
 import { formatAmount, formatTime } from "../utils/format"
 import { usePlural, useTranslation } from "../i18n"
+import { detailPosterPreload } from "../utils/imageUrl"
 import { MONTH_KEYS, WEEKDAY_KEYS } from "./calendarShared"
 
 /**
@@ -303,17 +305,33 @@ export function useListingStatus(): (item: ListingTournament, variant: ListingVa
  * it (click / tap) renders instantly instead of showing a spinner + refetch.
  * The key is slug-or-uuid so it matches EXACTLY what the URL — and therefore
  * TournamentDetailsPage — will read.
+ *
+ * `bannerUrl`, when given, is the SAME poster the detail page's header will
+ * show (`TournamentMapper.publicUrl` computes the identical
+ * `/api/resources/<id>/image` path for both the list and detail DTOs) — so a
+ * hover/pointerdown can also warm the image cache via `react-dom`'s
+ * `preload()`, matched to the exact `srcSet`/`sizes` `DetailsSection` uses,
+ * without waiting for the detail fetch to resolve.
  */
-export function useTournamentPrefetch(): (idOrSlug?: string | null) => void {
+export function useTournamentPrefetch(): (idOrSlug?: string | null, bannerUrl?: string | null) => void {
     const queryClient = useQueryClient()
     return useCallback(
-        (idOrSlug?: string | null) => {
+        (idOrSlug?: string | null, bannerUrl?: string | null) => {
             if (!idOrSlug) return
             queryClient.prefetchQuery({
                 queryKey: qk.tournamentDetails(idOrSlug),
                 queryFn: () => fetchTournamentDetails(idOrSlug),
                 staleTime: 30_000,
             })
+            const posterPreload = detailPosterPreload(bannerUrl)
+            if (posterPreload) {
+                preload(posterPreload.href, {
+                    as: "image",
+                    fetchPriority: "high",
+                    imageSrcSet: posterPreload.imageSrcSet,
+                    imageSizes: posterPreload.imageSizes,
+                })
+            }
         },
         [queryClient],
     )

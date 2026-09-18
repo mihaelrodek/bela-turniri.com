@@ -3,13 +3,25 @@ package hr.mrodek.apps.bela_turniri.mappers;
 import hr.mrodek.apps.bela_turniri.dtos.PairDto;
 import hr.mrodek.apps.bela_turniri.model.Pairs;
 import hr.mrodek.apps.bela_turniri.model.UserProfile;
+import hr.mrodek.apps.bela_turniri.services.DisplayNames;
+import jakarta.inject.Inject;
 import org.mapstruct.*;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * An abstract CLASS rather than an interface, purely so it can
+ * {@code @Inject} {@link DisplayNames}: a pair row shows the submitter's name,
+ * and a submitter whose account has been deleted must render as "Obrisani
+ * korisnik" with no link instead of as an empty name pointing at a profile
+ * that 404s. MapStruct generates {@code PairMapperImpl extends PairMapper},
+ * so every existing {@code @Inject PairMapper} call site is unchanged.
+ */
 @Mapper(componentModel = "cdi", unmappedTargetPolicy = ReportingPolicy.IGNORE)
-public interface PairMapper {
+public abstract class PairMapper {
+
+    @Inject DisplayNames displayNames;
 
     /* Entity -> DTO (basic, no enrichment) */
     @Mappings({
@@ -28,9 +40,9 @@ public interface PairMapper {
             // no viewer to gate on, and a null is the only safe default for a
             // number only the organiser may see. Use toDtoEnriched(..., true).
     })
-    PairDto toDto(Pairs entity);
+    public abstract PairDto toDto(Pairs entity);
 
-    List<PairDto> toDtoList(List<Pairs> entities);
+    public abstract List<PairDto> toDtoList(List<Pairs> entities);
 
     /* DTO (partial) -> existing Entity (update)
      *
@@ -67,7 +79,7 @@ public interface PairMapper {
             @Mapping(target = "createdAt",           ignore = true),
             @Mapping(target = "updatedAt",           ignore = true)
     })
-    void updateEntity(@MappingTarget Pairs entity, PairDto dto);
+    public abstract void updateEntity(@MappingTarget Pairs entity, PairDto dto);
 
     /**
      * Enrich an entity into a DTO that also carries submitter + co-owner
@@ -82,7 +94,7 @@ public interface PairMapper {
      * so the share link doesn't leak in pair lists rendered to other
      * tournament participants.
      */
-    default PairDto toDtoEnriched(Pairs e, Map<String, UserProfile> profilesByUid,
+    public PairDto toDtoEnriched(Pairs e, Map<String, UserProfile> profilesByUid,
                                    boolean includeClaimToken) {
         return toDtoEnriched(e, profilesByUid, includeClaimToken, false);
     }
@@ -96,7 +108,7 @@ public interface PairMapper {
      * endpoint into a phone-number scraper — the exact failure
      * {@code PairRequestController.redactForAnonymous} documents next door.
      */
-    default PairDto toDtoEnriched(Pairs e, Map<String, UserProfile> profilesByUid,
+    public PairDto toDtoEnriched(Pairs e, Map<String, UserProfile> profilesByUid,
                                    boolean includeClaimToken, boolean includeContactPhone) {
         UserProfile prof = e.getSubmittedByUid() != null && profilesByUid != null
                 ? profilesByUid.get(e.getSubmittedByUid())
@@ -114,11 +126,13 @@ public interface PairMapper {
                 e.isPaid(),
                 e.getSubmittedByUid(),
                 e.isPendingApproval(),
-                prof == null ? null : prof.getSlug(),
-                prof == null ? null : prof.getDisplayName(),
+                // Deleted accounts render as the "Obrisani korisnik" label with
+                // no slug — decided once, in DisplayNames, never re-derived here.
+                displayNames.slugOf(prof),
+                displayNames.nameOf(prof),
                 e.getCoSubmittedByUid(),
-                co == null ? null : co.getSlug(),
-                co == null ? null : co.getDisplayName(),
+                displayNames.slugOf(co),
+                displayNames.nameOf(co),
                 includeClaimToken ? e.getClaimToken() : null,
                 includeContactPhone ? e.getContactPhone() : null,
                 null
@@ -126,11 +140,11 @@ public interface PairMapper {
     }
 
     /** Backwards-compat overload — never includes the claim token. */
-    default PairDto toDtoEnriched(Pairs e, Map<String, UserProfile> profilesByUid) {
+    public PairDto toDtoEnriched(Pairs e, Map<String, UserProfile> profilesByUid) {
         return toDtoEnriched(e, profilesByUid, false);
     }
 
-    default List<PairDto> toDtoListEnriched(List<Pairs> entities, Map<String, UserProfile> profilesByUid) {
+    public List<PairDto> toDtoListEnriched(List<Pairs> entities, Map<String, UserProfile> profilesByUid) {
         return entities.stream().map(e -> toDtoEnriched(e, profilesByUid, false)).toList();
     }
 
@@ -139,7 +153,7 @@ public interface PairMapper {
      * is the primary submitter (so they can copy the share link). Pass
      * the viewer's UID; tokens for pairs they don't own are null.
      */
-    default List<PairDto> toDtoListEnrichedForViewer(
+    public List<PairDto> toDtoListEnrichedForViewer(
             List<Pairs> entities,
             Map<String, UserProfile> profilesByUid,
             String viewerUid,

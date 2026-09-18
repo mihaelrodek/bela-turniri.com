@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Box, Text } from "@chakra-ui/react"
-import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet"
+import { MapContainer, Marker, useMap, useMapEvents } from "react-leaflet"
 // Leaflet's stylesheet — imported here (not just on the standalone /karta
 // page) because the create / edit tournament forms mount this picker
 // without ever loading MapPage's chunk. Without the CSS the tiles and
@@ -9,7 +9,7 @@ import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-lea
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 import { useTranslation } from "../i18n"
-import { mapTiles } from "../utils/mapTiles"
+import { MapBaseLayer } from "./MapBaseLayer"
 import { reverseGeocode } from "../utils/places"
 
 /**
@@ -124,12 +124,9 @@ export default function LocationMapPicker({
                 scrollWheelZoom={false}
             >
                 {/* Basemap comes from utils/mapTiles.ts so both this picker
-                    and /karta follow the same (env-overridable) provider. */}
-                <TileLayer
-                    attribution={mapTiles.attribution}
-                    url={mapTiles.url}
-                    maxZoom={mapTiles.maxZoom}
-                />
+                    and /karta follow the same (env-overridable) provider, and
+                    MapBaseLayer draws it raster or vector accordingly. */}
+                <MapBaseLayer />
                 <ClickHandler onClick={handleClick} />
                 {/* RecenterOnValue keeps the map's view in sync with the
                     pin position. Without this, react-leaflet only uses

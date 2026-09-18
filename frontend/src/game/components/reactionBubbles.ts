@@ -1,26 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { Seat } from "@bela/protocol"
+import type { Reaction, Seat } from "@bela/protocol"
 import type { SeatReaction } from "../hooks/useGameSocket"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Which seat is showing which emoji right now.
 
    `useGameSocket` keeps the last few `chat.reaction` frames; this turns them
-   into "seat 2 is showing 🔥" for the two seconds the bubble lives, and then
+   into "seat 2 is saying something" while the bubble lives, and then
    stops ticking. A separate module from `ReactionsBar.tsx` on purpose: that
    file exports a component and nothing else, which is what keeps fast
    refresh working on it.
    ────────────────────────────────────────────────────────────────────── */
 
 /** How long a bubble floats next to its seat (game/DESIGN.md §1 "Stol"). */
-export const BUBBLE_MS = 2000
+export const BUBBLE_MS = 2800
 
 /**
  * A later reaction from the same seat replaces the earlier one — only the
  * last word counts. A spectator's reaction (`seat === null`) has no seat to
  * float over and is dropped.
  */
-export function useReactionBubbles(reactions: SeatReaction[]): Partial<Record<Seat, string>> {
+export function useReactionBubbles(reactions: SeatReaction[]): Partial<Record<Seat, Reaction>> {
     const [now, setNow] = useState(() => Date.now())
     const newest = reactions.length === 0 ? -1 : reactions[reactions.length - 1].id
     const latestRef = useRef(reactions)
@@ -42,7 +42,7 @@ export function useReactionBubbles(reactions: SeatReaction[]): Partial<Record<Se
     }, [newest])
 
     return useMemo(() => {
-        const active: Partial<Record<Seat, string>> = {}
+        const active: Partial<Record<Seat, Reaction>> = {}
         for (const item of reactions) {
             if (item.seat === null) continue
             if (now - item.at > BUBBLE_MS) continue

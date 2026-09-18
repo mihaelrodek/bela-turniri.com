@@ -4,6 +4,8 @@ import { FiCalendar, FiCheck, FiShare2 } from "react-icons/fi"
 
 import { useTranslation } from "../../i18n"
 import { downloadTournamentIcs, hasCalendarDate } from "./shareUtils"
+import { isNative } from "../../platform"
+import { nativeShare } from "../../platform/nativeIo"
 import type { TournamentDetails } from "../../types/tournaments"
 
 /**
@@ -35,6 +37,21 @@ export function ShareButton({
     const [copied, setCopied] = useState(false)
 
     async function onShare() {
+        if (isNative) {
+            // `navigator.share` inside a Capacitor WebView either doesn't
+            // exist or opens a bare, unbranded web share dialog depending on
+            // platform/version — `Share.share` is the one that reaches the
+            // real OS share sheet. Cancelling it rejects; that is the exact
+            // native equivalent of `nav.share` rejecting below, so it gets
+            // the same no-op treatment, never an error toast.
+            const Share = await nativeShare()
+            try {
+                await Share.share({ title, text: title, url, dialogTitle: title })
+            } catch {
+                /* user cancelled — no-op */
+            }
+            return
+        }
         // navigator.share isn't in the DOM lib everywhere we build; narrow
         // through a minimal local shape instead of casting to any.
         const nav = typeof navigator !== "undefined"

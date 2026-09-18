@@ -41,6 +41,7 @@ export const profile: ProfileDict = {
     "tab.presets": "Predloge",
     "tab.invoices": "Računi",
     "tab.dashboard": "Dashboard",
+    "tab.gameAnalytics": "Analitika igre",
     "tab.playersList": "Seznam igralcev",
     "tab.contactMessages": "Sporočila",
 
@@ -244,6 +245,8 @@ export const profile: ProfileDict = {
     "gameStats.losses.few": "{n} porazi",
     "gameStats.losses.other": "{n} porazov",
     "gameStats.winRate": "Procent zmag",
+    "gameStats.karma": "Karma",
+    "gameStats.abandons": "Zapustitve",
     "gameStats.categoryStats": "{wins}/{n} ({winRate}%)",
     "gameStats.targetScore.501": "Do 501",
     "gameStats.targetScore.701": "Do 701",
@@ -281,4 +284,54 @@ export const profile: ProfileDict = {
     "blok.meta": "Do {target} · {rule}",
     "blok.rule.dosta": "dovolj",
     "blok.rule.prolaz": "skozi",
+
+    /* VARNOST UPORABNIKA — prijava vsebine, blokiranje, izbris računa.
+       Potrditvena beseda za izbris je slovenska („IZBRIŠI”), ker jo uporabnik
+       prepiše iz stavka nad poljem; primerja se brez razlikovanja velikih in
+       malih črk. Strojne kode se ne prevajajo. */
+
+    "actions.more": "Več možnosti",
+    "report.title": "Prijavi vsebino",
+    "report.body": "Prijavljaš: {target}. Prijavo pregleda skrbnik.",
+    "report.profileItem": "Prijavi profil",
+    "report.reason.SPAM": "Neželena vsebina (spam)",
+    "report.reason.OFFENSIVE": "Žaljiva ali neprimerna vsebina",
+    "report.reason.PERSONAL_DATA": "Tuji osebni podatki",
+    "report.reason.OTHER": "Nekaj drugega",
+    "report.messageLabel": "Opis (ni obvezno)",
+    "report.messagePlaceholder": "Na kratko opiši, kaj ni v redu…",
+    "report.submit": "Pošlji prijavo",
+    "report.success": "Hvala, prijava je sprejeta.",
+    "report.error.rateLimited": "Preveč prijav, poskusi pozneje",
+    "report.error.self": "Lastne vsebine ne moreš prijaviti",
+    "report.error.notFound": "Vsebina ne obstaja več",
+    "report.error.generic": "Pošiljanje prijave ni uspelo",
+
+    "blocks.blockItem": "Blokiraj uporabnika",
+    "blocks.confirmTitle": "Blokirati uporabnika?",
+    "blocks.confirmBody":
+        "{name} ne bo več videl tvojega profila, ti pa ne njegovega. Turnirji, ki jih je organiziral, izginejo s tvojega seznama. Blokado lahko odstraniš v nastavitvah profila.",
+    "blocks.blocked": "{name} je blokiran",
+    "blocks.failed": "Blokiranje ni uspelo",
+    "blocks.heading": "Blokirani uporabniki",
+    "blocks.description": "Uporabniki, ki si jih blokiral — njihov profil in turnirji so ti skriti.",
+    "blocks.loadFailed": "Seznama blokiranih ni mogoče naložiti.",
+    "blocks.empty": "Nimaš blokiranih uporabnikov.",
+    "blocks.unblock": "Odblokiraj",
+    "blocks.unblocked": "Blokada je odstranjena",
+
+    "deleteAccount.confirmWord": "IZBRIŠI",
+    "deleteAccount.heading": "Izbris računa",
+    "deleteAccount.what":
+        "Z izbrisom računa izginejo tvoj profil, profilna slika, telefonska številka in vse nastavitve.",
+    "deleteAccount.keeps":
+        "Turnirji, ki si jih organiziral, in rezultati, ki so jih odigrali drugi, ostanejo, a namesto tvojega imena piše „Izbrisan uporabnik”.",
+    "deleteAccount.button": "Izbriši račun",
+    "deleteAccount.dialogTitle": "Izbrisati račun?",
+    "deleteAccount.dialogBody": "Tega dejanja ni mogoče razveljaviti.",
+    "deleteAccount.typePrompt": "Za potrditev vpiši {word}:",
+    "deleteAccount.confirmButton": "Izbriši račun",
+    "deleteAccount.done": "Račun je izbrisan",
+    "deleteAccount.failed": "Izbris računa ni uspel",
+    "deleteAccount.recentLogin": "Znova se prijavi in poskusi še enkrat",
 }

@@ -10,7 +10,7 @@ import type { DealScore, GameState, Seat } from "@bela/engine"
 import { createRng } from "@bela/engine"
 import type { TargetScore } from "@bela/protocol"
 import type { Room, SeatSlot } from "../src/room.js"
-import { reportGameResult } from "../src/statsReporter.js"
+import { reportGameAbandonment, reportGameResult } from "../src/statsReporter.js"
 
 type SeatKind = "human" | "bot"
 
@@ -176,6 +176,43 @@ describe("reportGameResult", () => {
         const room = buildRoom(["human", "human", "human", "human"])
         const state = buildGameOverState()
         reportGameResult(room, state)
+        await new Promise((r) => setTimeout(r, 0))
+        expect(fetchMock).not.toHaveBeenCalled()
+    })
+})
+
+describe("reportGameAbandonment", () => {
+    let fetchMock: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+        fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ recorded: true }), { status: 200 }))
+        vi.stubGlobal("fetch", fetchMock)
+        vi.stubEnv("GAME_RESULTS_TOKEN", "secret-token")
+        vi.stubEnv("BACKEND_INTERNAL_URL", "http://backend:8085/api")
+    })
+
+    afterEach(() => {
+        vi.unstubAllEnvs()
+        vi.unstubAllGlobals()
+    })
+
+    it("reports one deterministic, authenticated abandonment event", async () => {
+        reportGameAbandonment("1f616df1-2ad0-40cb-8c57-c9de2e55d2d0", "firebase-user")
+        await new Promise((r) => setTimeout(r, 0))
+
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+        expect(url).toBe("http://backend:8085/api/internal/game-reliability-events")
+        expect(init.headers).toMatchObject({ "X-Internal-Token": "secret-token" })
+        expect(JSON.parse(init.body as string)).toMatchObject({
+            userUid: "firebase-user",
+            eventType: "ABANDONED",
+            eventId: expect.stringMatching(/^[a-f0-9]{64}$/),
+        })
+    })
+
+    it("does not track anonymous guests or local development users", async () => {
+        reportGameAbandonment("run", "guest:anonymous")
+        reportGameAbandonment("run", "dev:local")
         await new Promise((r) => setTimeout(r, 0))
         expect(fetchMock).not.toHaveBeenCalled()
     })

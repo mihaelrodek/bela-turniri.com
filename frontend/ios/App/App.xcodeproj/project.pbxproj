@@ -16,6 +16,10 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
+		E7E1552133B264C891E0079B /* GuestKeychainPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8EDE9BB89EE3FB69D371871 /* GuestKeychainPlugin.swift */; };
+		3A7C1E5B9D2F4A6C8B0E1D03 /* BelaActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7C1E5B9D2F4A6C8B0E1D01 /* BelaActivityAttributes.swift */; };
+		3A7C1E5B9D2F4A6C8B0E1D04 /* BelaLiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7C1E5B9D2F4A6C8B0E1D02 /* BelaLiveActivityPlugin.swift */; };
+		4DCDD6E6F2F34539E0FFEF01 /* AppBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DD38FCD133DF7AFE084C46E /* AppBridgeViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +34,10 @@
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		B8EDE9BB89EE3FB69D371871 /* GuestKeychainPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestKeychainPlugin.swift; sourceTree = "<group>"; };
+		3A7C1E5B9D2F4A6C8B0E1D01 /* BelaActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BelaActivityAttributes.swift; sourceTree = "<group>"; };
+		3A7C1E5B9D2F4A6C8B0E1D02 /* BelaLiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BelaLiveActivityPlugin.swift; sourceTree = "<group>"; };
+		9DD38FCD133DF7AFE084C46E /* AppBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBridgeViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +75,10 @@
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				9DD38FCD133DF7AFE084C46E /* AppBridgeViewController.swift */,
+				B8EDE9BB89EE3FB69D371871 /* GuestKeychainPlugin.swift */,
+				3A7C1E5B9D2F4A6C8B0E1D01 /* BelaActivityAttributes.swift */,
+				3A7C1E5B9D2F4A6C8B0E1D02 /* BelaLiveActivityPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -160,6 +172,10 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
+				4DCDD6E6F2F34539E0FFEF01 /* AppBridgeViewController.swift in Sources */,
+				E7E1552133B264C891E0079B /* GuestKeychainPlugin.swift in Sources */,
+				3A7C1E5B9D2F4A6C8B0E1D03 /* BelaActivityAttributes.swift in Sources */,
+				3A7C1E5B9D2F4A6C8B0E1D04 /* BelaLiveActivityPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

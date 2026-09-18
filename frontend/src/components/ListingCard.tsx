@@ -3,6 +3,7 @@ import { Link as RouterLink } from "react-router-dom"
 import { FiClock, FiMapPin, FiNavigation } from "react-icons/fi"
 import { useTranslation } from "../i18n"
 import { formatDistanceKm } from "../utils/distance"
+import { LISTING_CARD_POSTER_SIZES, posterSrcSet } from "../utils/imageUrl"
 import {
     fillRatio,
     initialsOf,
@@ -59,9 +60,12 @@ function Poster({ item, priority }: { item: ListingTournament; priority: boolean
     const { t } = useTranslation()
 
     if (item.bannerUrl) {
+        const poster = posterSrcSet(item.bannerUrl, LISTING_CARD_POSTER_SIZES)
         return (
             <Image
-                src={item.bannerUrl}
+                src={poster?.src ?? item.bannerUrl}
+                srcSet={poster?.srcSet}
+                sizes={poster?.srcSet ? poster.sizes : undefined}
                 alt={item.name}
                 w="100%"
                 h="100%"
@@ -129,7 +133,7 @@ export default function ListingCard({
     // land a few hundred ms before the navigation actually happens.
     const prefetch = useTournamentPrefetch()
     const idOrSlug = item.slug ?? item.uuid
-    const warm = () => prefetch(idOrSlug)
+    const warm = () => prefetch(idOrSlug, item.bannerUrl)
 
     return (
         <RouterLink

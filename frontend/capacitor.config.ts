@@ -37,6 +37,29 @@ const config: CapacitorConfig = {
         // app's colour mode — that can't be expressed statically here.
         StatusBar: {
             overlaysWebView: false
+        },
+        // Which native sign-in providers the plugin instantiates. This list is
+        // NOT cosmetic: the iOS/Android sides only build a provider handler for
+        // the ids named here, and `signInWithApple()` / `signInWithGoogle()`
+        // reject with "sign-in provider is not enabled" without it.
+        // `skipNativeAuth` stays at its default (false) so the NATIVE Firebase
+        // SDK is signed in too — @capacitor-firebase/messaging needs that to
+        // bind the FCM token to the right account; the JS SDK is signed in a
+        // second time from src/auth/AuthContext.tsx with the same credential,
+        // which is what keeps onAuthStateChanged/getIdToken working.
+        FirebaseAuthentication: {
+            skipNativeAuth: false,
+            providers: ["apple.com", "google.com"]
+        },
+        // Shrinks the WebView's body instead of leaving it full height under
+        // an overlaying keyboard, so a focused input — the blok score entry,
+        // the create-tournament form — stays above the software keyboard
+        // instead of hiding behind it. `resizeOnFullScreen` keeps the same
+        // behaviour on Android, where the StatusBar plugin above already
+        // puts the app in a fullscreen-ish layout.
+        Keyboard: {
+            resize: "body",
+            resizeOnFullScreen: true
         }
     }
 }

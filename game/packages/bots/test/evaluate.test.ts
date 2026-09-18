@@ -14,6 +14,7 @@ import {
     provablyNoTrumpJack,
     readSeatFromLeads,
     defensiveLead,
+    defensiveTrumpCapture,
     fillCard,
     fillPreferringTen,
     isLastOfADeadSuit,
@@ -24,7 +25,7 @@ import {
     stigljaTakeOver,
     forceOutTheLastTrump,
     iAmDefending,
-    nineOnPartnersLowTrump,
+    highTrumpOnPartnersLowTrump,
     pointsShortOfPass,
     tenThatSecuresThePass,
     handTricks,
@@ -43,6 +44,7 @@ import {
     isPartnerHoldingTrick,
     mostValuableCard,
     opponentShownVoidIn,
+    openingTrumpForCallingPartner,
     outstandingInSuit,
     seatProvablyLacksTrumpJack,
     seatShownVoidIn,
@@ -446,6 +448,34 @@ describe("callerWasForced (mus, README §1.2.4)", () => {
     })
 })
 
+describe("openingTrumpForCallingPartner", () => {
+    it("opens a lone trump ten to the partner who called", () => {
+        const hand: Card[] = ["10PIK", "7HERC", "8HERC"]
+        const v = view({
+            seat: 0,
+            hand,
+            dealer: 3,
+            bidding: { turn: 0, passes: [], trump: "PIK", caller: 2 },
+        })
+        expect(openingTrumpForCallingPartner(v, hand)).toBe("10PIK")
+    })
+
+    it("does not open trump when declarations prove the calling partner lacks the jack", () => {
+        const hand: Card[] = ["10PIK", "7HERC", "8HERC"]
+        const v = view({
+            seat: 0,
+            hand,
+            dealer: 3,
+            bidding: { turn: 0, passes: [], trump: "PIK", caller: 2 },
+            declarationsRevealed: true,
+            declarations: {
+                2: [{ kind: "SEQUENCE", cards: ["QPIK", "KPIK", "APIK"], points: 20 }],
+            },
+        })
+        expect(openingTrumpForCallingPartner(v, hand)).toBeNull()
+    })
+})
+
 describe("seatProvablyLacksTrumpJack (declarations, README §1.4)", () => {
     const withDeclarations = (per: Partial<Record<Seat, Declaration[]>>): PlayerView =>
         view({
@@ -760,6 +790,54 @@ describe("trumpDrawCard", () => {
     it("is null with no trump to lead", () => {
         const v = view({ seat: 0, hand: ["APIK", "7TREF"] })
         expect(trumpDrawCard(v, ["APIK", "7TREF"])).toBeNull()
+    })
+})
+
+describe("defensiveTrumpCapture", () => {
+    it("leads the master nine to pull the remaining trump ten", () => {
+        const hand: Card[] = ["9HERC", "7PIK", "8PIK"]
+        const v = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 1 },
+            played: ["JHERC", "AHERC", "KHERC", "QHERC", "8HERC", "7HERC"],
+        })
+        expect(defensiveTrumpCapture(v, hand)).toBe("9HERC")
+    })
+
+    it("uses the ace before the jack when both safely pull the last trump ten", () => {
+        const hand: Card[] = ["JHERC", "AHERC"]
+        const v = view({
+            seat: 0,
+            hand,
+            handSizes: { 0: 2, 1: 2, 2: 2, 3: 2 },
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 1 },
+            played: ["9HERC", "KHERC", "QHERC", "8HERC", "7HERC"],
+        })
+
+        expect(defensiveTrumpCapture(v, hand)).toBe("AHERC")
+    })
+
+    it("does not spend a master trump merely to pull zero-point 7 or 8", () => {
+        const hand: Card[] = ["JHERC", "7PIK", "8PIK"]
+        const v = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 1 },
+            played: ["9HERC", "AHERC", "10HERC", "KHERC", "QHERC"],
+        })
+        expect(defensiveTrumpCapture(v, hand)).toBeNull()
+    })
+
+    it("does not apply when our own pair called", () => {
+        const hand: Card[] = ["9HERC", "7PIK", "8PIK"]
+        const v = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 2 },
+            played: ["JHERC", "AHERC", "KHERC", "QHERC", "8HERC", "7HERC"],
+        })
+        expect(defensiveTrumpCapture(v, hand)).toBeNull()
     })
 })
 
@@ -1283,21 +1361,24 @@ describe("callerTrumpLead (BOT.md §5.2)", () => {
         const hand: Card[] = ["JHERC", "9HERC", "AHERC", "APIK"]
         expect(callerTrumpLead(asCaller(hand), ["9HERC", "AHERC"])).toBeNull()
     })
-    /* "Podigravati dečka u glavu, kad nemaš više od tri aduta, jedino ćeš ako
-       imaš sve najjače strance" (BOT.md §5.2). Re-instated 2026-09-09 at the
-       user's request after the measurement had taken it out; BOT.md §11 keeps
-       what it costs. Note the condition is about the PLAIN suits — asking
-       `hasWinnersToCash` instead made this branch dead code, because the trump
-       jack is itself a master. */
-    it("does not lead the jack 'u glavu' on a short trump holding", () => {
+    it("leaves an ordinary jack holding to the deterministic caller rule", () => {
         const v = view({
             seat: 0,
             hand: ["JHERC", "7HERC", "7PIK", "8PIK"],
             bidding: { turn: 1, passes: [], trump: "HERC", caller: 0 },
         })
-        // Two trumps, and the spades are headed by nothing: the jack wins one
-        // trick and gives the lead straight back. Go under with the seven.
-        expect(callerTrumpLead(v, v.hand)).toBe("7HERC")
+        expect(callerTrumpLead(v, v.hand)).toBeNull()
+    })
+
+    it("does not mistake the queen or king for a low trump when the caller holds J-Q-K", () => {
+        const v = view({
+            seat: 0,
+            hand: ["JHERC", "QHERC", "KHERC", "7PIK", "8PIK"],
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 0 },
+        })
+        // There is no 7/8 of trump to go under with, so the special sequence
+        // steps aside and normal trump drawing leads the master jack.
+        expect(callerTrumpLead(v, v.hand)).toBeNull()
     })
 
     it("…but does lead it when every plain suit I hold is headed by a master", () => {
@@ -1392,7 +1473,7 @@ describe("fillPreferringTen (BOT.md §4 — A or 10 by who called)", () => {
     })
 })
 
-describe("nineOnPartnersLowTrump (BOT.md §9 — obveze devetke)", () => {
+describe("highTrumpOnPartnersLowTrump (BOT.md §9 — obveza jakog aduta)", () => {
     /** Seat 0's partner is seat 2; he is the trick's leader in every case. */
     const partnerOpened = (card: Card, hand: Card[] = ["9HERC", "QHERC", "7PIK"]): PlayerView =>
         view({
@@ -1402,13 +1483,13 @@ describe("nineOnPartnersLowTrump (BOT.md §9 — obveze devetke)", () => {
         })
 
     it("partner opened with the trump 7 or 8 → the nine, the card that draws", () => {
-        expect(nineOnPartnersLowTrump(partnerOpened("7HERC"), ["9HERC", "QHERC"])).toBe("9HERC")
-        expect(nineOnPartnersLowTrump(partnerOpened("8HERC"), ["9HERC", "QHERC"])).toBe("9HERC")
+        expect(highTrumpOnPartnersLowTrump(partnerOpened("7HERC"), ["9HERC", "QHERC"])).toBe("9HERC")
+        expect(highTrumpOnPartnersLowTrump(partnerOpened("8HERC"), ["9HERC", "QHERC"])).toBe("9HERC")
     })
 
     it("is null on an empty trick — there is no opening to answer", () => {
         const v = view({ seat: 0, hand: ["9HERC", "QHERC"] })
-        expect(nineOnPartnersLowTrump(v, v.hand)).toBeNull()
+        expect(highTrumpOnPartnersLowTrump(v, v.hand)).toBeNull()
     })
 
     it("is null when the low trump came from an OPPONENT", () => {
@@ -1417,19 +1498,23 @@ describe("nineOnPartnersLowTrump (BOT.md §9 — obveze devetke)", () => {
             hand: ["9HERC", "QHERC", "7PIK"],
             trick: { leader: 1, turn: 0, cards: [{ seat: 1, card: "7HERC" }] },
         })
-        expect(nineOnPartnersLowTrump(v, ["9HERC", "QHERC"])).toBeNull()
+        expect(highTrumpOnPartnersLowTrump(v, ["9HERC", "QHERC"])).toBeNull()
     })
 
     it("is null when my partner opened a PLAIN suit", () => {
-        expect(nineOnPartnersLowTrump(partnerOpened("7PIK"), ["9HERC", "QHERC"])).toBeNull()
+        expect(highTrumpOnPartnersLowTrump(partnerOpened("7PIK"), ["9HERC", "QHERC"])).toBeNull()
     })
 
     it("is null when he opened a HIGH trump — he is not asking to be gone over", () => {
-        expect(nineOnPartnersLowTrump(partnerOpened("AHERC"), ["9HERC", "QHERC"])).toBeNull()
+        expect(highTrumpOnPartnersLowTrump(partnerOpened("AHERC"), ["9HERC", "QHERC"])).toBeNull()
     })
 
-    it("is null when I do not hold the nine", () => {
-        expect(nineOnPartnersLowTrump(partnerOpened("8HERC"), ["QHERC", "KHERC"])).toBeNull()
+    it("uses the jack when I do not hold the nine", () => {
+        expect(highTrumpOnPartnersLowTrump(partnerOpened("8HERC"), ["JHERC", "QHERC", "KHERC"])).toBe("JHERC")
+    })
+
+    it("does not pretend a queen or king can safely replace the missing nine and jack", () => {
+        expect(highTrumpOnPartnersLowTrump(partnerOpened("8HERC"), ["QHERC", "KHERC"])).toBeNull()
     })
 })
 

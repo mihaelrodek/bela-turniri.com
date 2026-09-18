@@ -83,6 +83,8 @@ export type DeckStyle = "madjarice" | "francuske"
  */
 export const CARD_INK = {
     face: "#f7f1e3",
+    /** Neutral scan-paper tone used for the margin around Hungarian artwork. */
+    frame: "#f3f5f2",
     /** The French deck's face is a touch whiter — it is a modern card. */
     faceFrench: "#fdfdfb",
     ink: "#1c1c1c",

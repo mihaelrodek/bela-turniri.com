@@ -1,9 +1,9 @@
-import { type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { Box, Button, Dialog, Heading, HStack, IconButton, Portal, Text, VStack } from "@chakra-ui/react"
-import { FiVolume2, FiX } from "react-icons/fi"
+import { FiChevronDown, FiChevronUp, FiVolume2, FiX } from "react-icons/fi"
 import { useTranslation } from "../i18n"
 import { formatDateLong } from "../utils/format"
-import { getReleases } from "./releases"
+import { getReleases, type Release } from "./releases"
 import { close, useIsWhatsNewOpen } from "./store"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -14,9 +14,9 @@ import { close, useIsWhatsNewOpen } from "./store"
    (`releases.hr.ts` + `releases.sl.ts`). Splitting it out keeps that prose
    out of the app's initial bundle — see `releases.ts`'s header comment.
 
-   Always shows the NEWEST release (`releases[0]`) — there is no history
-   browser here. A future release just becomes the new `[0]`; nothing here
-   needs to change to show it.
+   Shows the newest release first. Older releases stay tucked behind one
+   explicit expander, so the announcement remains short while its history is
+   still available when someone wants it.
 
    ONE scrolling view, no stepper (2026-09-10, user request). It used to page
    through `release.pages` with prev/next and a "1 / 4" counter; that hid
@@ -37,11 +37,84 @@ function renderInline(text: string): ReactNode[] {
     })
 }
 
+function ReleaseGroups({ release }: { release: Release }) {
+    return (
+        <VStack align="stretch" gap="4">
+            {release.groups.map((group) => (
+                <Box
+                    key={group.heading}
+                    {...(group.accent
+                        ? {
+                            bg: "yellow.subtle",
+                            borderWidth: "1px",
+                            borderColor: "yellow.muted",
+                            rounded: "xl",
+                            p: "3",
+                        }
+                        : {})}
+                >
+                    <Heading
+                        size="xs"
+                        display="inline-block"
+                        color={group.accent ? "yellow.fg" : "brand.fg"}
+                        textTransform="uppercase"
+                        letterSpacing="wider"
+                        pb="1.5"
+                        borderBottomWidth="2px"
+                        borderColor={group.accent ? "yellow.solid" : "brand.solid"}
+                        mb="2"
+                    >
+                        {group.heading}
+                    </Heading>
+                    <VStack align="stretch" gap="2">
+                        {group.sections.map((section) => (
+                            <Box
+                                key={section.title}
+                                borderLeftWidth="3px"
+                                borderColor={group.accent ? "yellow.solid" : "brand.solid"}
+                                pl="3"
+                            >
+                                <Text fontWeight="bold" mb="1">
+                                    {section.title}
+                                </Text>
+                                {section.bullets ? (
+                                    <VStack as="ul" align="stretch" gap="1.5" pl="4" css={{ listStyleType: "disc" }}>
+                                        {section.body.map((item, i) => (
+                                            <Text
+                                                as="li"
+                                                key={i}
+                                                fontSize="sm"
+                                                color="fg.soft"
+                                                css={{ "&::marker": { color: "var(--chakra-colors-fg-muted)" } }}
+                                            >
+                                                {renderInline(item)}
+                                            </Text>
+                                        ))}
+                                    </VStack>
+                                ) : (
+                                    <VStack align="stretch" gap="2">
+                                        {section.body.map((paragraph, i) => (
+                                            <Text key={i} fontSize="sm" color="fg.soft">
+                                                {renderInline(paragraph)}
+                                            </Text>
+                                        ))}
+                                    </VStack>
+                                )}
+                            </Box>
+                        ))}
+                    </VStack>
+                </Box>
+            ))}
+        </VStack>
+    )
+}
+
 export default function WhatsNewDialog() {
     const { t } = useTranslation()
     const isOpen = useIsWhatsNewOpen()
     const releases = getReleases()
     const release = releases[0]
+    const [olderOpen, setOlderOpen] = useState(false)
     return (
         <Dialog.Root
             open={isOpen}
@@ -87,85 +160,39 @@ export default function WhatsNewDialog() {
                         <Box borderTopWidth="1px" borderColor="border.subtle" />
                         <Dialog.Body>
                             <VStack align="stretch" gap="4">
-                                {release.groups.map((group) => (
-                                    /* An `accent` group is the release's
-                                       heads-up about something still coming;
-                                       amber plus a tinted panel keeps it from
-                                       reading as another shipped change. */
-                                    <Box
-                                        key={group.heading}
-                                        {...(group.accent
-                                            ? {
-                                                bg: "yellow.subtle",
-                                                borderWidth: "1px",
-                                                borderColor: "yellow.muted",
-                                                rounded: "xl",
-                                                p: "3",
-                                            }
-                                            : {})}
-                                    >
-                                        <Heading
-                                            size="xs"
-                                            display="inline-block"
-                                            color={group.accent ? "yellow.fg" : "brand.fg"}
-                                            textTransform="uppercase"
-                                            letterSpacing="wider"
-                                            pb="1.5"
-                                            borderBottomWidth="2px"
-                                            borderColor={group.accent ? "yellow.solid" : "brand.solid"}
-                                            mb="2"
+                                <ReleaseGroups release={release} />
+
+                                {releases.length > 1 && (
+                                    <Box pt="1" borderTopWidth="1px" borderColor="border.subtle">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            width="full"
+                                            justifyContent="space-between"
+                                            onClick={() => setOlderOpen((open) => !open)}
+                                            aria-expanded={olderOpen}
                                         >
-                                            {group.heading}
-                                        </Heading>
-                                        <VStack align="stretch" gap="2">
-                                            {group.sections.map((section) => (
-                                                <Box
-                                                    key={section.title}
-                                                    borderLeftWidth="3px"
-                                                    borderColor={group.accent ? "yellow.solid" : "brand.solid"}
-                                                    pl="3"
-                                                >
-                                                    <Text fontWeight="bold" mb="1">
-                                                        {section.title}
-                                                    </Text>
-                                                    {section.bullets ? (
-                                                        /* `listStyleType` + `pl` rather than a
-                                                           bare <ul>: Chakra's reset strips list
-                                                           markers, so the dot has to be asked
-                                                           for explicitly. */
-                                                        <VStack
-                                                            as="ul"
-                                                            align="stretch"
-                                                            gap="1.5"
-                                                            pl="4"
-                                                            css={{ listStyleType: "disc" }}
-                                                        >
-                                                            {section.body.map((item, i) => (
-                                                                <Text
-                                                                    as="li"
-                                                                    key={i}
-                                                                    fontSize="sm"
-                                                                    color="fg.soft"
-                                                                    css={{ "&::marker": { color: "var(--chakra-colors-fg-muted)" } }}
-                                                                >
-                                                                    {renderInline(item)}
-                                                                </Text>
-                                                            ))}
-                                                        </VStack>
-                                                    ) : (
-                                                        <VStack align="stretch" gap="2">
-                                                            {section.body.map((paragraph, i) => (
-                                                                <Text key={i} fontSize="sm" color="fg.soft">
-                                                                    {renderInline(paragraph)}
-                                                                </Text>
-                                                            ))}
-                                                        </VStack>
-                                                    )}
-                                                </Box>
-                                            ))}
-                                        </VStack>
+                                            {olderOpen ? t("whatsNew.dialog.older.hide") : t("whatsNew.dialog.older.show")}
+                                            {olderOpen ? <FiChevronUp /> : <FiChevronDown />}
+                                        </Button>
+
+                                        {olderOpen && (
+                                            <VStack align="stretch" gap="5" pt="4">
+                                                {releases.slice(1).map((older) => (
+                                                    <Box key={older.version}>
+                                                        <HStack gap="2" mb="3" fontSize="xs" color="fg.muted">
+                                                            <Text fontFamily="mono">{older.version}</Text>
+                                                            <Text aria-hidden="true">·</Text>
+                                                            <Text>{formatDateLong(older.date)}</Text>
+                                                        </HStack>
+                                                        <Heading size="sm" mb="3">{older.title}</Heading>
+                                                        <ReleaseGroups release={older} />
+                                                    </Box>
+                                                ))}
+                                            </VStack>
+                                        )}
                                     </Box>
-                                ))}
+                                )}
                             </VStack>
                         </Dialog.Body>
                         <Dialog.Footer>

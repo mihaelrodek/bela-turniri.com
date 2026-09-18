@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { Link as RouterLink } from "react-router-dom"
 import {
     Badge,
     Box,
@@ -26,8 +28,19 @@ import {
     type AdminUserDto,
     type TournamentStatusValue,
 } from "../api/admin"
+import {
+    adminCountReports,
+    adminListReports,
+    adminResolveReport,
+    type AdminReportDto,
+    type ReportResolution,
+    type ReportStatus,
+} from "../api/reports"
 import { resetTournament } from "../api/tournaments"
 import ConfirmDialog from "./ConfirmDialog"
+import { qk } from "../queryClient"
+import { showError, showSuccess } from "../toaster"
+import { errorMessage } from "../utils/apiError"
 import { useTranslation, usePlural } from "../i18n"
 import { formatDateCompact } from "../utils/format"
 
@@ -299,6 +312,10 @@ export default function AdminDashboardTab() {
 
     return (
         <VStack align="stretch" gap="4">
+            {/* Moderation queue first: it is the only card here with work
+                waiting in it, and the one an admin opens the dashboard for. */}
+            <AdminReportsSection />
+
             <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
                 <Card.Body p={{ base: "4", md: "6" }}>
                     <Stack gap="3">
@@ -1017,6 +1034,274 @@ export default function AdminDashboardTab() {
                 </Portal>
             </Dialog.Root>
         </VStack>
+    )
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   "Prijave" — the content-report moderation queue.
+
+   App Store review requires that a flagged piece of content reaches a human,
+   so this is the other end of `components/ReportDialog`: everything users
+   flagged, with two ways to close a row — "Odbaci" (nothing was wrong) and
+   "Riješeno" (the content was dealt with) — plus an optional internal note.
+
+   A section of the dashboard rather than a fourth profile tab: it shares the
+   dashboard's audience exactly (admins, on their own profile) and would
+   otherwise be a nav row that is empty most days. The badge on its heading
+   is what makes it findable — it comes from its own count endpoint, so it is
+   right even before anyone opens the "open" bucket.
+
+   Unlike the rest of this file the queue is a react-query read, not
+   `useEffect` + local state: two buckets, a badge fed by a third endpoint,
+   and rows that must survive a bucket switch — exactly what the cache does
+   for free. `AdminContactMessagesTab` is built the same way.
+   ────────────────────────────────────────────────────────────────────── */
+function AdminReportsSection() {
+    const { t } = useTranslation()
+    const plural = usePlural()
+    const queryClient = useQueryClient()
+    const [status, setStatus] = useState<ReportStatus>("open")
+    // Per-row note draft, keyed by report id — a shared field would paste one
+    // row's note onto whichever row was actioned next.
+    const [notes, setNotes] = useState<Record<number, string>>({})
+    const [pendingId, setPendingId] = useState<number | null>(null)
+
+    const { data: reports, isPending, isError } = useQuery({
+        queryKey: qk.adminReports(status),
+        queryFn: () => adminListReports(status),
+    })
+
+    const { data: openCount } = useQuery({
+        queryKey: qk.adminReportsCount,
+        queryFn: () => adminCountReports("open"),
+    })
+
+    async function resolve(row: AdminReportDto, resolution: ReportResolution) {
+        try {
+            setPendingId(row.id)
+            await adminResolveReport(row.id, resolution, notes[row.id])
+            showSuccess(t("admin.reports.toast.resolved"))
+            setNotes((prev) => {
+                const next = { ...prev }
+                delete next[row.id]
+                return next
+            })
+            // Both buckets move (a row leaves "open" and appears in
+            // "resolved") and so does the badge, so all three are refetched.
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: qk.adminReports("open") }),
+                queryClient.invalidateQueries({ queryKey: qk.adminReports("resolved") }),
+                queryClient.invalidateQueries({ queryKey: qk.adminReportsCount }),
+            ])
+        } catch (err) {
+            showError(t("admin.reports.toast.failed"), errorMessage(err))
+        } finally {
+            setPendingId(null)
+        }
+    }
+
+    return (
+        <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
+            <Card.Body p={{ base: "4", md: "6" }}>
+                <Stack gap="3">
+                    <HStack justify="space-between" align="start" gap="3" wrap="wrap">
+                        <Box minW="0">
+                            <Text fontSize="lg" fontWeight="semibold">{t("admin.reports.heading")}</Text>
+                            <Text fontSize="sm" color="fg.muted">{t("admin.reports.description")}</Text>
+                        </Box>
+                        {!!openCount && openCount > 0 && (
+                            <Badge size="sm" variant="subtle" colorPalette="orange">
+                                {plural("admin.reports.openCount", openCount)}
+                            </Badge>
+                        )}
+                    </HStack>
+
+                    {/* Two buckets, both always visible — same toggle shape as
+                        the "Poruke" inbox. */}
+                    <HStack
+                        gap="1"
+                        p="1"
+                        bg="bg.subtle"
+                        borderWidth="1px"
+                        borderColor="border.subtle"
+                        rounded="lg"
+                        role="group"
+                        alignSelf="flex-start"
+                    >
+                        <Button
+                            size="sm"
+                            minH="11"
+                            variant={status === "open" ? "solid" : "ghost"}
+                            colorPalette="blue"
+                            onClick={() => setStatus("open")}
+                        >
+                            {t("admin.reports.filterOpen")}
+                        </Button>
+                        <Button
+                            size="sm"
+                            minH="11"
+                            variant={status === "resolved" ? "solid" : "ghost"}
+                            colorPalette="blue"
+                            onClick={() => setStatus("resolved")}
+                        >
+                            {t("admin.reports.filterResolved")}
+                        </Button>
+                    </HStack>
+
+                    {isPending ? (
+                        <HStack py="4" justify="center"><Spinner size="sm" /></HStack>
+                    ) : isError ? (
+                        <Text fontSize="sm" color="fg.muted">{t("admin.reports.loadFailed")}</Text>
+                    ) : (reports ?? []).length === 0 ? (
+                        <Text fontSize="sm" color="fg.muted">{t("admin.reports.empty")}</Text>
+                    ) : (
+                        <Stack gap="3">
+                            {(reports ?? []).map((row) => (
+                                <AdminReportRow
+                                    key={row.id}
+                                    row={row}
+                                    note={notes[row.id] ?? ""}
+                                    onNoteChange={(v) => setNotes((prev) => ({ ...prev, [row.id]: v }))}
+                                    pending={pendingId === row.id}
+                                    disabled={pendingId != null}
+                                    onResolve={(resolution) => void resolve(row, resolution)}
+                                />
+                            ))}
+                        </Stack>
+                    )}
+                </Stack>
+            </Card.Body>
+        </Card.Root>
+    )
+}
+
+/** One queue row: what was reported, by whom, why, and the two ways to close it. */
+function AdminReportRow({
+    row,
+    note,
+    onNoteChange,
+    pending,
+    disabled,
+    onResolve,
+}: {
+    row: AdminReportDto
+    note: string
+    onNoteChange: (value: string) => void
+    pending: boolean
+    disabled: boolean
+    onResolve: (resolution: ReportResolution) => void
+}) {
+    const { t } = useTranslation()
+    const label = row.targetLabel?.trim() || row.targetId
+    /* Only two of the three target kinds have a page. A tournament's
+       `targetId` is its UUID, which `/turniri/{uuid}` resolves (the route
+       takes a UUID or a slug); a profile's is the slug `/profil/{slug}`
+       needs. A pair lives inside a tournament and has no URL of its own, so
+       it stays plain text rather than a link that would 404. */
+    const href = row.targetType === "TOURNAMENT"
+        ? `/turniri/${row.targetId}`
+        : row.targetType === "PROFILE"
+            ? `/profil/${row.targetId}`
+            : null
+
+    return (
+        <Box
+            p="3"
+            borderWidth="1px"
+            borderColor="border.subtle"
+            rounded="md"
+            bg={row.resolvedAt ? "bg.panel" : "bg.muted"}
+        >
+            <Stack gap="2">
+                <HStack justify="space-between" align="start" gap="3" wrap="wrap">
+                    <Box minW="0">
+                        <Text fontSize="sm" fontWeight="semibold" truncate>
+                            {href ? (
+                                <RouterLink to={href}>{label}</RouterLink>
+                            ) : (
+                                label
+                            )}
+                        </Text>
+                        <Text fontSize="xs" color="fg.muted">
+                            {t(`admin.reports.targetType.${row.targetType}`)}
+                        </Text>
+                    </Box>
+                    <HStack gap="2" flexShrink={0} wrap="wrap">
+                        <Badge size="sm" variant="subtle" colorPalette="red">
+                            {t(`admin.reports.reason.${row.reason}`)}
+                        </Badge>
+                        {row.resolution && (
+                            <Badge
+                                size="sm"
+                                variant="subtle"
+                                colorPalette={row.resolution === "ACTIONED" ? "green" : "gray"}
+                            >
+                                {t(`admin.reports.resolution.${row.resolution}`)}
+                            </Badge>
+                        )}
+                    </HStack>
+                </HStack>
+
+                {row.message && (
+                    <Text fontSize="sm" whiteSpace="pre-wrap">{row.message}</Text>
+                )}
+
+                {/* The reporter is a raw Firebase UID — monospace and clipped,
+                    because it is an identifier to match against, never read. */}
+                <HStack gap="2" wrap="wrap" fontSize="xs" color="fg.muted">
+                    <Text>{formatDateCompact(row.createdAt, row.createdAt ?? "")}</Text>
+                    {row.reporterUid && (
+                        <Text fontFamily="mono" maxW="180px" truncate title={row.reporterUid}>
+                            {t("admin.reports.reporter", { uid: row.reporterUid })}
+                        </Text>
+                    )}
+                </HStack>
+
+                {row.adminNote && (
+                    <Text fontSize="xs" color="fg.muted">
+                        {t("admin.reports.noteShown", { note: row.adminNote })}
+                    </Text>
+                )}
+
+                {/* Closed rows keep their note read-only above; only an open
+                    one still has a decision left to make. */}
+                {!row.resolvedAt && (
+                    <Stack gap="2">
+                        <Input
+                            size="sm"
+                            value={note}
+                            onChange={(e) => onNoteChange(e.target.value)}
+                            placeholder={t("admin.reports.notePlaceholder")}
+                            aria-label={t("admin.reports.notePlaceholder")}
+                        />
+                        <HStack justify="flex-end" gap="2">
+                            <Button
+                                size="sm"
+                                minH="11"
+                                variant="outline"
+                                colorPalette="gray"
+                                loading={pending}
+                                disabled={disabled}
+                                onClick={() => onResolve("DISMISSED")}
+                            >
+                                {t("admin.reports.dismiss")}
+                            </Button>
+                            <Button
+                                size="sm"
+                                minH="11"
+                                variant="solid"
+                                colorPalette="green"
+                                loading={pending}
+                                disabled={disabled}
+                                onClick={() => onResolve("ACTIONED")}
+                            >
+                                {t("admin.reports.action")}
+                            </Button>
+                        </HStack>
+                    </Stack>
+                )}
+            </Stack>
+        </Box>
     )
 }
 

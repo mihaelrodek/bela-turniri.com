@@ -11,17 +11,21 @@ import {
     Text,
     VStack,
 } from "@chakra-ui/react"
-import { FcGoogle } from "react-icons/fc"
-import { sendPasswordResetEmail } from "firebase/auth"
-import { FirebaseError } from "firebase/app"
-import { auth } from "../firebase"
+import { loadFirebaseAuth } from "../firebase"
 import { useAuth } from "../auth/authContextValue"
+import { firebaseErrorCode, socialAuthErrorMessage } from "../auth/authErrors"
+import { ConsentNotice } from "../components/auth/ConsentGate"
+import { SocialAuthButtons } from "../components/auth/SocialAuthButtons"
 import { nextFromState, pickSafeNext } from "../utils/safeNextPath"
 import { t, useTranslation } from "../i18n"
 
 /** Translate Firebase auth error codes into user-friendly messages. */
 function authErrorMessage(err: unknown): string {
-    const code = err instanceof FirebaseError ? err.code : ""
+    // Cancellations and the Google/Apple-specific codes are the same on both
+    // auth pages, so they live in one place; "" means "handled, stay silent".
+    const social = socialAuthErrorMessage(err)
+    if (social !== null) return social
+    const code = firebaseErrorCode(err)
     switch (code) {
         case "auth/invalid-credential":
         case "auth/wrong-password":
@@ -33,9 +37,6 @@ function authErrorMessage(err: unknown): string {
             return t("forms.login.error.userDisabled")
         case "auth/too-many-requests":
             return t("forms.login.error.tooManyRequests")
-        case "auth/popup-closed-by-user":
-        case "auth/cancelled-popup-request":
-            return "" // user closed popup — not really an error
         default:
             return err instanceof Error ? err.message : t("forms.login.error.generic")
     }
@@ -45,7 +46,7 @@ export default function LoginPage() {
     const navigate = useNavigate()
     const location = useLocation()
     const [searchParams] = useSearchParams()
-    const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth()
+    const { signIn, signInWithGoogle, signInWithApple, user, loading: authLoading } = useAuth()
     const { t } = useTranslation()
 
     const [email, setEmail] = useState("")
@@ -97,11 +98,12 @@ export default function LoginPage() {
         }
     }
 
-    async function onGoogle() {
+    /** Both social buttons share one flow — only the provider call differs. */
+    async function onSocial(run: () => Promise<void>) {
         setError(null)
         setResetMsg(null)
         try {
-            await signInWithGoogle()
+            await run()
             navigate(redirectTo, { replace: true })
         } catch (e: unknown) {
             const msg = authErrorMessage(e)
@@ -117,7 +119,8 @@ export default function LoginPage() {
             return
         }
         try {
-            await sendPasswordResetEmail(auth, email.trim())
+            const fb = await loadFirebaseAuth()
+            await fb.sendPasswordResetEmail(fb.auth, email.trim())
             setResetMsg(t("forms.login.resetSent"))
         } catch (e: unknown) {
             setError(authErrorMessage(e))
@@ -131,14 +134,18 @@ export default function LoginPage() {
                     <VStack align="stretch" gap="4">
                         <Heading size="md">{t("forms.login.heading")}</Heading>
 
-                        <Button
-                            variant="outline"
-                            size="md"
-                            onClick={onGoogle}
+                        <SocialAuthButtons
+                            googleLabel={t("forms.login.googleButton")}
+                            appleLabel={t("forms.login.appleButton")}
+                            onGoogle={() => onSocial(signInWithGoogle)}
+                            onApple={() => onSocial(signInWithApple)}
                             disabled={submitting}
-                        >
-                            <FcGoogle size={18} /> {t("forms.login.googleButton")}
-                        </Button>
+                        />
+
+                        {/* The social buttons sign UP anyone who has never used
+                            the app, so the 16+/terms promise has to be visible
+                            here too — not only on the registration screen. */}
+                        <ConsentNotice />
 
                         <HStack>
                             <Box flex="1" h="1px" bg="border.subtle" />

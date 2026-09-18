@@ -46,6 +46,41 @@ export type AttachPairResponse = {
     createdPreset: boolean
 }
 
+export type AdminGameAnalyticsDto = {
+    summary: {
+        roomsCreated: number
+        gamesStarted: number
+        completed: number
+        abandoned: number
+        inProgress: number
+        completionRate: number
+        abandonmentRate: number
+    }
+    byTarget: Array<{ label: string; started: number; completed: number; abandoned: number }>
+    trumps: Array<{ suit: string; calls: number; successes: number; falls: number; share: number; successRate: number }>
+    callPositions: Array<{ position: number; calls: number; successes: number; falls: number; successRate: number }>
+    details: {
+        deals: number
+        averageDealsPerCompletedGame: number
+        averageDurationMinutes: number
+        declarationPoints: number
+        stiglja: number
+        belot: number
+        autoPlayedActions: number
+        publicGames: number
+        privateGames: number
+        humanOnlyGames: number
+        mixedGames: number
+        botOnlyGames: number
+    }
+    lastEventAt: string | null
+}
+
+export async function adminGetGameAnalytics(): Promise<AdminGameAnalyticsDto> {
+    const { data } = await http.get<AdminGameAnalyticsDto>("/admin/game-analytics")
+    return data
+}
+
 /** All non-deleted tournaments, newest first. */
 export async function adminListTournaments(): Promise<AdminTournamentDto[]> {
     const { data } = await http.get<AdminTournamentDto[]>("/admin/tournaments")

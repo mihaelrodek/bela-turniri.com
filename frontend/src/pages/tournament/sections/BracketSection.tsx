@@ -237,11 +237,13 @@ export default function BracketSection(props: BracketSectionProps) {
     /* ===== Pre-start ===== */
     // The ždrijeb gets a single friendly "Turnir još nije započeo" card. The
     // organiser also sees the toolbar above it so they can hit "Startaj
-    // turnir"; everyone else just sees the message.
+    // turnir"; everyone else just sees the message. A tournament closed
+    // before its first draw gets a final read-only state instead: FINISHED
+    // must never offer a lifecycle action that would reopen play.
     if (!tournamentStarted) {
         return (
             <VStack align="stretch" gap="4">
-                {canEditTournament && (
+                {canEditTournament && !tournamentFinished && (
                     <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
                         <Card.Body py="3" px={{ base: "3", md: "4" }}>
                             <HStack gap="2" wrap="wrap" justify="flex-end">
@@ -274,11 +276,19 @@ export default function BracketSection(props: BracketSectionProps) {
                 >
                     <VStack gap="2">
                         <Box color="fg.muted"><FiLayers size={28} /></Box>
-                        <Text fontWeight="medium">{tr("tournament.bracket.notStartedTitle")}</Text>
+                        <Text fontWeight="medium">
+                            {tr(
+                                tournamentFinished
+                                    ? "tournament.bracket.finishedWithoutPlayTitle"
+                                    : "tournament.bracket.notStartedTitle",
+                            )}
+                        </Text>
                         <Text color="fg.muted" fontSize="sm" textAlign="center">
-                            {canEditTournament
-                                ? tr("tournament.bracket.notStartedOwner")
-                                : tr("tournament.bracket.notStartedViewer")}
+                            {tournamentFinished
+                                ? tr("tournament.bracket.finishedWithoutPlayDescription")
+                                : canEditTournament
+                                    ? tr("tournament.bracket.notStartedOwner")
+                                    : tr("tournament.bracket.notStartedViewer")}
                         </Text>
                     </VStack>
                 </Box>

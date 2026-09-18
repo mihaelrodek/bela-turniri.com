@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- N5.3 "Nadolazeći turniri" home-screen widget. Light palette; the
+         values-night/colors.xml counterpart must define the same names. -->
+    <color name="widget_accent">#2F8F52</color>
+    <color name="widget_bg">#FFFFFF</color>
+    <color name="widget_bg_row">#F1F6F3</color>
+    <color name="widget_text_primary">#1A1F1C</color>
+    <color name="widget_text_secondary">#5B6B62</color>
+</resources>

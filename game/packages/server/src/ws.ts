@@ -15,12 +15,14 @@ import type { RawData, WebSocket } from "ws"
 import {
     isAvatarPreset,
     isClientMessage,
+    isLiveActivityToken,
     isReaction,
     isSeat,
     isTargetScore,
     isTrickReview,
     LIMITS,
     PROTOCOL_VERSION,
+    WIN_RATE_REQUIREMENTS,
 } from "@bela/protocol"
 import type {
     ClientMessage,
@@ -34,6 +36,7 @@ import type { Config, RateLimits, Timings } from "./config.js"
 import { handleChat, handleReaction } from "./chat.js"
 import { DEFAULT_MESSAGES, isProtocolError, ProtocolError } from "./errors.js"
 import { newConnId } from "./ids.js"
+import type { LiveActivityHub } from "./liveActivity.js"
 import type { ProfileLookup } from "./profiles.js"
 import type { Lobby } from "./lobby.js"
 import { log } from "./log.js"
@@ -183,6 +186,8 @@ export interface HubDeps {
     lobby: Lobby
     /** Where the in-game name is read and written — see `profile.setName`. */
     profiles: ProfileLookup
+    /** Lock-screen fan-out; `liveActivity.tokens` lands in its token store. */
+    liveActivity: LiveActivityHub
 }
 
 export class Hub {
@@ -368,6 +373,10 @@ export class Hub {
                 if (msg.trickReview !== undefined && !isTrickReview(msg.trickReview)) {
                     throw new ProtocolError("BAD_REQUEST", "Neispravna postavka gledanja štihova.")
                 }
+                if (msg.minWinRatePercent !== undefined &&
+                    !WIN_RATE_REQUIREMENTS.includes(msg.minWinRatePercent as typeof WIN_RATE_REQUIREMENTS[number])) {
+                    throw new ProtocolError("BAD_REQUEST", "Neispravan minimalni postotak pobjeda.")
+                }
                 // One game at a time: refuse BEFORE leaving the current room,
                 // or leaving a lobby room would free the seat and let the
                 // check pass on the way out.
@@ -382,6 +391,7 @@ export class Hub {
                     noDeclarations: msg.noDeclarations === true,
                     allowBela: msg.allowBela !== false,
                     trickReview: msg.trickReview,
+                    minWinRatePercent: msg.minWinRatePercent,
                 })
                 conn.send(room.joinedMessageFor(conn))
                 this.afterEnteringRoom(conn, room)
@@ -537,10 +547,26 @@ export class Hub {
                 if (avatarRoom) {
                     avatarRoom.restyleOccupant(conn.user.uid, preset)
                     avatarRoom.broadcastState()
-                    // No `lobby.changed()`, unlike a rename: the public
-                    // `RoomOccupant` carries a name and nothing else
-                    // (README §3), so the lobby list has nothing to redraw.
+                    // The lobby row also renders this public app-provided face.
+                    this.deps.lobby.changed()
                 }
+                return
+            }
+
+            case "liveActivity.tokens": {
+                /* iOS hands us its ActivityKit tokens (README §3 "Live
+                   Activity"). Stored per uid, not per connection: the whole
+                   point is to reach the player once this socket is gone.
+                   A present field that is not a sane token is refused rather
+                   than dropped, so the app cannot believe it registered. */
+                const { activityToken, pushToStartToken } = msg
+                if ((activityToken !== undefined && !isLiveActivityToken(activityToken)) ||
+                    (pushToStartToken !== undefined && !isLiveActivityToken(pushToStartToken)) ||
+                    (activityToken === undefined && pushToStartToken === undefined)) {
+                    throw new ProtocolError("BAD_REQUEST", "Neispravan Live Activity token.")
+                }
+                if (!conn.user) throw new ProtocolError("UNAUTHENTICATED")
+                this.deps.liveActivity.tokens.set(conn.user.uid, { activityToken, pushToStartToken })
                 return
             }
 

@@ -17,8 +17,10 @@ export const game: GameDict = {
     "guest.nameHint": "Vnesi ime za mizo. Zapomnili si ga bomo v tem brskalniku.",
     "guest.avatarHint": "Izberi lik, ki te predstavlja za mizo.",
     "guest.play": "Igraj kot gost",
-    "guest.statsHint": "Prijavi se, da bo tvoja statistika shranjena in dostopna na vseh platformah in napravah.",
-    "guest.login": "Prijavi se",
+    "guest.statsHint": "Prijavi se za shranjevanje statistike v vseh napravah.",
+    "guest.login": "Prijava",
+    "guest.loginInline": "Prijavi se",
+    "guest.statsHintSuffix": "za shranjevanje statistike v vseh napravah.",
     "declarations.calculating": "Igra računa napovedi…",
     "declarations.reviewing": "Pregled napovedi…",
 
@@ -29,6 +31,9 @@ export const game: GameDict = {
     "room.private": "Zasebna",
     "room.public": "Javna",
     "room.waitingReady": "Čaka na pripravljenost",
+    "room.statsOverall": "Vse {wins}–{losses} · {percent}%",
+    "room.statsOverallLabel": "Vse",
+    "room.statsTarget": "{target} {wins}–{losses} · {percent}%",
     "bot.label": "Bot",
     "rules.title": "Pravila delitve",
     "rules.noDeclarations": "Brez napovedi",
@@ -42,10 +47,7 @@ export const game: GameDict = {
     "settings.avatar": "Lik",
     "settings.avatarHint": "Lik, ki ga drugi igralci vidijo za mizo.",
     "settings.alwaysReady": "Vedno pripravljen",
-    "settings.alwaysReadyHint": "Samodejno označi pripravljenost, ko sedeš za mizo.",
-    /* ─── Navigacija ────────────────────────────────────────── */
-    "nav.igraj": "Igraj",
-
+    "settings.alwaysReadyHint": "Samodejno bodi pripravljen.",
     /* ─── Skupno ────────────────────────────────────────────── */
     "common.cancel": "Prekliči",
     "common.save": "Shrani",
@@ -121,7 +123,7 @@ export const game: GameDict = {
     "lobby.status.PLAYING": "V teku",
     "lobby.status.FINISHED": "Končano",
     "lobby.empty.title": "Ni odprtih sob",
-    "lobby.empty.description": "Bodi prvi — odpri sobo, dodaj bote in začni takoj.",
+    "lobby.empty.description": "Bodi prvi — odpri sobo in začni takoj.",
     "lobby.form.name": "Ime sobe",
     "lobby.form.namePlaceholder": "npr. Petek zvečer",
     "lobby.form.target": "Igra se do",
@@ -129,12 +131,15 @@ export const game: GameDict = {
     "lobby.form.endRule.prolaz": "Skozi",
     "lobby.form.endRule.dosta": "Dovolj",
     "lobby.form.private": "Zasebna soba",
+    "lobby.form.minWinRate": "Odstotek zmag",
+    "lobby.form.minWinRateNone": "Brez pogoja",
+    "room.minWinRate": "Najmanj {percent}% zmag",
+    "room.minWinRateShort": "≥ {percent}% zmag",
 
     /* ─── Soba (/igra/soba/:id) ─────────────────────────────── */
     "room.metaTitle": "Soba {name} — bela",
     "room.joining": "Vstopam v sobo…",
     "room.backToLobby": "Nazaj v predsobo",
-    "room.leave": "Izstopi",
     "room.invite": "Kopiraj povezavo",
     "room.inviteCopied": "Povezava je kopirana",
     "room.inviteCopyFailed": "Kopiranje ni uspelo — tukaj je povezava",
@@ -177,7 +182,7 @@ export const game: GameDict = {
     "room.codeCopyFailed": "Kopiranje ni uspelo — tukaj je koda",
     "room.leaveAria": "Zapusti sobo",
     "room.vs": "vs",
-    "room.waitingSeat": "čakam…",
+    "room.waitingSeat": "Prosto mesto",
     "room.pairAria": "Par {n}",
     "room.addBotCta": "Dodaj bota",
     "room.launch": "Zaženi igro",
@@ -214,7 +219,6 @@ export const game: GameDict = {
     "table.caller": "kliče",
     "table.holdsTrick": "Drži štih",
     "table.trumpSet": "Adut je {suit}",
-    "table.autoPlayed": "Bot je odigral namesto igralca",
     "table.settings": "Nastavitve igre",
     "table.secondsLeft.one": "{n} sekunda",
     "table.secondsLeft.two": "{n} sekundi",
@@ -230,9 +234,15 @@ export const game: GameDict = {
     "table.waiting": "Počakaj…",
     "table.spectating": "Gledaš igro",
 
-    // Emoji reakcije (protokol `chat.react`).
+    // Hitri odzivi za mizo (protokol `chat.react`).
     "table.reactions": "Reakcije",
-    "table.sendReaction": "Pošlji reakcijo {emoji}",
+    "table.reactionsToggle": "Prikaži odzive",
+    "table.sendReaction": "Pošlji odziv: {reaction}",
+    "table.reaction.nicePlay": "Bravo, mojster!",
+    "table.reaction.lucky": "Sreča spremlja pogumne!",
+    "table.reaction.mistake": "Joj, kaj sem to vrgel?!",
+    "table.reaction.hurry": "Dajmo, odigraj že enkrat!",
+    "table.reaction.goodGame": "Dobra igra, vse čestitke!",
 
     "table.trickCount.one": "{n} štih",
     "table.trickCount.two": "{n} štiha",
@@ -242,6 +252,7 @@ export const game: GameDict = {
     /* ─── Roka ──────────────────────────────────────────────── */
     "hand.ariaLabel": "Tvoje karte",
     "hand.empty": "Nimaš več kart",
+    "hand.illegalPlay": "Te karte trenutno ne moreš odigrati.",
 
     /* ─── Rezultat ──────────────────────────────────────────── */
     "score.us": "Mi",
@@ -263,11 +274,7 @@ export const game: GameDict = {
     /* ─── Napovedi ──────────────────────────────────────────── */
     "declarations.title": "Napovedi",
     "declarations.none": "Nihče nima napovedi.",
-    "declarations.scores": "šteje",
-    "declarations.weScore": "Naše napovedi štejejo.",
-    "declarations.theyScore": "Njihove napovedi štejejo.",
     "declarations.oursLost": "Tvoje napovedi ({points}) propadejo.",
-    "declarations.tapToClose": "Dotakni se za nadaljevanje",
 
     "bela.title": "Bela!",
     "bela.by": "kliče {name}",
@@ -277,6 +284,10 @@ export const game: GameDict = {
     "bela.askHint": "20 točk — a če padete, jih dobi nasprotnik.",
     "bela.askYes": "Kliči",
     "bela.askNo": "Ne kliči",
+
+    "belot.title": "BELOT!",
+    "belot.by": "{name} ima vseh osem kart — {suit}",
+    "belot.wins": "Igra je takoj dobljena",
 
     /* ─── Konec delitve ─────────────────────────────────────── */
     "deal.summaryTitle": "{n}. delitev",
@@ -299,6 +310,7 @@ export const game: GameDict = {
     "over.youWon": "Zmaga!",
     "over.youLost": "Poraz",
     "over.description": "Partija je končana. Označi pripravljenost za novo partijo ali zapusti sobo.",
+    "over.belotDescription": "{name} je dobil vseh osem kart iste barve in takoj osvojil igro.",
     "over.backToLobby": "Nazaj v predsobo",
     "over.newGame": "Nova igra",
     "over.finalScore": "Končni izid",
@@ -319,6 +331,7 @@ export const game: GameDict = {
     "error.UNAUTHENTICATED": "Prijavi se, da lahko igraš.",
     "error.ROOM_NOT_FOUND": "Soba ne obstaja več.",
     "error.ROOM_FULL": "Soba je polna.",
+    "error.WIN_RATE_TOO_LOW": "Za vstop potrebuješ najmanj {percent}% zmag.",
     "error.ROOM_CODE_REQUIRED": "Za vstop v zasebno sobo je potrebna koda.",
     "error.SPECTATORS_DISABLED": "Ta igra ne dovoljuje gledalcev.",
     "error.SEAT_TAKEN": "Ta sedež je zaseden.",
@@ -370,6 +383,10 @@ export const game: GameDict = {
     "reconnect.title": "Povezava je prekinjena",
     "reconnect.hold": "Sedež ti hranimo še {time}",
     "reconnect.retrying": "Poskušam se znova povezati…",
+    "reconnect.restored": "Znova si povezan in vrnjen za mizo",
+    "phase.dealt": "Razdeljenih je prvih šest kart",
+    "phase.dealtHint": "Poglej karte pred klicanjem aduta",
+    "phase.declarations": "Preverjajo se napovedi",
 
     "exit.title": "Zapustiti mizo?",
     "exit.description": "Če ostaneš, igraš naprej. Če izstopiš, se začne dvominutno odštevanje; do izteka se lahko vrneš, nato tvoje mesto prevzame bot.",
@@ -404,7 +421,7 @@ export const game: GameDict = {
     "rules.trickReview.leaderPair": "Par, ki je na vrsti",
     "rules.trickReview.all": "Vsi",
     "rules.trickReviewShort.off": "Ne",
-    "rules.trickReviewShort.leaderPair": "Par",
+    "rules.trickReviewShort.leaderPair": "Na vrsti",
     "rules.trickReviewShort.all": "Vsi",
     "rules.trickReviewBadge.off": "Brez gledanja štihov",
     "rules.trickReviewBadge.leaderPair": "Štihe gleda par, ki je na vrsti",
@@ -454,4 +471,12 @@ export const game: GameDict = {
     "lobby.freeSeats.other": "še {n} prostih sedežev",
     "lobby.spectateHint": "Vsi sedeži so zasedeni — lahko gledaš.",
     "room.sitHere": "Sedi sem",
+
+    /* ─── HUD v3 za mizo (game/DESIGN.md §6) ─────────────────────────────
+       Semafor ima zdaj črto napredka proti cilju partije; ta nosi tudi „do
+       1001”, zato je stara noga izginila. Črta je visoka le 2 px, zato
+       potrebuje izgovorljivo različico — ta ključ je njen `aria-label`,
+       nikoli viden tekst.
+       DODANO NA KONEC — ne premikaj in ne briši ključev zgoraj. */
+    "score.progress": "Skupaj {total} od {target}",
 }

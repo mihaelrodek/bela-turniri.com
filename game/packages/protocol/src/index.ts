@@ -33,8 +33,12 @@ export type {
 
 export const PROTOCOL_VERSION = 1
 
-export const REACTIONS = ["😢", "🔥", "😡", "🎉", "🙃", "😜"] as const
+export const REACTIONS = ["👏", "🍀", "😱", "⏰", "🤝"] as const
 export type Reaction = (typeof REACTIONS)[number]
+
+/** Allowed minimum overall win percentages when a room is created. */
+export const WIN_RATE_REQUIREMENTS = [0, 35, 50, 60, 70, 80] as const
+export type WinRateRequirement = (typeof WIN_RATE_REQUIREMENTS)[number]
 
 /** "Gledanje štihova", in the order the create dialog offers it. The values
  *  and their meaning are the engine's (`TrickReview`); the list is repeated
@@ -85,6 +89,13 @@ export const LIMITS = {
     /** Client messages per second per connection before RATE_LIMITED. */
     messagesPerSecond: 10,
     chatPerSecond: 1,
+    /**
+     * Longest Live Activity token (`liveActivity.tokens`) the server stores.
+     * APNs tokens are 32 bytes (64 hex chars) today; 512 leaves room for a
+     * format change without letting a client park kilobytes per uid in the
+     * server's memory for twelve hours.
+     */
+    liveActivityTokenMax: 512,
 } as const
 
 export const DEFAULTS = {
@@ -97,9 +108,10 @@ export const DEFAULTS = {
      *  "Timeri". Two minutes: long enough to walk back in from the lobby or
      *  survive a tunnel, short enough that a table is never stuck on a ghost. */
     reconnectGraceMs: 120_000,
-    /** A short human-like pause between bot bids and card plays. */
-    botThinkMinMs: 900,
-    botThinkMaxMs: 1700,
+    /** A human-like pause between bot bids and card plays. Long enough that
+     * the player can read the table before the bot changes it again. */
+    botThinkMinMs: 1800,
+    botThinkMaxMs: 2800,
 } as const
 
 /* ───────────────────────── shared models ───────────────────────── */
@@ -112,13 +124,27 @@ export interface UserInfo {
     /**
      * Picked face (`AVATAR_PRESETS`), or null when the player has none.
      *
-     * It sits NEXT TO `avatarUrl`, not instead of it: an uploaded photo is
-     * still the truest picture of a person and keeps winning. The preset is
-     * what everyone else gets — the whole point of the set is that a seat is
-     * never a grey circle with two letters in it, and a guest with no account
-     * always has one (the server assigns one from their uid).
+     * It sits NEXT TO `avatarUrl`, not instead of it. A client displays a
+     * valid preset first because choosing a character intentionally leaves an
+     * older uploaded photo stored; the photo becomes visible again when the
+     * preset is cleared. A guest with no account always has a preset (the
+     * server assigns one from their uid).
      */
     avatarPreset?: string | null
+    /** Persisted record supplied only to members of the room. */
+    gameStats?: PlayerGameStats | null
+}
+
+export interface GameStatRecord {
+    games: number
+    wins: number
+    losses: number
+    winRate: number
+}
+
+export interface PlayerGameStats {
+    global: GameStatRecord
+    byTargetScore: Partial<Record<"501" | "701" | "1001", GameStatRecord>>
 }
 
 export type RoomStatus = "LOBBY" | "PLAYING" | "FINISHED"
@@ -136,7 +162,7 @@ export interface SeatInfo {
                *  and a bot takes over for good. Absent/null = no hold running. */
               holdUntil?: number | null
           }
-        | { kind: "BOT"; name: string }
+        | { kind: "BOT"; name: string; avatarPreset?: AvatarPreset }
         | null
 }
 
@@ -144,13 +170,14 @@ export interface SeatInfo {
  * One seat as the LOBBY LIST sees it (README §3 "Lobby").
  *
  * `lobby.rooms` goes to EVERY subscriber, including people who are not in the
- * room and never will be, so this carries a display name and nothing else: no
- * uid, no avatar URL, no ready flag. `SeatInfo` (inside `RoomState`) is the
- * richer, members-only view.
+ * room and never will be, so this carries only public presentation data: a
+ * display name, connection state and the id of an app-provided avatar. It has
+ * no uid, uploaded avatar URL or ready flag. `SeatInfo` (inside `RoomState`)
+ * is the richer, members-only view.
  */
 export type RoomOccupant =
-    | { kind: "PLAYER"; name: string; connected: boolean }
-    | { kind: "BOT"; name: string }
+    | { kind: "PLAYER"; name: string; connected: boolean; avatarPreset?: string | null }
+    | { kind: "BOT"; name: string; avatarPreset?: AvatarPreset }
     | null
 
 export interface RoomSummary {
@@ -167,18 +194,17 @@ export interface RoomSummary {
     private: boolean
     /** Whether people without a seat may join once the game is in progress. */
     allowSpectators: boolean
+    /** Minimum overall win percentage for a newcomer; 0 disables the gate. */
+    minWinRatePercent: WinRateRequirement
     seatsTaken: number
     /** Seats occupied by humans (bots not counted). */
     humans: number
-    /** Who is at the table, in seat order — names only (see `RoomOccupant`). */
+    /** Who is at the table, in seat order — public presentation data only. */
     occupants: [RoomOccupant, RoomOccupant, RoomOccupant, RoomOccupant]
     /**
-     * The server's own answer to "could a newcomer enter this room at all?" —
-     * false when there is no free seat and spectating is off. The lobby refuses
-     * such a row up front instead of letting the join fail with `ROOM_FULL`;
-     * because the flag is the SAME predicate the server enforces on join
-     * (`Room.canAdmitNewcomer`), the two can never disagree. It says nothing
-     * about the private-room code, which is checked separately.
+     * Whether capacity permits a newcomer: false when there is no free seat
+     * and spectating is off. Personal gates such as the private-room code and
+     * `minWinRatePercent` are checked separately for the joining user.
      */
     joinable: boolean
     createdAt: number
@@ -230,6 +256,7 @@ export type ErrorCode =
     | "UNAUTHENTICATED"
     | "ROOM_NOT_FOUND"
     | "ROOM_FULL"
+    | "WIN_RATE_TOO_LOW"
     | "ROOM_CODE_REQUIRED"
     | "SPECTATORS_DISABLED"
     | "SEAT_TAKEN"
@@ -264,7 +291,7 @@ export type ClientMessage =
     | { t: "lobby.subscribe" }
     | { t: "lobby.unsubscribe" }
     /** `name` optional — the server generates a two-word Croatian name when absent/blank. */
-    | { t: "room.create"; name?: string; targetScore: TargetScore; gameEndRule?: GameEndRule; private: boolean; allowSpectators?: boolean; noDeclarations?: boolean; allowBela?: boolean; trickReview?: TrickReview }
+    | { t: "room.create"; name?: string; targetScore: TargetScore; gameEndRule?: GameEndRule; private: boolean; allowSpectators?: boolean; noDeclarations?: boolean; allowBela?: boolean; trickReview?: TrickReview; minWinRatePercent?: WinRateRequirement }
     | { t: "room.setPrivate"; private: boolean }
     /**
      * Change the room's own settings while it is still in the LOBBY — host
@@ -335,6 +362,15 @@ export type ClientMessage =
     | { t: "game.nextDeal" }
     | { t: "chat.send"; text: string }
     | { t: "chat.react"; reaction: Reaction }
+    /**
+     * iOS only (README §3 "Live Activity"): the tokens ActivityKit handed the
+     * app for the game's Live Activity. `activityToken` addresses the running
+     * activity, `pushToStartToken` lets the server start one. Either may be
+     * absent; each present one must be a non-empty string of at most
+     * `LIMITS.liveActivityTokenMax`. Android sends nothing — its FCM device
+     * token already lives in the backend's `push_devices`.
+     */
+    | { t: "liveActivity.tokens"; activityToken?: string; pushToStartToken?: string }
 
 export type ClientMessageType = ClientMessage["t"]
 
@@ -377,15 +413,45 @@ export type ServerMessage =
           view: PlayerView
           /** Epoch ms when the current turn times out, or null. */
           turnDeadline: number | null
+          /** Full duration of the current turn, including a bot's think pause. */
+          turnDurationMs: number | null
           /** True when the last action was made by the bot on behalf of a (timed-out / disconnected) human. */
           autoPlayed: boolean
       }
     | { t: "game.events"; events: GameEvent[] }
     | { t: "chat.msg"; msg: ChatMessage }
-    /** Emoji reaction shown next to the sender's seat/avatar for ~2 s. */
+    /** Quick reaction shown as text above the sender's seat/avatar. */
     | { t: "chat.reaction"; from: UserInfo; seat: Seat | null; reaction: Reaction; at: number }
 
 export type ServerMessageType = ServerMessage["t"]
+
+/* ───────────────────────── Live Activity ───────────────────────── */
+
+/**
+ * The ContentState of the iOS Live Activity / Android Live Update
+ * (README §3 "Live Activity"). THREE implementations share it — this server,
+ * the backend that relays it through FCM, and the native widgets that render
+ * it — so every field is always present and the shape never changes silently.
+ *
+ * It is built PER RECIPIENT: `scoreUs`/`scoreThem`, `yourTurn` and `winner`
+ * are relative to the seat of the person whose lock screen shows it.
+ */
+export interface LiveActivityState {
+    roomId: string
+    phase: "bidding" | "playing" | "dealDone" | "gameOver"
+    /** Total game score of the recipient's own team. */
+    scoreUs: number
+    scoreThem: number
+    /** Room target, e.g. 1001. */
+    target: number
+    yourTurn: boolean
+    turnSeat: Seat | null
+    /** Epoch ms the current turn times out. */
+    turnDeadline: number | null
+    trump: Suit | null
+    /** Set only when `phase` is "gameOver" (and even then null when the game was abandoned). */
+    winner: "us" | "them" | null
+}
 
 /* ───────────────────────── tiny runtime guards ───────────────────────── */
 
@@ -395,7 +461,7 @@ const CLIENT_TYPES: ReadonlySet<string> = new Set<ClientMessageType>([
     "room.addBot", "room.removeBot", "room.ready", "room.start",
     "game.bid", "game.pass", "game.play", "game.nextDeal", "chat.send",
     "room.joinByCode", "chat.react", "room.setPrivate", "room.setOptions",
-    "profile.setName", "profile.setAvatar",
+    "profile.setName", "profile.setAvatar", "liveActivity.tokens",
 ])
 
 /** Structural check that a parsed JSON value is *shaped* like a ClientMessage (type field only). */
@@ -418,6 +484,11 @@ export function isReaction(x: unknown): x is Reaction {
 
 export function isAvatarPreset(x: unknown): x is AvatarPreset {
     return typeof x === "string" && (AVATAR_PRESETS as readonly string[]).includes(x)
+}
+
+/** A present Live Activity token: non-empty, at most `LIMITS.liveActivityTokenMax`. */
+export function isLiveActivityToken(x: unknown): x is string {
+    return typeof x === "string" && x.length > 0 && x.length <= LIMITS.liveActivityTokenMax
 }
 
 export function isTrickReview(x: unknown): x is TrickReview {

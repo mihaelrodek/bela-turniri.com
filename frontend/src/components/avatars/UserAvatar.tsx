@@ -3,6 +3,7 @@ import type { BoxProps } from "@chakra-ui/react"
 import { isAvatarId } from "./avatarArt"
 import BelaAvatar from "./BelaAvatar"
 import { initialsOf } from "../listingShared"
+import { avatarSrcForBox } from "../../utils/imageUrl"
 
 /* ──────────────────────────────────────────────────────────────────────────
    ONE place that decides what a user's avatar circle looks like, used by
@@ -59,6 +60,14 @@ export default function UserAvatar({
     }
 
     if (avatarUrl) {
+        // `size` is occasionally a responsive object (base/md/... boxSize) —
+        // `avatarSrcForBox` only understands a single plain pixel value, so
+        // anything else is passed through as `undefined` and the helper
+        // falls back to the untouched full-size URL rather than guessing.
+        const resolvedSrc = avatarSrcForBox(
+            avatarUrl,
+            typeof size === "string" || typeof size === "number" ? size : undefined,
+        )
         return (
             <Box
                 boxSize={size}
@@ -75,7 +84,7 @@ export default function UserAvatar({
                 {...rest}
             >
                 <Image
-                    src={avatarUrl}
+                    src={resolvedSrc ?? avatarUrl}
                     alt={altText}
                     w="100%"
                     h="100%"

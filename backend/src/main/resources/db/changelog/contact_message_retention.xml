@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      Retention for the public contact form.
+
+      The table stores an e-mail address and (behind Caddy) the sender's IP
+      indefinitely, which is exactly the kind of open-ended PII the privacy
+      policy now has to answer for. ContactMessageRetentionJob runs nightly and
+      does two things, and the numbers are WRITTEN INTO THE PRIVACY POLICY —
+      changing one means changing the other:
+
+        * `ip` is nulled on rows older than 30 DAYS. It exists for abuse
+          triage, and triage that has not happened within a month is not going
+          to happen.
+        * the whole row is deleted after 12 MONTHS. The reply happens by
+          e-mail; the row is the durable copy until it has been answered, not
+          an archive.
+
+      Both queries are `where created_at < ?`, so the column needs an index —
+      without one the nightly job seq-scans the table, and the table only ever
+      grows. No changes to the table itself: `created_at` already exists
+      (contact_messages.xml) and `ip` is already nullable, which is what makes
+      the anonymisation half a plain UPDATE rather than a migration.
+
+      indexExists / MARK_RAN, like everything else here.
+    -->
+
+    <changeSet id="2026-09-13-contact-message-retention" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_contact_messages_created_at"/>
+            </not>
+        </preConditions>
+
+        <createIndex tableName="contact_messages" indexName="idx_contact_messages_created_at">
+            <column name="created_at"/>
+        </createIndex>
+
+        <rollback>
+            <dropIndex tableName="contact_messages" indexName="idx_contact_messages_created_at"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

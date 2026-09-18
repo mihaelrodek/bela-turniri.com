@@ -1,4 +1,5 @@
-import { Box, Flex, HStack, Text, VStack } from "@chakra-ui/react"
+import { Box, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react"
+import { FiX } from "react-icons/fi"
 import type { RoomState, Seat, TrickReview, WonTrick } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import PlayingCard from "./PlayingCard"
@@ -55,9 +56,8 @@ export default function TrickHistory({
             justify="center"
             px="3"
             zIndex={8}
-            bg="brand.950/55"
+            bg="blackAlpha.500"
             backdropFilter="blur(2px)"
-            cursor="pointer"
             onClick={onDismiss}
             css={{
                 animation: "trickHistoryIn 180ms ease-out",
@@ -75,8 +75,22 @@ export default function TrickHistory({
                 maxW="460px"
                 maxH="94%"
                 overflowY="auto"
+                position="relative"
                 boxShadow="0 18px 40px rgba(0,0,0,0.55)"
+                onClick={(event) => event.stopPropagation()}
             >
+                <IconButton
+                    aria-label={t("game.common.close")}
+                    title={t("game.common.close")}
+                    variant="ghost"
+                    size="xs"
+                    position="absolute"
+                    top="2"
+                    right="2"
+                    onClick={onDismiss}
+                >
+                    <FiX />
+                </IconButton>
                 <Text fontSize="sm" fontWeight="bold" textAlign="center" color={INK} letterSpacing="wide">
                     {t("game.tricks.title")}
                 </Text>
@@ -93,8 +107,8 @@ export default function TrickHistory({
                             px="2"
                             py="1.5"
                             borderWidth="1px"
-                            borderColor="brand.800/70"
-                            bg="brand.900/50"
+                            borderColor="bg.subtle"
+                            bg="bg.subtle"
                         >
                             <HStack justify="space-between" gap="2">
                                 <Text fontSize="xs" fontWeight="bold" color={INK}>
@@ -123,7 +137,7 @@ export default function TrickHistory({
                                                 lineClamp={1}
                                                 maxW="100%"
                                                 fontWeight={won ? "bold" : "normal"}
-                                                color={won ? "brand.200" : INK_MUTED}
+                                                color={won ? "brand.fg" : INK_MUTED}
                                                 title={seatName(seats, play.seat, t("game.seat.empty"))}
                                             >
                                                 {play.seat === mySeat
@@ -137,7 +151,7 @@ export default function TrickHistory({
                                 })}
                             </HStack>
 
-                            <Text fontSize="9px" mt="1" color="brand.200" fontWeight="bold" lineClamp={1}>
+                            <Text fontSize="9px" mt="1" color="brand.fg" fontWeight="bold" lineClamp={1}>
                                 {t("game.tricks.wonBy", {
                                     name: seatName(seats, trick.winner, t("game.seat.empty")),
                                 })}
@@ -146,9 +160,6 @@ export default function TrickHistory({
                     ))
                 )}
 
-                <Text fontSize="2xs" color={INK_MUTED} textAlign="center" opacity={0.8}>
-                    {t("game.declarations.tapToClose")}
-                </Text>
             </VStack>
         </Flex>
     )

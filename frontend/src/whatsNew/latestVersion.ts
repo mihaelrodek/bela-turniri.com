@@ -8,4 +8,4 @@
  * lazy-loading `WhatsNewDialog`. `releases.hr.ts` re-exports this same
  * constant as its newest entry's `version`, so the two can never drift apart.
  */
-export const LATEST_VERSION = "v2"
+export const LATEST_VERSION = "v3"

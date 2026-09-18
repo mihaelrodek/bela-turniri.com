@@ -101,17 +101,17 @@ export function BlokHistoryCard() {
 
     return (
         <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
-            <Card.Body p={{ base: "4", md: "5" }}>
-                <VStack align="stretch" gap="3">
+            <Card.Body p={{ base: "3", md: "5" }}>
+                <VStack align="stretch" gap={{ base: "2.5", md: "3" }}>
                     <Box>
                         <Heading size="sm">{t("profile.blok.title")}</Heading>
-                        <Text fontSize="xs" color="fg.muted">
+                        <Text fontSize="xs" color="fg.muted" lineClamp={{ base: 1, md: 2 }}>
                             {t("profile.blok.description")}
                         </Text>
                     </Box>
 
                     {isLoading ? (
-                        <VStack align="stretch" gap="2">
+                        <VStack align="stretch" gap={{ base: "1.5", md: "2" }}>
                             <Skeleton h="16" /><Skeleton h="16" />
                         </VStack>
                     ) : error ? (
@@ -136,41 +136,38 @@ export function BlokHistoryCard() {
                                         borderWidth="1px"
                                         borderColor="border.emphasized"
                                         rounded="md"
-                                        p="3"
+                                        px={{ base: "2.5", md: "3" }}
+                                        py={{ base: "2", md: "2.5" }}
                                         cursor="pointer"
                                         onClick={() => setOpenUuid(s.uuid)}
                                         _hover={{ borderColor: "blue.emphasized", bg: "bg.subtle" }}
                                     >
-                                        <HStack justify="space-between" align="start" gap="2">
+                                        <HStack justify="space-between" align="center" gap="2">
                                             <Box flex="1" minW="0">
-                                                <Text fontSize="xs" color="fg.muted">
-                                                    {formatDate(s.finishedAt || s.startedAt)}
-                                                </Text>
-                                                <Text fontSize="sm" mt="1" truncate>
+                                                <HStack gap="1.5" color="fg.muted" minW="0">
+                                                    <Text fontSize="2xs" flexShrink={0}>
+                                                        {formatDate(s.finishedAt || s.startedAt)}
+                                                    </Text>
+                                                    <Text aria-hidden fontSize="2xs">·</Text>
+                                                    <Text fontSize="2xs" truncate>
+                                                        {t("profile.blok.meta", {
+                                                            target: s.target,
+                                                            rule: endRuleLabel(s.gameEndRule, t),
+                                                        })}
+                                                        {" · "}
+                                                        {plural("profile.blok.gamesCount", s.gamesCount)}
+                                                    </Text>
+                                                </HStack>
+                                                <Text fontSize="sm" mt="0.5" fontWeight="medium" truncate>
                                                     {us}{" "}
                                                     <Text as="span" color="fg.muted">{t("profile.vs")}</Text>{" "}
                                                     {them}
                                                 </Text>
-                                                {/* "Do 1001 · prolaz · 3 partije"
-                                                    (BLOK-HISTORY.md §5.5). The count
-                                                    stays HERE, unlike on the share
-                                                    page: this row does not list the
-                                                    games below it — they are one tap
-                                                    away in the dialog — so the number
-                                                    is the only place it is said. */}
-                                                <Text fontSize="xs" color="fg.muted" mt="1">
-                                                    {t("profile.blok.meta", {
-                                                        target: s.target,
-                                                        rule: endRuleLabel(s.gameEndRule, t),
-                                                    })}
-                                                    {" · "}
-                                                    {plural("profile.blok.gamesCount", s.gamesCount)}
-                                                </Text>
                                             </Box>
-                                            <VStack align="end" gap="2" flexShrink={0}>
+                                            <HStack gap="1" flexShrink={0}>
                                                 <Text
                                                     fontWeight="bold"
-                                                    fontSize="lg"
+                                                    fontSize={{ base: "md", md: "lg" }}
                                                     css={{ fontVariantNumeric: "tabular-nums" }}
                                                 >
                                                     {s.gamesUs} : {s.gamesThem}
@@ -187,7 +184,7 @@ export function BlokHistoryCard() {
                                                 >
                                                     <FiTrash2 />
                                                 </IconButton>
-                                            </VStack>
+                                            </HStack>
                                         </HStack>
                                     </Box>
                                 )
@@ -255,6 +252,7 @@ export function BlokHistoryCard() {
                         : undefined
                 }
                 destructive
+                confirmLabel={t("common.delete")}
                 busy={deleting}
                 onConfirm={confirmDelete}
                 onCancel={() => setPendingDelete(null)}

@@ -224,7 +224,7 @@ describe("the lobby row says who is in there — and nothing private", () => {
         return row
     }
 
-    it("carries the occupants by name, bots as bots, empty seats as null", async () => {
+    it("carries public player presentation, bots as bots, empty seats as null", async () => {
         server = await startTestServer()
         const watcher = await connect("Promatrac")
         watcher.send({ t: "lobby.subscribe" })
@@ -233,6 +233,15 @@ describe("the lobby row says who is in there — and nothing private", () => {
         const host = await connect("Domacin")
         host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false })
         const created = await host.nextOfType("room.joined")
+
+        host.send({ t: "profile.setAvatar", preset: "kralj" })
+        await host.nextOfType("profile.avatar")
+        await watcher.next((m) => {
+            if (m.t !== "lobby.rooms") return false
+            const occupant = rowFor(m.rooms, created.room.id).occupants[0]
+            return occupant?.kind === "PLAYER" && occupant.avatarPreset === "kralj"
+        })
+
         host.send({ t: "room.addBot", seat: 3 })
         await host.next((m) => m.t === "room.state" && m.room.seats[3].occupant?.kind === "BOT")
 
@@ -242,10 +251,16 @@ describe("the lobby row says who is in there — and nothing private", () => {
         if (update.t !== "lobby.rooms") throw new Error("expected lobby.rooms")
         const row = rowFor(update.rooms, created.room.id)
 
-        expect(row.occupants[0]).toEqual({ kind: "PLAYER", name: "Domacin", connected: true })
+        expect(row.occupants[0]).toEqual({
+            kind: "PLAYER",
+            name: "Domacin",
+            connected: true,
+            avatarPreset: "kralj",
+        })
         expect(row.occupants[1]).toBeNull()
         expect(row.occupants[2]).toBeNull()
-        expect(row.occupants[3]).toEqual({ kind: "BOT", name: "Bot Jana" })
+        expect(row.occupants[3]).toMatchObject({ kind: "BOT" })
+        expect(row.occupants[3]?.kind === "BOT" && row.occupants[3].name).toMatch(/^Bot [A-Z][a-z]+$/)
         expect(row.seatsTaken).toBe(2)
         expect(row.humans).toBe(1)
         expect(row.joinable).toBe(true)

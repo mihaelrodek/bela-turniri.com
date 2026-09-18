@@ -4,18 +4,18 @@ import type { Card as CardId, Seat } from "@bela/protocol"
 import type { TrickCard } from "@bela/engine"
 import { cardScatter, positionOf, positionVector } from "../util/seats"
 import PlayingCard from "./PlayingCard"
-import { SHORT, TIGHT } from "./tableStyles"
+import { NARROW, SHORT, TIGHT } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
    TrickArea — the middle of the table.
 
    A card lands in a distinct slot toward the seat that threw it and TILTED
    toward that seat. The four cards form a loose cross instead of one stacked
-   pile, so ownership stays obvious throughout the trick. The angles come
-   from `cardScatter`, seeded by (seat, trick index): stable across every
-   re-render of the same trick, different from one trick to the next.
+   pile, so ownership stays obvious throughout the trick. `cardScatter`
+   assigns one fixed angle and offset to each table position, so every trick
+   forms the same pile.
 
-   The flight is 250 ms from the owner's edge at 45 % opacity, then the trick
+   The flight is 320 ms from the owner's edge at 45 % opacity, then the trick
    holds (the page's TRICK_HOLD_MS) and slides to the winner. `prefers-
    reduced-motion` — or the manual "Smanji animacije" — drops every
    transition and the cards simply appear.
@@ -26,7 +26,7 @@ import { SHORT, TIGHT } from "./tableStyles"
    now handled upstream (`GameRoomPage` renders the trick the event queue has
    released, not the raw view), and the sticky copy had a nasty side effect:
    four cards that had just been swept up would sail back to the middle for
-   400 ms as soon as the next event started.
+   500 ms as soon as the next event started.
    ────────────────────────────────────────────────────────────────────── */
 
 /** How far from the centre a resting card sits, per axis. A medium card is
@@ -39,16 +39,15 @@ const REST_Y = 54
 const FLY_IN = 170
 /** Where the trick slides to when collected. */
 const COLLECT = 340
-/** DESIGN §2.5: 250 ms in, 400 ms out. `COLLECT_MS` is exported because the
+/** DESIGN §2.5: 320 ms in, 500 ms out. `COLLECT_MS` is exported because the
  *  page has to know when the sweep is finished before it clears the felt. */
-const FLY_MS = 250
-export const COLLECT_MS = 400
+const FLY_MS = 320
+export const COLLECT_MS = 500
 
 function ThrownCard({
     entry,
     order,
     mySeat,
-    trickIndex,
     animateIn,
     collectTo,
     reducedMotion,
@@ -57,7 +56,6 @@ function ThrownCard({
     /** Play order within the trick — later cards lie on top. */
     order: number
     mySeat: Seat | null
-    trickIndex: number
     /** false = this card was already on the felt when we started looking. */
     animateIn: boolean
     collectTo: Seat | null
@@ -77,7 +75,7 @@ function ThrownCard({
 
     const position = positionOf(entry.seat, mySeat)
     const vector = positionVector(position)
-    const { tilt, dx, dy } = cardScatter(entry.seat, mySeat, trickIndex)
+    const { tilt, dx, dy } = cardScatter(entry.seat, mySeat)
 
     let transform: string
     let opacity = 1
@@ -89,7 +87,11 @@ function ThrownCard({
         transform = `translate(-50%, -50%) translate(${vector.x * FLY_IN}px, ${vector.y * FLY_IN}px) rotate(${tilt * 1.6}deg) scale(0.88)`
         opacity = 0.45
     } else {
-        transform = `translate(-50%, -50%) translate(${vector.x * REST_X + dx}px, ${vector.y * REST_Y + dy}px) rotate(${tilt}deg)`
+        // The top seat's transient status chip sits immediately above the
+        // trick. Pull only that card a little toward the centre so the chip
+        // reads above it instead of touching its top edge.
+        const restY = position === "top" ? REST_Y - 12 : REST_Y
+        transform = `translate(-50%, -50%) translate(${vector.x * REST_X + dx}px, ${vector.y * restY + dy}px) rotate(${tilt}deg)`
     }
 
     return (
@@ -98,7 +100,6 @@ function ThrownCard({
             left="0"
             top="0"
             zIndex={order + 1}
-            filter="drop-shadow(0 6px 10px rgba(0,0,0,0.45))"
             style={{ transform, opacity }}
             transition={
                 reducedMotion
@@ -114,7 +115,6 @@ function ThrownCard({
 export default function TrickArea({
     cards,
     mySeat,
-    trickIndex = 0,
     flyIn = null,
     collectTo = null,
     reducedMotion = false,
@@ -123,8 +123,6 @@ export default function TrickArea({
      *  a TRICK_WON event is being shown. */
     cards: TrickCard[]
     mySeat: Seat | null
-    /** Which trick of the deal this is — the seed for the scatter. */
-    trickIndex?: number
     /** Kept in the component contract for game-state callers. The current
      * design deliberately does not mark the card that is holding the trick. */
     holdingSeat?: Seat | null
@@ -163,6 +161,7 @@ export default function TrickArea({
             pointerEvents="none"
             css={{
                 [TIGHT]: { transform: "scale(0.86)" },
+                [NARROW]: { transform: "scale(0.76)" },
                 [SHORT]: { transform: "scale(0.66)" },
             }}
         >
@@ -172,7 +171,6 @@ export default function TrickArea({
                     entry={entry}
                     order={index}
                     mySeat={mySeat}
-                    trickIndex={trickIndex}
                     animateIn={entry.card === flyIn}
                     collectTo={collectTo}
                     reducedMotion={reducedMotion}

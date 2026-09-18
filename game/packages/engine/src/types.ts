@@ -130,6 +130,8 @@ export interface DealScore {
     /** Only the defended declarations + bela. */
     declarationPoints: Record<Team, number>
     stiglja: Team | null
+    /** Team whose player held all eight cards of one suit. The deal was not played. */
+    belot?: Team | null
     /** Whether the calling team passed (C > O). */
     passed: boolean
     /** What is actually added to the running score. On a fall, callerTeam gets 0 and the other team everything. */
@@ -153,6 +155,8 @@ export interface GameState {
     /** Team that scores its declarations this deal (null = nobody declared anything). */
     declarationsScoringTeam: Team | null
     belaDeclared: Team | null
+    /** Player who received all eight cards of one suit, if this game ended by belot. */
+    belotSeat?: Seat | null
     /**
      * The seat that DECLINED to announce bela this deal, or null (README §1.4).
      *
@@ -208,6 +212,8 @@ export type GameEvent =
     | { type: "HAND_COMPLETED" }
     | { type: "CARD_PLAYED"; seat: Seat; card: Card }
     | { type: "BELA"; seat: Seat }
+    /** Eight cards of one suit: the holder's team wins the game immediately. */
+    | { type: "BELOT"; seat: Seat; suit: Suit }
     | { type: "TRICK_WON"; winner: Seat; cards: TrickCard[]; points: number; trickNo: number }
     | {
           type: "DECLARATIONS_REVEALED"
@@ -311,6 +317,8 @@ export interface PlayerView {
     declarationsRevealed: boolean
     declarationsScoringTeam: Team | null
     belaDeclared: Team | null
+    /** Public only after the complete hand proved a belot. */
+    belotSeat?: Seat | null
     dealScore: DealScore | null
     score: Record<Team, number>
     history: DealScore[]
