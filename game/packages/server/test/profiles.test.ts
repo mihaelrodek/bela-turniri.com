@@ -64,6 +64,9 @@ describe("createProfileLookup", () => {
             gameName: null,
             avatarPreset: null,
             gameStats: null,
+            // `karma` is the sixth field since 2026-09-20; a body without it
+            // reads as null ("the backend did not say"), never as a full 10.
+            karma: null,
         })
         expect(second).toEqual(first)
         expect(fetchMock).toHaveBeenCalledTimes(1)

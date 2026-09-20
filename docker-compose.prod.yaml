@@ -73,7 +73,7 @@ services:
       - "127.0.0.1:5432:5432"
 
   minio:
-    image: minio/minio:RELEASE.2024-10-02T17-50-41Z
+    image: quay.io/minio/minio:RELEASE.2024-10-02T17-50-41Z
     container_name: bela-minio
     <<: *default-logging
     restart: unless-stopped
@@ -98,7 +98,7 @@ services:
     # the backend's /api/resources/{id}/image proxy.
 
   minio-setup:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: bela-minio-setup
     <<: *default-logging
     depends_on:
