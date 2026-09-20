@@ -368,6 +368,8 @@ export const game: GameDict = {
     "settings.sound": "Zvok",
     "settings.reduceMotion": "Zmanjšaj animacije",
     "settings.reduceMotionHint": "Sledi tudi sistemski nastavitvi za zmanjšane animacije.",
+    "settings.keepAwake": "Naj zaslon ostane prižgan",
+    "settings.keepAwakeHint": "Zaslon se med deljenjem ne bo zaklenil. Zatemnitev ostane.",
     "settings.deckType": "Vrsta kart",
     "settings.deck.klasicne": "Klasične",
     "settings.deck.moderne": "Moderne",

@@ -7,6 +7,7 @@ import { formatDate } from "../../utils/format"
 import AvatarPicker from "../../components/avatars/AvatarPicker"
 import { type AvatarId } from "../../components/avatars/avatarArt"
 import { useGamePrefs } from "../hooks/useGamePrefs"
+import { keepAwakeSupported } from "../hooks/useKeepAwake"
 import { DECK_STYLES } from "../util/cards"
 import { useGameSocket } from "../hooks/useGameSocket"
 import { readGuest, saveGuest } from "../hooks/guestIdentity"
@@ -288,6 +289,17 @@ export default function GameSettingsSheet({ open, onClose, room, isHost = false,
                                     checked={prefs.alwaysReady} onChange={(alwaysReady) => setPrefs({ alwaysReady })} />
                                 <GameOption label={t("game.settings.sound")} checked={prefs.sound} onChange={(sound) => setPrefs({ sound })} />
                                 <GameOption label={t("game.settings.reduceMotion")} checked={prefs.reduceMotion} onChange={(reduceMotion) => setPrefs({ reduceMotion })} />
+                                {/* Only offered where the browser can actually
+                                    do it (Screen Wake Lock: Chrome/Edge, and
+                                    Safari from iOS 16.4) — a switch that
+                                    silently does nothing is worse than no
+                                    switch. The hint says what it does NOT do:
+                                    the screen still dims, it just will not
+                                    lock. */}
+                                {keepAwakeSupported() && (
+                                    <GameOption label={t("game.settings.keepAwake")} hint={t("game.settings.keepAwakeHint")}
+                                        checked={prefs.keepAwake} onChange={(keepAwake) => setPrefs({ keepAwake })} />
+                                )}
                                 <Text fontSize="sm" fontWeight="semibold" mt="3">{t("game.settings.deckType")}</Text>
                                 {/* Four decks since 2026-09-20 (util/cards.ts),
                                     so 2×2 rather than a row: four sample cards

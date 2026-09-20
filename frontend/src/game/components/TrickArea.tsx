@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Box, useBreakpointValue } from "@chakra-ui/react"
+import { Box } from "@chakra-ui/react"
 import type { Card as CardId, Seat } from "@bela/protocol"
 import type { TrickCard } from "@bela/engine"
 import { cardScatter, positionOf, positionVector } from "../util/seats"
@@ -29,10 +29,16 @@ import { NARROW, SHORT, TIGHT } from "./tableStyles"
    500 ms as soon as the next event started.
    ────────────────────────────────────────────────────────────────────── */
 
-/** The pile is drawn in the SAME card size as the hand below it — `sm` on a
- *  phone, `md` from 48em up. A phone used to get a full `md` pile over an
- *  `sm` hand, which both looked wrong and ran the top card into the partner's
- *  avatar and name (reported 2026-09-20). */
+/** THE PILE IS `md` EVERYWHERE (2026-09-20, user request: "karte koje se
+ *  bacaju na stol da su vece"). It used to follow the hand — `sm` on a phone —
+ *  which made the four cards everybody is looking at the smallest cards on
+ *  screen, most visibly in a browser tab where the hand had already eaten the
+ *  height. The hand went the other way at the same time (`xs`, see
+ *  `handLayout.ts`), so the felt now reads trick-first.
+ *
+ *  The type stays a union because `PILE_SCALE` still shrinks the pile on
+ *  screens that cannot hold a full one (TIGHT/NARROW/SHORT), and because the
+ *  seat clearances in `tableStyles.ts` are stated per size. */
 type PileSize = "sm" | "md"
 
 /** How far from the centre a resting card sits, per axis, per card size. The
@@ -161,7 +167,7 @@ export default function TrickArea({
     collectTo?: Seat | null
     reducedMotion?: boolean
 }) {
-    const size = (useBreakpointValue<PileSize>({ base: "sm", md: "md" }) ?? "sm") as PileSize
+    const size: PileSize = "md"
     const scale = PILE_SCALE[size]
     return (
         // Not aria-hidden: each card carries its Croatian name as an

@@ -61,6 +61,11 @@ export default function TrickHistory({
             backdropFilter="blur(2px)"
             onClick={onDismiss}
             css={{
+                // A board of cards, not text (2026-09-20) — see the same rule
+                // on the room root and on the declarations overlay.
+                userSelect: "none",
+                WebkitUserSelect: "none",
+                WebkitTouchCallout: "none",
                 animation: "trickHistoryIn 180ms ease-out",
                 "@keyframes trickHistoryIn": { from: { opacity: 0 }, to: { opacity: 1 } },
             }}

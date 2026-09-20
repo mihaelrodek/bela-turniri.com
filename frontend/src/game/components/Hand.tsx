@@ -139,11 +139,12 @@ export default function Hand({
     const { t } = useTranslation()
     const [prefs] = useGamePrefs()
     const reducedMotion = usePrefersReducedMotion() || prefs.reduceMotion
-    const cardSize: HandCardSize = useBreakpointValue<HandCardSize>(HAND_CARD_SIZE) ?? "sm"
+    const cardSize: HandCardSize = useBreakpointValue<HandCardSize>(HAND_CARD_SIZE) ?? "xs"
     const cardWidth = CARD_WIDTH[cardSize]
     // One row from the same breakpoint that grows the cards, so the tray only
     // ever has two shapes and they change together.
-    const columns = cardSize === "sm" ? 4 : 8
+    // Two rows of four on a phone (`xs`/`sm`), one row of eight above it.
+    const columns = cardSize === "xs" || cardSize === "sm" ? 4 : 8
     const legalSet = new Set(legal)
     const myTurn = legal.length > 0 && !disabled
 

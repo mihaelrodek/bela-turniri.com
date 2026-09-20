@@ -45,7 +45,8 @@ import { preloadDeck } from "../cards/madjarice/preload"
 import { cardRank, cardSuit, makeCard } from "../util/cards"
 import { occupantName, otherTeam, teamOf } from "../util/seats"
 import { playHaptic } from "../util/haptics"
-import { playSound, primeAudio } from "../util/sounds"
+import { installAudioUnlock, playSound, primeAudio } from "../util/sounds"
+import { useKeepAwake } from "../hooks/useKeepAwake"
 
 /* ──────────────────────────────────────────────────────────────────────────
    GameRoomPage (/igra/soba/:roomId) — the room, and then the table.
@@ -158,18 +159,11 @@ export default function GameRoomPage() {
         preloadDeck(prefs.deck)
     }, [prefs.deck])
 
-    // Browsers block audio created outside a user gesture. Unlock Web Audio
-    // on the first tap or keypress at the table, so the next card/event can
-    // be heard without making a sound just for entering the room.
-    useEffect(() => {
-        const unlock = () => primeAudio()
-        window.addEventListener("pointerdown", unlock, { once: true, passive: true })
-        window.addEventListener("keydown", unlock, { once: true })
-        return () => {
-            window.removeEventListener("pointerdown", unlock)
-            window.removeEventListener("keydown", unlock)
-        }
-    }, [])
+    // Browsers block audio created outside a user gesture, and iOS suspends
+    // the context again on every trip to the background — so the unlock is
+    // not a one-off (see `installAudioUnlock`). Entering the room still makes
+    // no sound of its own.
+    useEffect(() => installAudioUnlock(), [])
 
     // The table is a fixed game surface, not a document the player should be
     // able to scroll or pull down to refresh. Lock the page while this room is
@@ -497,6 +491,13 @@ export default function GameRoomPage() {
     }, [phase])
     const gameOverOpen = phase === "GAME_OVER" && idle && !overDismissed
 
+    /* "Drži zaslon uključenim" (2026-09-20, user request). Only while a deal
+       is actually running: the lobby is a page like any other and a finished
+       game is a dialog, neither of which should stop the phone locking. The
+       switch lives in the game settings and defaults to on; a browser without
+       the Wake Lock API simply gets nothing (see `useKeepAwake`). */
+    useKeepAwake(phase !== null && phase !== "GAME_OVER")
+
     /* ── "Propustio si potez" (2026-09-20, user request) ──────────────────
        When a human's 15 s turn clock expires the server's bot plays exactly
        ONE move for that seat and the `game.state` of that transition carries
@@ -662,6 +663,35 @@ export default function GameRoomPage() {
         if (active.type === "CARD_PLAYED") playSound("card")
     }, [active])
 
+    /* Somebody took a chair (2026-09-20, user request): a player who joined
+       the room or a bot that was added. Read off `room.seats` rather than the
+       event stream, because seating is room state and has no `game.events` of
+       its own.
+
+       Three things it deliberately does NOT do. The FIRST room frame is
+       silent — that is the table as it already was when we walked in, not
+       four people arriving. Leaving is silent — a chair emptying is not an
+       arrival, and a bot being swapped for a player would otherwise be two
+       cues. And one frame makes at most ONE sound however many seats changed
+       in it, so "fill the table" never chimes four times over each other. */
+    const seatedRef = useRef<string[] | null>(null)
+    useEffect(() => {
+        if (!room) {
+            seatedRef.current = null
+            return
+        }
+        const occupants = room.seats.map((seat) => {
+            const o = seat.occupant
+            if (!o) return ""
+            return o.kind === "BOT" ? `bot:${o.name}` : `player:${o.user.uid}`
+        })
+        const before = seatedRef.current
+        seatedRef.current = occupants
+        if (before === null) return
+        const arrived = occupants.some((who, i) => who !== "" && who !== before[i])
+        if (arrived) playSound("seatJoin")
+    }, [room])
+
     // Everything else rides the raw event stream, which is the only place a
     // zero-dwell event (a bid, GAME_OVER) is guaranteed to be seen at all.
     const soundCursor = useRef(-1)
@@ -674,7 +704,17 @@ export default function GameRoomPage() {
             // First batch after mount (or after a reconnect replay): catch up
             // silently, or a player rejoining mid-deal gets the whole deal
             // played back at them in one second.
-            soundCursor.current = events[events.length - 1].id
+            //
+            // With ONE exception (2026-09-20, user report: "card-shuffle.wav
+            // se ne igra"): if the newest event in that first batch is the
+            // DEALT of a fresh deal, we did not walk in on a game in progress
+            // — the deal is starting right now and the shuffle belongs to it.
+            // That is the ordinary first deal of every game: the table mounts
+            // and the first frame it is handed already contains DEALT, so the
+            // catch-up was swallowing the one cue it was never meant to skip.
+            const newest = events[events.length - 1]
+            soundCursor.current = newest.id
+            if (newest.event.type === "DEALT") playSound("gameStart")
             return
         }
         for (const item of events) {
@@ -682,7 +722,13 @@ export default function GameRoomPage() {
             soundCursor.current = item.id
             switch (item.event.type) {
                 case "DEALT":
-                    if (item.event.dealNo === 1) playSound("gameStart")
+                    /* EVERY deal, not only the first (2026-09-20, user
+                       request): the riffle is what says the previous deal is
+                       finished and the next eight cards are on their way. It
+                       rides the raw stream, so it lands while the queue is
+                       still playing the last hand out — i.e. just before the
+                       new cards appear, which is where a shuffle belongs. */
+                    playSound("gameStart")
                     break
                 case "GAME_OVER":
                     /* NOT voiced here (2026-09-20, user request): the event
@@ -735,7 +781,7 @@ export default function GameRoomPage() {
     // From 48em the hand is one row and my avatar docks right against its
     // left edge (2026-09-20, user request) instead of at a fixed inset from
     // the column's edge, which on a wide column left it stranded.
-    const handRow = handRowWidth(useBreakpointValue(HAND_CARD_SIZE) ?? "sm")
+    const handRow = handRowWidth(useBreakpointValue(HAND_CARD_SIZE) ?? "xs")
     const turnTimeoutMs = room?.turnTimeoutMs ?? 0
     useEffect(() => {
         if (mySeat === null || turn !== mySeat || turnDeadline === null || turnTimeoutMs <= 0) return
@@ -943,9 +989,24 @@ export default function GameRoomPage() {
             }}
             mb="-24px"
             overflow="hidden"
-            css={
-                inLobbyPhase
-                    ? undefined
+            css={{
+                /* NOTHING ON THE TABLE IS TEXT TO SELECT (2026-09-20, user
+                   report: a long press on a card or a name brought up iOS's
+                   selection handles and the magnifier mid-deal). The cards,
+                   the names and the status lines are a game surface, so the
+                   whole room opts out of selection and out of the iOS
+                   long-press callout. Real inputs keep both — the only ones
+                   here are in dialogs, and a field you cannot select text in
+                   is broken. */
+                userSelect: "none",
+                WebkitUserSelect: "none",
+                WebkitTouchCallout: "none",
+                "& input, & textarea, & [contenteditable='true']": {
+                    userSelect: "text",
+                    WebkitUserSelect: "text",
+                },
+                ...(inLobbyPhase
+                    ? {}
                     : {
                           // iOS honours touch-action before it starts its
                           // native rubber-band gesture. The table itself has
@@ -953,8 +1014,8 @@ export default function GameRoomPage() {
                           // portal and retain their own scroll when needed.
                           touchAction: "pan-x",
                           overscrollBehavior: "none",
-                      }
-            }
+                      }),
+            }}
         >
             {inLobbyPhase ? (
                 <>
@@ -1085,15 +1146,20 @@ export default function GameRoomPage() {
                         </Box>
 
                         {/* The table takes the height left between the score
-                            panel and the turn pill. Whatever the box does not
-                            claim is SPLIT above and below it (2026-09-20):
-                            `flex-start` collected all of it under the trick,
-                            which on a tall phone read as a hole between the
-                            felt and the hand. The partner seat is kept tucked
-                            under the panel by the seat geometry itself now
-                            (`vy` in tableStyles.ts), not by pinning the whole
-                            block to the top. */}
-                        <Flex flex="1" minH="0" direction="column" justify="center" pt="1">
+                            panel and the turn pill, and what it does not claim
+                            is slack this row has to put somewhere.
+
+                            ON A PHONE IT GOES UNDER THE BLOCK (2026-09-20,
+                            user request: the gap between the header and the
+                            seats was the one that read as empty). Splitting it
+                            evenly — `center`, which is what this was between
+                            two user reports the same day — pushed the partner
+                            a visible band below the score panel on a tall
+                            phone. From `md` up there is no shortage of height
+                            and the block stays centred, which is what a
+                            desktop window wants. */}
+                        <Flex flex="1" minH="0" direction="column"
+                            justify={{ base: "flex-start", md: "center" }} pt="1">
                             <Table
                                 room={room}
                                 view={shownView ?? view}

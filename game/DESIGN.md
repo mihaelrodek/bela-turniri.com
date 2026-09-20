@@ -147,7 +147,9 @@ animacije** toggle, **Vrsta karata: Francuske / Mađarice / Moderne**
     — uz WebAudio sintezu kao fallback dok se uzorci ne učitaju i za pobjedu/
     poraz), smanji animacije, vrsta karata (Klasične / Moderne / Vektorske
     / Francuske — mreža 2 × 2 da stane na 360 px, svaka opcija crta uzorak
-    svojim špilom), spremljeno u `localStorage` preko `hooks/useGamePrefs.ts`.
+    svojim špilom), **„Drži zaslon uključenim”** (Screen Wake Lock, zadano
+    uključeno — vidi §7.5), spremljeno u `localStorage` preko
+    `hooks/useGamePrefs.ts`.
     Odabir špila grije taj špil (`cards/madjarice/preload.ts` →
     `preloadDeck`, idempotentno **po špilu**) i predaje ga servisnom workeru
     za offline (`cards/deckOffline.ts`).
@@ -524,3 +526,70 @@ sjedala dobila su `--seat-gutter` (8 px): prije su na uskom telefonu smjela
 sjesti uz sam rub, pa je zeleni okvir „na potezu” bio praktički nevidljiv.
 Sve četiri vrijednosti su i dalje na jednom mjestu (`tableStyles.ts` +
 `util/seats.ts`), a `--seat-clear-x/y` su gornja granica koja se nije mijenjala.
+
+### 7.5 Zaslon, odabir teksta i zvanje aduta (2026-09-20)
+
+**„X zove adut” je sad pravi modal.** `TrumpFlash` više nije pilula na filcu
+nego isti portal + zatamnjena pozadina + kartica kao `DeclarationsReveal`, s
+velikim znakom boje (88 px). Traje `TRUMP_FLASH_MS` = 1500 ms, unutar vlastitog
+dwella `TRUMP_SET` (1600 ms) i puno kraće od zvanja (4000 ms), pa se red
+događaja ne mijenja. Ne može se zatvoriti rukom i ima `pointerEvents: none` —
+nestane prije nego bi ga itko dotaknuo, a gutanje dodira kojim se baca sljedeća
+karta bilo bi gore od same objave.
+
+**Za stolom se ništa ne označava.** Dugi pritisak na kartu ili ime dizao je
+iOS-ove ručice za odabir i povećalo usred dijeljenja. Korijen sobe
+(`GameRoomPage`) sad nosi `user-select: none` + `-webkit-touch-callout: none`,
+uz iznimku za `input`/`textarea`/`contenteditable`. Portali su izvan tog
+podstabla, pa isto pravilo imaju `DeclarationsReveal` i `TrickHistory`
+(`TrumpFlash` ionako ne prima dodire).
+
+**„Drži zaslon uključenim”** (`hooks/useKeepAwake.ts`, postavka `keepAwake`,
+zadano uključeno). Screen Wake Lock je web API, ne samo nativni: Chrome/Edge
+odavno, Safari od iOS 16.4 — dakle radi i u instaliranom PWA-u. Gdje ga nema,
+hook ne radi ništa i prekidač se uopće ne prikazuje (`keepAwakeSupported`).
+Dva pravila API-ja koja hook poštuje: preglednik otpušta bravu čim stranica
+prestane biti vidljiva i ne vraća je sam (zato ponovno traženje na
+`visibilitychange`), a `request()` odbija umjesto da baca (prazna baterija,
+politika) — svaki neuspjeh se guta. Brava drži zaslon **upaljenim**, ne
+svijetlim: iOS ga i dalje zatamni, samo ga neće zaključati. Aktivna je samo
+dok traje partija (`phase !== null && phase !== "GAME_OVER"`), ne u predsoblju
+i ne nad završnim dijalogom.
+
+**Prsten stola je na telefonu prilijepljen uz vrh.** Red koji drži `Table`
+ima `justify={{ base: "flex-start", md: "center" }}`: višak visine ide ispod
+bloka, a ne pola iznad, jer je razmak između zaglavlja i sjedala bio taj koji
+je čitao kao prazan (2026-09-20, zahtjev korisnika).
+
+**Zvuk kad netko sjedne** (`seatJoin`, 2026-09-20, zahtjev korisnika): dvije
+tihe note kad igrač uđe u sobu ili se doda bot. Čita se iz `room.seats`, ne iz
+`game.events`, jer sjedanje je stanje sobe. Prvi okvir sobe je nijem (to je
+stol kakav je zatečen, ne dolazak četvero ljudi), odlazak ne zvuči, i jedan
+okvir daje najviše jedan zvuk koliko god se sjedala promijenilo.
+
+### 7.6 Telefon u pregledniku: manja ruka, veći štih (2026-09-20)
+
+Bez instaliranog PWA-a iOS Safari drži i adresnu traku i alatnu traku, pa je
+stol dobivao stotinjak piksela manje nego u PWA-u. Posljedica na slici
+korisnika: ruka velika, a četiri karte u sredini — jedino što svi gledaju —
+najmanje karte na ekranu. Tri promjene, sve na telefonu:
+
+- **Ruka ide na `xs`** (48 × 77, `CARD_METRICS` + `MADJARICA_HEIGHT`,
+  `HAND_CARD_SIZE.base`). I dalje dva reda po četiri, i dalje iznad praga od
+  44 px za dodir, bez preklapanja slotova.
+- **Štih je `md` na svim širinama** (72 × 116). `TrickArea` više ne prati
+  veličinu ruke; `PILE_SCALE` i dalje smanjuje hrpu na TIGHT/NARROW/SHORT.
+- **Traka reakcija** je 34 px na telefonu (bila 40), od `sm` naviše ostaje 44.
+
+Geometrija prstena prati veću hrpu: `--seat-clear-x` 94 → 104,
+`--seat-clear-y` 72 → 102, `--cy-free` 102 → 112, `--box-h` 290/306 → 330/348,
+a TIGHT dobiva iste brojke pomnožene s 0.86 (90 / 88 / 96, `--box-h` 300/316).
+
+**Miješanje se čuje na svakom dijeljenju.** `gameStart` je dosad išao samo na
+`DEALT` s `dealNo === 1`, a upravo taj je bio progutan: kursor za zvukove
+namjerno preskače prvu hrpu događaja (da se pri ponovnom ulasku ne odsvira
+cijela podjela), a prvi okvir koji stol dobije već sadrži `DEALT`. Sad se
+zvuk pušta na **svakom** `DEALT`, a prva hrpa iznimno oglasi miješanje ako joj
+je najnoviji događaj baš `DEALT` (dakle dijeljenje počinje sad, nismo upali u
+partiju u tijeku). Jaše sirovi tok događaja, pa padne dok red još igra kraj
+prethodne podjele — točno prije nego se pokažu nove karte.

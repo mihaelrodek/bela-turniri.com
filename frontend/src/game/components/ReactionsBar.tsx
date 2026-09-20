@@ -68,11 +68,16 @@ export default function ReactionsBar({
         onReact(reaction)
     }
 
+    /* 34 px on a phone (2026-09-20, user request), 44 px from `sm` up. The
+       strip sits under the hand and is the last thing on the screen; in a
+       browser tab, where the URL bar and the toolbar are also on screen, its
+       old 40 px row was height the trick needed more. It stays a comfortable
+       target: the buttons are round, spaced, and hit nothing if missed. */
     return (
         <Flex
             justify="center"
             align="center"
-            gap="1.5"
+            gap={{ base: "1", sm: "1.5" }}
             px="2"
             aria-label={t("game.table.reactions")}
             role="group"
@@ -80,13 +85,13 @@ export default function ReactionsBar({
             <chakra.button
                 type="button"
                 {...GLASS}
-                w={{ base: "40px", sm: "44px" }}
-                h={{ base: "40px", sm: "44px" }}
+                w={{ base: "34px", sm: "44px" }}
+                h={{ base: "34px", sm: "44px" }}
                 rounded="full"
                 display="flex"
                 alignItems="center"
                 justifyContent="center"
-                fontSize="18px"
+                fontSize={{ base: "16px", sm: "18px" }}
                 lineHeight="1"
                 color={INK_MUTED}
                 cursor="pointer"
@@ -106,13 +111,13 @@ export default function ReactionsBar({
                     type="button"
                     key={reaction}
                     {...GLASS}
-                    w={{ base: "40px", sm: "44px" }}
-                    h={{ base: "40px", sm: "44px" }}
+                    w={{ base: "34px", sm: "44px" }}
+                    h={{ base: "34px", sm: "44px" }}
                     rounded="full"
                     display="flex"
                     alignItems="center"
                     justifyContent="center"
-                    fontSize="18px"
+                    fontSize={{ base: "16px", sm: "18px" }}
                     lineHeight="1"
                     opacity={!expanded ? 0 : resting ? 0.45 : 1}
                     pointerEvents={expanded ? "auto" : "none"}

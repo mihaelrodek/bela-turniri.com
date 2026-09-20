@@ -41,11 +41,11 @@ import { MadjaricaSuitIcon, suitImage, useDecodedImage } from "../cards/madjaric
 
 /** Named sizes, so `<SuitIcon size="md" />` matches the card it sits beside;
  *  any CSS length also works for a glyph that has to line up with text. */
-const ICON_SIZES: Record<CardSize, string> = { sm: "14px", md: "18px", ml: "21px", lg: "24px" }
+const ICON_SIZES: Record<CardSize, string> = { xs: "12px", sm: "14px", md: "18px", ml: "21px", lg: "24px" }
 
 function iconLength(size: CardSize | number | string): string {
     if (typeof size === "number") return `${size}px`
-    if (size === "sm" || size === "md" || size === "ml" || size === "lg") return ICON_SIZES[size]
+    if (size === "xs" || size === "sm" || size === "md" || size === "ml" || size === "lg") return ICON_SIZES[size]
     return size
 }
 

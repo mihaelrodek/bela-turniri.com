@@ -31,7 +31,7 @@ interface WebKitGlobal {
     webkitAudioContext?: typeof AudioContext
 }
 
-export type GameSound = "gameLaunch" | "gameStart" | "card" | "gameWon" | "gameLost"
+export type GameSound = "seatJoin" | "gameLaunch" | "gameStart" | "card" | "gameWon" | "gameLost"
 
 let audioContext: AudioContext | null = null
 const activeOscillators: OscillatorNode[] = []
@@ -159,13 +159,87 @@ export function stopAllSounds(): void {
     activeBufferSources.length = 0
 }
 
-/** Play a sound using WebAudio. */
+/**
+ * Keep the audio context unlocked for as long as the table is on screen.
+ *
+ * The old version armed ONE `pointerdown`/`keydown` listener with
+ * `{ once: true }`, which is right for the very first unlock and useless
+ * afterwards: iOS suspends the context every time the PWA is backgrounded, so
+ * from the first trip to the home screen onwards the game was silent until a
+ * reload (2026-09-20, user report). These listeners stay for the lifetime of
+ * the screen — `primeAudio` is a no-op on a running context — and the
+ * foreground return is covered too, because that is exactly when iOS has just
+ * suspended us and the player is not necessarily about to tap anything.
+ *
+ * Returns its own teardown, so a caller can drop it in a `useEffect`.
+ */
+export function installAudioUnlock(): () => void {
+    if (typeof window === "undefined") return () => {}
+    const unlock = (): void => primeAudio()
+    const onVisible = (): void => {
+        if (document.visibilityState === "visible") primeAudio()
+    }
+    window.addEventListener("pointerdown", unlock, { passive: true })
+    window.addEventListener("keydown", unlock)
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("pageshow", unlock)
+    return () => {
+        window.removeEventListener("pointerdown", unlock)
+        window.removeEventListener("keydown", unlock)
+        document.removeEventListener("visibilitychange", onVisible)
+        window.removeEventListener("pageshow", unlock)
+    }
+}
+
+/**
+ * Play a sound using WebAudio.
+ *
+ * iOS (2026-09-20, user report: "na pwa na ios ne rade zvukovi") needs two
+ * things this used to get wrong:
+ *
+ *   1. `resume()` is ASYNCHRONOUS. The very tap that unlocks the context —
+ *      "Pokreni igru", the first card — used to be voiced in the same tick,
+ *      while the state was still "suspended", and the cue was dropped on the
+ *      floor. A context that is not running now gets resumed and the cue is
+ *      rendered when that lands, as long as it lands promptly (`STALE_MS`) —
+ *      a cue that arrives a second late is worse than no cue.
+ *   2. iOS SUSPENDS the context whenever the PWA is backgrounded (and moves
+ *      it to Safari's own "interrupted" state during a call). Everything but
+ *      "running" is therefore treated as "needs a resume", not as "give up",
+ *      and `installAudioUnlock` below keeps re-priming on every gesture and
+ *      on the return to the foreground rather than only on the first tap.
+ *
+ * What this does NOT fix is the iPhone's ring/silent switch: Web Audio plays
+ * in the "ambient" session, which that switch mutes. Overriding it needs
+ * `navigator.audioSession.type = "playback"`, which also interrupts whatever
+ * the player is listening to — deliberately not done (2026-09-20).
+ */
+const STALE_MS = 400
+
 export function playSound(sound: GameSound): void {
     if (!getGamePrefs().sound) return
-    if (!audioContext) primeAudio()
-    if (!audioContext || audioContext.state === "suspended") return
+    const ctx = ensureContext()
+    if (!ctx) return
+    preloadSounds()
+    if (ctx.state === "running") {
+        renderSound(ctx, sound)
+        return
+    }
+    const asked = Date.now()
+    ctx.resume().then(
+        () => {
+            if (ctx.state !== "running") return
+            if (Date.now() - asked > STALE_MS) return
+            renderSound(ctx, sound)
+        },
+        () => {
+            // Only a user gesture may resume; the next one will.
+        },
+    )
+}
 
-    const ctx = audioContext
+/** The cue itself, on a context that is known to be running. */
+function renderSound(ctx: AudioContext, sound: GameSound): void {
     const now = ctx.currentTime
 
     // Shared output for this cue. Each voice below owns its attack/decay
@@ -176,6 +250,17 @@ export function playSound(sound: GameSound): void {
     out.gain.setValueAtTime(1, now)
 
     switch (sound) {
+        case "seatJoin":
+            /* Somebody sat down — a player who joined the room or a bot that
+               was added (2026-09-20, user request). Two soft notes, a fifth
+               apart and quieter than anything else here: it fires while the
+               room is being filled, possibly four times in a row, so it has
+               to be a nudge rather than an announcement. Lower and warmer
+               than `gameLaunch`, which answers the tap that follows it. */
+            playBell(ctx, out, now, 587.33, 0.18, 0.05)
+            playBell(ctx, out, now + 0.07, 880.0, 0.3, 0.06)
+            break
+
         case "gameLaunch":
             /* The tap on "Pokreni igru" (2026-09-20, user request). Short and
                bright — two rising bell notes — so it reads as "yes, off we

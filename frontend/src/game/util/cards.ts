@@ -257,8 +257,12 @@ export function sortHandForDisplay(hand: readonly Card[]): Card[] {
 /* ─────────────────────────── card metrics ─────────────────────────── */
 
 /** `ml` exists for the desktop hand only: a step between `md` and `lg`, the
- *  biggest card whose row of eight still fits the column beside my avatar. */
-export type CardSize = "sm" | "md" | "ml" | "lg"
+ *  biggest card whose row of eight still fits the column beside my avatar.
+ *  `xs` is the phone HAND (2026-09-20, user request: in a browser tab, where
+ *  the URL bar eats the height a PWA keeps, the hand was taking the room the
+ *  trick needed). It is only ever the hand: nothing thrown on the felt is
+ *  drawn this small. */
+export type CardSize = "xs" | "sm" | "md" | "ml" | "lg"
 
 /**
  * One table of card geometry, so a card in the trick, a card in the hand and
@@ -278,6 +282,7 @@ export const CARD_METRICS: Record<CardSize, {
     cornerFont: string
     radius: string
 }> = {
+    xs: { w: "48px", h: "72px", rankFont: "13px", pipFont: "22px", cornerFont: "10px", radius: "sm" },
     sm: { w: "56px", h: "84px", rankFont: "15px", pipFont: "26px", cornerFont: "12px", radius: "sm" },
     md: { w: "72px", h: "108px", rankFont: "19px", pipFont: "34px", cornerFont: "15px", radius: "md" },
     ml: { w: "84px", h: "126px", rankFont: "22px", pipFont: "40px", cornerFont: "17px", radius: "md" },
@@ -295,6 +300,7 @@ export const CARD_METRICS: Record<CardSize, {
  * overflow because of this.
  */
 export const MADJARICA_HEIGHT: Record<CardSize, string> = {
+    xs: "77px",
     sm: "90px",
     md: "116px",
     ml: "135px",
@@ -309,6 +315,7 @@ export const MADJARICA_HEIGHT: Record<CardSize, string> = {
  * around a squarer box, and nothing of the art is clipped.
  */
 export const MADJARICA_RADIUS: Record<CardSize, string> = {
+    xs: "3px",
     sm: "3px",
     md: "4px",
     ml: "5px",

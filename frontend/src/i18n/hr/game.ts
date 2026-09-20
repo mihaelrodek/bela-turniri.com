@@ -402,6 +402,8 @@ export const game = {
     "settings.sound": "Zvuk",
     "settings.reduceMotion": "Smanji animacije",
     "settings.reduceMotionHint": "Također slijedi sistemsku postavku za smanjene animacije.",
+    "settings.keepAwake": "Drži zaslon uključenim",
+    "settings.keepAwakeHint": "Zaslon se neće zaključati dok traje dijeljenje. Zatamnjenje ostaje.",
     "settings.deckType": "Vrsta karata",
     /* Četiri špila (2026-09-20): tri su mađarice i razlikuju se samo po
        crtežu — registar je u game/util/cards.ts, id-evi su ono što se pamti

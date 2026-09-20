@@ -74,42 +74,70 @@ export function BelaFlash({ seats, seat }: { seats: RoomState["seats"]; seat: Se
     )
 }
 
-/** "Bot Dora zove žir" — a beat in the middle of the felt the moment trump is
- *  settled, gone again well inside TRUMP_SET's dwell (GameRoomPage times it).
+/** "Bot Dora zove žir" — the moment trump is settled.
+ *
+ *  A FULL OVERLAY since 2026-09-20 (user request: "stavi bas veci modal koji
+ *  se automatski makne kao kad prikazuje zvanja ali krace traje"): same
+ *  portal, same dimmed backdrop and same card as the declarations reveal
+ *  below, so the two read as one family — only bigger in the suit and much
+ *  shorter on screen (`TRUMP_FLASH_MS` in `GameRoomPage`, 1500 ms inside
+ *  TRUMP_SET's own 1600 ms dwell, against the declarations' 4000 ms).
+ *  It cannot be dismissed by hand and eats no taps (`pointerEvents="none"`):
+ *  it is gone before anybody could reach for it, and swallowing the tap that
+ *  starts the next card would be worse than the beat itself.
+ *
  *  The caller's medallion and the score panel carry the fact for the rest of
  *  the deal; this only makes sure nobody missed the moment it happened. */
 export function TrumpFlash({ seats, seat, suit }: { seats: RoomState["seats"]; seat: Seat; suit: Suit }) {
     const { t } = useTranslation()
     return (
-        <Flex position="absolute" inset="0" align="center" justify="center" pointerEvents="none" zIndex={9}>
-            <HStack
-                gap="3"
-                {...GLASS_STRONG}
-                borderColor="brand.300"
-                rounded="l3"
-                px="5"
-                py="3"
-                role="status"
-                aria-live="polite"
-                boxShadow="0 0 40px rgba(127,196,150,0.4)"
+        <Portal>
+            <Flex
+                position="fixed"
+                inset="0"
+                align="center"
+                justify="center"
+                px="3"
+                zIndex={1500}
+                pointerEvents="none"
+                bg="blackAlpha.500"
+                backdropFilter="blur(2px)"
                 css={{
-                    ...GLASS_STRONG.css,
-                    animation: "trumpFlashIn 180ms cubic-bezier(0.22, 1.2, 0.36, 1)",
-                    "@keyframes trumpFlashIn": {
-                        from: { transform: "scale(0.7)", opacity: 0 },
-                        to: { transform: "scale(1)", opacity: 1 },
-                    },
+                    animation: "trumpBackdropIn 160ms ease-out",
+                    "@keyframes trumpBackdropIn": { from: { opacity: 0 }, to: { opacity: 1 } },
                 }}
             >
-                <SuitIcon suit={suit} size={36} />
-                <Text fontSize="lg" fontWeight="bold" color={INK} lineHeight="1.2">
-                    {t("game.trump.calledBy", {
-                        name: seatName(seats, seat, t("game.seat.empty")),
-                        suit: t(`game.suit.${suit}`),
-                    })}
-                </Text>
-            </HStack>
-        </Flex>
+                <VStack
+                    gap="3"
+                    {...GLASS_STRONG}
+                    borderColor="brand.300"
+                    rounded="l3"
+                    w="100%"
+                    maxW="340px"
+                    px="6"
+                    py="6"
+                    role="status"
+                    aria-live="polite"
+                    boxShadow="0 18px 40px rgba(0,0,0,0.55)"
+                    css={{
+                        ...GLASS_STRONG.css,
+                        animation: "trumpFlashIn 180ms cubic-bezier(0.22, 1.2, 0.36, 1)",
+                        "@keyframes trumpFlashIn": {
+                            from: { transform: "scale(0.8)", opacity: 0 },
+                            to: { transform: "scale(1)", opacity: 1 },
+                        },
+                    }}
+                >
+                    <SuitIcon suit={suit} size={88} />
+                    <Text fontSize="2xl" fontWeight="bold" color={INK} lineHeight="1.15" textAlign="center">
+                        {t("game.trump.calledBy", {
+                            name: seatName(seats, seat, t("game.seat.empty")),
+                            suit: t(`game.suit.${suit}`),
+                        })}
+                    </Text>
+                </VStack>
+            </Flex>
+        </Portal>
     )
 }
 
@@ -289,6 +317,12 @@ export default function DeclarationsReveal({
                 backdropFilter="blur(2px)"
                 onClick={onDismiss}
                 css={{
+                    // Same rule as the table under it (2026-09-20): this is a
+                    // picture of cards, not text to select. Portals render
+                    // outside the room's own subtree, so it is repeated here.
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                    WebkitTouchCallout: "none",
                     animation: "belaRevealIn 180ms ease-out",
                     "@keyframes belaRevealIn": { from: { opacity: 0 }, to: { opacity: 1 } },
                 }}

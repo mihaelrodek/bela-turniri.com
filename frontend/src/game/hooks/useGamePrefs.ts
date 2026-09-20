@@ -24,6 +24,9 @@ export interface GamePrefs {
     /** Manual "Smanji animacije"; combined with `prefers-reduced-motion` by consumers. */
     reduceMotion: boolean
     alwaysReady: boolean
+    /** "Drži zaslon uključenim" — hold a Screen Wake Lock while a deal is
+     *  running, so a phone lying on the table does not lock mid-hand. */
+    keepAwake: boolean
 }
 
 export const DEFAULT_GAME_PREFS: GamePrefs = {
@@ -34,6 +37,10 @@ export const DEFAULT_GAME_PREFS: GamePrefs = {
     // are ready in a four-seat game people opened on purpose; the switch stays
     // so anybody who wants the extra beat can turn it off.
     alwaysReady: true,
+    // ON by default (2026-09-20, user request): a game of bela has long
+    // stretches where the player only watches, which is exactly when iOS
+    // decides the screen may go off.
+    keepAwake: true,
 }
 
 const STORAGE_KEY = "bela:game:prefs:v1"
@@ -54,6 +61,8 @@ function load(): GamePrefs {
             // this change starts ready rather than being silently opted out;
             // only a stored `false` turns it off.
             alwaysReady: parsed.alwaysReady !== false,
+            // Same "absent means the default" rule as `alwaysReady`.
+            keepAwake: parsed.keepAwake !== false,
         }
     } catch {
         return DEFAULT_GAME_PREFS
