@@ -1,8 +1,10 @@
 import type { GameStatRecord, PlayerGameStats } from "@bela/protocol"
 
-/** Belot's three disciplines, in the order the lobby's stat row and the
- *  create-room target-score picker both use. */
-export const STAT_TARGET_SCORES = ["501", "701", "1001"] as const
+/** Belot's four disciplines, in the order the lobby's stat row and the
+ *  create-room target-score picker both use. "163" ("Brza 163") is the
+ *  quick-play discipline and sorts first, matching the game engine's own
+ *  `TargetScore` union (`game/packages/engine/src/types.ts`). */
+export const STAT_TARGET_SCORES = ["163", "501", "701", "1001"] as const
 export type StatTargetScore = (typeof STAT_TARGET_SCORES)[number]
 
 const EMPTY_RECORD: GameStatRecord = { games: 0, wins: 0, losses: 0, winRate: 0 }

@@ -65,6 +65,7 @@ export const common: CommonDict = {
     "nav.profil": "Profil",
     "nav.novosti": "Novosti",
     "nav.igraj": "Igraj",
+    "nav.new": "Novo",
     "nav.blok": "Blok",
     "nav.logout": "Odjavi se",
     "nav.profileMenuAriaLabel": "Meni profila",

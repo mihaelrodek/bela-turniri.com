@@ -17,7 +17,7 @@ import type {
     Team,
     TrickCard,
 } from "./types"
-import { DEFAULT_GAME_END_RULE, SEATS, SUITS, EngineError } from "./types"
+import { DEFAULT_GAME_END_RULE, QUICK_MAX_DEALS, SEATS, SUITS, EngineError, isQuickGame } from "./types"
 import { cardRank, cardSuit, fullDeck, sortHand } from "./cards"
 import { createRng, nextInt, shuffle } from "./rng"
 import { nextSeat, seatFrom, teamOf } from "./seats"
@@ -143,6 +143,11 @@ function startDeal(
  * count yet), and whenever the race is undecided.
  */
 function dostaOutcome(state: GameState): { winner: Team; score: Record<Team, number> } | null {
+    // "Brza 163" is settled at the END of a deal and nowhere else (2026-09-20),
+    // so the mid-deal race never runs there. `newGame` already normalises the
+    // rule away for a quick game; this is the belt to that braces, because a
+    // GameState can also be handed in from outside (a saved game, a test).
+    if (isQuickGame(state.config.targetScore)) return null
     if ((state.config.gameEndRule ?? DEFAULT_GAME_END_RULE) !== "dosta") return null
     if (state.bidding.trump === null) return null
 
@@ -189,23 +194,48 @@ function finishByDosta(
 function gameWinner(config: GameConfig, score: Record<Team, number>, dealScore: GameState["dealScore"]): Team | null {
     if (dealScore?.belot) return dealScore.belot
     const target = config.targetScore
+    // A level total NEVER decides anything, in any discipline — including the
+    // quick game, where it is the one thing that buys a fourth deal.
     if (score.A === score.B) return null
+    /* "Brza 163" (2026-09-20). A plain end-of-deal comparison: no pass/fall
+       condition (the caller need not have passed), no `dosta` race, no
+       "caller must lead" clause. Either the target has fallen, or the three
+       deals are up and whoever is ahead — at 87 points, if that is how the
+       cards went — takes it. */
+    if (isQuickGame(target)) {
+        if (score.A >= target || score.B >= target) return score.A > score.B ? "A" : "B"
+        // `dealScore` is the deal that was just settled, so its `dealNo` is
+        // how many deals have been played. Null only for a state handed in
+        // before any deal was scored, which cannot end a game either way.
+        if ((dealScore?.dealNo ?? 0) >= QUICK_MAX_DEALS) return score.A > score.B ? "A" : "B"
+        return null
+    }
     if ((config.gameEndRule ?? "prolaz") === "dosta") {
         if (score.A < target && score.B < target) return null
         return score.A > score.B ? "A" : "B"
     }
-    if (!dealScore?.passed) return null
-    const caller = dealScore.callerTeam
-    const other: Team = caller === "A" ? "B" : "A"
-    if (score[caller] < target || score[caller] <= score[other]) return null
-    return caller
+    /* `prolaz`: checked only once a deal is played out and scored, and then
+       it is a plain comparison — a pair at or over the target wins if it is
+       ahead. Who called and who passed does NOT matter (2026-09-20, user's
+       ruling after a table sat at 631 of 501 and kept dealing): a pair can
+       fall in one deal and still have banked enough, and the defenders who
+       brought a caller down take the game with his points. The only thing
+       that separates it from `dosta` is WHEN the question is asked — never
+       mid-deal. */
+    if (score.A < target && score.B < target) return null
+    return score.A > score.B ? "A" : "B"
 }
 
 export function newGame(config: GameConfig): GameState {
     const seeded = createRng(config.seed)
     const normalizedConfig: GameConfig = {
         ...config,
-        gameEndRule: config.gameEndRule ?? DEFAULT_GAME_END_RULE,
+        // A quick game has no mid-deal finish, so `dosta` is meaningless in
+        // it and is dropped rather than carried around as a lie the lobby row
+        // would then advertise (2026-09-20).
+        gameEndRule: isQuickGame(config.targetScore)
+            ? DEFAULT_GAME_END_RULE
+            : (config.gameEndRule ?? DEFAULT_GAME_END_RULE),
     }
     // The very first dealer comes out of the RNG; afterwards the deal rotates.
     const pick = nextInt(seeded, 4)

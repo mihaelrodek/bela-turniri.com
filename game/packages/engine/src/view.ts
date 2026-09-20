@@ -5,7 +5,7 @@
    comments on PlayerView in types.ts. */
 
 import type { Card, Declaration, GameState, PlayerView, Seat, TrickReview, WonTrick } from "./types"
-import { DEFAULT_TRICK_REVIEW, SEATS } from "./types"
+import { DEFAULT_TRICK_REVIEW, QUICK_MAX_DEALS, SEATS, isQuickGame } from "./types"
 import { legalBids, legalMoves } from "./rules"
 import { currentDealPoints, declarationPoints } from "./scoring"
 import { teamOf } from "./seats"
@@ -135,6 +135,9 @@ export function viewFor(state: GameState, seat: Seat | null, opts?: ViewOptions)
         dealNo: state.dealNo,
         dealer: state.dealer,
         targetScore: state.config.targetScore,
+        // Only "Brza 163" plans a fixed number of deals (2026-09-20); every
+        // other discipline plays until the target falls, and says so with null.
+        maxDeals: isQuickGame(state.config.targetScore) ? QUICK_MAX_DEALS : null,
         hand: seat === null ? [] : state.hands[seat].slice(),
         handSizes,
         bidding: { ...state.bidding, passes: state.bidding.passes.slice() },

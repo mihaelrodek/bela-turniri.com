@@ -161,4 +161,9 @@
          direction, declarations and bela. -->
     <include file="db/changelog/tournament_game_rules.xml" relativeToChangelogFile="false"/>
 
+    <!-- "Brza 163" quick-play online-game discipline: widens the CHECK on
+         game_results.target_score (2026-09-08-game-stats) to allow 163
+         alongside 501/701/1001. -->
+    <include file="db/changelog/game_quick_163.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>

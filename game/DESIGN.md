@@ -16,10 +16,20 @@ zraka, ništa ne treperi.
 **Lobby (`/home`).** Avatar + ime gore lijevo, hamburger gore desno (Početna /
 Zajednica / Postavke). Naslov "Postojeće igre" + badge s brojem. Search.
 Lista soba: kartica = ime sobe (dvije hrvatske riječi, npr. "medeni-fakultet"),
-badge cilja (501/701/1001), lokot ako je privatna, red avatara `2 vs 2` s
+badge cilja (163/501/701/1001), lokot ako je privatna, red avatara `2 vs 2` s
 praznim krugom za slobodno mjesto, chevron. Fiksni zeleni CTA dolje
-**"Nova igra +"**. Klik → mali modal "Do koliko se igra?" 501 / 701 / 1001 →
-soba se odmah kreira (bez forme za ime).
+**"Nova igra +"**. Klik → mali modal "Do koliko se igra?" 163 / 501 / 701 /
+1001 → soba se odmah kreira (bez forme za ime).
+
+**„Brza 163" (2026-09-20).** Cilj `163` je zasebna disciplina, ne način igre:
+najviše **tri dijeljenja**, prvi djelitelj nasumičan, pobjeđuje 163+ ili — ako
+nitko ne stigne — veći zbroj nakon treće podjele; neriješeno kupuje još jednu.
+Pravila su u `game/README.md` §1.7. Za UI to znači dvije stvari: chip „Brza
+163" među ciljevima (natpis iz i18n ključa `game.create.quick.name`), a stol
+umjesto „do 1001" piše napredak u podjelama (`PlayerView.maxDeals`, npr.
+„dijeljenje 2/3"). Izbor `gameEndRule` u takvoj sobi nema smisla i skriva se —
+server ga ionako normalizira na `prolaz`. Statistika je posebna kategorija
+(`byTargetScore["163"]`).
 
 **Soba (`/home/room`).** Gore: "Ime igre" (italic label) + **ime (501)** +
 "🔒 Šifra za ulaz: 5810" (4-znamenkasti kod za ulazak). Izlaz ikona desno.
@@ -123,8 +133,10 @@ animacije** toggle, **Vrsta karata: Francuske / Mađarice / Moderne**
    fiksni CTA "Nova igra", modal 501/701/1001, auto-ime sobe (dvije hrvatske
    riječi), **šifra za ulaz** (4 znamenke) + "Pridruži se šifrom", privatna
    igra, sjedala u redovima s "Dodaj bota" / ✕, "Pokreni igru".
-10. **Postavke igre** (u `/igra`, ikona zupčanika): zvuk (WebAudio, bez
-    datoteka), smanji animacije, vrsta karata (Klasične / Moderne / Vektorske
+10. **Postavke igre** (u `/igra`, ikona zupčanika): zvuk (snimljeni uzorci za
+    kartu/miješanje — Kenney "Casino Audio", CC0, `frontend/src/game/sounds/`
+    — uz WebAudio sintezu kao fallback dok se uzorci ne učitaju i za pobjedu/
+    poraz), smanji animacije, vrsta karata (Klasične / Moderne / Vektorske
     / Francuske — mreža 2 × 2 da stane na 360 px, svaka opcija crta uzorak
     svojim špilom), spremljeno u `localStorage` preko `hooks/useGamePrefs.ts`.
     Odabir špila grije taj špil (`cards/madjarice/preload.ts` →
@@ -433,3 +445,43 @@ sve brojke računa stranica koja ima `view`.
   su netaknuta.
 - **Motion**: nove tranzicije su ≤ 160 ms; `reducedMotion` gasi kretanje, ne
   izgled.
+
+## 7. Red događaja: kad se vide dvije karte iz talona i što kad istekne vrijeme (2026-09-20)
+
+### 7.1 Talon se otkriva **na zvanje aduta**, ne 2,4 s poslije
+Engine u istom stanju zaključa adut *i* dopuni ruku na osam karata, a
+`useEventQueue` taj trenutak namjerno razlaže na ljudske korake
+(`BID` 800 ms → `TRUMP_SET` 1600 ms → `HAND_COMPLETED` 1600 ms →
+`DECLARATIONS_REVEALED` 4000 ms = točno 8000 ms serverskog `declarationsMs`).
+Maska `talonRevealedDeal` u `GameRoomPage.tsx` ranije je čekala
+`HAND_COMPLETED`, pa su se dvije nove karte pojavljivale 1,6–2,4 s nakon što
+je stol već znao adut — zvač je gledao svojih šest karata i čekao
+(zahtjev korisnika: „kad se odazove adut stavi da se odmah vide dodatne 2
+karte, a ne da se mora cekati”).
+
+Sada masku otključava **prvi događaj koji pokazuje zvanje**: `BID` (a
+`TRUMP_SET` i `HAND_COMPLETED` ostaju kao rezervni okidači). Ključ je i dalje
+**red događaja**, a ne `view.bidding.trump` — tuđi „Dalje” čipovi odigraju se
+prije zvanja kao i do sada, a nijedan dwell se ne mijenja, pa zajednička
+startna linija od 8 s ostaje netaknuta. Ruka zadržava fiksnih osam slotova,
+prikvačena kašnjenja dijeljenja i `sessionStorage` ključ layouta
+(`Hand.tsx`, `handLayout.ts`): dvije nove karte samo *umontiraju* se u svoju
+sortiranu poziciju i odigraju `DEAL_IN`, ostale zadrže svoj DOM čvor.
+Maske se i dalje brišu na svakoj `BIDDING` fazi (nova podjela, revanš).
+
+### 7.2 „Propustio si potez”
+Kad istekne 15 s, server jednom odigra potez umjesto igrača i sljedeći
+`game.state` nosi `autoPlayed: true` (`gameRoom.ts`, `actForSeat`). Zastavica
+ne nosi sjedalo, pa se potez pripisuje preko događaja: `game.events` ide
+**prije** svog `game.state`, a jedan `apply()` je jedna akcija, pa je akter
+sjedalo zadnjeg `BID` / `PASS` / `CARD_PLAYED` u tom okviru. Ako je to moje
+sjedalo, otvara se `MissedTurnDialog` — mali informativni dijalog, ništa ne
+blokira i ne pauzira red događaja.
+
+Namjerno usko: ne pali se za tuđi istek, ne za gledatelje, ne za zaostale
+događaje koje dobije klijent pri (ponovnom) ulasku (kursor preskače sve što je
+već u ring bufferu, isto kao kursor za zvukove) i ne za automatski
+`NEXT_DEAL` (njegov okvir nema događaj sa sjedalom). Zatvara ga gumb, backdrop,
+kraj partije, ili — najprirodnije — sljedeći moj potez: svaki `game.bid`,
+`game.pass` i `game.play` gasi dijalog. Nema „away” načina na serveru: igrač
+jednostavno nastavlja na sljedećem svom potezu.

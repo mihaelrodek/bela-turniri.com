@@ -47,7 +47,7 @@ public class GameAnalyticsService {
         long inProgress = starts.stream().filter(e -> !terminalRuns.contains(e.getRunId())).count();
 
         Map<String, long[]> targets = new LinkedHashMap<>();
-        targets.put("501", new long[3]); targets.put("701", new long[3]); targets.put("1001", new long[3]);
+        targets.put("163", new long[3]); targets.put("501", new long[3]); targets.put("701", new long[3]); targets.put("1001", new long[3]);
         Map<String, String> targetByRun = new LinkedHashMap<>();
         long publicGames = 0, privateGames = 0, humanOnly = 0, mixed = 0, botOnly = 0;
         for (GameAnalyticsEvent event : starts) {

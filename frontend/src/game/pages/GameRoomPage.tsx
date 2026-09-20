@@ -20,6 +20,7 @@ import GameSettingsSheet from "../components/GameSettingsSheet"
 import Hand from "../components/Hand"
 import { HAND_CARD_SIZE, handRowWidth } from "../components/handLayout"
 import JoinByCodeDialog from "../components/JoinByCodeDialog"
+import MissedTurnDialog from "../components/MissedTurnDialog"
 import ReactionsBar from "../components/ReactionsBar"
 import ReconnectBanner from "../components/ReconnectBanner"
 import RoomPanel from "../components/RoomPanel"
@@ -200,11 +201,26 @@ export default function GameRoomPage() {
     /* The engine completes the hand in the same state update that settles
        trump. The event queue intentionally presents those as separate human
        moments, so retain the actual six-card hand from bidding plus two backs
-       until HAND_COMPLETED itself reaches the front of that queue. Slicing
+       until the CALL itself reaches the front of that queue. Slicing
        the new eight-card, already-sorted hand here would temporarily replace
        cards before the talon was revealed. On a reconnect there is no event
        backlog to replay; an idle, already-playing view is therefore hydrated
-       immediately. */
+       immediately.
+
+       Which event is "the call"? Until 2026-09-20 this waited for
+       HAND_COMPLETED, which sits behind the calling BID (800 ms) and the
+       TRUMP_SET popup (1600 ms): the two talon cards appeared 1.6–2.4 s after
+       the table had already been told what the trump is, and a player who
+       called it themselves sat looking at six cards for most of that
+       ("kad se odazove adut stavi da se odmah vide dodatne 2 karte" — user
+       request). The talon is now released by the FIRST event that shows the
+       call, i.e. the calling BID, with TRUMP_SET kept as a belt-and-braces
+       second trigger (the forced "mus" path, and any future frame where a
+       trump is set without a BID of its own). Keying it on the QUEUE and not
+       on `view.bidding.trump` is what keeps it honest: other players' PASS
+       chips still play back first, exactly as before, and the dwell budget
+       (BID 800 + TRUMP_SET 1600 + HAND_COMPLETED 1600 + DECLARATIONS 4000 =
+       the server's 8000 ms `declarationsMs`) is untouched. */
     const [talonRevealedDeal, setTalonRevealedDeal] = useState<number | null>(() =>
         view && view.phase !== "BIDDING" ? view.dealNo : null,
     )
@@ -228,7 +244,14 @@ export default function GameRoomPage() {
             return
         }
         if (
-            active?.type === "HAND_COMPLETED"
+            // The call, as the queue shows it (2026-09-20): BID is the moment
+            // a suit is named, TRUMP_SET its popup, HAND_COMPLETED the old
+            // trigger — kept so a queue that somehow starts mid-sequence
+            // (a frame whose earlier events were trimmed from the ring
+            // buffer) still ends up with eight cards.
+            active?.type === "BID"
+            || active?.type === "TRUMP_SET"
+            || active?.type === "HAND_COMPLETED"
             || hydrateTalonAfterConnect.current
             || (firstViewForDeal && active === null)
         ) {
@@ -473,6 +496,73 @@ export default function GameRoomPage() {
         if (phase !== "GAME_OVER") setOverDismissed(false)
     }, [phase])
 
+    /* ── "Propustio si potez" (2026-09-20, user request) ──────────────────
+       When a human's 15 s turn clock expires the server's bot plays exactly
+       ONE move for that seat and the `game.state` of that transition carries
+       `autoPlayed: true` (game/packages/server/src/gameRoom.ts, `actForSeat`).
+       The flag names no seat, so attribution comes from the events: the
+       server broadcasts `game.events` BEFORE the `game.state` they produced
+       and one `apply()` is one action, so the acting seat is the seat on the
+       last BID / PASS / CARD_PLAYED of the frame that just landed. (TRICK_WON
+       carries a winner, not an actor; DEALT and DECLARATIONS_REVEALED carry
+       nobody — which is also what keeps the auto-advanced NEXT_DEAL, whose
+       state is `autoPlayed: true` as well, from ever being mistaken for a
+       missed move.)
+
+       Deliberately narrow: never for another seat's timeout, never for a
+       spectator, never for the backlog a (re)joining client is handed — the
+       cursor skips whatever was already buffered, exactly like the sound
+       cursor above, and a reconnect's `game.state` describes an action from
+       before the gap, so attribution is dropped whenever the socket is not
+       open. It is purely informational: it blocks nothing, it does not pause
+       the queue, and it closes itself the moment the player acts again. */
+    const [missedTurn, setMissedTurn] = useState(false)
+    /** Seat that acted in the newest `game.events` frame, waiting for the
+     *  `game.state` behind it to say whether the server played it for them. */
+    const pendingActorRef = useRef<Seat | null>(null)
+    const autoCursorRef = useRef(-1)
+    const lastViewRef = useRef(socket.view)
+    useEffect(() => {
+        if (phase === "GAME_OVER") setMissedTurn(false)
+    }, [phase])
+    useEffect(() => {
+        if (socket.status !== "open") {
+            pendingActorRef.current = null
+            lastViewRef.current = socket.view
+            autoCursorRef.current = -1
+            return
+        }
+        const events = socket.events
+        if (autoCursorRef.current < 0 && events.length > 0) {
+            autoCursorRef.current = events[events.length - 1].id
+            lastViewRef.current = socket.view
+            return
+        }
+        for (const item of events) {
+            if (item.id <= autoCursorRef.current) continue
+            autoCursorRef.current = item.id
+            const event = item.event
+            if (event.type === "BID" || event.type === "PASS" || event.type === "CARD_PLAYED") {
+                pendingActorRef.current = event.seat
+            }
+        }
+        /* Every `game.state` carries a freshly decoded `view`, so a changed
+           object identity is exactly "one more state frame arrived" — the
+           `autoPlayed` flag itself cannot be used as the trigger, because two
+           timeouts in a row never change its value. */
+        const stateArrived = lastViewRef.current !== socket.view
+        lastViewRef.current = socket.view
+        if (!stateArrived) return
+        const actor = pendingActorRef.current
+        pendingActorRef.current = null
+        if (!socket.autoPlayed || actor === null || mySeat === null || actor !== mySeat) return
+        if (socket.view?.phase === "GAME_OVER") return
+        // Already open (a second timeout before the player came back): it
+        // simply stays open rather than flashing.
+        setMissedTurn(true)
+        playHaptic("turnWarning")
+    }, [socket.events, socket.view, socket.autoPlayed, socket.status, mySeat])
+
     // Declarations dismiss themselves after the queue's dwell; a tap closes
     // them sooner. Each new reveal starts visible again.
     const [declHidden, setDeclHidden] = useState(false)
@@ -705,12 +795,19 @@ export default function GameRoomPage() {
         return view.hand.includes(makeCard("K", trump)) && view.hand.includes(makeCard("Q", trump))
     }
 
+    /* Acting myself answers the "Propustio si potez" notice better than any
+       button does, so every outgoing move closes it (2026-09-20). Kept as one
+       helper rather than four `setMissedTurn(false)` calls so a future move
+       type cannot forget it. */
+    const clearMissedTurn = () => setMissedTurn(false)
+
     /** Send the move, asking about the bela first when this card raises it. */
     const playCard = (card: Card) => {
         if (shouldAskBela(card)) {
             setBelaAsk(card)
             return
         }
+        clearMissedTurn()
         socket.send({ t: "game.play", card })
     }
 
@@ -731,6 +828,7 @@ export default function GameRoomPage() {
 
     const answerBela = (bela: boolean) => {
         if (belaAsk === null) return
+        clearMissedTurn()
         socket.send({ t: "game.play", card: belaAsk, bela })
         setBelaAsk(null)
     }
@@ -1231,8 +1329,14 @@ export default function GameRoomPage() {
                                 <BiddingPanel
                                     view={view}
                                     busy={busy}
-                                    onBid={(trump: Suit) => socket.send({ t: "game.bid", trump })}
-                                    onPass={() => socket.send({ t: "game.pass" })}
+                                    onBid={(trump: Suit) => {
+                                        clearMissedTurn()
+                                        socket.send({ t: "game.bid", trump })
+                                    }}
+                                    onPass={() => {
+                                        clearMissedTurn()
+                                        socket.send({ t: "game.pass" })
+                                    }}
                                 />
                             ) : (
                                 <Box css={{ [SHORT]: { display: "none" } }}>
@@ -1276,6 +1380,14 @@ export default function GameRoomPage() {
                     onClose={() => setChatOpen(false)}
                 />
             )}
+
+            {/* Informational only, and never stacked on the end-of-game
+                dialog: the game being over says everything a missed move
+                would have. */}
+            <MissedTurnDialog
+                open={missedTurn && view?.phase !== "GAME_OVER"}
+                onClose={() => setMissedTurn(false)}
+            />
 
             {view && (
                 <GameOverDialog

@@ -248,6 +248,7 @@ export const profile: ProfileDict = {
     "gameStats.karma": "Karma",
     "gameStats.abandons": "Zapustitve",
     "gameStats.categoryStats": "{wins}/{n} ({winRate}%)",
+    "gameStats.targetScore.163": "Hitra 163",
     "gameStats.targetScore.501": "Do 501",
     "gameStats.targetScore.701": "Do 701",
     "gameStats.targetScore.1001": "Do 1001",

@@ -223,11 +223,16 @@ describe("seat hold on an explicit leave", () => {
         spectator.send({ t: "room.join", roomId: joined.room.id })
         expect((await spectator.nextOfType("room.joined")).yourSeat).toBeNull()
 
+        // A spectator is still a human in the room (Room.removeBotOnlyLobby):
+        // the host leaving does not take the lobby down under them.
         host.send({ t: "room.leave" })
         await host.nextOfType("room.left")
+        expect(server.roomCount()).toBe(1)
+
+        // The last human going does.
+        spectator.send({ t: "room.leave" })
         await spectator.nextOfType("room.left")
         await until(() => server?.lobby.get(joined.room.id) === undefined)
-
         expect(server.roomCount()).toBe(0)
     })
 

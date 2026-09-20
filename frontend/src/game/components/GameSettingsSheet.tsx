@@ -149,7 +149,7 @@ function GameAvatarSetting() {
 /** What `room.setOptions` carries, minus the tag. */
 export type RoomOptionsPatch = Omit<Extract<ClientMessage, { t: "room.setOptions" }>, "t">
 
-const TARGETS: readonly TargetScore[] = [501, 701, 1001]
+const TARGETS: readonly TargetScore[] = [163, 501, 701, 1001]
 
 /**
  * THIS GAME'S settings, at the top of the sheet — 2026-09-09, user request.
@@ -180,16 +180,20 @@ function RoomSettings({ room, onChange }: {
                 <Text fontSize="xs" color="fg.muted">{t("game.lobby.form.target")}</Text>
                 <HStack gap="2">
                     {TARGETS.map((target) => (
-                        <Button key={target} flex="1" h="10" colorPalette="brand"
+                        <Button key={target} flex="1" h="10" px="1" colorPalette="brand"
                             variant={room.targetScore === target ? "solid" : "outline"}
                             aria-pressed={room.targetScore === target}
                             onClick={() => onChange({ targetScore: target })}>
-                            {target}
+                            {target === 163 ? t("game.create.quick.name") : target}
                         </Button>
                     ))}
                 </HStack>
             </VStack>
 
+            {/* "Brza 163" has no end rule to choose: it is decided at the end
+                of a deal, by 163 or by the third deal (README §1.7), and the
+                server pins the rule to "prolaz" whatever is sent. */}
+            {room.targetScore !== 163 && (
             <HStack gap="2" minH="44px" px="3" py="2" rounded="lg"
                 bg="bg.subtle" borderWidth="1px" borderColor="border.subtle"
                 justifyContent="space-between">
@@ -207,6 +211,7 @@ function RoomSettings({ room, onChange }: {
                     ))}
                 </HStack>
             </HStack>
+            )}
 
             <GameOption compact label={t("game.room.allowSpectators")}
                 checked={room.allowSpectators}

@@ -60,7 +60,7 @@ naveden i ne mijenja se bez izmjene ovog dokumenta.
 **Belot (osam karata iste boje).** Kad su podijeljene zadnje dvije karte,
 engine provjerava drži li jedan igrač svih osam karata jedne boje. Takav belot
 odmah završava partiju prije prvog štiha: njegovu timu upisuje se puni
-`targetScore` (501/701/1001), drugom timu 0. Nije obično zvanje, ne ovisi o
+`targetScore` (163/501/701/1001), drugom timu 0. Nije obično zvanje, ne ovisi o
 postavkama `noDeclarations` ni `allowBela`, a zvač i odabrani adut ne mogu ga
 poništiti. Miješanje ostaje jednoliko i nema umjetno povećane šanse; ishod je
 samo prirodno vrlo rijedak. Engine emitira `BELOT`, `DEAL_SCORED` i `GAME_OVER`.
@@ -209,10 +209,11 @@ Pobjednik štiha: najjači adut ako ima aduta; inače najjača karta boje `L`.
 - Nema zaokruživanja bodova (varijanta "zaokruži na desetice" se NE koristi).
 
 ### 1.7 Kraj igre
-- Cilj: `targetScore` (default **1001**, opcije 501/701/1001) i pravilo
+- Cilj: `targetScore` (default **1001**, opcije **163**/501/701/1001) i pravilo
   `gameEndRule` (default **`prolaz`**):
-  - **prolaz** — partiju dobiva par koji u podjeli koju je zvao prođe, dosegne
-    cilj i nakon obračuna vodi u ukupnom rezultatu. Cilj se gleda **tek kad je
+  - **prolaz** — partiju dobiva par koji nakon obračuna podjele ima cilj ili
+    više i vodi u ukupnom rezultatu. **Nije bitno tko je zvao ni tko je
+    prošao** — gledaju se samo bodovi. Cilj se gleda **tek kad je
     podjela odigrana do zadnje karte i obračunata** — usred podjele se ne
     gleda nikad, koliko god bodova par već držao;
   - **dosta** — „tko prvi dođe do cilja”: partija završava **odmah, usred
@@ -223,6 +224,33 @@ Pobjednik štiha: najjači adut ako ima aduta; inače najjača karta boje `L`.
   Kod oba pravila izjednačenje na cilju ili iznad njega znači još jednu
   podjelu (na `dosta` i: utrka se nastavlja, do prvih bodova koji razlikuju
   zbrojeve).
+
+**„Brza 163" — NORMATIVNO (2026-09-20, zahtjev korisnika: „samo brza igra …
+igraju se do 3 dijeljenja, ili pobijediš ili izgubiš").** `targetScore: 163`
+nije zaseban način igre nego **disciplina izražena ciljem**: sve što već nosi
+`targetScore` (soba, redak u predvorju, `PlayerView`, statistika) nosi i nju,
+bez ijedne nove zastavice na žici. Mijenja se samo pitanje „je li partija
+gotova", i to ovako:
+
+- prvi djelitelj je **nasumičan** (kao i inače), a djeljenje se dalje rotira;
+- **na kraju podjele**: ako je tim na **163 ili više** → pobjeđuje; ako su oba,
+  pobjeđuje **veći zbroj**;
+- inače, čim je **obračunata treća podjela** (`QUICK_MAX_DEALS = 3`) →
+  pobjeđuje veći zbroj, koliko god malen bio (87:75 je pobjeda);
+- **točno izjednačenje** nakon treće podjele → igra se još jedna, i tako dok se
+  zbrojevi ne raziđu. **Uvijek postoji pobjednik i gubitnik, nikad neriješeno.**
+- **Nema uvjeta o zvaču.** Za razliku od `prolaz`a, ne traži se da je tim koji
+  je zvao prošao: to je čista usporedba ukupnih zbrojeva na kraju podjele.
+- **`gameEndRule` je ovdje bez značenja** i normalizira se na `prolaz` —
+  u engineu (`newGame`), na serveru (`Room`, i pri `room.create` i pri
+  `room.setOptions`) i u browser mocku. Inače bi soba u predvorju oglašavala
+  `dosta` dok engine igra `prolaz`.
+- Sve ostale invarijante vrijede nepromijenjeno: podjela koja odluči partiju
+  ide **ravno u `GAME_OVER`**, a `DEAL_DONE` i dalje znači točno jedno —
+  **slijedi još jedna podjela**.
+- `PlayerView.maxDeals` = `3` u brzoj igri, `null` u svima ostalima. To je
+  **plan**, ne tvrda granica: izjednačenje kupuje još jednu podjelu, pa
+  `dealNo` smije prijeći `maxDeals`.
 - **Gdje se to događa (odluka, 2026-09-08).** "Kraj podjele" znači **trenutak
   obračuna**, a ne sljedeća akcija: `reduce` na četvrtoj karti osmog štiha
   obračuna podjelu i, ako odabrano pravilo daje pobjednika, odmah
@@ -365,8 +393,14 @@ type Phase = "BIDDING" | "PLAYING" | "DEAL_DONE" | "GAME_OVER"
 
 type TrickReview = "off" | "leaderPair" | "all"   // §1.8; default "off"
 type GameEndRule = "prolaz" | "dosta"             // §1.7; default "prolaz"
+
+// „Brza 163" (§1.7): disciplina, ne način igre. Engine izvozi i
+// QUICK_TARGET = 163, QUICK_MAX_DEALS = 3, isQuickGame(targetScore) i
+// TARGET_SCORES; @bela/protocol ih zrcali da klijent ne mora povlačiti
+// engineov runtime.
+type TargetScore = 163 | 501 | 701 | 1001         // §1.7
 interface GameConfig {
-  targetScore: 501 | 701 | 1001; seed: string
+  targetScore: TargetScore; seed: string
   gameEndRule?: GameEndRule             // kraj partije (§1.7); default "prolaz"
   noDeclarations?: boolean; allowBela?: boolean
   trickReview?: TrickReview            // vidljivost, NE pravilo igre (§1.8)
@@ -434,6 +468,11 @@ viewFor(state, seat: Seat | null, opts?: ViewOptions): PlayerView
 // eventualni pad — sve to primjenjuje `scoreDeal` u trenutku obračuna.
 // Prije aduta je `{A: 0, B: 0}`. UI ovo prikazuje kao VELIKI broj po timu,
 // s ukupnim rezultatom partije (`score`) malim ispod.
+// PlayerView.maxDeals?: number | null — koliko podjela disciplina PLANIRA:
+// `QUICK_MAX_DEALS` (3) u „Brzoj 163" (§1.7), `null` u svima ostalima, pa stol
+// može pisati „dijeljenje 2/3" a da ne poznaje pravilo. Plan, ne tvrda
+// granica: izjednačenje nakon zadnje podjele kupuje još jednu, pa `dealNo`
+// smije biti veći. Opcionalno iz istog razloga kao `targetScore`.
 // PlayerView.trickHistory?: WonTrick[] | null — dovršeni štihovi tekuće
 // podjele, redom, SA sjedalima (§1.8). `null` = ovo sjedalo ne smije
 // pregledavati, i tada podatka u okviru nema. Postavka sobe `trickReview`
@@ -520,7 +559,10 @@ Ključni tokovi:
   Iz istog razloga `room.stand` u takvoj sobi vraća `SPECTATORS_DISABLED` —
   izlaz iz stolice je `room.leave`. (Uklanjanje gledatelja pri `room.start`
   ostaje kao obrana, ali ih po ovim pravilima više ne može ni biti.)
-  `trickReview` (§1.8) je `off` ako ga
+  `targetScore` je `163 | 501 | 701 | 1001` (`isTargetScore`); **163 je „Brza
+  163"** (§1.7), pa soba s tim ciljem svoj `gameEndRule` normalizira na
+  `prolaz` — i pri `room.create` i pri `room.setOptions`, u kojem god smjeru se
+  cilj mijenja (2026-09-20). `trickReview` (§1.8) je `off` ako ga
   nema, bira se pri stvaranju sobe (i mijenja `room.setOptions` dok je soba u
   `LOBBY`) te putuje u `RoomState.trickReview`
   (dakle vidi ga svatko u sobi) te u `GameConfig` pokrenute partije;
@@ -1022,9 +1064,11 @@ tko je čovjek/bot po sjedalu) — backend ne filtrira ništa, prima samo ono š
 vrijedi zabilježiti.
 
 ### 8.2 Kategorije
-Kategorija = `targetScore` partije: `501 | 701 | 1001`. Globalna statistika =
-zbroj preko sve tri kategorije. Nema drugih kategorija u v2 (razina botova,
-adut i sl. NE ulaze u kategorizaciju).
+Kategorija = `targetScore` partije: `163 | 501 | 701 | 1001`. Globalna
+statistika = zbroj preko svih kategorija. „Brza 163" (§1.7) ima **svoju**
+kategoriju — zahtjev korisnika, 2026-09-20: „posebno je statistika za nju" —
+i to bez ijednog novog polja, jer je kategorija ionako ciljni rezultat. Nema
+drugih kategorija u v2 (razina botova, adut i sl. NE ulaze u kategorizaciju).
 
 ### 8.3 Shema (Postgres, Liquibase, backend)
 Dvije tablice, changeset id `2026-09-08-game-stats`, autor `mrodek`:
@@ -1034,7 +1078,7 @@ game_results (
   id            BIGSERIAL PRIMARY KEY,
   uuid          UUID NOT NULL UNIQUE,      -- idempotency key, generira ga Node
   played_at     TIMESTAMPTZ NOT NULL,
-  target_score  SMALLINT NOT NULL CHECK (target_score IN (501, 701, 1001)),
+  target_score  SMALLINT NOT NULL CHECK (target_score IN (163, 501, 701, 1001)),
   winner_team   CHAR(1) NOT NULL CHECK (winner_team IN ('A','B')),
   score_a       INTEGER NOT NULL,
   score_b       INTEGER NOT NULL,
@@ -1094,6 +1138,7 @@ nije kritičan, partija za igrače nije pogođena.
 {
   "global": { "games": 42, "wins": 25, "losses": 17, "winRate": 0.595 },
   "byTargetScore": {
+    "163":  { "games": 12, "wins": 7,  "losses": 5,  "winRate": 0.583 },
     "501":  { "games": 10, "wins": 6,  "losses": 4,  "winRate": 0.6 },
     "701":  { "games": 5,  "wins": 2,  "losses": 3,  "winRate": 0.4 },
     "1001": { "games": 27, "wins": 17, "losses": 10, "winRate": 0.63 }

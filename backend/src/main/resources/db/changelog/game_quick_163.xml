@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      "Brza 163" — a new, quick-play online-game discipline (game/README.md
+      §8.2) that needs its own statistics bucket. It is expressed as a new
+      `target_score` value, 163, next to the existing 501/701/1001, so the
+      only schema change is widening the CHECK constraint `game_stats.xml`
+      put on `game_results.target_score` (changeset `2026-09-08-game-stats`,
+      already applied — never edited in place per CLAUDE.md).
+
+      `game_result_players` carries no target_score column of its own (it
+      only reaches the parent's category through the FK join in
+      GameResultPlayerRepository.tallyByTargetScore), so
+      `ck_game_results_target_score` is the ONLY constraint in this schema
+      that enumerates the category values — nothing else to touch here.
+    -->
+
+    <changeSet id="2026-09-20-game-quick-163" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="1">
+                select count(*) from pg_constraint where conname = 'ck_game_results_target_score'
+            </sqlCheck>
+        </preConditions>
+
+        <sql>
+            ALTER TABLE game_results
+                DROP CONSTRAINT ck_game_results_target_score;
+            ALTER TABLE game_results
+                ADD CONSTRAINT ck_game_results_target_score
+                    CHECK (target_score IN (163, 501, 701, 1001));
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE game_results
+                    DROP CONSTRAINT ck_game_results_target_score;
+                ALTER TABLE game_results
+                    ADD CONSTRAINT ck_game_results_target_score
+                        CHECK (target_score IN (501, 701, 1001));
+            </sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

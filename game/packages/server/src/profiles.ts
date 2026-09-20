@@ -108,7 +108,7 @@ function parseGameStats(value: unknown): PlayerGameStats | null {
     if (!global) return null
     const byTargetScore: PlayerGameStats["byTargetScore"] = {}
     if (typeof raw.byTargetScore === "object" && raw.byTargetScore !== null) {
-        for (const key of ["501", "701", "1001"] as const) {
+        for (const key of ["163", "501", "701", "1001"] as const) {
             const row = parseStatRecord((raw.byTargetScore as Record<string, unknown>)[key])
             if (row) byTargetScore[key] = row
         }

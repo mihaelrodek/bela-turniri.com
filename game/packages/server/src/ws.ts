@@ -365,7 +365,7 @@ export class Hub {
                     throw new ProtocolError("BAD_REQUEST", "Naziv sobe mora biti tekst.")
                 }
                 if (!isTargetScore(msg.targetScore)) {
-                    throw new ProtocolError("BAD_REQUEST", "Neispravan cilj (501, 701 ili 1001).")
+                    throw new ProtocolError("BAD_REQUEST", "Neispravan cilj (163, 501, 701 ili 1001).")
                 }
                 if (msg.gameEndRule !== undefined && msg.gameEndRule !== "prolaz" && msg.gameEndRule !== "dosta") {
                     throw new ProtocolError("BAD_REQUEST", "Neispravno pravilo završetka igre.")
@@ -587,7 +587,7 @@ export class Hub {
                     throw new ProtocolError("BAD_REQUEST", "Neispravne postavke zvanja.")
                 }
                 if (msg.targetScore !== undefined && !isTargetScore(msg.targetScore)) {
-                    throw new ProtocolError("BAD_REQUEST", "Neispravan cilj (501, 701 ili 1001).")
+                    throw new ProtocolError("BAD_REQUEST", "Neispravan cilj (163, 501, 701 ili 1001).")
                 }
                 if (msg.gameEndRule !== undefined && msg.gameEndRule !== "prolaz" && msg.gameEndRule !== "dosta") {
                     throw new ProtocolError("BAD_REQUEST", "Neispravno pravilo završetka igre.")

@@ -19,6 +19,7 @@ import LanguagePicker from "./LanguagePicker"
 import { NAVBAR_H } from "./navChrome"
 import { open as openWhatsNew, useHasUnseenWhatsNew } from "../whatsNew/store"
 import { usePrefetchRoute } from "../hooks/usePrefetchRoute"
+import NewBadge from "./NewBadge"
 import {
     calendarPageFactory,
     profilePageFactory,
@@ -114,10 +115,7 @@ function NavButton({
                 {icon && <Box as="span" display="inline-flex" flexShrink="0" aria-hidden="true">{icon}</Box>}
                 <Box as="span" position="relative" display="inline-flex" alignItems="center">
                     {children}
-                    {isNew && !isActive && <Box as="span" position="absolute" top="calc(100% + 5px)" left="50%" transform="translateX(-50%)" px="2" py="1"
-                        rounded="full" bg="orange.400" color="gray.950" borderWidth="1px" borderColor="orange.200"
-                        boxShadow="0 3px 8px rgba(234, 88, 12, 0.45)" fontSize="9px" fontWeight="900" lineHeight="1"
-                        letterSpacing="0.08em">NOVO</Box>}
+                    {isNew && !isActive && <NewBadge ml="1.5" />}
                 </Box>
             </RouterLink>
         </Button>

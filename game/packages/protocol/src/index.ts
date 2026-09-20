@@ -70,6 +70,23 @@ export const DEFAULT_TRICK_REVIEW: TrickReview = "off"
 export const GAME_END_RULES: readonly GameEndRule[] = ["prolaz", "dosta"]
 export const DEFAULT_GAME_END_RULE: GameEndRule = "prolaz"
 
+/**
+ * "Brza 163" — the quick discipline (2026-09-20). MIRRORED from the engine
+ * (`QUICK_TARGET`/`QUICK_MAX_DEALS`/`isQuickGame` in `@bela/engine`), which
+ * owns the rule; repeated here for the same reason `TRICK_REVIEWS` is, so a
+ * client need not pull the engine's RUNTIME in to label a chip or render
+ * "dijeljenje 2/3". Keep the two in step — the engine is the source of truth.
+ */
+export const QUICK_TARGET = 163
+export const QUICK_MAX_DEALS = 3
+/** Every playable target, in the order the create dialog offers them. */
+export const TARGET_SCORES: readonly TargetScore[] = [163, 501, 701, 1001]
+
+/** Whether this target score is the "Brza 163" quick discipline. */
+export function isQuickGame(targetScore: TargetScore | number | null | undefined): boolean {
+    return targetScore === QUICK_TARGET
+}
+
 export const LIMITS = {
     roomNameMax: 40,
     /**
@@ -145,7 +162,8 @@ export interface GameStatRecord {
 
 export interface PlayerGameStats {
     global: GameStatRecord
-    byTargetScore: Partial<Record<"501" | "701" | "1001", GameStatRecord>>
+    /** "163" is the quick discipline, counted in its own bucket (2026-09-20). */
+    byTargetScore: Partial<Record<"163" | "501" | "701" | "1001", GameStatRecord>>
 }
 
 export type RoomStatus = "LOBBY" | "PLAYING" | "FINISHED"
@@ -476,7 +494,7 @@ export function isSeat(x: unknown): x is Seat {
 }
 
 export function isTargetScore(x: unknown): x is TargetScore {
-    return x === 501 || x === 701 || x === 1001
+    return x === 163 || x === 501 || x === 701 || x === 1001
 }
 
 export function isReaction(x: unknown): x is Reaction {

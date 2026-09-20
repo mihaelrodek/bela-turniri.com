@@ -169,6 +169,10 @@ export const game: GameDict = {
     "lobby.create.title": "Nastavi svojo mizo",
     "lobby.create.targetAria": "Igraj do {target} točk",
     "lobby.create.private": "Zasebna igra",
+    "create.quick.name": "Hitra 163",
+    "create.quick.title": "Hitra igra",
+    "create.quick.description": "Največ 3 deljenja, prvi delivec je naključen. Zmaga prvi par s 163 točkami, če jih nihče ne doseže, pa tisti z več točkami po tretjem deljenju.",
+    "stats.quickLabel": "Hitra",
     "lobby.joinByCode.title": "Pridruži se s kodo",
     "lobby.joinByCode.description": "Vpiši 4-mestno kodo sobe.",
     "lobby.joinByCode.privateTitle": "Vstopi v igro {name}",
@@ -398,6 +402,10 @@ export const game: GameDict = {
     "exit.description": "Če ostaneš, igraš naprej. Če izstopiš, se začne dvominutno odštevanje; do izteka se lahko vrneš, nato tvoje mesto prevzame bot.",
     "exit.stay": "Ostani v sobi",
     "exit.leave": "Izstopi iz sobe",
+
+    "missedTurn.title": "Zamudil si potezo",
+    "missedTurn.body": "Čas je potekel, zato je bila poteza odigrana namesto tebe.",
+    "missedTurn.back": "Nazaj v igro",
 
     "widget.title": "Aktivna soba",
     "widget.return": "Vrni se",

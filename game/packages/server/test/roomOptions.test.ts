@@ -182,6 +182,49 @@ describe("room.setOptions", () => {
         const controlJoined = await control.nextOfType("room.joined")
         expect(controlJoined.room.allowBela).toBe(true)
     })
+
+    /* "Brza 163" (2026-09-20). The quick discipline is settled at the END of a
+       deal, so `dosta` means nothing in it and must never be stored: a room
+       that kept it would advertise one rule on its lobby row while the engine
+       played another. Both doors are tested — `room.create` and
+       `room.setOptions` — because the target can be switched either way. */
+    it("accepts 163 and normalises `dosta` away in a quick room", async () => {
+        server = await startTestServer()
+        const host = await connect("Brzi")
+        host.send({ t: "room.create", name: "Brza", targetScore: 163, gameEndRule: "dosta", private: false })
+        const joined = await host.nextOfType("room.joined")
+        expect(joined.room.targetScore).toBe(163)
+        expect(joined.room.gameEndRule).toBe("prolaz")
+
+        // Asking for it again on a quick room changes nothing.
+        host.send({ t: "room.setOptions", gameEndRule: "dosta", allowSpectators: true })
+        const kept = await host.next((m) => m.t === "room.state" && m.room.allowSpectators)
+        if (kept.t !== "room.state") throw new Error("expected room.state")
+        expect(kept.room.gameEndRule).toBe("prolaz")
+
+        // Leaving the quick discipline lets `dosta` be chosen again…
+        host.send({ t: "room.setOptions", targetScore: 1001, gameEndRule: "dosta" })
+        const long = await host.next((m) => m.t === "room.state" && m.room.targetScore === 1001)
+        if (long.t !== "room.state") throw new Error("expected room.state")
+        expect(long.room.gameEndRule).toBe("dosta")
+
+        // …and switching BACK to 163 drops it again, without the client having
+        // to restate the rule.
+        host.send({ t: "room.setOptions", targetScore: 163 })
+        const quick = await host.next((m) => m.t === "room.state" && m.room.targetScore === 163)
+        if (quick.t !== "room.state") throw new Error("expected room.state")
+        expect(quick.room.gameEndRule).toBe("prolaz")
+    })
+
+    it("still refuses a target that is not one of the four", async () => {
+        server = await startTestServer()
+        const host = await connect("Domacin")
+        host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false })
+        await host.nextOfType("room.joined")
+        host.send({ t: "room.setOptions", targetScore: 162 as unknown as 501 })
+        const err = await host.nextOfType("error")
+        expect(err.code).toBe("BAD_REQUEST")
+    })
 })
 
 /** Seats 1–3 become bots, so the table is startable. */

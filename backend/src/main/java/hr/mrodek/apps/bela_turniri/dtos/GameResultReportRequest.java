@@ -39,7 +39,7 @@ public record GameResultReportRequest(
         @NotNull(message = "playedAt is required")
         OffsetDateTime playedAt,
 
-        /** Category: 501, 701 or 1001 (§8.2). */
+        /** Category: 163, 501, 701 or 1001 (§8.2). */
         @NotNull(message = "targetScore is required")
         Integer targetScore,
 
@@ -71,10 +71,10 @@ public record GameResultReportRequest(
      * which the database CHECK would then reject as a 500 instead of a 400.
      */
     @JsonIgnore
-    @AssertTrue(message = "targetScore must be 501, 701 or 1001")
+    @AssertTrue(message = "targetScore must be 163, 501, 701 or 1001")
     public boolean isTargetScoreAllowed() {
         return targetScore != null
-                && (targetScore == 501 || targetScore == 701 || targetScore == 1001);
+                && (targetScore == 163 || targetScore == 501 || targetScore == 701 || targetScore == 1001);
     }
 
     public record PlayerDto(

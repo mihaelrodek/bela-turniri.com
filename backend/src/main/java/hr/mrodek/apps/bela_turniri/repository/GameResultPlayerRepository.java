@@ -12,7 +12,7 @@ public class GameResultPlayerRepository implements AppRepository<GameResultPlaye
     /**
      * One tally row per category actually played by a user.
      *
-     * @param targetScore 501, 701 or 1001
+     * @param targetScore 163, 501, 701 or 1001
      * @param games       games played in that category
      * @param wins        of those, games won
      */

@@ -76,6 +76,7 @@ export const common = {
        are route-scoped lazy chunks (see i18n/index.ts). A label in a lazy
        namespace would paint as a raw key until that chunk arrived. */
     "nav.igraj": "Igraj",
+    "nav.new": "Novo",
     "nav.blok": "Blok",
     "nav.logout": "Odjavi se",
     "nav.profileMenuAriaLabel": "Profil meni",

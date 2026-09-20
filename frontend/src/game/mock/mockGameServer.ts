@@ -29,7 +29,7 @@ import type {
     TrickState,
     WonTrick,
 } from "@bela/engine"
-import { findBelot } from "@bela/engine"
+import { QUICK_MAX_DEALS, findBelot, isQuickGame } from "@bela/engine"
 import { AVATAR_IDS, isAvatarId } from "../../components/avatars/avatarArt"
 import { t } from "../../i18n"
 import { SUITS, cardRank, cardSuit, makeCard } from "../util/cards"
@@ -234,7 +234,10 @@ class MockGame {
 
     constructor(targetScore: TargetScore, gameEndRule: GameEndRule = "prolaz", noDeclarations = false, allowBela = true, trickReview: TrickReview = "off") {
         this.targetScore = targetScore
-        this.gameEndRule = gameEndRule
+        // "Brza 163" is settled at the end of a deal and nowhere else, so the
+        // `dosta` race is normalised away exactly as the engine's `newGame`
+        // and the server's `Room` do it (2026-09-20).
+        this.gameEndRule = isQuickGame(targetScore) ? "prolaz" : gameEndRule
         this.noDeclarations = noDeclarations
         this.allowBela = allowBela
         this.trickReview = trickReview
@@ -487,10 +490,21 @@ class MockGame {
         const dostaWinner = this.score.A >= this.targetScore || this.score.B >= this.targetScore
             ? (this.score.A > this.score.B ? "A" : this.score.B > this.score.A ? "B" : null)
             : null
-        const prolazWinner = passed && this.score[callerTeam] >= this.targetScore && this.score[callerTeam] > this.score[opponents]
-            ? callerTeam
-            : null
-        this.winner = this.gameEndRule === "dosta" ? dostaWinner : prolazWinner
+        // `prolaz` asks the same question as `dosta`, only never mid-deal:
+        // who called and who passed does not matter (engine `gameWinner`).
+        const prolazWinner = dostaWinner
+        /* "Brza 163" (2026-09-20), mirroring the engine's `gameWinner`: a plain
+           end-of-deal comparison with no pass/fall condition. The target, or
+           three deals, whichever comes first; a level score decides nothing and
+           buys a fourth deal (and a fifth…) until the totals differ. */
+        const quickWinner = this.score.A === this.score.B
+            ? null
+            : this.score.A >= this.targetScore || this.score.B >= this.targetScore || this.dealNo >= QUICK_MAX_DEALS
+                ? (this.score.A > this.score.B ? "A" : "B")
+                : null
+        this.winner = isQuickGame(this.targetScore)
+            ? quickWinner
+            : this.gameEndRule === "dosta" ? dostaWinner : prolazWinner
         if (this.winner !== null) {
             this.phase = "GAME_OVER"
             this.events.push({ type: "GAME_OVER", winner: this.winner, score: { ...this.score } })
@@ -612,6 +626,10 @@ class MockGame {
             phase: this.phase,
             dealNo: this.dealNo,
             dealer: this.dealer,
+            targetScore: this.targetScore,
+            // null unless the discipline plans a fixed number of deals — only
+            // "Brza 163" does (2026-09-20). Same value `viewFor` publishes.
+            maxDeals: isQuickGame(this.targetScore) ? QUICK_MAX_DEALS : null,
             hand: seat === null ? [] : [...this.hands[seat]],
             handSizes: {
                 0: this.hands[0].length,
@@ -861,7 +879,7 @@ class MockServer {
                 return
             case "room.create": {
                 const room = this.makeRoom(msg.name, msg.targetScore, msg.private, this.me.uid)
-                room.gameEndRule = msg.gameEndRule ?? "prolaz"
+                room.gameEndRule = isQuickGame(room.targetScore) ? "prolaz" : (msg.gameEndRule ?? "prolaz")
                 room.noDeclarations = msg.noDeclarations === true
                 room.allowBela = !room.noDeclarations || msg.allowBela !== false
                 room.allowSpectators = msg.allowSpectators === true
@@ -1039,6 +1057,8 @@ class MockServer {
                 if (room.status === "PLAYING") { this.error("ALREADY_STARTED", msg.t); return }
                 if (msg.targetScore !== undefined) room.targetScore = msg.targetScore
                 if (msg.gameEndRule !== undefined) room.gameEndRule = msg.gameEndRule
+                // Re-resolved from the pair, like the server's `setOptions`.
+                if (isQuickGame(room.targetScore)) room.gameEndRule = "prolaz"
                 if (msg.allowSpectators !== undefined) room.allowSpectators = msg.allowSpectators
                 if (msg.noDeclarations !== undefined) room.noDeclarations = msg.noDeclarations
                 if (msg.allowBela !== undefined) room.allowBela = msg.allowBela

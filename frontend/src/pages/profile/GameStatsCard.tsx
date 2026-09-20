@@ -106,7 +106,7 @@ export function GameStatsCard() {
                         <>
                             <Box borderTopWidth="1px" borderColor="border.emphasized" mx="-4" my="1" />
                             <VStack align="stretch" gap="2">
-                                {(["501", "701", "1001"] as const).map((score) => {
+                                {(["163", "501", "701", "1001"] as const).map((score) => {
                                     const category = stats.byTargetScore?.[score]
                                     if (!category) return null
                                     return (
@@ -174,7 +174,7 @@ function CategoryRow({
     plural,
     t,
 }: {
-    targetScore: "501" | "701" | "1001"
+    targetScore: "163" | "501" | "701" | "1001"
     stats: { games: number; wins: number; losses: number; winRate: number }
     plural: (baseKey: string, n: number, params?: Record<string, string | number>) => string
     t: (key: string) => string

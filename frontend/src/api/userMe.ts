@@ -56,7 +56,7 @@ export type GameStatCategory = {
 
 export type GameStatsDto = {
     global: GameStatCategory
-    byTargetScore?: Partial<Record<"501" | "701" | "1001", GameStatCategory>>
+    byTargetScore?: Partial<Record<"163" | "501" | "701" | "1001", GameStatCategory>>
 }
 
 export type GameReliabilityDto = {

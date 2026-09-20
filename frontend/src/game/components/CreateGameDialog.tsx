@@ -7,7 +7,7 @@ import { useTranslation } from "../../i18n"
 import GameOption from "./GameOption"
 
 export type CreateGameOptions = Omit<Extract<ClientMessage, { t: "room.create" }>, "t">
-const TARGETS: readonly TargetScore[] = [501, 701, 1001]
+const TARGETS: readonly TargetScore[] = [163, 501, 701, 1001]
 
 export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = false }: {
     open: boolean
@@ -46,28 +46,41 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
                                             <Button key={target} flex="1" h="12" fontSize="lg" colorPalette="brand"
                                                 variant={targetScore === target ? "solid" : "outline"}
                                                 aria-pressed={targetScore === target} disabled={busy} onClick={() => setTarget(target)}>
-                                                {target}
+                                                {target === 163 ? t("game.create.quick.name") : target}
                                             </Button>
                                         ))}
                                     </HStack>
+                                    {targetScore === 163 && (
+                                        <VStack align="stretch" gap="0.5" px="2.5" py="1.5" rounded="lg"
+                                            bg="bg.subtle" borderWidth="1px" borderColor="border.subtle">
+                                            <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+                                                {t("game.create.quick.title")}
+                                            </Text>
+                                            <Text fontSize="xs" lineHeight="1.35" color="fg.muted">
+                                                {t("game.create.quick.description")}
+                                            </Text>
+                                        </VStack>
+                                    )}
                                 </VStack>
-                                <HStack gap="2" minH="44px" px="3" py="2" rounded="lg"
-                                    bg="bg.subtle" borderWidth="1px" borderColor="border.subtle"
-                                    justifyContent="space-between">
-                                    <Text fontSize="sm" fontWeight="semibold" flex="1" minW="0">
-                                        {t("game.lobby.form.endRule")}
-                                    </Text>
-                                    <HStack gap="1" flexShrink={0}>
-                                        {GAME_END_RULES.map((value) => (
-                                            <Button key={value} size="xs" px="3" colorPalette="brand"
-                                                variant={gameEndRule === value ? "solid" : "outline"}
-                                                aria-pressed={gameEndRule === value} disabled={busy}
-                                                onClick={() => setGameEndRule(value)}>
-                                                {t(`game.lobby.form.endRule.${value}`)}
-                                            </Button>
-                                        ))}
+                                {targetScore !== 163 && (
+                                    <HStack gap="2" minH="44px" px="3" py="2" rounded="lg"
+                                        bg="bg.subtle" borderWidth="1px" borderColor="border.subtle"
+                                        justifyContent="space-between">
+                                        <Text fontSize="sm" fontWeight="semibold" flex="1" minW="0">
+                                            {t("game.lobby.form.endRule")}
+                                        </Text>
+                                        <HStack gap="1" flexShrink={0}>
+                                            {GAME_END_RULES.map((value) => (
+                                                <Button key={value} size="xs" px="3" colorPalette="brand"
+                                                    variant={gameEndRule === value ? "solid" : "outline"}
+                                                    aria-pressed={gameEndRule === value} disabled={busy}
+                                                    onClick={() => setGameEndRule(value)}>
+                                                    {t(`game.lobby.form.endRule.${value}`)}
+                                                </Button>
+                                            ))}
+                                        </HStack>
                                     </HStack>
-                                </HStack>
+                                )}
                                 <HStack gap="2" minH="44px" px="3" py="2" rounded="lg"
                                     bg="bg.subtle" borderWidth="1px" borderColor="border.subtle"
                                     justifyContent="space-between">
@@ -155,7 +168,7 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
                         <Dialog.Footer>
                             <Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>{t("game.common.cancel")}</Button>
                             <Button colorPalette="brand" size="lg" disabled={busy}
-                                onClick={() => onCreate({ targetScore, gameEndRule, private: isPrivate, allowSpectators, noDeclarations, allowBela: !noDeclarations || allowBela, trickReview, minWinRatePercent })}>
+                                onClick={() => onCreate({ targetScore, gameEndRule: targetScore === 163 ? "prolaz" : gameEndRule, private: isPrivate, allowSpectators, noDeclarations, allowBela: !noDeclarations || allowBela, trickReview, minWinRatePercent })}>
                                 {t("game.lobby.newGame")} <FiArrowRight />
                             </Button>
                         </Dialog.Footer>

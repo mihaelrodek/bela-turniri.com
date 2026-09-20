@@ -32,7 +32,7 @@ import type {
     UserInfo,
     WinRateRequirement,
 } from "@bela/protocol"
-import { DEFAULT_GAME_END_RULE, DEFAULT_TRICK_REVIEW } from "@bela/protocol"
+import { DEFAULT_GAME_END_RULE, DEFAULT_TRICK_REVIEW, isQuickGame } from "@bela/protocol"
 import type { Timings } from "./config.js"
 import { ProtocolError } from "./errors.js"
 import { botAvatar, botName } from "./bots.js"
@@ -116,6 +116,21 @@ function belaCounts(noDeclarations: boolean, allowBela: boolean | undefined): bo
     return !noDeclarations || allowBela !== false
 }
 
+/**
+ * The end-of-game rule this room actually plays by (2026-09-20).
+ *
+ * "Brza 163" is decided at the end of a deal and nowhere else, so `dosta` is
+ * not merely ignored there — it is NORMALISED AWAY at the door, on create and
+ * on every `setOptions`. The engine would ignore it anyway (`newGame`), but a
+ * room that kept it would advertise "dosta" on its lobby row and in the
+ * settings sheet while playing "prolaz", and the host would have no way to
+ * tell which of the two was true.
+ */
+function endRuleFor(targetScore: TargetScore, rule: GameEndRule | undefined): GameEndRule {
+    if (isQuickGame(targetScore)) return DEFAULT_GAME_END_RULE
+    return rule ?? DEFAULT_GAME_END_RULE
+}
+
 /** Fields of `room.setOptions` — every one optional, absent = leave alone. */
 export interface RoomOptionsPatch {
     targetScore?: TargetScore
@@ -190,7 +205,7 @@ export class Room {
         this.allowSpectators = init.allowSpectators === true
         this.noDeclarations = init.noDeclarations === true
         this.allowBela = belaCounts(this.noDeclarations, init.allowBela)
-        this.gameEndRule = init.gameEndRule ?? DEFAULT_GAME_END_RULE
+        this.gameEndRule = endRuleFor(this.targetScore, init.gameEndRule)
         this.trickReview = init.trickReview ?? DEFAULT_TRICK_REVIEW
         this.createdAt = Date.now()
         this.seats = [null, null, null, null]
@@ -866,6 +881,10 @@ export class Room {
         this.requireLobby()
         if (patch.targetScore !== undefined) this.targetScore = patch.targetScore
         if (patch.gameEndRule !== undefined) this.gameEndRule = patch.gameEndRule
+        // Re-resolved from the PAIR, whichever half the patch carried: switching
+        // the target to 163 has to drop a `dosta` that was already set, and
+        // switching away from 163 must not resurrect one (2026-09-20).
+        this.gameEndRule = endRuleFor(this.targetScore, this.gameEndRule)
         if (patch.allowSpectators !== undefined) this.allowSpectators = patch.allowSpectators
         if (patch.trickReview !== undefined) this.trickReview = patch.trickReview
         // The declaration pair is resolved TOGETHER through the same rule

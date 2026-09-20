@@ -10,9 +10,10 @@ import java.util.Map;
  *   "byTargetScore": { "501": { … }, "701": { … }, "1001": { … } } }
  * </pre>
  *
- * <p>{@code byTargetScore} is keyed by the category as a STRING ("501" /
- * "701" / "1001") because that is what §8.5 puts on the wire, and a JSON
- * object cannot have numeric keys anyway.
+ * <p>{@code byTargetScore} is keyed by the category as a STRING ("163" /
+ * "501" / "701" / "1001" — "163" is the "Brza 163" quick-play discipline)
+ * because that is what §8.5 puts on the wire, and a JSON object cannot have
+ * numeric keys anyway.
  *
  * <p>Categories the user has never played are <b>omitted</b> rather than
  * emitted as zero rows: the profile card renders one tile per entry, and a

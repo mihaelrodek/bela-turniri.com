@@ -54,7 +54,7 @@ public class GameResult {
     @Column(name = "played_at", nullable = false)
     private OffsetDateTime playedAt;
 
-    /** Category: 501, 701 or 1001 (game/README.md §8.2). */
+    /** Category: 163, 501, 701 or 1001 (game/README.md §8.2). */
     @Column(name = "target_score", nullable = false)
     private short targetScore;
 

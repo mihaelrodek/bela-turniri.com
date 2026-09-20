@@ -24,7 +24,38 @@ export type Team = "A" | "B"
 
 export type Phase = "BIDDING" | "PLAYING" | "DEAL_DONE" | "GAME_OVER"
 
-export type TargetScore = 501 | 701 | 1001
+export type TargetScore = 163 | 501 | 701 | 1001
+
+/**
+ * "Brza 163" — the quick discipline (2026-09-20, user request: "samo brza
+ * igra … igraju se do 3 dijeljenja, ili pobjediš ili izgubiš").
+ *
+ * It is NOT a separate mode flag: it is a TARGET SCORE like any other, so
+ * everything that already carries `targetScore` — the room, the lobby row,
+ * the stats bucket, the PlayerView — carries it for free. Only the end-of-game
+ * question changes (`gameWinner` in game.ts):
+ *
+ *   • end of a deal, a team at 163 or more → higher total wins;
+ *   • otherwise, once the THIRD deal has been scored → higher total wins,
+ *     however small it is;
+ *   • exactly level after that third deal → one more deal, and again until
+ *     the totals differ. There is always a winner and always a loser.
+ *
+ * `gameEndRule` means nothing here: the quick game is settled at the end of a
+ * deal, never mid-trick, so `dosta` is normalised away (engine `newGame`,
+ * server `Room`).
+ */
+export const QUICK_TARGET = 163
+/** Deals played before the leader wins regardless of the target. */
+export const QUICK_MAX_DEALS = 3
+
+/** Whether this target score is the "Brza 163" quick discipline. */
+export function isQuickGame(targetScore: TargetScore | number | null | undefined): boolean {
+    return targetScore === QUICK_TARGET
+}
+
+/** Every playable target, in the order the create dialog offers them. */
+export const TARGET_SCORES: readonly TargetScore[] = [QUICK_TARGET as TargetScore, 501, 701, 1001]
 
 /**
  * "Gledanje štihova" — who may review the completed tricks of the deal, with
@@ -260,6 +291,19 @@ export interface PlayerView {
      * that depends on one.
      */
     targetScore?: TargetScore
+    /**
+     * How many deals this discipline plans to play, or null when it plays
+     * until the target falls. `QUICK_MAX_DEALS` (3) in a "Brza 163" game
+     * (2026-09-20), null everywhere else, so the table can show "dijeljenje
+     * 2/3" without knowing the rule.
+     *
+     * A PLAN, not a hard cap: an exactly level score after the last deal buys
+     * another one (§1.7), so `dealNo` may legitimately exceed it.
+     *
+     * Optional for the same reason as `targetScore`: a PlayerView assembled by
+     * hand in the bots' tests need not carry it. Read `undefined` as null.
+     */
+    maxDeals?: number | null
     /** Own cards, sorted. Empty for spectators. */
     hand: Card[]
     /** How many cards each seat holds. */

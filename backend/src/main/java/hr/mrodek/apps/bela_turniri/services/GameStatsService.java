@@ -35,8 +35,15 @@ public class GameStatsService {
 
     private static final Logger LOG = Logger.getLogger(GameStatsService.class);
 
-    /** The categories §8.2 defines, in the order the profile card shows them. */
-    private static final int[] CATEGORIES = {501, 701, 1001};
+    /**
+     * The categories §8.2 defines, in the order the profile card shows them.
+     * "Brza 163" is a separate, quick-play discipline — listed first because
+     * it is the odd one out (fewer deals, different pace) and this is the
+     * order {@code frontend/src/game/util/gameStats.ts}'s
+     * {@code STAT_TARGET_SCORES} and the game engine's own
+     * {@code TargetScore} union already use.
+     */
+    private static final int[] CATEGORIES = {163, 501, 701, 1001};
 
     @Inject GameResultRepository resultRepo;
     @Inject GameResultPlayerRepository playerRepo;

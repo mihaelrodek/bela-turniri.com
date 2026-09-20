@@ -43,6 +43,10 @@ import { INK, INK_MUTED } from "./tableStyles"
  *  (2026-09-18, user-reported jump on calling trump). */
 export const ROW_H = "46px"
 
+/** One width for all five buttons, so the row is symmetric around the middle
+ *  one and that one sits exactly on the hand's centre line. */
+const BTN_W = "58px"
+
 export default function BiddingPanel({
     view,
     busy = false,
@@ -68,7 +72,7 @@ export default function BiddingPanel({
             {SUITS.map((suit) => (
                 <Button
                     key={suit}
-                    w="56px"
+                    w={BTN_W}
                     flexShrink={0}
                     h={ROW_H}
                     px="0"
@@ -94,8 +98,13 @@ export default function BiddingPanel({
 
             {canPass ? (
                 <Button
+                    // Same width as a suit button: with a wider fifth button
+                    // the row was centred but the SUITS were not — the
+                    // middle one sat left of the hand's axis (2026-09-20).
+                    w={BTN_W}
                     h={ROW_H}
-                    px="3"
+                    px="0"
+                    fontSize="sm"
                     flexShrink={0}
                     variant="outline"
                     rounded="l2"
@@ -110,8 +119,9 @@ export default function BiddingPanel({
                 </Button>
             ) : (
                 <Flex
+                    w={BTN_W}
                     h={ROW_H}
-                    px="2"
+                    px="1"
                     flexShrink={0}
                     align="center"
                     justify="center"

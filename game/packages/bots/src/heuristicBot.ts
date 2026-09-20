@@ -54,6 +54,7 @@ import {
     openingTrumpForCallingPartner,
     partnerSignal,
     partnerTrickIsSafe,
+    onlyPartnerCanHoldTrumps,
     quietLeadCard,
     shouldDrawTrumps,
     shouldSpendAce,
@@ -209,7 +210,7 @@ function callerJackLead(
     return jack
 }
 
-function leadCard(view: PlayerView, legal: readonly Card[], trump: Suit): Card {
+function chooseLead(view: PlayerView, legal: readonly Card[], trump: Suit): Card {
     const signal = partnerSignal(view)
 
     // All eight tricks are still ours to take: cash, do not manoeuvre.
@@ -336,6 +337,28 @@ return backedByTen ?? (worthSpending[0] as Card)
         (card) => !kept.has(card) && cardSuit(card) !== trump && !isThinLead(view, card),
     )
 return solid.length > 0 ? quietLeadCard(view, solid, kept) : quiet
+}
+
+/**
+ * `chooseLead` with one hard stop on top (2026-09-20, reported from a live
+ * table): once both opponents have shown void in trump, every trump still out
+ * is in my partner's hand, and leading one does nothing except pull his. The
+ * individual rules above each have their own idea of when a trump lead has a
+ * point; this is the one condition under which none of them can be right, so
+ * it is enforced here, once, instead of being repeated in every one of them.
+ *
+ * Only a hand with nothing BUT trumps still leads one — there is no choice.
+ */
+function leadCard(view: PlayerView, legal: readonly Card[], trump: Suit): Card {
+    const card = chooseLead(view, legal, trump)
+    if (cardSuit(card) !== trump || !onlyPartnerCanHoldTrumps(view)) return card
+
+    const plain = legal.filter((c) => cardSuit(c) !== trump)
+    if (plain.length === 0) return card
+    // Ask again with the trumps off the menu, so the plain lead is still the
+    // one the rules would pick (a master to cash, the suit partner asked for).
+    const again = chooseLead(view, plain, trump)
+    return cardSuit(again) !== trump ? again : quietLeadCard(view, plain, new Set())
 }
 
 function chooseCard(view: PlayerView, legal: Card[], _rng: () => number): Card {

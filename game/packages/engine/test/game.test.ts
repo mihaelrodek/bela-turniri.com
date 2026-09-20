@@ -702,7 +702,7 @@ describe("a full deterministic game (README §1.6, §1.7)", () => {
         ])
     })
 
-    it("prolaz is the default and only a passing caller can win", () => {
+    it("prolaz is the default and asks only who has the points, not who called", () => {
         const original = playing({ trump: "HERC", leader: 0, hands: {} })
         const base: GameState = { ...original, config: { ...original.config, targetScore: 501 } }
         const scored: DealScore = {
@@ -726,8 +726,37 @@ describe("a full deterministic game (README §1.6, §1.7)", () => {
             score: { A: 550, B: 485 },
             dealScore: { ...scored, caller: 1, callerTeam: "B", total: { A: 62, B: 100 } },
         }, { type: "NEXT_DEAL" })
-        expect(opponentsCrossed.state.phase).toBe("BIDDING")
-        expect(opponentsCrossed.state.winner).toBeNull()
+        // B called and passed, but A is the pair over the target and ahead.
+        expect(opponentsCrossed.state.phase).toBe("GAME_OVER")
+        expect(opponentsCrossed.state.winner).toBe("A")
+    })
+
+    it("prolaz: defenders who fell the caller finish the game (2026-09-20)", () => {
+        const original = playing({ trump: "HERC", leader: 0, hands: {} })
+        const base: GameState = { ...original, config: { ...original.config, targetScore: 501 } }
+        // A called and fell: B took every point of the deal and is over 501.
+        const fell: DealScore = {
+            dealNo: 5,
+            trump: "HERC",
+            caller: 0,
+            callerTeam: "A",
+            cardPoints: { A: 60, B: 102 },
+            declarationPoints: { A: 20, B: 100 },
+            stiglja: null,
+            passed: false,
+            total: { A: 0, B: 282 },
+        }
+        const done = reduce({ ...base, phase: "DEAL_DONE", score: { A: 347, B: 631 }, dealScore: fell }, { type: "NEXT_DEAL" })
+        expect(done.state.phase).toBe("GAME_OVER")
+        expect(done.state.winner).toBe("B")
+
+        // A caller who fell but had already banked more still wins.
+        const ahead = reduce({ ...base, phase: "DEAL_DONE", score: { A: 640, B: 631 }, dealScore: fell }, { type: "NEXT_DEAL" })
+        expect(ahead.state.winner).toBe("A")
+
+        // Level over the target decides nothing: another deal.
+        const level = reduce({ ...base, phase: "DEAL_DONE", score: { A: 631, B: 631 }, dealScore: fell }, { type: "NEXT_DEAL" })
+        expect(level.state.winner).toBeNull()
     })
 
     it("does not end the game before the target is reached", () => {

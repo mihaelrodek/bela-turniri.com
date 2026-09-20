@@ -308,6 +308,25 @@ export function opponentShownVoidIn(view: PlayerView, suit: Suit): boolean {
 }
 
 /**
+ * True when BOTH opponents have provably shown void in trump while trumps are
+ * still outstanding — i.e. every trump I cannot see is in my PARTNER'S hand.
+ *
+ * From that moment a trump lead strips nobody but him (2026-09-20, reported:
+ * both opponents discarded on the caller's first trump lead and she went on
+ * leading trumps, pulling her own partner's out one by one). Proof only, like
+ * everything else here: one opponent merely not having been tested is "no".
+ */
+export function onlyPartnerCanHoldTrumps(view: PlayerView): boolean {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null) return false
+    if (outstandingInSuit(view, trump) <= 0) return false
+    return SEATS.every(
+        (s) => teamOf(s) === teamOf(seat) || view.handSizes[s] === 0 || seatShownVoidIn(view, s, trump),
+    )
+}
+
+/**
  * True when no card of `suit` has been played yet — nobody has been led it,
  * and nobody has discarded it. The one moment a void in it is least likely.
  */

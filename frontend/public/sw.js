@@ -61,6 +61,13 @@
  * does not make a hand playable offline. What it buys is (a) a flaky
  * connection or reconnect never shows a blank card, because the art was
  * already local, and (b) a repeat visit never re-downloads the same deck.
+ *
+ * The game's recorded sound samples (`src/game/util/sounds.ts`, added
+ * alongside this note) ride the exact same mechanism under a pseudo deck
+ * name, `"sounds"` — same reasoning (a tournament-only visitor should not
+ * fetch game audio either) and the same DECK_CACHE, so they get no dedicated
+ * cache or message type of their own, just one more `.wav` entry in
+ * DECK_ASSET_EXT_RE below and a call to `cacheDeckOffline("sounds", …)`.
  */
 
 const CACHE = "bela-shell-v4";
@@ -406,7 +413,10 @@ async function assetCacheFirst(req) {
 // leaves headroom without accepting an unbounded list.
 const DECK_URLS_LIMIT = 80;
 const DECK_NAME_RE = /^[a-z]{1,24}$/;
-const DECK_ASSET_EXT_RE = /\.(webp|png|jpe?g|svg)$/i;
+// Image extensions for a real deck, plus `.wav` for the pseudo "sounds" deck
+// (`frontend/src/game/util/sounds.ts`'s recorded card-place/shuffle samples,
+// cached through this exact mechanism — see the DECK_CACHE header above).
+const DECK_ASSET_EXT_RE = /\.(webp|png|jpe?g|svg|wav)$/i;
 // A synthetic (never-fetched) request path per deck, used as a cache key to
 // remember which /assets/* files that deck's LAST successful pass put in
 // DECK_CACHE — see `cacheDeckOffline` for why this is needed to prune stale

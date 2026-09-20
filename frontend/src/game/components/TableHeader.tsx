@@ -41,7 +41,10 @@ export default function TableHeader({
         >
             <HStack gap="1" minW="0" justify="center">
                 <Text fontSize="xs" fontWeight="semibold" color={INK} lineClamp={1} minW="0" textAlign="center">
-                    {targetScore} · {t(`game.lobby.finishMode.${gameEndRule}`).toUpperCase()}
+                    {/* The quick game has no end rule to show — its name says it all. */}
+                    {targetScore === 163
+                        ? t("game.create.quick.name").toUpperCase()
+                        : `${targetScore} · ${t(`game.lobby.finishMode.${gameEndRule}`).toUpperCase()}`}
                 </Text>
                 {chips}
             </HStack>

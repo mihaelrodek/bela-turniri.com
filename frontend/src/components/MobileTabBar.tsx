@@ -3,6 +3,7 @@ import { Link as RouterLink, useLocation } from "react-router-dom"
 import { FiCalendar, FiEdit3, FiHome, FiMap } from "react-icons/fi"
 import { useTranslation } from "../i18n"
 import type { ReactNode } from "react"
+import NewBadge from "./NewBadge"
 
 /**
  * Mobile-only bottom tab bar.
@@ -293,10 +294,9 @@ export default function MobileTabBar() {
                                     disc was the only unlabelled thing in the
                                     bar — a green circle you had to press to
                                     find out what it did. */}
-                                {tab.isNew && !active && <Box position="absolute" top="-37px" px="2" py="1" rounded="full"
-                                    bg="orange.400" color="gray.950" borderWidth="1px" borderColor="orange.200"
-                                    boxShadow="0 3px 8px rgba(234, 88, 12, 0.5)" fontSize="9px" fontWeight="900" lineHeight="1"
-                                    letterSpacing="0.08em">NOVO</Box>}
+                                {/* On the disc's top-right shoulder, not floating
+                                    above the bar over the page content. */}
+                                {tab.isNew && !active && <NewBadge position="absolute" top="-24px" left="calc(50% + 14px)" zIndex="1" />}
                                 <Text
                                     fontSize="11px"
                                     lineHeight="1"
@@ -339,12 +339,11 @@ export default function MobileTabBar() {
                             _hover={{ color: "blue.fg" }}
                         >
                             <RouterLink to={tab.to} aria-label={tab.label} aria-current={active ? "page" : undefined}>
-                                {tab.icon}
+                                <Box position="relative" display="inline-flex">
+                                    {tab.icon}
+                                    {tab.isNew && !active && <NewBadge position="absolute" top="-7px" left="calc(100% - 6px)" />}
+                                </Box>
                                 <Box position="relative">
-                                    {tab.isNew && !active && <Box position="absolute" top="-19px" left="50%" transform="translateX(-50%)"
-                                        px="2" py="1" rounded="full" bg="orange.400" color="gray.950" borderWidth="1px" borderColor="orange.200"
-                                        boxShadow="0 3px 8px rgba(234, 88, 12, 0.5)" fontSize="9px" fontWeight="900" lineHeight="1"
-                                        letterSpacing="0.08em">NOVO</Box>}
                                     <Text fontSize="11px" mt="2px">
                                     {tab.label}
                                     </Text>

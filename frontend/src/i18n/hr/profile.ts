@@ -270,6 +270,7 @@ export const profile = {
     "gameStats.karma": "Karma",
     "gameStats.abandons": "Napuštanja",
     "gameStats.categoryStats": "{wins}/{n} ({winRate}%)",
+    "gameStats.targetScore.163": "Brza 163",
     "gameStats.targetScore.501": "Do 501",
     "gameStats.targetScore.701": "Do 701",
     "gameStats.targetScore.1001": "Do 1001",

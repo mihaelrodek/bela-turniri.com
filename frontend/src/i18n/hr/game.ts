@@ -188,6 +188,13 @@ export const game = {
     "lobby.create.title": "Postavi svoj stol",
     "lobby.create.targetAria": "Igraj do {target} bodova",
     "lobby.create.private": "Privatna igra",
+    "create.quick.name": "Brza 163",
+    "create.quick.title": "Brza igra",
+    "create.quick.description": "Najviše 3 dijeljenja, nasumičan prvi djelitelj. Pobjeđuje prvi par sa 163 boda, a ako nitko ne stigne, onaj s više bodova nakon trećeg dijeljenja.",
+    // Short label for the quick-play (163) discipline in tight stat pills —
+    // the bare number "163" alone would not read as a discipline name the
+    // way "501"/"701"/"1001" do, so it gets a word instead.
+    "stats.quickLabel": "Brza",
     "lobby.joinByCode.title": "Pridruži se šifrom",
     "lobby.joinByCode.description": "Upiši 4-znamenkastu šifru sobe.",
     "lobby.joinByCode.privateTitle": "Uđi u igru {name}",
@@ -434,6 +441,10 @@ export const game = {
     "exit.description": "Ako ostaneš, nastavljaš igrati. Ako izađeš, počinje odbrojavanje od dvije minute; do isteka se možeš vratiti, a zatim tvoje mjesto preuzima bot.",
     "exit.stay": "Ostani u sobi",
     "exit.leave": "Izađi iz sobe",
+
+    "missedTurn.title": "Propustio si potez",
+    "missedTurn.body": "Vrijeme je isteklo pa je potez odigran umjesto tebe.",
+    "missedTurn.back": "Vrati se u igru",
 
     "widget.title": "Aktivna soba",
     "widget.return": "Vrati se",
