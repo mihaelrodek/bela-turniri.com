@@ -78,6 +78,7 @@ export const blok = {
     // ispod velikog natpisa u čestitki.
     "entry.belot": "Belot",
     "entry.belotHint": "Osam istih karata — partija je gotova",
+    "entry.belotCongrats": "Čestitamo!",
     "entry.fell": "PAD",
     // Vidljivo piše „Σ 297”; ova riječ je sr-only ime tog broja, jer čitač
     // ekrana inače pročita „n-ary summation” ili ništa.

@@ -424,6 +424,9 @@ export interface Retainer {
     mock?: boolean
     /** false = observe the store only; never opens a socket by itself. */
     active: boolean
+    /** This consumer IS the table page for `roomId` — not the app-wide widget
+     *  that merely follows the sticky room. See `leaveIdleRoomAfter`. */
+    table?: boolean
 }
 
 const retainers = new Set<Retainer>()
@@ -433,8 +436,33 @@ export function retain(r: Retainer): () => void {
     sync()
     return () => {
         retainers.delete(r)
+        if (r.table && r.roomId !== undefined) leaveIdleRoomAfter(r.roomId)
         sync()
     }
+}
+
+/**
+ * Walking off the table page of a room that is NOT playing is leaving it
+ * (2026-09-20, user report). A seat is kept across navigation for one reason
+ * only — a game in progress the player must be able to come back to. A lobby,
+ * and above all the lobby a FINISHED game falls back into, is not that: the
+ * seat stayed taken, the games list kept offering "Vrati se u igru" for a
+ * game that was over, and the room still showed the player's avatar.
+ *
+ * Deferred by one task, and cancelled when a table retainer for the same room
+ * is back by then: StrictMode's mount → unmount → mount, and any remount of
+ * the page, must not walk the player out. A reload never gets here at all —
+ * a dying document runs no effect cleanups.
+ */
+function leaveIdleRoomAfter(roomId: string): void {
+    setTimeout(() => {
+        if (leavingRoomId !== undefined) return
+        if (state.room?.id !== roomId || state.room.status === "PLAYING") return
+        for (const r of retainers) {
+            if (r.active && r.table && r.roomId === roomId) return
+        }
+        leaveRoom()
+    }, 0)
 }
 
 /** Re-read a retainer that changed in place (options are mutated, not swapped). */
@@ -668,7 +696,13 @@ function finishLeave(): void {
     leavingRoomId = undefined
     leavingRetainers = null
 
-    if (leftRoomId === undefined || desired().roomId !== leftRoomId) return
+    if (leftRoomId === undefined) return
+    if (desired().roomId !== leftRoomId) {
+        // Headed for a DIFFERENT room (or none): that join was parked behind
+        // this leave by `applyDesired`'s guard, so release it now.
+        applyDesired()
+        return
+    }
     // The exiting GameRoom's retainer can still exist when the socket frame
     // arrives. Only a new retainer proves that the player opened this room
     // again while the leave was in flight.

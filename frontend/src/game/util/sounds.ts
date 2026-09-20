@@ -31,7 +31,7 @@ interface WebKitGlobal {
     webkitAudioContext?: typeof AudioContext
 }
 
-export type GameSound = "seatJoin" | "gameLaunch" | "gameStart" | "card" | "gameWon" | "gameLost"
+export type GameSound = "seatJoin" | "seatLeave" | "turnTick" | "turnTickLast" | "gameLaunch" | "gameStart" | "card" | "gameWon" | "gameLost"
 
 let audioContext: AudioContext | null = null
 const activeOscillators: OscillatorNode[] = []
@@ -260,6 +260,27 @@ function renderSound(ctx: AudioContext, sound: GameSound): void {
             playBell(ctx, out, now, 587.33, 0.18, 0.05)
             playBell(ctx, out, now + 0.07, 880.0, 0.3, 0.06)
             break
+
+        case "seatLeave":
+            /* Somebody left the room (2026-09-20, user request): the mirror of
+               `seatJoin` — the same two soft notes, but falling, and a shade
+               shorter, so "in" and "out" are told apart by direction alone. */
+            playBell(ctx, out, now, 880.0, 0.16, 0.05)
+            playBell(ctx, out, now + 0.07, 587.33, 0.22, 0.05)
+            break
+
+        case "turnTick":
+        case "turnTickLast": {
+            /* "Požuri" (2026-09-20, user request): a quiet clock tick at 3, 2
+               and 1 s before MY turn runs out — the stand-in for the haptic
+               tick on iOS Safari/PWA, which has no Vibration API. A 45 ms
+               woodblock, well under every other cue; the LAST one sits a
+               fourth higher, so the ear hears "now" without it getting louder. */
+            const pitch = sound === "turnTickLast" ? 1320.0 : 990.0
+            playTone(ctx, out, now, pitch, 0.045, 0.045, "sine")
+            playTone(ctx, out, now, pitch / 2, 0.06, 0.03, "triangle")
+            break
+        }
 
         case "gameLaunch":
             /* The tap on "Pokreni igru" (2026-09-20, user request). Short and

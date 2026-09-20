@@ -13,6 +13,8 @@ import { linkWriteToken, revokeMyBlokLink } from "../blokLinkApi"
 import { blokShareUrl, createBlokShare, revokeBlokShare } from "../blokHistoryApi"
 import { ACTION_BAR_BOTTOM, ACTION_BAR_GAP, ACTION_BAR_RESERVE } from "../actionBar"
 import { isRecordableGame, useBlok } from "../store"
+import type { Suit } from "@bela/engine"
+import { randomSuit } from "../../game/util/cards"
 import { BLOK_SIDES, type BlokRound, type BlokSide } from "../types"
 import BelotCelebration from "../components/BelotCelebration"
 import BlokHeader from "../components/BlokHeader"
@@ -368,10 +370,11 @@ export default function BlokPage() {
        selects the belot: until Spremi nothing has happened yet — the sheet
        writes nothing before it, and Odustani is one tap away — and a burst
        over a deal that was then cancelled would be celebrating a game that is
-       still being played. `BelotCelebration` itself is what decides whether
-       there is any motion at all (reduced motion renders nothing). */
-    const [celebrateBelot, setCelebrateBelot] = useState(false)
-    const stopCelebrating = useCallback(() => setCelebrateBelot(false), [])
+       still being played. The blok never learns which eight cards they were,
+       so the show gets a suit rolled here, in the handler. `BelotCelebration`
+       itself decides how much of it moves (reduced motion stands still). */
+    const [celebrateBelot, setCelebrateBelot] = useState<Suit | null>(null)
+    const stopCelebrating = useCallback(() => setCelebrateBelot(null), [])
 
     const onEntrySave = useCallback(
         (round: Omit<BlokRound, "id">) => {
@@ -380,7 +383,7 @@ export default function BlokPage() {
             setEntry({ mode: "closed" })
             // An edit that ADDS a belot celebrates too: the game has just been
             // won, whichever way the deal got there.
-            if (round.belot !== null) setCelebrateBelot(true)
+            if (round.belot !== null) setCelebrateBelot(randomSuit())
         },
         [entry, addRound, updateRound],
     )
@@ -1058,7 +1061,7 @@ export default function BlokPage() {
                 {actionBar}
             </Box>
 
-            <BelotCelebration open={celebrateBelot} onDone={stopCelebrating} />
+            <BelotCelebration suit={celebrateBelot} onDone={stopCelebrating} />
 
             <RoundEntrySheet
                 open={entry.mode !== "closed"}

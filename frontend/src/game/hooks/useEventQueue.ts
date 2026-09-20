@@ -52,8 +52,9 @@ export const EVENT_DWELL_MS: Record<GameEvent["type"], number> = {
     CARD_PLAYED: 800,
     /** The "Bela!" flash. */
     BELA: 1400,
-    /** Belot ends the game; let the full-hand celebration finish first. */
-    BELOT: 3200,
+    /** Belot ends the game; let the full-hand celebration finish first
+     *  (`BelotShowcase` times its fade-out off this number). */
+    BELOT: 7600,
     /** 950 ms holding the four cards (TRICK_HOLD_MS in GameRoomPage) plus the
      *  500 ms they take to slide to the winner and fade, and a little slack.
      *  Shorter than the sum and the next card is dealt over a trick still

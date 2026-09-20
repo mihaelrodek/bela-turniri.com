@@ -335,6 +335,8 @@ export const game = {
     "bela.askNo": "Ne",
 
     "belot.title": "BELOT!",
+
+    "belot.congrats": "Čestitamo!",
     "belot.by": "{name} ima svih osam karata — {suit}",
     "belot.wins": "Partija je osvojena odmah",
 

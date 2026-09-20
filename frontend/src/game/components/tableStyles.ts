@@ -162,13 +162,16 @@ export function tableGeometry(bottomSeat: boolean) {
         "--table-h": "min(calc(2 * var(--cy-bottom) - 10px), calc(2 * var(--seat-y) + 2 * var(--seat-overlap)))",
         height: "var(--box-h)",
 
-        // From 48em the pile is `md` again, so the clearances go back up with
-        // it — keep these in step with TrickArea's REST_X/REST_Y.
+        // From 48em the pile is `ml` (84 × 135; 2026-09-20, user request), so
+        // the clearances are its REST_X/REST_Y plus half a card: 78 + 42 and
+        // 50 + 68, with a little air. The box is taller too (was 392/50/520),
+        // because the table now sits at the TOP of its row on the web as well
+        // — the partner used to float a hand's breadth under the score box.
         [WIDE]: {
-            "--box-h": boxH(392, 50, 520),
+            "--box-h": boxH(430, 54, 580),
             "--seat-w": "116px",
-            "--seat-clear-x": "108px",
-            "--seat-clear-y": "120px",
+            "--seat-clear-x": "132px",
+            "--seat-clear-y": "126px",
             "--seat-x": "max(var(--seat-clear-x), min(calc(0.46 * var(--box-h)), 240px))",
             "--seat-y": `max(var(--seat-clear-y), min(calc(${vyWide} * var(--box-h)), 190px))`,
             "--cy-free": "calc(var(--seat-y) + 10px)",

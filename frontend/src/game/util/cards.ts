@@ -19,6 +19,13 @@ import type { Card, Rank, Suit } from "@bela/engine"
 /** Same order as the engine's `SUITS` — the UI sorts and lays out by it. */
 export const SUITS: readonly Suit[] = ["HERC", "KARA", "PIK", "TREF"]
 
+/** A suit for a caller that has none of its own — the blok's belot, which is
+ *  entered by hand and never says which eight cards they were. Call it from
+ *  an event handler, never from a render body. */
+export function randomSuit(): Suit {
+    return SUITS[Math.floor(Math.random() * SUITS.length)]
+}
+
 /** Natural rank order (also the order sequences/terce use). */
 export const RANKS: readonly Rank[] = ["7", "8", "9", "10", "J", "Q", "K", "A"]
 

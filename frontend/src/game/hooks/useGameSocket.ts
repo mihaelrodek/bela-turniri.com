@@ -76,7 +76,8 @@ export function useGameSocket(options: UseGameSocketOptions = {}): GameSocket {
 
     // One retainer object per mounted consumer, mutated in place so changing an
     // option never churns the connection.
-    const retainerRef = useRef<Retainer>({ roomId: wantRoomId, lobby, mock, active })
+    const table = !sticky && roomId !== undefined
+    const retainerRef = useRef<Retainer>({ roomId: wantRoomId, lobby, mock, active, table })
 
     useEffect(() => {
         setAuth(uid, async () => userRef.current?.getIdToken())
@@ -93,8 +94,9 @@ export function useGameSocket(options: UseGameSocketOptions = {}): GameSocket {
         retainer.lobby = lobby
         retainer.mock = mock
         retainer.active = active
+        retainer.table = table
         refresh()
-    }, [wantRoomId, lobby, mock, active])
+    }, [wantRoomId, lobby, mock, active, table])
 
     const send = useCallback((msg: ClientMessage) => sendImpl(msg), [])
     const sendReaction = useCallback((reaction: Reaction) => sendImpl({ t: "chat.react", reaction }), [])

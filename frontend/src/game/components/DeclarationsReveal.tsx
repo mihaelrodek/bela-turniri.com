@@ -5,8 +5,10 @@ import type { RoomState, Seat } from "@bela/protocol"
 import type { Declaration, Suit, Team } from "@bela/engine"
 import { useTranslation } from "../../i18n"
 import { otherTeam, SEATS, teamOf } from "../util/seats"
-import { RANKS, makeCard, suitKey } from "../util/cards"
+import { makeCard, suitKey } from "../util/cards"
 import PlayingCard, { SuitIcon } from "./PlayingCard"
+import BelotShowcase from "./BelotShowcase"
+import { EVENT_DWELL_MS } from "../hooks/useEventQueue"
 import { GLASS_STRONG, INK, INK_MUTED, TEAM } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -148,7 +150,9 @@ export function TrumpFlash({ seats, seat, suit }: { seats: RoomState["seats"]; s
 
 /** A full-suit hand is rare enough to deserve its own unmistakable moment.
  * The engine has already ended the game when this renders; the overlay only
- * reveals the eight-card hand before the ordinary result dialog appears. */
+ * reveals the eight-card hand before the ordinary result dialog appears. The
+ * show itself is `BelotShowcase`, shared with the blok; this only names the
+ * player and the suit. Taps pass through — the event queue owns the dwell. */
 export function BelotFlash({
     seats,
     seat,
@@ -164,79 +168,15 @@ export function BelotFlash({
     const name = seatName(seats, seat, t("game.seat.empty"))
 
     return (
-        <Portal>
-        <Flex
-            position="fixed"
-            inset="0"
-            align="center"
-            justify="center"
-            px="3"
-            pointerEvents="none"
-            zIndex={1500}
-            bg="bg.opaque"
-            backdropFilter="blur(5px)"
-            role="status"
-            css={{
-                animation: reducedMotion ? undefined : "belotBackdropIn 280ms ease-out",
-                "@keyframes belotBackdropIn": { from: { opacity: 0 }, to: { opacity: 1 } },
-            }}
-        >
-            <VStack
-                gap="2"
-                w="100%"
-                maxW="390px"
-                rounded="l3"
-                borderWidth="1px"
-                borderColor="brand.300"
-                bg="bg.opaque"
-                px={{ base: "4", sm: "6" }}
-                py={{ base: "5", sm: "6" }}
-                boxShadow="0 0 70px rgba(246, 196, 83, 0.34), 0 20px 60px rgba(0,0,0,0.6)"
-                css={{
-                    animation: reducedMotion ? undefined : "belotPanelIn 520ms cubic-bezier(0.16, 1, 0.3, 1)",
-                    "@keyframes belotPanelIn": {
-                        from: { transform: "scale(.7) translateY(24px)", opacity: 0 },
-                        to: { transform: "scale(1) translateY(0)", opacity: 1 },
-                    },
-                }}
-            >
-                <Text fontSize={{ base: "4xl", sm: "5xl" }} lineHeight="1" fontWeight="black" color="yellow.300" letterSpacing="widest">
-                    {t("game.belot.title")}
-                </Text>
-                <Text fontSize="sm" fontWeight="bold" color={INK} textAlign="center">
-                    {t("game.belot.by", { name, suit: t(suitKey(suit)) })}
-                </Text>
-
-                <Box display="grid" gridTemplateColumns="repeat(4, 48px)" gap="1.5" justifyContent="center" my="2">
-                    {RANKS.map((rank, index) => (
-                        <Box
-                            key={rank}
-                            w="48px"
-                            h="70px"
-                            overflow="hidden"
-                            rounded="6px"
-                            css={{
-                                animation: reducedMotion ? undefined : "belotCardIn 420ms cubic-bezier(.16,1,.3,1) both",
-                                animationDelay: reducedMotion ? undefined : `${220 + index * 70}ms`,
-                                "@keyframes belotCardIn": {
-                                    from: { transform: "translateY(28px) rotate(-5deg)", opacity: 0 },
-                                    to: { transform: "translateY(0) rotate(0)", opacity: 1 },
-                                },
-                            }}
-                        >
-                            <Box transform="scale(.78)" transformOrigin="top left">
-                                <PlayingCard card={makeCard(rank, suit)} size="sm" />
-                            </Box>
-                        </Box>
-                    ))}
-                </Box>
-
-                <Text fontSize="xs" color="yellow.200" fontWeight="bold">
-                    {t("game.belot.wins")}
-                </Text>
-            </VStack>
-        </Flex>
-        </Portal>
+        <BelotShowcase
+            suit={suit}
+            kicker={t("game.belot.congrats")}
+            title={t("game.belot.title")}
+            subtitle={t("game.belot.by", { name, suit: t(suitKey(suit)) })}
+            footnote={t("game.belot.wins")}
+            durationMs={EVENT_DWELL_MS.BELOT}
+            reducedMotion={reducedMotion}
+        />
     )
 }
 
@@ -324,6 +264,14 @@ export default function DeclarationsReveal({
     const seatRowsFor = (team: Team) => withDeclarations.filter((seat) => teamOf(seat) === team)
     const myHasContent = seatRowsFor(myTeam).length > 0 || belaDeclared === myTeam
     const theirHasContent = seatRowsFor(theirTeam).length > 0 || belaDeclared === theirTeam
+    // A pair with nothing to show cannot be selected at all (2026-09-20, user
+    // request: "nemoguće označiti zvanja ako netko nije imao zvanja"). The
+    // viewer's own tab also counts as having something when its declarations
+    // were lost — that is the line it exists to show.
+    const hasContent: Record<Team, boolean> = {
+        [myTeam]: myHasContent || ownLost > 0,
+        [theirTeam]: theirHasContent,
+    } as Record<Team, boolean>
     const defaultTeam: Team =
         myHasContent || ownLost > 0 ? myTeam : theirHasContent ? theirTeam : myTeam
     const [selectedTeam, setSelectedTeam] = useState<Team>(defaultTeam)
@@ -402,6 +350,7 @@ export default function DeclarationsReveal({
                         <HStack role="tablist" aria-label={t("game.declarations.title")} gap="2" align="stretch">
                             {teamRows.map(({ team, side, label }) => {
                                 const selected = selectedTeam === team
+                                const enabled = hasContent[team]
                                 return (
                                     // `VStack as="button"` (project pattern — Chakra's
                                     // polymorphic typing has no `type` prop) rather than a
@@ -411,12 +360,13 @@ export default function DeclarationsReveal({
                                         as="button"
                                         role="tab"
                                         aria-selected={selected}
+                                        aria-disabled={!enabled}
                                         tabIndex={selected ? 0 : -1}
-                                        onClick={() => setSelectedTeam(team)}
+                                        onClick={enabled ? () => setSelectedTeam(team) : undefined}
                                         onKeyDown={(event) => {
                                             if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
                                             event.preventDefault()
-                                            setSelectedTeam(otherTeam(team))
+                                            if (hasContent[otherTeam(team)]) setSelectedTeam(otherTeam(team))
                                         }}
                                         flex="1"
                                         gap="0.5"
@@ -429,8 +379,8 @@ export default function DeclarationsReveal({
                                         borderColor={selected ? TEAM[side] : "border.subtle"}
                                         borderTopWidth="2px"
                                         borderTopColor={TEAM[side]}
-                                        opacity={selected ? 1 : 0.65}
-                                        cursor="pointer"
+                                        opacity={!enabled ? 0.4 : selected ? 1 : 0.65}
+                                        cursor={enabled ? "pointer" : "not-allowed"}
                                         transition="opacity 120ms ease, border-color 120ms ease"
                                         _focusVisible={{ outline: "2px solid", outlineColor: TEAM[side], outlineOffset: "2px" }}
                                     >

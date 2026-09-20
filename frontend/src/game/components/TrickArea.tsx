@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Box } from "@chakra-ui/react"
+import { Box, useBreakpointValue } from "@chakra-ui/react"
 import type { Card as CardId, Seat } from "@bela/protocol"
 import type { TrickCard } from "@bela/engine"
 import { cardScatter, positionOf, positionVector } from "../util/seats"
@@ -37,25 +37,25 @@ import PlayingCard from "./PlayingCard"
  *
  *  How big it ends up on a given phone is `--pile-k` (see the root below);
  *  the type stays a union because the rest/fly/collect tables are per size. */
-type PileSize = "sm" | "md"
+type PileSize = "sm" | "md" | "ml"
 
 /** How far from the centre a resting card sits, per axis, per card size. The
  *  offsets leave only a small, natural overlap at the corners and make the
  *  throwing seat unambiguous. Seat geometry in tableStyles.ts clears these
  *  extents — `--seat-clear-x` / `--seat-clear-y` are stated against the `sm`
  *  numbers, since that is what a phone draws. */
-const REST_X: Record<PileSize, number> = { sm: 50, md: 66 }
+const REST_X: Record<PileSize, number> = { sm: 50, md: 66, ml: 78 }
 /** Tightened 42/54 → 32/42 (2026-09-20, user request: "svi bacaju karte na
  *  sredinu"). The vertical spread is what made the partner's card read as
  *  thrown from far away — the cross now closes up around the centre while the
  *  horizontal offsets, which are what makes the left/right owner obvious,
  *  stay as they were. The seat clearances in tableStyles.ts are stated
  *  against these numbers and only ever had slack to gain. */
-const REST_Y: Record<PileSize, number> = { sm: 32, md: 42 }
+const REST_Y: Record<PileSize, number> = { sm: 32, md: 42, ml: 50 }
 /** Where a card starts its flight (off toward its owner). */
-const FLY_IN: Record<PileSize, number> = { sm: 130, md: 170 }
+const FLY_IN: Record<PileSize, number> = { sm: 130, md: 170, ml: 200 }
 /** Where the trick slides to when collected. */
-const COLLECT: Record<PileSize, number> = { sm: 260, md: 340 }
+const COLLECT: Record<PileSize, number> = { sm: 260, md: 340, ml: 400 }
 /** DESIGN §2.5: 320 ms in, 500 ms out. `COLLECT_MS` is exported because the
  *  page has to know when the sweep is finished before it clears the felt. */
 const FLY_MS = 320
@@ -158,7 +158,10 @@ export default function TrickArea({
     collectTo?: Seat | null
     reducedMotion?: boolean
 }) {
-    const size: PileSize = "md"
+    // `ml` (84 × 135) from 48em (2026-09-20, user request: bigger cards on
+    // the web, where there is room); a phone keeps `md`, which `--pile-k`
+    // then scales to the screen. Clearances in tableStyles.ts follow.
+    const size = (useBreakpointValue<PileSize>({ base: "md", md: "ml" }) ?? "md") as PileSize
     return (
         // Not aria-hidden: each card carries its Croatian name as an
         // aria-label, and the trick is exactly what a screen-reader user

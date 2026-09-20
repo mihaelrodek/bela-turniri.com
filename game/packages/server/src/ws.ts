@@ -406,10 +406,11 @@ export class Hub {
                 room.assertCanJoin(conn, false)
                 this.requireSingleSeat(conn, room.id)
                 if (conn.roomId !== room.id) this.leaveCurrentRoom(conn)
+                const wasSeated = this.heldSeatIn(room, conn)
                 room.attach(conn)
                 conn.send(room.joinedMessageFor(conn))
                 room.broadcastState()
-                room.game?.sendStateTo(conn)
+                if (room.status === "PLAYING" || wasSeated) room.game?.sendStateTo(conn)
                 this.afterEnteringRoom(conn, room)
                 return
             }
@@ -422,10 +423,11 @@ export class Hub {
                 room.assertCanJoin(conn, true)
                 this.requireSingleSeat(conn, room.id)
                 if (conn.roomId !== room.id) this.leaveCurrentRoom(conn)
+                const wasSeated = this.heldSeatIn(room, conn)
                 room.attach(conn)
                 conn.send(room.joinedMessageFor(conn))
                 room.broadcastState()
-                room.game?.sendStateTo(conn)
+                if (room.status === "PLAYING" || wasSeated) room.game?.sendStateTo(conn)
                 this.afterEnteringRoom(conn, room)
                 return
             }
@@ -680,6 +682,19 @@ export class Hub {
         const game = room.game
         if (!game) throw new ProtocolError("BAD_REQUEST", "Igra još nije započela.")
         return game
+    }
+
+    /**
+     * Did this user already hold a seat here BEFORE this join? A finished
+     * game's last state is theirs to see only then (they sat through it, or
+     * the game ended while they were on another page). Somebody entering the
+     * room afresh — including a player who left and walked back in — gets the
+     * lobby, not the previous game's score and result dialog (2026-09-20,
+     * user report). A room that is PLAYING always syncs, spectators included.
+     */
+    private heldSeatIn(room: Room, conn: Conn): boolean {
+        const uid = conn.user?.uid
+        return uid !== undefined && room.seatOfUid(uid) !== null
     }
 
     private leaveCurrentRoom(conn: Conn): void {

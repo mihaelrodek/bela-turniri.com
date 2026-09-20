@@ -137,6 +137,19 @@ Na čitanju su `belot` polja u `api/blokHistory.ts` i `api/blokShare.ts`
 
 ### 1.3 Čestitka za belot — ODLUKA (2026-09-08)
 
+> **IZMJENA 2026-09-20 (zahtjev korisnika — konfeti „nisu dobri”).** Konfeta
+> više nema. `BelotCelebration` je tanak omotač oko
+> `game/components/BelotShowcase.tsx`, iste priredbe koju daje i online stol:
+> osam KLASIČNIH karata jedne boje diže se licem dolje, širi u lepezu i okreće
+> jedna po jedna preko žive pozadine (svjetla, zrake, iskre), zatim bljesak,
+> prsteni, prasak znakova boje i riječ koja pada; lepeza nastavlja valovati. Blok ne
+> zna KOJIH je osam karata bilo, pa boju baca `randomSuit()` u `onEntrySave`
+> (ne u renderu). Pozornica prekriva ekran, zato je **dodir bilo gdje odmah
+> miče**. Uz smanjenu animaciju ista slika STOJI (2,2 s) umjesto da se ne
+> prikaže ništa. Lepeza je jedan crtež (360×156, karte `md`) skaliran jednim
+> faktorom iz stvarnog viewporta (širina na mobitelu, visina u pejzažu, najviše
+> 1,7 na webu). Ostatak odjeljka ispod opisuje staro ponašanje.
+
 `components/BelotCelebration.tsx`: konfeti koji padaju preko ekrana i velika
 riječ „BELOT”, **kad se belot spremi** (`Spremi`), ne na dodir gumba — do
 `Spremi` se ništa nije dogodilo (list ne piše ništa, `Odustani` je jedan dodir),

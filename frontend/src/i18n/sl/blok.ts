@@ -69,6 +69,7 @@ export const blok: BlokDict = {
     // tudi značka na kartici in v vrstici delitve.
     "entry.belot": "Belot",
     "entry.belotHint": "Osem enakih kart — partija je končana",
+    "entry.belotCongrats": "Čestitamo!",
     "entry.fell": "PADLI",
     "entry.sum": "Skupaj",
     "entry.save": "Shrani",

@@ -655,3 +655,85 @@ prolazila sa `seat: null`. U zaglavlju stola stoji čip „Gledatelji: n" kad
 soba dopušta gledatelje (`room.allowSpectators`); broj je `room.spectators.length`
 i mijenja se uživo s `room.state`. Bez dopuštenih gledatelja čip se ne crta,
 jer bi uvijek pisao 0.
+
+### 7.9 Web: veći štih, partner bliže semaforu (2026-09-20)
+Zahtjev korisnika sa snimke desktop prikaza: partner neka sjedi „još gore,
+bliže boxu s bodovima”, a karte neka budu veće.
+- **Štih je `ml` (84 × 135) od 48em naviše** (`TrickArea`: `REST_X` 78, `REST_Y`
+  50, `FLY_IN` 200, `COLLECT` 400); telefon ostaje `md` pod `--pile-k`.
+  Razmaci sjedala u `WIDE` bloku prate ga: `--seat-clear-x` 108 → 132,
+  `--seat-clear-y` 120 → 126.
+- **Stol je uz vrh svog reda na svim širinama** (`justify="flex-start"`, prije
+  `center` od `md`): višak visine ide ispod, ne napola iznad partnera. Da taj
+  višak ne ostane prazan, kutija raste: `boxH(392, 50, 520)` → `boxH(430, 54, 580)`.
+- **Ruka nije povećana**: osam `ml` karata je 714 px, a stupac je 880–900 px;
+  s većim (`lg`, 96) ostalo bi manje od 45 px uz svaki rub za avatar.
+
+**Tab bez zvanja se ne da označiti** (2026-09-20, zahtjev korisnika, §7.7):
+par koji nema što pokazati (nema zvanja ni bele) ima ugašen tab — `aria-disabled`,
+nema klika, strelice ga preskaču, prigušen je (opacity 0.4, `not-allowed`).
+Iznimka je vlastiti par čija su zvanja propala: on ostaje aktivan jer na njemu
+stoji redak „zvanja su propala”.
+
+**Zvuk kad netko napusti sobu** (`seatLeave`, 2026-09-20, zahtjev korisnika):
+zrcalo od `seatJoin` — iste dvije tihe note, ali padajuće. Pali se kad se
+stolica isprazni (igrač otišao ili je bot uklonjen) ili kad igračevo mjesto
+preuzme netko drugi; igrač zamijenjen botom usred igre je jedan padajući zvuk,
+ne dva. Odlazak pobjeđuje dolazak u istom okviru. Prekid veze nije odlazak:
+sjedalo se drži tijekom reconnect grace-a i njegov vlasnik se ne mijenja.
+
+### Belot — zajednička priredba (2026-09-20, zahtjev korisnika, drugi prolaz)
+
+`components/BelotShowcase.tsx` zamjenjuje stari panel s 4×2 mrežom sličica u
+`BelotFlash` i konfete u bloku (`blok/components/BelotCelebration.tsx`). Karte su
+UVIJEK `klasicne`, bez obzira na špil igrača; na stolu prava boja belota, u bloku
+`randomSuit()`.
+
+- **Pozadina živi cijelo vrijeme**: dva zamućena svjetla koja plove (zlatno,
+  smaragdno), dva sloja zraka koji se okreću jedan protiv drugoga (zlatni i
+  pulsira), 28 iskri i 9 blijedih znakova boje koji se dižu u petlji (negativni
+  `animation-delay`, zrak je pun od prvog kadra).
+- **Karte**: paket se diže LICEM DOLJE, sjeda na lijevi kraj luka i širi se u
+  lepezu (±22,75°, polumjer 260 px); 1150–2260 ms karte se okreću jedna po jedna
+  pravim 3D okretom (`rotateY`, `backface-visibility`) — to je ujedno vrijeme da
+  se klasična slika dekodira. Poslije: val kroz karte, odsjaj u petlji, cijela
+  lepeza se njiše u 3D, svjetlo pod njom diše.
+- **Udar (2250 ms)**: bljesak, dva prstena, 30 komada praska (znakovi boje +
+  iskre, `vmin`), pozornica se jednom zatrese, riječ PADA (scale 3,4 → 1, blur),
+  zatim se presijava i valovi slovo po slovo.
+- Lepeza se crta jednom (360×156, `md`) i skalira
+  `min((vw−28)/360, 0.4·vh/156, 1.7)`, dno 0,5 — mobitel (karte ~73 px), tablet,
+  web (do ~122 px), pejzaž.
+- `EVENT_DWELL_MS.BELOT` = 7600 (bilo 3200); blok 7600 ms ili dodir. Zadnjih
+  400 ms blijedi. Na stolu dodiri prolaze kroz sloj.
+- Smanjena animacija: lepeza licem gore, riječ i mirno svjetlo; ništa se ne miče.
+- Keyframes idu kroz emotionov `keyframes()` na razini modula (kao `Hand`), NE
+  kao ugniježđeni `"@keyframes"` u `css` propu: te animacije koje se pozivaju s
+  DRUGOG elementa u pregledniku nisu krenule (prijava korisnika, 2026-09-20 —
+  stajao je zatvoren paket). Mirno stanje svake karte je zato ujedno i zadnji
+  kadar (lepeza otvorena), pa mrtva animacija više ne može ostaviti paket.
+
+### „Požuri” — haptika zadnje 3 sekunde (2026-09-20, zahtjev korisnika)
+
+Dok je MOJ potez (zvanje ili karta), na 3, 2 i 1 s prije isteka ide po jedan lagani
+otkucaj (`playHaptic("turnHurry")`, `TURN_HURRY_TICKS_MS` u `GameRoomPage`). Potez
+mijenja `turn`, cleanup gasi preostale otkucaje. Nativno: `ImpactStyle.Light`; web:
+`navigator.vibrate(35)` — u praksi samo Android (Safari/iOS PWA nema Vibration API,
+desktop nema čime). Isti prekidač „Zvuk” kao i ostala haptika. Staro upozorenje na
+25 % sata ostaje, osim kad bi palo unutar ~3,5 s od kraja (kratak sat).
+Uz svaki otkucaj ide i tihi „tik” (`turnTick`, zadnji `turnTickLast` kvartu više):
+45 ms, ispod svih ostalih zvukova — zamjena za vibraciju na iOS Safariju/PWA-u.
+
+### Izlazak iz sobe koja ne igra (2026-09-20, prijava korisnika)
+
+Sjedalo se preko navigacije čuva SAMO dok je igra u tijeku (`PLAYING`). Odlazak sa
+stranice stola dok je soba `LOBBY` — uključujući lobi u koji padne ZAVRŠENA partija —
+je izlazak: `gameConnection.retain()` pri otpuštanju „table” retainera zove
+`leaveIdleRoomAfter` (jedan task odgode; StrictMode/remount ga poništava, reload ne
+izvršava cleanup pa ne izlazi). Prije je sjedalo ostajalo zauzeto, popis igara nudio
+„Vrati se u igru” za gotovu partiju, a avatar stajao u sobi. `finishLeave` sada pušta
+i parkirani ulazak u DRUGU sobu.
+
+Server (`ws.ts`, `heldSeatIn`): `game.state` završene partije dobiva samo onaj tko je
+PRIJE tog `room.join` već držao sjedalo; tko uđe iznova (i nakon izlaska) dobiva čist
+lobi, bez starog rezultata i dijaloga. Soba koja je `PLAYING` sinkronizira uvijek.

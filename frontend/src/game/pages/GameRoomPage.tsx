@@ -92,6 +92,9 @@ const TRICK_HOLD_MS = 950
  *  same point `useTurnCountdown` flips `urgent` and the seat ring turns red,
  *  so the buzz and the visual warning arrive together. */
 const TURN_WARNING_FRACTION = 0.25
+/** "Požuri": one light tick at each of these many ms before MY turn runs out
+ *  (2026-09-20, user request — the last three seconds). */
+const TURN_HURRY_TICKS_MS = [3000, 2000, 1000] as const
 
 /** How long the "X zove <adut>" beat stays on the felt. */
 const TRUMP_FLASH_MS = 1500
@@ -673,12 +676,18 @@ export default function GameRoomPage() {
        event stream, because seating is room state and has no `game.events` of
        its own.
 
-       Three things it deliberately does NOT do. The FIRST room frame is
+       Leaving has its own cue (`seatLeave`, 2026-09-20, user request): a
+       chair emptied — a player left, or a bot was removed — or a player's
+       chair went to somebody else. A departure wins over an arrival in the
+       same frame, so a leaver replaced by a bot is ONE falling cue, not two.
+       A dropped connection is neither: the seat is held for the reconnect
+       grace, its occupant does not change.
+
+       Two things it deliberately does NOT do. The FIRST room frame is
        silent — that is the table as it already was when we walked in, not
-       four people arriving. Leaving is silent — a chair emptying is not an
-       arrival, and a bot being swapped for a player would otherwise be two
-       cues. And one frame makes at most ONE sound however many seats changed
-       in it, so "fill the table" never chimes four times over each other. */
+       four people arriving. And one frame makes at most ONE sound however
+       many seats changed in it, so "fill the table" never chimes four times
+       over each other. */
     const seatedRef = useRef<string[] | null>(null)
     useEffect(() => {
         if (!room) {
@@ -693,8 +702,15 @@ export default function GameRoomPage() {
         const before = seatedRef.current
         seatedRef.current = occupants
         if (before === null) return
-        const arrived = occupants.some((who, i) => who !== "" && who !== before[i])
-        if (arrived) playSound("seatJoin")
+        // A chair emptied, or a PLAYER's chair changed hands (a leaver
+        // replaced by a bot mid-game is a departure, not an arrival).
+        const departed = occupants.some((who, i) => {
+            const was = before[i] ?? ""
+            return was !== "" && who !== was && (who === "" || was.startsWith("player:"))
+        })
+        const arrived = occupants.some((who, i) => who !== "" && who !== (before[i] ?? ""))
+        if (departed) playSound("seatLeave")
+        else if (arrived) playSound("seatJoin")
     }, [room])
 
     // Everything else rides the raw event stream, which is the only place a
@@ -790,10 +806,30 @@ export default function GameRoomPage() {
     const turnTimeoutMs = room?.turnTimeoutMs ?? 0
     useEffect(() => {
         if (mySeat === null || turn !== mySeat || turnDeadline === null || turnTimeoutMs <= 0) return
-        const delay = turnDeadline - turnTimeoutMs * TURN_WARNING_FRACTION - Date.now()
-        if (delay <= 0) return
-        const id = setTimeout(() => playHaptic("turnWarning"), delay)
-        return () => clearTimeout(id)
+        const now = Date.now()
+        const ids: ReturnType<typeof setTimeout>[] = []
+        // The urgent-quarter warning, unless it would land on top of the
+        // hurry ticks below (a short turn clock): then the ticks say it all.
+        const warningLeft = turnTimeoutMs * TURN_WARNING_FRACTION
+        const warningDelay = turnDeadline - warningLeft - now
+        if (warningDelay > 0 && warningLeft > TURN_HURRY_TICKS_MS[0] + 500) {
+            ids.push(setTimeout(() => playHaptic("turnWarning"), warningDelay))
+        }
+        // The last three seconds: tick, tick, tick. Playing the card changes
+        // `turn`, the cleanup clears what is left, and the phone goes quiet.
+        // A tick whose moment has already passed (a rejoin) is skipped.
+        for (const left of TURN_HURRY_TICKS_MS) {
+            const delay = turnDeadline - left - now
+            if (delay <= 0) continue
+            // The tick is what an iOS PWA gets instead of the buzz (Safari
+            // has no Vibration API); everywhere else the two arrive together.
+            const last = left === TURN_HURRY_TICKS_MS[TURN_HURRY_TICKS_MS.length - 1]
+            ids.push(setTimeout(() => {
+                playHaptic("turnHurry")
+                playSound(last ? "turnTickLast" : "turnTick")
+            }, delay))
+        }
+        return () => ids.forEach(clearTimeout)
     }, [mySeat, turn, turnDeadline, turnTimeoutMs])
 
     // ── chat unread ──────────────────────────────────────────────────────
@@ -1165,17 +1201,15 @@ export default function GameRoomPage() {
                             panel and the turn pill, and what it does not claim
                             is slack this row has to put somewhere.
 
-                            ON A PHONE IT GOES UNDER THE BLOCK (2026-09-20,
-                            user request: the gap between the header and the
-                            seats was the one that read as empty). Splitting it
-                            evenly — `center`, which is what this was between
-                            two user reports the same day — pushed the partner
-                            a visible band below the score panel on a tall
-                            phone. From `md` up there is no shortage of height
-                            and the block stays centred, which is what a
-                            desktop window wants. */}
+                            IT GOES UNDER THE BLOCK, ON EVERY WIDTH (2026-09-20,
+                            user request twice: first the gap between the
+                            header and the seats on a phone, then the same on
+                            the web — "bot karlo/suigrac neka sjedi jos gore,
+                            blize boxu sa bodovima"). Splitting it evenly
+                            (`center`) left the partner a visible band below
+                            the score panel on any tall window. */}
                         <Flex flex="1" minH="0" direction="column"
-                            justify={{ base: "flex-start", md: "center" }} pt="1">
+                            justify="flex-start" pt="1">
                             <Table
                                 room={room}
                                 view={shownView ?? view}

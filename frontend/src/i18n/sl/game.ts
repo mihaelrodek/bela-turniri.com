@@ -298,6 +298,8 @@ export const game: GameDict = {
     "bela.askNo": "Ne",
 
     "belot.title": "BELOT!",
+
+    "belot.congrats": "Čestitamo!",
     "belot.by": "{name} ima vseh osem kart — {suit}",
     "belot.wins": "Igra je takoj dobljena",
 
