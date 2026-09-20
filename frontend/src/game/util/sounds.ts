@@ -31,7 +31,7 @@ interface WebKitGlobal {
     webkitAudioContext?: typeof AudioContext
 }
 
-export type GameSound = "gameStart" | "card" | "gameWon" | "gameLost"
+export type GameSound = "gameLaunch" | "gameStart" | "card" | "gameWon" | "gameLost"
 
 let audioContext: AudioContext | null = null
 const activeOscillators: OscillatorNode[] = []
@@ -176,6 +176,17 @@ export function playSound(sound: GameSound): void {
     out.gain.setValueAtTime(1, now)
 
     switch (sound) {
+        case "gameLaunch":
+            /* The tap on "Pokreni igru" (2026-09-20, user request). Short and
+               bright — two rising bell notes — so it reads as "yes, off we
+               go" and is over before the shuffle of the first deal (which is
+               `gameStart`, a moment later) starts underneath it. It is also
+               the first sound of a session for most players, and a tap is a
+               user gesture, so this is where the audio context unlocks. */
+            playBell(ctx, out, now, 659.25, 0.22, 0.09)
+            playBell(ctx, out, now + 0.09, 987.77, 0.5, 0.1)
+            break
+
         case "gameStart":
             if (shuffleBuffer) playBuffer(ctx, out, now, shuffleBuffer)
             else playShuffle(ctx, out, now)

@@ -507,6 +507,14 @@ ponovno otvaranje dijaloga nakon odbacivanja šuti, a klijent koji uđe u već
 gotovu partiju i dalje ne čuje ništa (kursor preskače zaostale događaje).
 Haptika `gameOver` ide s njim.
 
+Uz to, **„Pokreni igru” ima svoj zvuk na klik** (2026-09-20, zahtjev
+korisnika): kratka uzlazna dvotonska zvonjava `gameLaunch`, odsvirana u samom
+`onStart` handleru prije `room.start`, dakle prije bilo kakvog odgovora
+servera. Prvo ide `primeAudio()` — na iOS-u se audio kontekst smije otključati
+samo unutar korisničke geste, a većini igrača je taj klik prva gesta u
+sesiji. Miješanje prve podjele (`gameStart`) ostaje gdje je bilo, na `DEALT`
+za `dealNo === 1`, i ulazi ispod zvonjave koja je dotad gotova.
+
 ### 7.4 Geometrija sredine stola (2026-09-20)
 Tri broja drže „svi bacaju na sredinu”: `REST_Y` u `TrickArea.tsx`
 (42/54 → 32/42, okomiti razmak karata u štihu), dodatnih −8 px samo za gornju

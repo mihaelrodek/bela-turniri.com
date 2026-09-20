@@ -979,7 +979,17 @@ export default function GameRoomPage() {
                             onAddBot={(seat) => socket.send({ t: "room.addBot", seat })}
                             onRemoveBot={(seat) => socket.send({ t: "room.removeBot", seat })}
                             onReady={(ready) => socket.send({ t: "room.ready", ready })}
-                            onStart={() => socket.send({ t: "room.start" })}
+                            /* The launch cue is voiced on the TAP, not on the
+                               server's answer (2026-09-20, user request):
+                               `primeAudio` first, because on iOS the audio
+                               context may only be unlocked inside a user
+                               gesture and for most players this tap is the
+                               first one of the session. */
+                            onStart={() => {
+                                primeAudio()
+                                playSound("gameLaunch")
+                                socket.send({ t: "room.start" })
+                            }}
                             onLeave={leave}
                             onPrivacyChange={(value) => socket.send({ t: "room.setPrivate", private: value })}
                             onSettings={() => setSettingsOpen(true)}
