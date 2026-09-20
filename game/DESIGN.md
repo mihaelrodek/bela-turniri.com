@@ -88,6 +88,15 @@ animacije** toggle, **Vrsta karata: Francuske / Mađarice / Moderne**
    mađarska špila dijele istu kutiju, isti radijus i istu sjenu. Ako špil ikad
    nestane, fallback je vlastiti SVG — nikad tuđi PNG bez dopuštenja.
 
+   **Poleđina je jedna za sve špilove** (2026-09-20, zahtjev korisnika: „ova
+   ljubičasta nije dobra”). Zatvorena karta se crta u CSS-u — krem karta,
+   unutar nje zeleni rešetkasti panel u brandu s tankom unutarnjom linijom
+   (`CardBack` u `components/PlayingCard.tsx`). `BACK.webp` iz špilova se više
+   ne prikazuje: `klasicne` ima ljubičasti raster koji ne pripada ovoj temi, a
+   poleđina koja se mijenja sa špilom ionako nije nosila nikakvu informaciju.
+   Bonus: CSS poleđina je trenutna, pa novo dijeljenje nikad ne bljesne bijelim
+   pravokutnicima.
+
    **Adut prati špil** (2026-09-20, zahtjev korisnika: „kad se pozove adut
    koristi prikaz aduta vezan uz odabrane karte”). Jedna komponenta,
    `components/DeckSuitIcon.tsx`, odgovara na „kako izgleda boja”: `klasicne`
@@ -485,3 +494,25 @@ već u ring bufferu, isto kao kursor za zvukove) i ne za automatski
 kraj partije, ili — najprirodnije — sljedeći moj potez: svaki `game.bid`,
 `game.pass` i `game.play` gasi dijalog. Nema „away” načina na serveru: igrač
 jednostavno nastavlja na sljedećem svom potezu.
+
+### 7.3 Fanfara ide uz ekran, ne uz zadnju kartu (2026-09-20)
+`GAME_OVER` stiže u istom okviru kao i zadnja odigrana karta, dok red
+događaja još skuplja zadnji štih, pa se pobjednički/gubitnički zvuk čuo
+nekoliko sekundi prije nego što se ukazao „Pobjeda!” dijalog (zahtjev
+korisnika: „trebao bi se cuti tek kad se pojavi ekran”). Zato `GameRoomPage`
+na `GAME_OVER` samo **parkira** koji je to zvuk (`overSound`), a pušta ga
+efekt koji gleda `gameOverOpen` — isti uvjet koji otvara `GameOverDialog`
+(`phase === "GAME_OVER" && idle && !overDismissed`). Zvuk se troši, pa
+ponovno otvaranje dijaloga nakon odbacivanja šuti, a klijent koji uđe u već
+gotovu partiju i dalje ne čuje ništa (kursor preskače zaostale događaje).
+Haptika `gameOver` ide s njim.
+
+### 7.4 Geometrija sredine stola (2026-09-20)
+Tri broja drže „svi bacaju na sredinu”: `REST_Y` u `TrickArea.tsx`
+(42/54 → 32/42, okomiti razmak karata u štihu), dodatnih −8 px samo za gornju
+kartu (ispod suigračevog čipa statusa) i odmak gornjeg sjedala u
+`SEAT_ANCHORS.top` (32 → 14 px), uz `--box-h` manji za istih 18 px. Bočna
+sjedala dobila su `--seat-gutter` (8 px): prije su na uskom telefonu smjela
+sjesti uz sam rub, pa je zeleni okvir „na potezu” bio praktički nevidljiv.
+Sve četiri vrijednosti su i dalje na jednom mjestu (`tableStyles.ts` +
+`util/seats.ts`), a `--seat-clear-x/y` su gornja granica koja se nije mijenjala.

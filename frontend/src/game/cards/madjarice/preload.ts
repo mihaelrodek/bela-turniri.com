@@ -44,9 +44,10 @@ const started = new Set<DeckStyle>()
  *
  * It buys the thing the per-card swap cannot: an OPPONENT's first card, which
  * this client has never requested before, lands as the artwork instead of as
- * the SVG fallback that is replaced a moment later. The back is included, so
- * `CardBack` can use `BACK.webp` from the very first face-down card, and so
- * are the suit icons, so the scoreboard's trump never blinks either.
+ * the SVG fallback that is replaced a moment later. The suit icons are
+ * included, so the scoreboard's trump never blinks either. (`BACK.webp` is
+ * still fetched with the pack but nothing draws it any more — the face-down
+ * card is one CSS back for every deck since 2026-09-20; see `CardBack`.)
  *
  * Idempotent per deck — a second call for the same deck is a no-op.
  */

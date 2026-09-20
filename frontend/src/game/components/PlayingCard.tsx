@@ -15,12 +15,11 @@ import {
     cardAriaLabel,
     cardRank,
     cardSuit,
-    deckHasImages,
     isHungarianDeck,
 } from "../util/cards"
 import { useGamePrefs } from "../hooks/useGamePrefs"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
-import { MadjaricaCard, cardBackImage, useDecodedImage } from "../cards/madjarice"
+import { MadjaricaCard } from "../cards/madjarice"
 import DeckSuitIcon from "./DeckSuitIcon"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -249,25 +248,21 @@ function FrenchFace({ suit, rankLabel, size }: { suit: Suit; rankLabel: string; 
 /* ────────────────────────────── the back ────────────────────────────── */
 
 /**
- * The face-down card.
+ * The face-down card — ONE back for every deck.
  *
- * The CSS back — a brand-green woven diagonal with a lighter inner panel — is
- * the one that is ALWAYS available, and it stays the French deck's back and
- * the universal fallback. It exists because a new deal must never paint white
- * rectangles while a raster is still being fetched.
+ * It is drawn in CSS: a cream card with a brand-green lattice panel inside a
+ * white margin, i.e. the felt's own colours. The decks' own `BACK.webp` files
+ * are no longer used (2026-09-20, user request): `klasicne`'s is a purple
+ * halftone that belongs to no part of this theme, and a back that changes
+ * with the deck was never information anybody needed — a face-down card only
+ * has to read as "a card that is not mine".
  *
- * The two image decks (`klasicne`, `moderne`) ship their own `BACK.webp`, so
- * once that file is decoded in this document it replaces the CSS back
- * (2026-09-20). Never before: the decoded check is the same one the faces
- * use, so the swap can only ever go from "a real back" to "a real back".
- * `vektorske` has no back file and keeps the CSS one — it is a card back, not
- * a stand-in.
+ * Being pure CSS also means it is instantaneous: a new deal can never paint
+ * white rectangles while a raster is still being fetched.
  */
 export function CardBack({ size = "md", deck = DEFAULT_DECK }: { size?: CardSize; deck?: DeckStyle }) {
     const metrics = CARD_METRICS[size]
     const hungarian = isHungarianDeck(deck)
-    const src = deckHasImages(deck) ? cardBackImage(deck) : undefined
-    const { ready, imgRef, settle } = useDecodedImage(src)
     return (
         <Box
             aria-hidden="true"
@@ -275,41 +270,38 @@ export function CardBack({ size = "md", deck = DEFAULT_DECK }: { size?: CardSize
             h={hungarian ? MADJARICA_HEIGHT[size] : metrics.h}
             flexShrink={0}
             rounded={hungarian ? MADJARICA_RADIUS[size] : metrics.radius}
-            // Transparent only once the artwork is up — its corners are
-            // transparent too, and the CSS back underneath would show through.
-            bg={ready ? "transparent" : CARD_INK.frame}
+            bg={CARD_INK.face}
             borderWidth="0"
             boxShadow="none"
             filter={hungarian ? CARD_SHADOW : undefined}
             position="relative"
-            overflow={hungarian ? "visible" : "hidden"}
+            overflow="hidden"
         >
+            {/* The printed panel: a green diamond lattice, a thin gold hairline
+                around it and a soft darker vignette so the card has depth
+                instead of reading as flat wallpaper. */}
             <Box
                 position="absolute"
-                inset="3px"
+                inset="4px"
                 rounded="sm"
                 borderWidth="1px"
-                borderColor="whiteAlpha.400"
-                backgroundImage="repeating-linear-gradient(-45deg, var(--chakra-colors-brand-500) 0 3px, var(--chakra-colors-brand-700) 3px 6px)"
-                visibility={ready ? "hidden" : "visible"}
+                borderColor="brand.700"
+                bg="brand.600"
+                backgroundImage={
+                    "repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 2px, transparent 2px 7px), " +
+                    "repeating-linear-gradient(-45deg, rgba(255,255,255,0.16) 0 2px, transparent 2px 7px), " +
+                    "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.18), rgba(0,0,0,0.22))"
+                }
             />
-            {src && (
-                <chakra.img
-                    ref={imgRef}
-                    src={src}
-                    alt=""
-                    draggable={false}
-                    decoding="async"
-                    onLoad={settle}
-                    position="absolute"
-                    inset="0"
-                    w="100%"
-                    h="100%"
-                    objectFit="contain"
-                    pointerEvents="none"
-                    opacity={ready ? 1 : 0}
-                />
-            )}
+            {/* One inner keyline, the way a real back has a border inside the
+                border — it is what keeps the lattice from touching the margin. */}
+            <Box
+                position="absolute"
+                inset="9px"
+                rounded="xs"
+                borderWidth="1px"
+                borderColor="whiteAlpha.400"
+            />
         </Box>
     )
 }

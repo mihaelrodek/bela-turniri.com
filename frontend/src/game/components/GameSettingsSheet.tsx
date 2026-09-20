@@ -181,6 +181,7 @@ function RoomSettings({ room, onChange }: {
                 <HStack gap="2">
                     {TARGETS.map((target) => (
                         <Button key={target} flex="1" h="10" px="1" colorPalette="brand"
+                            fontSize={target === 163 ? "sm" : "md"}
                             variant={room.targetScore === target ? "solid" : "outline"}
                             aria-pressed={room.targetScore === target}
                             onClick={() => onChange({ targetScore: target })}>

@@ -178,12 +178,20 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                         {seats.map((seat) => {
                             const occupant = room.seats[seat].occupant
                             return (
-                                <HStack key={seat} justify="space-between" align="center" gap={{ base: "1.5", md: "2" }} p={{ base: "1.25", md: "1.5" }}
-                                    pe={{ base: "2", md: "2.5" }}
-                                    rounded="lg" bg="bg.subtle" minH={{ base: "44px", md: "60px" }}
-                                    borderInlineStartWidth="3px" borderInlineStartColor={index === 0 ? TEAM.us : TEAM.them}>
-                                    <HStack gap={{ base: "1.5", md: "2" }} minW="0">
-                                        <PlayerAvatar size="sm" empty={!occupant} emptyIcon={<CardsIcon size={17} />} name={occupant?.kind === "PLAYER" ? occupant.user.name : occupant?.name}
+                                /* Bigger chairs (2026-09-20, user request): the
+                                   lobby is one screen with four rows on it and
+                                   half the height was empty felt, so the row
+                                   grew from 44/60 to 64/76 px, the avatar from
+                                   `sm` to `md`, and the name to `md`. The
+                                   `my="auto"` above still centres the block, so
+                                   the extra height comes out of that empty
+                                   space rather than pushing the controls off. */
+                                <HStack key={seat} justify="space-between" align="center" gap={{ base: "2", md: "3" }} p={{ base: "2", md: "2.5" }}
+                                    pe={{ base: "2.5", md: "3" }}
+                                    rounded="xl" bg="bg.subtle" minH={{ base: "64px", md: "76px" }}
+                                    borderInlineStartWidth="4px" borderInlineStartColor={index === 0 ? TEAM.us : TEAM.them}>
+                                    <HStack gap={{ base: "2", md: "3" }} minW="0">
+                                        <PlayerAvatar size="md" empty={!occupant} emptyIcon={<CardsIcon size={20} />} name={occupant?.kind === "PLAYER" ? occupant.user.name : occupant?.name}
                                             avatarUrl={occupant?.kind === "PLAYER" ? occupant.user.avatarUrl : undefined}
                                             avatarPreset={occupant?.kind === "PLAYER"
                                                 ? occupant.user.avatarPreset
@@ -191,7 +199,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                                                     ? occupant.avatarPreset ?? botAvatarPreset(occupant.name)
                                                     : undefined} />
                                         <VStack flex="1" align="start" gap="0" minW="0">
-                                            <Text fontSize="sm" fontWeight="semibold" lineClamp={1}>
+                                            <Text fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineClamp={1}>
                                                 {occupant?.kind === "PLAYER" ? occupant.user.name : occupant?.name ?? t("game.room.waitingSeat")}
                                             </Text>
                                             {/* Bots already say "Bot" in their name (e.g. "Bot Mate") — a
@@ -209,12 +217,12 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                                     )}
                                     <HStack justify="end" gap="2">
                                         {!occupant && mySeat === null && onSit && (
-                                            <Button size="xs" colorPalette="brand" disabled={disabled} onClick={() => onSit(seat)}>
+                                            <Button size="sm" colorPalette="brand" disabled={disabled} onClick={() => onSit(seat)}>
                                                 {t("game.room.sitHere")}
                                             </Button>
                                         )}
-                                        {!occupant && canManageBots && <Button size="xs" variant="outline" disabled={disabled} onClick={() => onAddBot(seat)}><FiPlus />{t("game.room.addBotCta")}</Button>}
-                                        {occupant?.kind === "BOT" && canManageBots && <Button size="xs" variant="ghost" disabled={disabled} onClick={() => onRemoveBot(seat)}><FiX />{t("game.room.removeBot")}</Button>}
+                                        {!occupant && canManageBots && <Button size="sm" variant="outline" disabled={disabled} onClick={() => onAddBot(seat)}><FiPlus />{t("game.room.addBotCta")}</Button>}
+                                        {occupant?.kind === "BOT" && canManageBots && <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onRemoveBot(seat)}><FiX />{t("game.room.removeBot")}</Button>}
                                     </HStack>
                                 </HStack>
                             )

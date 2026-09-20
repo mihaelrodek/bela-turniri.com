@@ -41,7 +41,13 @@ type PileSize = "sm" | "md"
  *  extents — `--seat-clear-x` / `--seat-clear-y` are stated against the `sm`
  *  numbers, since that is what a phone draws. */
 const REST_X: Record<PileSize, number> = { sm: 50, md: 66 }
-const REST_Y: Record<PileSize, number> = { sm: 42, md: 54 }
+/** Tightened 42/54 → 32/42 (2026-09-20, user request: "svi bacaju karte na
+ *  sredinu"). The vertical spread is what made the partner's card read as
+ *  thrown from far away — the cross now closes up around the centre while the
+ *  horizontal offsets, which are what makes the left/right owner obvious,
+ *  stay as they were. The seat clearances in tableStyles.ts are stated
+ *  against these numbers and only ever had slack to gain. */
+const REST_Y: Record<PileSize, number> = { sm: 32, md: 42 }
 /** Where a card starts its flight (off toward its owner). */
 const FLY_IN: Record<PileSize, number> = { sm: 130, md: 170 }
 /** Where the trick slides to when collected. */
@@ -107,7 +113,7 @@ function ThrownCard({
         // The top seat's transient status chip sits immediately above the
         // trick. Pull only that card a little toward the centre so the chip
         // reads above it instead of touching its top edge.
-        const restY = position === "top" ? REST_Y[size] - 12 : REST_Y[size]
+        const restY = position === "top" ? REST_Y[size] - 8 : REST_Y[size]
         transform = `translate(-50%, -50%) translate(${vector.x * REST_X[size] + dx}px, ${vector.y * restY + dy}px) rotate(${tilt}deg)`
     }
 

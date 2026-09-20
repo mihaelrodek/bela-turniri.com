@@ -89,8 +89,12 @@ export function seatsFromMe(mySeat: Seat | null): Seat[] {
  *  scales down on exactly those screens — see TrickArea's TIGHT/SHORT — so
  *  the two meet in the middle rather than colliding.) */
 export const SEAT_ANCHORS: Record<TablePosition, CSSProperties> = {
+    /* The partner used to sit 32 px above the ring, which — with the trick
+       also spread out vertically — read as "my partner throws from far away"
+       (2026-09-20, user report). 14 px keeps the seat clear of the tightened
+       pile (TrickArea's REST_Y) and closes most of that hole. */
     top: {
-        bottom: "min(calc(100% - var(--seat-h)), calc(var(--cy-bottom) + var(--seat-y) + 32px))",
+        bottom: "min(calc(100% - var(--seat-h)), calc(var(--cy-bottom) + var(--seat-y) + 14px))",
         left: "50%",
         transform: "translateX(-50%)",
     },
@@ -99,13 +103,17 @@ export const SEAT_ANCHORS: Record<TablePosition, CSSProperties> = {
         left: "50%",
         transform: "translateX(-50%)",
     },
+    /* `--seat-gutter` on the flanks (2026-09-20, user report): the clamp used
+       to allow a flank seat to sit flush against the felt's edge, and on a
+       phone the turn frame's green border then ran along the screen edge
+       where it could barely be seen. The seat now stops a few px short. */
     left: {
-        right: "min(calc(100% - var(--seat-w)), calc(50% + var(--seat-x)))",
+        right: "min(calc(100% - var(--seat-w) - var(--seat-gutter)), calc(50% + var(--seat-x)))",
         top: "var(--table-cy)",
         transform: "translateY(-50%)",
     },
     right: {
-        left: "min(calc(100% - var(--seat-w)), calc(50% + var(--seat-x)))",
+        left: "min(calc(100% - var(--seat-w) - var(--seat-gutter)), calc(50% + var(--seat-x)))",
         top: "var(--table-cy)",
         transform: "translateY(-50%)",
     },

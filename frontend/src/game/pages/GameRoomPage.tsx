@@ -495,6 +495,7 @@ export default function GameRoomPage() {
     useEffect(() => {
         if (phase !== "GAME_OVER") setOverDismissed(false)
     }, [phase])
+    const gameOverOpen = phase === "GAME_OVER" && idle && !overDismissed
 
     /* ── "Propustio si potez" (2026-09-20, user request) ──────────────────
        When a human's 15 s turn clock expires the server's bot plays exactly
@@ -664,6 +665,8 @@ export default function GameRoomPage() {
     // Everything else rides the raw event stream, which is the only place a
     // zero-dwell event (a bid, GAME_OVER) is guaranteed to be seen at all.
     const soundCursor = useRef(-1)
+    /** The end-of-game fanfare, waiting for the dialog it belongs to. */
+    const overSound = useRef<"gameWon" | "gameLost" | null>(null)
     useEffect(() => {
         const events = socket.events
         if (events.length === 0) return
@@ -682,13 +685,35 @@ export default function GameRoomPage() {
                     if (item.event.dealNo === 1) playSound("gameStart")
                     break
                 case "GAME_OVER":
-                    playSound(item.event.winner === myTeam ? "gameWon" : "gameLost")
-                    playHaptic("gameOver")
+                    /* NOT voiced here (2026-09-20, user request): the event
+                       lands with the last card, while the queue is still
+                       collecting the final trick, so the fanfare went off
+                       seconds before the "Pobjeda!" dialog appeared. The
+                       winner is parked and the effect below plays it the
+                       moment that dialog opens. Parking it here — rather
+                       than reading `view.winner` when the dialog opens —
+                       keeps the existing rule that a client joining a
+                       finished game hears nothing: the cursor skips whatever
+                       was already buffered. */
+                    overSound.current = item.event.winner === myTeam ? "gameWon" : "gameLost"
                     break
                 default: break
             }
         }
     }, [socket.events])
+
+    /* …and the fanfare itself, on the frame the end-of-game dialog opens
+       (2026-09-20, user request: "zvuk se odmah cuje cim je zadnja karta
+       bacena, al trebao bi se cuti tek kad se pojavi ekran"). `overSound` is
+       consumed, so re-opening the dialog after a dismissal stays quiet. */
+    useEffect(() => {
+        if (!gameOverOpen) return
+        const which = overSound.current
+        if (which === null) return
+        overSound.current = null
+        playSound(which)
+        playHaptic("gameOver")
+    }, [gameOverOpen])
 
     /* The turn clock entering its urgent quarter. Armed as one timeout per
        turn, from the server's absolute deadline; a turn that is already
@@ -1391,7 +1416,7 @@ export default function GameRoomPage() {
 
             {view && (
                 <GameOverDialog
-                    open={view.phase === "GAME_OVER" && idle && !overDismissed}
+                    open={gameOverOpen}
                     winner={view.winner}
                     score={view.score}
                     myTeam={myTeam}

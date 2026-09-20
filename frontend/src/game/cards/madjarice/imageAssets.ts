@@ -77,8 +77,9 @@ export function cardImage(deck: DeckStyle, rank: Rank, suit: Suit): string | und
     return decks.get(deck)?.faces.get(`${rank}${suit}`)
 }
 
-/** The deck's own back artwork, if it is bundled. `PlayingCard`'s `CardBack`
- *  only draws it once it is decoded — see the note there. */
+/** The deck's own back artwork, if it is bundled. Nothing renders it since
+ *  2026-09-20 — `CardBack` draws one CSS back for every deck — but the file
+ *  stays with the pack and this accessor with it. */
 export function cardBackImage(deck: DeckStyle): string | undefined {
     return decks.get(deck)?.back
 }

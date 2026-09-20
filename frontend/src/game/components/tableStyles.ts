@@ -112,17 +112,23 @@ export function tableGeometry(bottomSeat: boolean) {
     const vyWide = bottomSeat ? "0.22" : "0.32"
 
     return {
-        // Just the ring: partner block (102, see SEAT_BLOCK) + its 32 px
-        // offset + `--seat-y` above the centre, `--cy-free` below it. A
+        // Just the ring: partner block (102, see SEAT_BLOCK) + its 14 px
+        // offset + `--seat-y` above the centre, `--cy-free` below it. The
+        // offset went 32 → 14 (2026-09-20, user request: the partner read as
+        // sitting too far from the trick), so both figures drop by 18. A
         // taller box only put air between the partner and the pile
         // (2026-09-20, user report); the parent centres this box, so a tall
         // phone's slack now splits evenly above the partner and under the
         // pile, and the flank seats land in the middle of the felt instead
         // of near the hand. 300/316 → 308/324 when SEAT_BLOCK grew from 94 to
         // 102 (2026-09-20, badge-clipping fix) — same +8, same 16 px slack.
-        "--box-h": boxH(308, 38, 324),
+        "--box-h": boxH(290, 38, 306),
         "--seat-w": "92px",
         "--seat-h": SEAT_BLOCK,
+        /** How close a flank seat may come to the felt's own edge. Without
+         *  it the turn frame's 2 px green border ended up ON the screen edge
+         *  on a phone and was all but invisible (2026-09-20, user report). */
+        "--seat-gutter": "8px",
         "--seat-overlap": "18px",
         // Clearances for an `sm` pile (TrickArea's REST_X/REST_Y plus half a
         // 56 × 93 card): a phone draws the trick in the same size as the hand
@@ -170,11 +176,11 @@ export function tableGeometry(bottomSeat: boolean) {
 
         // iPhone SE and friends: the pile is scaled down again by TrickArea,
         // so the seats may close in by the same amount. `--box-h` is the same
-        // partner-block + 32 + seat-clear-y + cy-free sum as the base case
-        // above (94+32+60+82=268, now 102+32+60+82=276), so it grew by the
-        // same +8 when SEAT_BLOCK did (2026-09-20, badge-clipping fix).
+        // partner-block + 14 + seat-clear-y + cy-free sum as the base case
+        // above (102+14+60+82=258; it was 102+32+… = 276 until the partner
+        // offset dropped to 14 — 2026-09-20, user request).
         [TIGHT]: {
-            "--box-h": boxH(276, 40, 292),
+            "--box-h": boxH(258, 40, 274),
             "--seat-clear-x": "86px",
             "--seat-clear-y": "60px",
             "--seat-x": "max(var(--seat-clear-x), min(calc(0.46 * var(--box-h)), 170px))",

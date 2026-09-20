@@ -43,7 +43,13 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
                                     <Text fontSize="sm" fontWeight="semibold">{t("game.lobby.form.target")}</Text>
                                     <HStack gap="2">
                                         {TARGETS.map((target) => (
-                                            <Button key={target} flex="1" h="12" fontSize="lg" colorPalette="brand"
+                                            /* "Brza 163" is a WORD, not a number: at `lg` it
+                                               filled the button edge to edge (2026-09-20, user
+                                               report). It gets its own smaller size and the row
+                                               keeps a little horizontal padding for all four, so
+                                               no label can touch a border. */
+                                            <Button key={target} flex="1" h="12" px="1"
+                                                fontSize={target === 163 ? "sm" : "lg"} colorPalette="brand"
                                                 variant={targetScore === target ? "solid" : "outline"}
                                                 aria-pressed={targetScore === target} disabled={busy} onClick={() => setTarget(target)}>
                                                 {target === 163 ? t("game.create.quick.name") : target}
