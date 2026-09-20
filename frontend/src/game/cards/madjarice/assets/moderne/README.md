@@ -68,3 +68,11 @@ Requires Pillow and numpy. If numpy is missing, install it into a scratch dir
 pip install --target /tmp/pylib numpy
 PYTHONPATH=/tmp/pylib python3 scripts/clean-card-scans.py
 ```
+
+## Suit icons (`suits/*.webp`, 2026-09-20)
+
+Four 192x192 RGBA marks used wherever a suit is shown outside a card (called
+trump on the scoreboard, the caller's medallion, bidding buttons, trump flash).
+They are cut out of this deck's own Dečko (J) cards, whose pip stands alone on
+white paper: `python3 frontend/scripts/extract-moderne-suits.py <moderne dir>
+<out dir>`. Re-run it if the faces are ever re-cleaned.

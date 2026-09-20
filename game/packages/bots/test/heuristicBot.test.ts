@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import type { Card, GameState, LegalBids } from "@bela/engine"
-import { declarationPoints, legalMoves, reduce, viewFor } from "@bela/engine"
+import type { Card, GameState, LegalBids, PlayerView, Seat } from "@bela/engine"
+import { cardSuit, declarationPoints, legalMoves, reduce, viewFor } from "@bela/engine"
 import { handTricks, suitStrength, weakestCard } from "../src/evaluate"
 import { heuristicBot } from "../src/heuristicBot"
 import { view } from "./helpers"
@@ -708,5 +708,86 @@ describe("heuristicBot and bela (README §1.4, §5)", () => {
         expect(result.state.belaDeclared).toBe("A")
         expect(result.state.belaRefused).toBeNull()
         expect(declarationPoints(result.state)).toEqual({ A: 20, B: 0 })
+    })
+})
+
+/* 2026-09-20, reported: "bot i dalje uzima svojem suigraču adute iako bi
+   trebao znati da ih protivnici nemaju". Leading trump has exactly one point
+   — stripping the OPPONENTS. Once they are provably out of it, every trump
+   lead only pulls the partner's, so the bot leads something else. */
+describe("heuristicBot.chooseCard — never pulls only the partner's trumps", () => {
+    /** Seat 0 called HERC and leads the second trick; the first was a plain
+     *  KARA trick whose cards the scenario supplies. */
+    function afterKaraTrick(cards: Card[]): PlayerView {
+        return view({
+            seat: 0,
+            hand: ["JHERC", "9HERC", "APIK", "KPIK", "7TREF", "8TREF", "9TREF"],
+            handSizes: { 0: 7, 1: 7, 2: 7, 3: 7 },
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 0 },
+            trick: { leader: 0, turn: 0, cards: [] },
+            tricksWon: { A: 1, B: 0 },
+            currentDealPoints: { A: 11, B: 0 },
+            played: cards,
+            trickHistory: [
+                {
+                    no: 1,
+                    leader: 0,
+                    winner: 0,
+                    plays: cards.map((card, i) => ({ seat: (i as Seat), card })),
+                    cards,
+                },
+            ],
+        })
+    }
+
+    it("leads a plain suit once both opponents discarded instead of ruffing", () => {
+        // Seats 1 and 3 threw PIK on a KARA lead: §1.5 would have obliged them
+        // to ruff, so neither holds a trump. Every trump still out is my
+        // partner's and the caller's jack stays in hand.
+        const v = afterKaraTrick(["AKARA", "7PIK", "8KARA", "9PIK"])
+        const card = heuristicBot.chooseCard(v, [...v.hand], noRng)
+        expect(cardSuit(card)).not.toBe("HERC")
+    })
+
+    it("leads a plain suit when the counting accounts for every trump outside my hand", () => {
+        // A, 7, K, 8 of trump are face up, I hold J, 9 and 10, and my
+        // partner's king announced the bela — the queen is the only trump left
+        // and it is his.
+        const cards: Card[] = ["AHERC", "7HERC", "KHERC", "8HERC"]
+        const v = view({
+            seat: 0,
+            hand: ["JHERC", "9HERC", "10HERC", "APIK", "KPIK", "7TREF", "8TREF"],
+            handSizes: { 0: 7, 1: 7, 2: 7, 3: 7 },
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 0 },
+            trick: { leader: 0, turn: 0, cards: [] },
+            tricksWon: { A: 1, B: 0 },
+            currentDealPoints: { A: 15, B: 0 },
+            belaDeclared: "A",
+            played: cards,
+            trickHistory: [
+                {
+                    no: 1,
+                    leader: 0,
+                    winner: 0,
+                    plays: cards.map((card, i) => ({ seat: (i as Seat), card })),
+                    cards,
+                },
+            ],
+        })
+        const card = heuristicBot.chooseCard(v, [...v.hand], noRng)
+        expect(cardSuit(card)).not.toBe("HERC")
+    })
+
+    it("still pulls trumps while an opponent may hold one", () => {
+        // The same deal with the first trick followed in suit: nothing is
+        // proven about anybody's trumps, so the caller leads his jack.
+        const v = afterKaraTrick(["AKARA", "7KARA", "8KARA", "9KARA"])
+        expect(heuristicBot.chooseCard(v, [...v.hand], noRng)).toBe("JHERC")
+    })
+
+    it("leads a trump anyway from a hand that holds nothing else", () => {
+        const v = afterKaraTrick(["AKARA", "7PIK", "8KARA", "9PIK"])
+        const trumpsOnly: PlayerView = { ...v, hand: ["JHERC", "9HERC"] }
+        expect(cardSuit(heuristicBot.chooseCard(trumpsOnly, ["JHERC", "9HERC"], noRng))).toBe("HERC")
     })
 })

@@ -10,10 +10,11 @@ import { getGamePrefs } from "../hooks/useGamePrefs"
    but kept buzzing would read as the switch being broken. Web builds never
    load the plugin (`isNative` first, then a lazy import).
 
-   ONE cue also reaches the browser: `turnHurry`, through the Vibration API
-   (2026-09-20, user request). That is Android only in practice — Safari has
+   TWO cues also reach the browser, through the Vibration API: `turnHurry`
+   (2026-09-20, user request) and `keyTap` (2026-09-20, the dial pad's own key
+   press — `JoinByCodeDialog`). Both are Android only in practice — Safari has
    never shipped `navigator.vibrate`, so an iOS PWA stays still and only the
-   native iOS app ticks — and a desktop simply has nothing to shake.
+   native iOS app buzzes — and a desktop simply has nothing to shake.
 
    Fire-and-forget: a vibration that fails is not worth anybody's attention.
    ────────────────────────────────────────────────────────────────────── */
@@ -30,15 +31,25 @@ export type HapticCue =
     /** One light tick per second over the last seconds of MY turn. */
     | "turnHurry"
     | "gameOver"
+    /** A dial-pad key was pressed (`JoinByCodeDialog`). Deliberately the
+     *  lightest cue here — it fires on every tap while dialling a code. */
+    | "keyTap"
+
+const BROWSER_VIBRATE_MS: Partial<Record<HapticCue, number>> = {
+    turnHurry: 35,
+    keyTap: 8,
+}
 
 export function playHaptic(cue: HapticCue): void {
     if (!getGamePrefs().sound) return
     if (!isNative) {
-        if (cue !== "turnHurry") return
+        const ms = BROWSER_VIBRATE_MS[cue]
+        if (ms === undefined) return
         try {
             // Needs a prior tap on the page (it has one: the player is
-            // mid-game); returns false, never throws, where unsupported.
-            if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(35)
+            // mid-game, or tapping the dial pad itself); returns false, never
+            // throws, where unsupported.
+            if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(ms)
         } catch {
             // A browser that blocks it — stay silent.
         }
@@ -54,6 +65,7 @@ export function playHaptic(cue: HapticCue): void {
                 case "turnHurry": await Haptics.impact({ style: ImpactStyle.Light }); break
                 case "turnWarning": await Haptics.notification({ type: NotificationType.Warning }); break
                 case "gameOver": await Haptics.impact({ style: ImpactStyle.Heavy }); break
+                case "keyTap": await Haptics.impact({ style: ImpactStyle.Light }); break
             }
         } catch {
             // No haptics engine, or the plugin is missing — stay silent.

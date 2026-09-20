@@ -52,8 +52,15 @@ export default function TrumpBadge({
     const { t } = useTranslation()
 
     if (!trump) {
+        // No border here (2026-09-20, user report: "zvanje aduta" read as an
+        // odd pale outlined box floating between the scores). The trump-set
+        // branch below already drops the border once a suit is called —
+        // this just matches that from the start, so the header never gains
+        // a box it then loses. `CELL`'s `minW`/`minH` are kept so the slot's
+        // footprint is identical before and after the call and the header
+        // doesn't jump when trump is set.
         return (
-            <VStack {...CELL} borderColor="border.subtle" gap="0" maxW="120px">
+            <VStack {...CELL} borderWidth="0" gap="0" maxW="120px">
                 <Text
                     fontSize="2xs"
                     color={INK_MUTED}

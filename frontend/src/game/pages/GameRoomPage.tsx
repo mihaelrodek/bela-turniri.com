@@ -645,18 +645,27 @@ export default function GameRoomPage() {
         // warning (and, in the middle of the leave/navigate/unmount this
         // effect can fire during, occasionally swallowed the toast outright).
         const errorCode = socket.error.code
+        const errorRef = socket.error.ref
         queueMicrotask(() => showError(t(`game.error.${errorCode}`)))
         /* These refusals are terminal for this URL: there is nothing to wait
            for on the room screen, so go back to the list. ROOM_NOT_FOUND is
            especially important for old shared links, which otherwise leave
-           the page spinning on "Ulazim u sobu…" forever. */
-        if (errorCode === "ROOM_NOT_FOUND" ||
+           the page spinning on "Ulazim u sobu…" forever.
+
+           NOT when the refusal is the answer to a code just typed into the
+           access-code dial pad (`ref: "room.joinByCode"`, `accessCodeOpen`):
+           that is a wrong/full/spectator-blocked code, not a dead room, and
+           `JoinByCodeDialog` already clears its digits so the player can try
+           another one in place — mirroring `GameLobbyPage`, which never
+           navigates away from its own join-by-code dialog either. */
+        if ((errorCode === "ROOM_NOT_FOUND" ||
             errorCode === "SPECTATORS_DISABLED" ||
-            errorCode === "ROOM_FULL") {
+            errorCode === "ROOM_FULL") &&
+            !(accessCodeOpen && errorRef === "room.joinByCode")) {
             navigate(`/igra${mock ? "?mock=1" : ""}`, { replace: true })
         }
         socket.clearError()
-    }, [socket, t, navigate, mock, revealed])
+    }, [socket, t, navigate, mock, revealed, accessCodeOpen])
 
     useEffect(() => {
         if (room) setAccessCodeOpen(false)
@@ -869,7 +878,7 @@ export default function GameRoomPage() {
                         </>
                     ) : null}
                 </Flex>
-                <JoinByCodeDialog open={accessCodeOpen}
+                <JoinByCodeDialog open={accessCodeOpen} error={socket.error}
                     onOpenChange={(open) => {
                         setAccessCodeOpen(open)
                         if (!open) navigate(`/igra${mock ? "?mock=1" : ""}`, { replace: true })

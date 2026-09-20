@@ -376,7 +376,7 @@ export default function GameLobbyPage() {
                 busy={!connected}
             />}
             <GameSettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-            <JoinByCodeDialog open={joinOpen} roomName={privateRoom?.name}
+            <JoinByCodeDialog open={joinOpen} roomName={privateRoom?.name} error={socket.error}
                 onOpenChange={(open) => { setJoinOpen(open); if (!open) setPrivateRoom(null) }} onSubmit={joinByCode} />
         </Box>
     )

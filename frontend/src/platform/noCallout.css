@@ -1,0 +1,32 @@
+/* iOS long-press previews (2026-09-20, user report).
+
+   Long-pressing an image opened the system sheet ("Share / Save to Photos /
+   Copy") and long-pressing a link opened the link preview ("Open / Add to
+   Reading List / Copy Link") — in the installed PWA and in mobile Safari
+   alike, even at the game table. An app does not do that.
+
+   Imported from `main.tsx`, next to `foldable.css`. (`src/index.css` is a
+   dead Vite leftover that nothing imports — rules put there never load.)
+
+   Text stays selectable: nothing here touches `user-select` outside `img`.
+   `[data-allow-callout]` is the escape hatch, honoured by the listeners in
+   `components/PwaNativeGestures.tsx` as well. */
+
+a,
+img,
+button,
+[role="button"],
+svg {
+    -webkit-touch-callout: none;
+}
+
+img {
+    -webkit-user-drag: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+[data-allow-callout],
+[data-allow-callout] * {
+    -webkit-touch-callout: default;
+}

@@ -61,11 +61,106 @@ function ensureContext(): AudioContext | null {
     try {
         const AC = typeof AudioContext !== "undefined" ? AudioContext : (globalThis as unknown as WebKitGlobal).webkitAudioContext
         if (!AC) return null
-        audioContext = new AC()
+        const ctx = new AC()
+        // Whatever was scheduled belongs to the moment it was scheduled in.
+        // A context that stops running (backgrounded, a phone call, the
+        // route changing) would otherwise KEEP those nodes and play them all
+        // when it wakes — see "the pile-up" below.
+        ctx.onstatechange = () => {
+            if (ctx === audioContext && ctx.state !== "running") stopAllSounds()
+        }
+        audioContext = ctx
+        clock = null
+        stalledSince = null
         return audioContext
     } catch {
         return null // AudioContext unavailable (SSR, old browser).
     }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   THE PILE-UP (2026-09-20, user report): after leaving the app for another
+   one, or after the connection dropped, sound "ne radi uopće ili proradi
+   nakon nekog vremena pa se onda čuje hrpa zvukova nastackano".
+
+   Every cue is scheduled against `ctx.currentTime`. When iOS takes the audio
+   hardware away (the PWA is backgrounded, another app plays, a call comes
+   in) WebKit can leave the context reporting `state === "running"` while
+   its clock STANDS STILL. Everything scheduled "now" on a stopped clock is
+   not dropped — it queues. When the clock finally moves again, the whole
+   queue is due at once and plays at once. Three guards, all cheap:
+
+     1. THE CLOCK IS WATCHED. `clockIsStalled` compares the audio clock with
+        the wall clock; a context whose clock has not moved is not rendered
+        into at all (the cue is dropped — a late cue is worse than none),
+        gets a `resume()` nudge, and after `REBUILD_AFTER_MS` of standing
+        still is CLOSED and replaced by a fresh one on the next gesture. The
+        decoded `AudioBuffer`s are not tied to a context and are kept.
+     2. NOTHING IS VOICED WHILE HIDDEN, and going hidden stops what is
+        sounding, so nothing is left in the graph to wake up with.
+     3. A BURST IS CAPPED (`BURST_MAX` cues per `BURST_WINDOW_MS`): a
+        reconnect that hands over a run of events cannot become a chord.
+   ────────────────────────────────────────────────────────────────────── */
+
+/** The audio clock as last sampled, against the wall clock. */
+let clock: { audio: number; wall: number } | null = null
+/** Wall time since which the audio clock has not moved; null = it moves. */
+let stalledSince: number | null = null
+/** Too short an interval proves nothing about a clock that ticks in blocks. */
+const CLOCK_SAMPLE_MS = 250
+const REBUILD_AFTER_MS = 1500
+const BURST_WINDOW_MS = 600
+const BURST_MAX = 4
+const recentCues: number[] = []
+
+/** Sample the clock; true while it is known to be standing still. Called
+ *  from `playSound` and from a slow timer while the table is mounted, so the
+ *  verdict is already there when a cue needs it. */
+function clockIsStalled(ctx: AudioContext): boolean {
+    const wall = Date.now()
+    if (clock === null) {
+        clock = { audio: ctx.currentTime, wall }
+        return false
+    }
+    if (wall - clock.wall < CLOCK_SAMPLE_MS) return stalledSince !== null
+    const moved = ctx.currentTime - clock.audio > 0.005
+    clock = { audio: ctx.currentTime, wall }
+    if (moved) stalledSince = null
+    else if (stalledSince === null) stalledSince = wall
+    return stalledSince !== null
+}
+
+/** A context that will not wake is thrown away. The next gesture builds a
+ *  new one inside `primeAudio` — the only place iOS lets one start. */
+function rebuildContext(): void {
+    const dead = audioContext
+    audioContext = null
+    clock = null
+    stalledSince = null
+    stopAllSounds()
+    if (dead) {
+        dead.onstatechange = null
+        dead.close().catch(() => {
+            // Already closed, or the engine refuses — it is unreferenced now.
+        })
+    }
+}
+
+/** Watchdog tick + the recovery ladder: nudge first, rebuild if it persists. */
+function checkContextHealth(): void {
+    const ctx = audioContext
+    if (!ctx || typeof document === "undefined" || document.visibilityState !== "visible") return
+    if (ctx.state !== "running") {
+        clock = null
+        stalledSince = null
+        return
+    }
+    if (!clockIsStalled(ctx)) return
+    if (stalledSince !== null && Date.now() - stalledSince >= REBUILD_AFTER_MS) {
+        rebuildContext()
+        return
+    }
+    ctx.resume().catch(() => {})
 }
 
 /** `AudioContext.decodeAudioData` in the callback form, which is the only
@@ -175,19 +270,45 @@ export function stopAllSounds(): void {
  */
 export function installAudioUnlock(): () => void {
     if (typeof window === "undefined") return () => {}
-    const unlock = (): void => primeAudio()
+    const unlock = (): void => {
+        // A gesture is the one moment a dead context may be replaced, so the
+        // verdict is taken BEFORE priming: `primeAudio` then builds the new
+        // one inside this very gesture.
+        checkContextHealth()
+        primeAudio()
+    }
     const onVisible = (): void => {
-        if (document.visibilityState === "visible") primeAudio()
+        if (document.visibilityState === "visible") {
+            // The clock sample from before the trip away proves nothing now.
+            clock = null
+            stalledSince = null
+            recentCues.length = 0
+            primeAudio()
+        } else {
+            // Leave nothing in the graph that could wake up with the app.
+            stopAllSounds()
+        }
+    }
+    // Going offline and back is the other way into a wedged context: start
+    // the health check from scratch when the network returns.
+    const onOnline = (): void => {
+        clock = null
+        stalledSince = null
+        recentCues.length = 0
     }
     window.addEventListener("pointerdown", unlock, { passive: true })
     window.addEventListener("keydown", unlock)
     document.addEventListener("visibilitychange", onVisible)
     window.addEventListener("pageshow", unlock)
+    window.addEventListener("online", onOnline)
+    const watchdog = window.setInterval(checkContextHealth, 1000)
     return () => {
         window.removeEventListener("pointerdown", unlock)
         window.removeEventListener("keydown", unlock)
         document.removeEventListener("visibilitychange", onVisible)
         window.removeEventListener("pageshow", unlock)
+        window.removeEventListener("online", onOnline)
+        window.clearInterval(watchdog)
     }
 }
 
@@ -218,17 +339,32 @@ const STALE_MS = 400
 
 export function playSound(sound: GameSound): void {
     if (!getGamePrefs().sound) return
+    // Nobody is there to hear it, and on iOS it would only queue (see "the
+    // pile-up" above).
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return
     const ctx = ensureContext()
     if (!ctx) return
     preloadSounds()
+
+    // A run of cues inside one short window is a replay, not a game.
+    const asked = Date.now()
+    while (recentCues.length > 0 && asked - recentCues[0] > BURST_WINDOW_MS) recentCues.shift()
+    if (recentCues.length >= BURST_MAX) return
+    recentCues.push(asked)
+
     if (ctx.state === "running") {
+        // "running" with a clock that stands still: rendering would queue
+        // the cue for whenever the clock restarts. Drop it and nudge.
+        if (clockIsStalled(ctx)) {
+            checkContextHealth()
+            return
+        }
         renderSound(ctx, sound)
         return
     }
-    const asked = Date.now()
     ctx.resume().then(
         () => {
-            if (ctx.state !== "running") return
+            if (ctx !== audioContext || ctx.state !== "running") return
             if (Date.now() - asked > STALE_MS) return
             renderSound(ctx, sound)
         },

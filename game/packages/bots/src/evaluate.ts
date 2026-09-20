@@ -298,6 +298,49 @@ export function seatShownVoidIn(view: PlayerView, seat: Seat, suit: Suit): boole
 }
 
 /**
+ * True when `seat` has provably shown void in TRUMP — the question the whole
+ * trump count hangs on, and the one `seatShownVoidIn` alone cannot answer.
+ *
+ * Two proofs, both straight out of §1.5, both public:
+ *   1. trump was led and he did not follow it (`seatShownVoidIn`);
+ *   2. a PLAIN suit was led, he did not follow it either, and what he threw
+ *      was not a trump. Being void in the led suit obliges him to ruff when he
+ *      holds a trump — there is no partner exception — so a discard of a third
+ *      suit proves he holds none.
+ *
+ * (2) is the half the bot was missing (2026-09-20, reported again): opponents
+ * are stripped of trump by ruffing and discarding long before anybody leads
+ * the suit at them, so waiting for proof (1) meant the count never registered
+ * it and the bot kept "drawing trumps" out of its own partner.
+ *
+ * Cards only ever leave a hand, so the proof holds for the rest of the deal.
+ */
+export function seatShownVoidInTrump(view: PlayerView, seat: Seat): boolean {
+    const trump = view.bidding.trump
+    if (trump === null) return false
+    if (seatShownVoidIn(view, seat, trump)) return true
+
+    const discardedInsteadOfRuffing = (plays: readonly TrickCard[]): boolean => {
+        const led = plays[0]
+        if (led === undefined) return false
+        const lead = cardSuit(led.card)
+        if (lead === trump) return false // that is proof (1), already asked
+        return plays.some(
+            (p) =>
+                p.seat === seat &&
+                cardSuit(p.card) !== lead &&
+                cardSuit(p.card) !== trump,
+        )
+    }
+
+    if (discardedInsteadOfRuffing(view.trick.cards)) return true
+    for (const trick of reviewableTricks(view)) {
+        if (discardedInsteadOfRuffing(trick.plays)) return true
+    }
+    return false
+}
+
+/**
  * True when an OPPONENT has provably shown void in `suit`. Same caveat as
  * `seatShownVoidIn`: "not proven" is the default.
  */
@@ -315,14 +358,32 @@ export function opponentShownVoidIn(view: PlayerView, suit: Suit): boolean {
  * both opponents discarded on the caller's first trump lead and she went on
  * leading trumps, pulling her own partner's out one by one). Proof only, like
  * everything else here: one opponent merely not having been tested is "no".
+ *
+ * Two independent proofs, and either is enough:
+ *   - every outstanding trump is LOCATED on our own side — by a declaration,
+ *     by the bela, or by a lead my partner made (`opponentCanHold`). Counting
+ *     alone can settle it without anybody having been tested;
+ *   - both opponents have SHOWN void in trump (`seatShownVoidInTrump`, which
+ *     reads the discard-instead-of-ruff proof too), or have no cards left.
  */
 export function onlyPartnerCanHoldTrumps(view: PlayerView): boolean {
     const seat = view.seat
     const trump = view.bidding.trump
     if (seat === null || trump === null) return false
-    if (outstandingInSuit(view, trump) <= 0) return false
+
+    const outstanding = outstandingCardsInSuit(view, trump)
+    // Nothing out means my partner has none either, so a trump lead takes
+    // nothing off him — that is not this rule's case.
+    if (outstanding.length === 0) return false
+
+    const located = locatedCards(view)
+    if (outstanding.every((card) => !opponentCanHold(view, card, located))) return true
+
     return SEATS.every(
-        (s) => teamOf(s) === teamOf(seat) || view.handSizes[s] === 0 || seatShownVoidIn(view, s, trump),
+        (s) =>
+            teamOf(s) === teamOf(seat) ||
+            view.handSizes[s] === 0 ||
+            seatShownVoidInTrump(view, s),
     )
 }
 
@@ -371,7 +432,7 @@ export function shouldSpendAce(view: PlayerView, suit: Suit): boolean {
     const partner = partnerOf(seat)
     const partnerMustRuff =
         seatShownVoidIn(view, partner, suit) &&
-        !seatShownVoidIn(view, partner, trump) &&
+        !seatShownVoidInTrump(view, partner) &&
         outstandingInSuit(view, trump) > 0
     if (partnerMustRuff) return false
     if (trumpOutlook(view).opponentMax === 0) return true
@@ -525,7 +586,7 @@ export function partnerTrickIsSafe(view: PlayerView): boolean {
     if (trumpsOut === 0) return true
     let follower = nextSeat(seat)
     while (follower !== view.trick.leader) {
-        if (!seatShownVoidIn(view, follower, trump)) return false
+        if (!seatShownVoidInTrump(view, follower)) return false
         follower = nextSeat(follower)
     }
     return true
@@ -703,7 +764,7 @@ export function trumpOutlook(view: PlayerView): TrumpOutlook {
         if (other === seat) continue
         // A seat that has shown void in trump can hold none of them; a seat
         // with no cards left obviously cannot either.
-        const capacity = seatShownVoidIn(view, other, trump) ? 0 : view.handSizes[other]
+        const capacity = seatShownVoidInTrump(view, other) ? 0 : view.handSizes[other]
         if (teamOf(other) === teamOf(seat)) partnerCards += capacity
         else opponentCards += capacity
     }

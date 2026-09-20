@@ -341,8 +341,10 @@ return solid.length > 0 ? quietLeadCard(view, solid, kept) : quiet
 
 /**
  * `chooseLead` with one hard stop on top (2026-09-20, reported from a live
- * table): once both opponents have shown void in trump, every trump still out
- * is in my partner's hand, and leading one does nothing except pull his. The
+ * table): once no OPPONENT can still hold a trump — both have shown void in
+ * it, or the counting has located every outstanding one on our own side
+ * (`onlyPartnerCanHoldTrumps`) — every trump still out is in my partner's
+ * hand, and leading one does nothing except pull his. The
  * individual rules above each have their own idea of when a trump lead has a
  * point; this is the one condition under which none of them can be right, so
  * it is enforced here, once, instead of being repeated in every one of them.

@@ -48,6 +48,8 @@ import {
     outstandingInSuit,
     seatProvablyLacksTrumpJack,
     seatShownVoidIn,
+    seatShownVoidInTrump,
+    onlyPartnerCanHoldTrumps,
     shouldDrawTrumps,
     shouldDrawTrumpsForPartner,
     shouldSpendAce,
@@ -335,19 +337,20 @@ describe("shouldSpendAce (fault 2)", () => {
     })
 
     it("keeps the ace when my partner has shown void in the suit and may hold a trump", () => {
-        // Seat 2 (my partner) threw a KARA on the PIK lead: leading the ace
-        // now would force him to ruff it (§1.5 has no partner exception).
-        // Both opponents have shown void in TRUMP (HERC) — nobody threw one on
-        // the two HERC leads — so the "opponents cannot ruff" rule alone would
-        // spend the ace; the partner veto is what keeps it.
+        // Seat 2 (my partner) RUFFED the PIK lead: he is void in the suit and
+        // still holds trumps, so leading the ace now would force him to ruff
+        // it (§1.5 has no partner exception). Both opponents have shown void
+        // in TRUMP (HERC) — neither followed the HERC lead — so the
+        // "opponents cannot ruff" rule alone would spend the ace; the partner
+        // veto is what keeps it.
         const v = view({
             seat: 0,
             hand: ["APIK", "7PIK", "8TREF", "9TREF"],
-            played: ["7PIK", "8KARA", "KPIK", "8PIK", "7HERC", "7KARA", "8HERC", "7TREF"],
+            played: ["7PIK", "9HERC", "KPIK", "8PIK", "7HERC", "7KARA", "8HERC", "7TREF"],
             bidding: { turn: 1, passes: [], trump: "HERC", caller: 1 },
             handSizes: { 0: 4, 1: 4, 2: 4, 3: 4 },
             trickHistory: [
-                wonTrick(1, ["7PIK", "8KARA", "KPIK", "8PIK"], 3),
+                wonTrick(1, ["7PIK", "9HERC", "KPIK", "8PIK"], 2), // partner ruffs
                 wonTrick(2, ["7HERC", "7KARA", "8HERC", "7TREF"], 0), // seats 3 and 1 → no trump
             ],
         })
@@ -2438,5 +2441,119 @@ describe("belaLead (BOT.md §11)", () => {
         // not in `legalMoves`, and the bot never chooses outside that list.
         const hand: Card[] = ["KHERC", "QHERC", "7PIK", "8TREF"]
         expect(belaLead(asCallersPartner(hand), ["7PIK", "8TREF"])).toBeNull()
+    })
+})
+
+/* 2026-09-20, reported twice from a live table: the bot went on "drawing
+   trumps" after both opponents were out of them, so the only trumps it pulled
+   were its own partner's. The count was the fault — a seat is stripped of
+   trump by ruffing and discarding long before anybody leads the suit at it,
+   and only a trump LEAD used to prove anything. */
+describe("seatShownVoidInTrump (§1.5: void in the led suit must ruff)", () => {
+    it("reads a discard on a PLAIN lead as proof of no trump", () => {
+        // KARA is led; seats 1 and 3 hold none and throw a third suit instead
+        // of ruffing, which §1.5 does not allow with a trump in hand.
+        const cards: Card[] = ["AKARA", "7PIK", "8KARA", "9TREF"]
+        const v = view({
+            seat: 0,
+            hand: ["JHERC", "APIK"],
+            played: cards,
+            trickHistory: [wonTrick(0, cards, 0)],
+        })
+        expect(seatShownVoidInTrump(v, 1)).toBe(true)
+        expect(seatShownVoidInTrump(v, 3)).toBe(true)
+        // Seat 2 followed the suit: it says nothing about his trumps.
+        expect(seatShownVoidInTrump(v, 2)).toBe(false)
+        // …and the old, lead-only proof sees none of it.
+        expect(seatShownVoidIn(v, 1, "HERC")).toBe(false)
+    })
+
+    it("does not read a RUFF that way", () => {
+        const cards: Card[] = ["AKARA", "7HERC", "8KARA", "9KARA"]
+        const v = view({
+            seat: 0,
+            hand: ["JHERC", "APIK"],
+            played: cards,
+            trickHistory: [wonTrick(0, cards, 1)],
+        })
+        expect(seatShownVoidIn(v, 1, "KARA")).toBe(true) // void in the led suit
+        expect(seatShownVoidInTrump(v, 1)).toBe(false) // but he had a trump
+    })
+
+    it("still reads the plain proof: trump was led and he did not follow", () => {
+        const cards: Card[] = ["JHERC", "7PIK", "8HERC", "9HERC"]
+        const v = view({
+            seat: 0,
+            hand: ["AHERC", "APIK"],
+            played: cards,
+            trickHistory: [wonTrick(0, cards, 0)],
+        })
+        expect(seatShownVoidInTrump(v, 1)).toBe(true)
+    })
+
+    it("reads the trick in progress, not only the completed ones", () => {
+        const v = view({
+            seat: 0,
+            hand: ["JHERC", "APIK"],
+            trick: {
+                leader: 1,
+                turn: 0,
+                cards: [
+                    { seat: 1, card: "AKARA" },
+                    { seat: 2, card: "7PIK" },
+                    { seat: 3, card: "8TREF" },
+                ],
+            },
+        })
+        expect(seatShownVoidInTrump(v, 3)).toBe(true)
+        expect(seatShownVoidInTrump(v, 2)).toBe(true)
+    })
+})
+
+describe("onlyPartnerCanHoldTrumps (the trump-lead stop)", () => {
+    /** Seat 0 called HERC; one trick of KARA is behind us. */
+    const afterKaraTrick = (cards: Card[]): PlayerView =>
+        view({
+            seat: 0,
+            hand: ["JHERC", "9HERC", "APIK", "KPIK", "7TREF", "8TREF", "9TREF"],
+            handSizes: { 0: 7, 1: 7, 2: 7, 3: 7 },
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 0 },
+            trick: { leader: 0, turn: 0, cards: [] },
+            tricksWon: { A: 1, B: 0 },
+            currentDealPoints: { A: 11, B: 0 },
+            played: cards,
+            trickHistory: [wonTrick(0, cards, 0)],
+        })
+
+    it("is true once BOTH opponents have discarded instead of ruffing", () => {
+        const v = afterKaraTrick(["AKARA", "7PIK", "8KARA", "9PIK"])
+        expect(onlyPartnerCanHoldTrumps(v)).toBe(true)
+        expect(trumpOutlook(v).opponentMax).toBe(0)
+    })
+
+    it("is false while an opponent has simply not been tested", () => {
+        const v = afterKaraTrick(["AKARA", "7KARA", "8KARA", "9KARA"])
+        expect(onlyPartnerCanHoldTrumps(v)).toBe(false)
+        expect(trumpOutlook(v).opponentMax).toBeGreaterThan(0)
+    })
+
+    it("is true when the counting locates every outstanding trump on our side", () => {
+        // Trump round played out: A, 7, K, 8 are face up and I hold J, 9, 10.
+        // The queen is the only trump left, and my partner's king announced
+        // the bela — so the queen is his, and leading a trump only pulls it.
+        const cards: Card[] = ["AHERC", "7HERC", "KHERC", "8HERC"]
+        const v = view({
+            seat: 0,
+            hand: ["JHERC", "9HERC", "10HERC", "APIK", "KPIK", "7TREF", "8TREF"],
+            handSizes: { 0: 7, 1: 7, 2: 7, 3: 7 },
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 0 },
+            trick: { leader: 0, turn: 0, cards: [] },
+            belaDeclared: "A",
+            played: cards,
+            trickHistory: [wonTrick(0, cards, 0)],
+        })
+        expect(belaSeat(v)).toBe(2)
+        expect(outstandingInSuit(v, "HERC")).toBe(1)
+        expect(onlyPartnerCanHoldTrumps(v)).toBe(true)
     })
 })

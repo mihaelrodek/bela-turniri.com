@@ -737,3 +737,50 @@ i parkirani ulazak u DRUGU sobu.
 Server (`ws.ts`, `heldSeatIn`): `game.state` završene partije dobiva samo onaj tko je
 PRIJE tog `room.join` već držao sjedalo; tko uđe iznova (i nakon izlaska) dobiva čist
 lobi, bez starog rezultata i dijaloga. Soba koja je `PLAYING` sinkronizira uvijek.
+
+### Znakovi boja za „moderne” + zvuk nakon povratka u aplikaciju (2026-09-20)
+
+- **Adut u „modernim” kartama** više nije naš vektorski crtež nego znak s tih istih
+  karata: `assets/moderne/suits/*.webp` (192×192 RGBA), izrezani iz Dečka svake boje
+  skriptom `frontend/scripts/extract-moderne-suits.py`. `DeckSuitIcon` ih pokupi sam
+  (isti put kao `klasicne`), pa vrijede za semafor, medaljon zvača, gumbe zvanja i
+  bljesak aduta.
+- **Zvuk se „naslaže”** kad iOS oduzme audio (druga aplikacija, poziv, pad veze):
+  kontekst javlja `running`, a sat mu stoji, pa se sve zakazano odsvira odjednom kad
+  sat krene. `sounds.ts`: sat se nadzire (`clockIsStalled`), u stojeći kontekst se ne
+  renderira, nakon 1,5 s se kontekst zatvara i gradi novi na sljedeći dodir
+  (dekodirani bufferi ostaju); dok je stranica skrivena ništa se ne svira i sve
+  aktivno se gasi; najviše 4 zvuka u 600 ms.
+- **Long-press pregledi na iOS-u** (slika „Save to Photos”, link „Add to Reading
+  List”): `platform/noCallout.css` (importira ga `main.tsx`) + `contextmenu`/`dragstart`
+  u `PwaNativeGestures`, samo za `pointer: coarse`; izlaz `data-allow-callout`.
+
+### „Zvanje aduta” bez obruba (2026-09-20, prijava korisnika)
+
+Srednja ćelija semafora (`TrumpBadge.tsx`) je dok se zove adut prikazivala blijedi
+zaobljeni obrub oko sitnog sivog teksta „ZVANJE ADUTA” — grana za odabrani adut taj
+isti obrub već gasi (`borderWidth="0"`), pa je razlika između faza čitana kao greška,
+ne kao namjera. Grana bez aduta sad isto gasi obrub od početka; `CELL`-ov `minW`/
+`minH` ostaje pa se otisak ćelije ne mijenja kad adut bude zvan (semafor ne „skoči”).
+
+### Šifra sobe — biračka tipkovnica (2026-09-20, prijava korisnika)
+
+`JoinByCodeDialog` (predvorje i pristup privatnoj sobi preko linka) prikazivao je
+običan `<Input inputMode="numeric">`. Na iPhoneu, u instaliranom PWA-u, sistemska
+tipkovnica i njena traka nad njom prekriju cijeli zaslon čim se polje fokusira —
+korisnik ne vidi ni naslov dijaloga ni upravo upisane znamenke, unos je „odmah
+zablokiran”. Rješenje je biračka tipkovnica po uzoru na konkurenciju: donji list
+(bottom sheet) na mobitelu, centrirani dijalog od `md` naviše, s naslovom, X za
+zatvaranje, četiri velike kućice za znamenke (blijedi placeholder „0” dok je
+kućica prazna) i mrežom 3×4 velikih tipki (1–9, zatim „obriši sve” / 0 / brisanje
+zadnje znamenke). Nijedna tipka nije fokusabilan tekstni input — sistemska
+tipkovnica se nikad ne otvara na dodirnom uređaju. Hardverska tipkovnica i dalje
+radi na desktopu (znamenke, Backspace, Escape zatvara, Enter šalje kad je šifra
+puna) preko `keydown`/`paste` slušatelja na `document` dok je dijalog otvoren, jer
+ne postoji fokusabilan element na koji bi se inače vezali. Šifra i dalje ima 4
+znamenke (server: `game/packages/server/src/ids.ts` `newRoomCode`) i autošalje se
+čim je unesena zadnja — kao i prije, samo bez tipkovnice koja to sprječava. Kriva
+šifra (`ROOM_NOT_FOUND` s `ref: "room.joinByCode"`, i analogno pun/blokiran
+gledatelj) briše upisane znamenke i lagano protrese kućice
+(`usePrefersReducedMotion` + „Smanji animacije” isključuju animaciju), tako da se
+odmah može pokušati ponovno umjesto da se ekran nasumce zatvori.

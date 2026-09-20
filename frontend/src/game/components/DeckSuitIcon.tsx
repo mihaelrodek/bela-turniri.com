@@ -22,9 +22,11 @@ import { MadjaricaSuitIcon, suitImage, useDecodedImage } from "../cards/madjaric
    player's preference), so the suit in the panel is the suit printed on the
    cards in hand and never a second, unrelated drawing of it.
 
-     klasicne   the deck's own printed suit mark (assets/klasicne/suits/*),
-                which is the only pack that ships one.
-     moderne    no suit files → our vector glyph.
+     klasicne   the deck's own printed suit mark (assets/klasicne/suits/*).
+     moderne    ITS own printed mark too (assets/moderne/suits/*, 2026-09-20,
+                user request: the vector glyph next to scanned cards looked
+                like a different game). Cut out of the deck's Dečko cards by
+                `frontend/scripts/extract-moderne-suits.py`.
      vektorske  our vector glyph, which is that deck's own artwork anyway.
      francuske  ♥ ♦ ♠ ♣, as before.
 

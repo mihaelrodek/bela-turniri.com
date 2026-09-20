@@ -247,6 +247,37 @@ export default function PwaNativeGestures() {
         }
     }, [isGameRoute, navigate, refreshing])
 
+    useEffect(() => {
+        // Long-press previews (2026-09-20, user report): the image sheet
+        // ("Save to Photos") and the link preview ("Add to Reading List").
+        // `platform/noCallout.css` switches the callout off; this is the belt
+        // to its braces, because iOS still raises it for an image INSIDE a
+        // link. Deliberately NOT gated on standalone or on the game route —
+        // it was seen in mobile Safari and at the table too — only on a
+        // touch-first device, so a desktop right-click keeps its menu.
+        if (!window.matchMedia("(pointer: coarse)").matches) return
+
+        const BLOCKED = "a, img, button, [role='button']"
+        const blocked = (node: EventTarget | null): boolean =>
+            node instanceof Element
+            && node.closest(BLOCKED) !== null
+            && node.closest("[data-allow-callout]") === null
+
+        function onContextMenu(e: Event) {
+            if (e.cancelable && blocked(e.target)) e.preventDefault()
+        }
+        function onDragStart(e: DragEvent) {
+            if (e.target instanceof HTMLImageElement && blocked(e.target)) e.preventDefault()
+        }
+
+        document.addEventListener("contextmenu", onContextMenu)
+        document.addEventListener("dragstart", onDragStart)
+        return () => {
+            document.removeEventListener("contextmenu", onContextMenu)
+            document.removeEventListener("dragstart", onDragStart)
+        }
+    }, [])
+
     if (isNative || !isStandalone() || isGameRoute) return null
 
     const pullReady = pullDistance >= PULL_THRESHOLD

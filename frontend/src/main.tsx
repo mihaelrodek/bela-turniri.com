@@ -12,6 +12,7 @@ import NativeShell from "./platform/NativeShell"
 import AppBackground from "./components/AppBackground"
 import { AuthProvider } from "./auth/AuthContext"
 import AppToaster from "./components/AppToaster"
+import StatusBarSafeArea from "./components/StatusBarSafeArea"
 import FirstRunInstallPrompt from "./components/FirstRunInstallPrompt"
 import { RouteResetErrorBoundary } from "./components/ErrorBoundary"
 import PwaNativeGestures from "./components/PwaNativeGestures"
@@ -22,6 +23,7 @@ import WhatsNewDialogMount from "./whatsNew/WhatsNewDialogMount"
 import { installSeed } from "./shell/seed"
 import App from "./App"
 import "./platform/foldable.css"
+import "./platform/noCallout.css"
 
 
 // Everything below the query provider. Built once as an element so the two
@@ -115,6 +117,13 @@ const rootTree = (
                 and is imported by both AppToaster (rendering) and
                 api/http.ts (the axios interceptor that creates toasts). */}
             <AppToaster />
+            {/* Deterministic status-bar strip, mounted last (and given the
+                same max z-index as the toast viewport above) so it always
+                wins the stacking tie and paints over anything — toast
+                included — that might otherwise touch the very top edge.
+                See the component for the iOS status-bar tinting bug this
+                guards against. */}
+            <StatusBarSafeArea />
             {/* First-launch install nudge. Self-gates on localStorage so it
                 only ever appears once per device, and on the install-prompt
                 hook so it stays hidden when the app is already installed

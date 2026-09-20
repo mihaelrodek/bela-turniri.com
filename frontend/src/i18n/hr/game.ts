@@ -204,6 +204,9 @@ export const game = {
     "lobby.joinByCode.privateDescription": "Ova igra je privatna. Unesi šifru koju ti je prijatelj poslao.",
     "lobby.joinByCode.codeLabel": "Šifra sobe",
     "lobby.joinByCode.codeAria": "Šifra sobe, 4 znamenke",
+    "lobby.joinByCode.clearAria": "Obriši sve znamenke",
+    "lobby.joinByCode.backspaceAria": "Obriši zadnju znamenku",
+    "lobby.joinByCode.enteredAria": "Uneseno {count} od {total} znamenki",
 
     "room.label": "Ime igre",
     "room.codeLabel": "🔒 Šifra za ulaz: {code}",

@@ -181,6 +181,9 @@ export const game: GameDict = {
     "lobby.joinByCode.privateDescription": "Ta igra je zasebna. Vnesi kodo, ki ti jo je poslal prijatelj.",
     "lobby.joinByCode.codeLabel": "Koda sobe",
     "lobby.joinByCode.codeAria": "Koda sobe, 4 mesta",
+    "lobby.joinByCode.clearAria": "Izbriši vse števke",
+    "lobby.joinByCode.backspaceAria": "Izbriši zadnjo števko",
+    "lobby.joinByCode.enteredAria": "Vnesenih {count} od {total} števk",
 
     "room.label": "Ime igre",
     "room.codeLabel": "🔒 Koda za vstop: {code}",

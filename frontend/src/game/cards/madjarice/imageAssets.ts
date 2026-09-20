@@ -10,7 +10,9 @@ import type { DeckStyle } from "../../util/cards"
      assets/klasicne/BACK.webp                      assets/klasicne/README.md)
      assets/klasicne/suits/<SUIT>.webp   4 suit icons, 192×192 RGBA
      assets/moderne/<RANK><SUIT>.webp    32 faces  (our own cleaned scans)
-     assets/moderne/BACK.webp                       — no suit icons
+     assets/moderne/BACK.webp
+     assets/moderne/suits/<SUIT>.webp    4 suit icons, 192×192 RGBA, cut from
+                                         the deck's own J cards (2026-09-20)
 
    Only bundled files are registered: a deck whose folder is missing or half
    finished simply yields nothing, and the card falls back to the vector face
@@ -43,7 +45,7 @@ type DeckAssets = {
     faces: Map<Card, string>
     /** The 33rd file. Outside the face map — nothing looks a back up by id. */
     back?: string
-    /** Only `klasicne` ships these today; see `suitImage`. */
+    /** `klasicne` and `moderne` ship these; see `suitImage`. */
     suits: Map<Suit, string>
 }
 
@@ -90,8 +92,9 @@ export function cardBackImage(deck: DeckStyle): string | undefined {
  * This is what makes a called trump look like the cards in hand (2026-09-20,
  * user request): `klasicne` has printed suit marks of its own, so the
  * scoreboard, the bidding buttons and the caller medallion show THOSE rather
- * than our vector glyph. `moderne` has none, so it keeps the vector glyph —
- * `DeckSuitIcon` handles both from this one answer.
+ * than our vector glyph. `moderne` got its own the same day, cut from its
+ * J cards. A deck without any keeps the vector glyph — `DeckSuitIcon` handles
+ * both from this one answer.
  */
 export function suitImage(deck: DeckStyle, suit: Suit): string | undefined {
     return decks.get(deck)?.suits.get(suit)
