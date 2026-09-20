@@ -211,10 +211,10 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                                         </VStack>
                                     </HStack>
                                     {occupant?.kind === "PLAYER" && (occupant.user.gameStats || occupant.user.karma != null) && (
-                                        <HStack ms="auto" flexShrink={0} gap="1" justify="end" wrap="wrap">
+                                        <VStack ms="auto" flexShrink={0} gap="1" align="center">
                                             {occupant.user.gameStats && <SeatStatPill stats={occupant.user.gameStats} />}
                                             <SeatKarmaPill karma={occupant.user.karma} />
-                                        </HStack>
+                                        </VStack>
                                     )}
                                     <HStack justify="end" gap="2">
                                         {!occupant && mySeat === null && onSit && (

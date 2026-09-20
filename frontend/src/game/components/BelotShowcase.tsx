@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react"
+import { useSyncExternalStore, type ReactNode } from "react"
 import { keyframes } from "@emotion/react"
 import { Box, Flex, Portal, Text } from "@chakra-ui/react"
 import type { Suit } from "@bela/engine"
@@ -229,6 +229,7 @@ function fanScale(): number {
 export default function BelotShowcase({
     suit,
     kicker,
+    winner,
     title,
     subtitle,
     footnote,
@@ -239,6 +240,9 @@ export default function BelotShowcase({
     suit: Suit
     /** A short line ABOVE the word — "Čestitamo!". */
     kicker?: string
+    /** WHO has the belot (2026-09-20, user request: the table must say which
+     *  person got it). A plate under the word: face, name, and which side. */
+    winner?: { name: string; team?: string; avatar: ReactNode }
     /** The word itself — split into letters, so keep it a word. */
     title: string
     subtitle?: string
@@ -653,13 +657,48 @@ export default function BelotShowcase({
                             ))}
                         </Text>
                         </Box>
+                        {winner && (
+                            <Flex
+                                align="center"
+                                gap="3"
+                                mt="1"
+                                maxW="100%"
+                                rounded="full"
+                                borderWidth="1px"
+                                borderColor={`rgba(${GOLD}, 0.7)`}
+                                bg="rgba(0, 0, 0, 0.42)"
+                                boxShadow={`0 0 28px rgba(${GOLD}, 0.35)`}
+                                py="1.5"
+                                ps="1.5"
+                                pe={{ base: "4", md: "5" }}
+                                css={{ animation: still ? undefined : `${KF.belotLineIn} 460ms cubic-bezier(0.16, 1, 0.3, 1) ${IMPACT_MS + 300}ms both` }}
+                            >
+                                <Box flexShrink={0}>{winner.avatar}</Box>
+                                <Flex direction="column" align="flex-start" minW="0" lineHeight="1.15">
+                                    {winner.team && (
+                                        <Text fontSize="2xs" fontWeight="bold" letterSpacing="0.16em" textTransform="uppercase" color="yellow.200">
+                                            {winner.team}
+                                        </Text>
+                                    )}
+                                    <Text
+                                        fontSize={{ base: "xl", md: "2xl" }}
+                                        fontWeight="black"
+                                        color="white"
+                                        maxW={{ base: "56vw", md: "360px" }}
+                                        truncate
+                                    >
+                                        {winner.name}
+                                    </Text>
+                                </Flex>
+                            </Flex>
+                        )}
                         {subtitle && (
                             <Text
                                 fontSize={{ base: "md", md: "xl" }}
                                 fontWeight="bold"
                                 color="white"
                                 textShadow="0 2px 10px rgba(0, 0, 0, 0.6)"
-                                css={{ animation: still ? undefined : `${KF.belotLineIn} 420ms ease-out ${IMPACT_MS + 450}ms both` }}
+                                css={{ animation: still ? undefined : `${KF.belotLineIn} 420ms ease-out ${IMPACT_MS + 650}ms both` }}
                             >
                                 {subtitle}
                             </Text>
@@ -669,7 +708,7 @@ export default function BelotShowcase({
                                 fontSize={{ base: "sm", md: "md" }}
                                 fontWeight="semibold"
                                 color="yellow.200"
-                                css={{ animation: still ? undefined : `${KF.belotLineIn} 420ms ease-out ${IMPACT_MS + 650}ms both` }}
+                                css={{ animation: still ? undefined : `${KF.belotLineIn} 420ms ease-out ${IMPACT_MS + 850}ms both` }}
                             >
                                 {footnote}
                             </Text>

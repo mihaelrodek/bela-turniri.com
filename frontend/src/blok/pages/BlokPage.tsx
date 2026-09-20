@@ -15,7 +15,7 @@ import { ACTION_BAR_BOTTOM, ACTION_BAR_GAP, ACTION_BAR_RESERVE } from "../action
 import { isRecordableGame, useBlok } from "../store"
 import type { Suit } from "@bela/engine"
 import { randomSuit } from "../../game/util/cards"
-import { BLOK_SIDES, type BlokRound, type BlokSide } from "../types"
+import { BLOK_SIDES, creditedDeclarationTotals, type BlokRound, type BlokSide } from "../types"
 import BelotCelebration from "../components/BelotCelebration"
 import BlokHeader from "../components/BlokHeader"
 import BlokLinkDialog from "../components/BlokLinkDialog"
@@ -297,9 +297,8 @@ export default function BlokPage() {
     const declarations = useMemo(() => {
         const acc: Record<BlokSide, number> = { ...EMPTY_TALLY }
         for (const round of game.rounds) {
-            for (const side of BLOK_SIDES) {
-                acc[side] += (round.declarations?.[side] ?? []).reduce((a, b) => a + b, 0)
-            }
+            const credited = creditedDeclarationTotals(round.declarations, round.stiglja)
+            for (const side of BLOK_SIDES) acc[side] += credited[side]
         }
         return acc
     }, [game.rounds])

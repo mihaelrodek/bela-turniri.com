@@ -96,6 +96,16 @@ export default function ScoreBoard({
     // Optional on PlayerView — the bots hand-assemble views without it — so
     // "no bonus known" reads as no bonus.
     const declarationPoints = view.declarationPoints ?? { A: 0, B: 0 }
+    /* Between the last trick and "next deal" the server has ALREADY added the
+       deal to `score`, while the big numbers still show that same deal — so
+       the small running total read as if the deal would be added a second
+       time (747, "127 +50", 924). Until the next deal starts, show the total
+       as it stood BEFORE the deal; the recap dialog (DealSummary) carries the
+       "Upisano" figure and the header switches to the new total with the
+       next deal. */
+    const settling = view.phase === "DEAL_DONE" ? view.dealScore : null
+    const shownTotal = (team: Team) =>
+        settling ? view.score[team] - settling.total[team] : view.score[team]
 
     return (
         <Box
@@ -163,9 +173,9 @@ export default function ScoreBoard({
                     dealPoints={view.currentDealPoints[myTeam]}
                     declarationPoints={declarationPoints[myTeam]}
                     declarationLabel={t("game.score.declarationBonus")}
-                    total={view.score[myTeam]}
+                    total={shownTotal(myTeam)}
                     progressLabel={t("game.score.progress", {
-                        total: view.score[myTeam],
+                        total: shownTotal(myTeam),
                         target: targetScore,
                     })}
                     targetScore={targetScore}
@@ -198,9 +208,9 @@ export default function ScoreBoard({
                     dealPoints={view.currentDealPoints[theirTeam]}
                     declarationPoints={declarationPoints[theirTeam]}
                     declarationLabel={t("game.score.declarationBonus")}
-                    total={view.score[theirTeam]}
+                    total={shownTotal(theirTeam)}
                     progressLabel={t("game.score.progress", {
-                        total: view.score[theirTeam],
+                        total: shownTotal(theirTeam),
                         target: targetScore,
                     })}
                     targetScore={targetScore}

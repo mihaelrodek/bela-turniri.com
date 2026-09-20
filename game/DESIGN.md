@@ -784,3 +784,72 @@ znamenke (server: `game/packages/server/src/ids.ts` `newRoomCode`) i autošalje 
 gledatelj) briše upisane znamenke i lagano protrese kućice
 (`usePrefersReducedMotion` + „Smanji animacije” isključuju animaciju), tako da se
 odmah može pokušati ponovno umjesto da se ekran nasumce zatvori.
+
+- **Tko ima belot (2026-09-20, zahtjev korisnika):** ispod riječi BELOT ide pločica
+  igrača — lice (`PlayerAvatar` lg, botovi svojim licem), ime krupno i oznaka strane
+  („Mi” / „Oni”, gledatelju „Tim A/B”); ispod nje samo „Svih osam karata — <boja>”.
+  Ime više nije utopljeno u sitnom podnaslovu. U bloku pločice nema (blok ne zna tko
+  je imao belot).
+
+## Bot: prisilni poziv u završnici (2026-09-20)
+
+Prijava „bot je zvao na 7, 8, 10": nije bilo praga nego `mustNotPass` — pri
+572:924 na 1001 pravilo „protivnici bi jednom podjelom došli do cilja" prisililo
+je bota (nije djelitelj) da zove najbolju boju bez ikakvog praga. Pravilo sad
+traži da BOTH strane budu unutar jedne podjele (90) od cilja, tj. da pobjednik
+podjele stvarno odlučuje partiju („izjednačen" iz BOT.md); inače bot pasira
+slabu ruku. Mus (djelitelj) i dalje bira najjaču boju po `suitStrength`.
+Testovi u `heuristicBot.test.ts` (nisu pokrenuti).
+
+## Karma ispod postotka + objašnjenje (2026-09-20)
+
+- `SeatKarmaPill` (`GameStatsPills.tsx`) je sada gumb koji otvara Popover s
+  objašnjenjem (`game.karma.explain`, hr + sl) — pravila su iz backendovog
+  `GameReliabilityService`: start 10/10, napuštanje partije u tijeku uz barem
+  još jednog čovjeka −1 (nakon isteka roka za povratak), svake 3 završene +1
+  (`KARMA_RECOVERY_GAMES` u `util/gameStats.ts` zrcali backend). Klik ne
+  propagira, pa je siguran unutar kartice sjedala.
+- Sjedalo u `RoomPanel`: pilula rezultata (0–0 · 0%) i karma su složene
+  okomito, karma centrirana ispod postotka.
+- Lobby zaglavlje (`GameLobbyPage`): karma se prikazuje i uz vlastite
+  statistike — centrirana ispod reda pilula na md+, ispod mreže na mobitelu.
+  Ključ `room.karmaTitle` je uklonjen (zamijenio ga je popover).
+
+### Zvanja, header i zbroj nakon dijeljenja (2026-09-20)
+
+- **Dijalog „Zvanja”:** par bez (važećih) zvanja nije tab (disabled, bez fokusa, bez odabira). Propala zvanja gubitničkog para više se ne računaju kao „sadržaj” i redak „Tvoja zvanja (X) propadaju” je uklonjen (ključ `declarations.oursLost` izbrisan, prop `ownDeclarations` također). Ako samo jedan par ima zvanja, on je automatski odabran.
+- **Header:** ćelija „Zvanje aduta” nema nikakav obrub/outline/sjenu (`CELL` u `TrumpBadge`). Chip gledatelja je ikona oka + broj; tekst „Gledatelji: n” ostaje kao `title`/`aria-label` (`StatusChip` prima `label`).
+- **Ukupni zbroj u headeru:** dok je faza `DEAL_DONE`, server je već pribrojio podjelu u `score`, a veliki brojevi još prikazuju tu istu podjelu (747, „127 +50”, 924 izgledalo je kao dvostruko brojanje). `ScoreBoard` u toj fazi prikazuje zbroj PRIJE podjele (`score − dealScore.total`) i tek s idućom podjelom prelazi na novi; „Upisano” ostaje u `DealSummary`, pa se header i sažetak ne razilaze.
+
+### Bot pred kraj partije: protivnik blizu cilja (2026-09-20)
+
+Kad su PROTIVNICI blizu cilja (npr. 990 od 1001), a mi daleko, bot ne smije
+zvati na srednjoj ruci: pad im daje sve bodove i partiju, pa je bolje pustiti
+da zovu oni i padnu. Granica nije tvrda: `opponentDanger` je rampa 0..1
+(0 na `cilj − 120`, 1 na `cilj − 20`; 930 ≈ 0.5, 950 ≈ 0.7, 990 ≈ 1). Rasta
+i minimalna snaga aduta (`suitStrength` 4.5 → 8) i potreban `handTricks`
+(+1.5), pa jaka ruka (dečko, devetka, as i dužina aduta, ili šansa za štigliju)
+i dalje zove. Diler koji mora zvati i pravilo „obje strane blizu cilja"
+(`mustNotPass`) ostaju kakvi jesu. Testovi u `heuristicBot.test.ts`, nisu
+pokrenuti.
+
+### „Nova igra": dodatne opcije su sklopljene (2026-09-20)
+
+Dijalog po defaultu pokazuje samo „Igra se do" i gumb „Dodatne opcije"
+(`showMore` u `CreateGameDialog.tsx`). Sve ostalo — način završetka, postotak
+pobjeda, privatna igra, gledatelji, bez zvanja, bela, gledanje štihova — je
+unutra. Razlog: gotovo svaka partija se igra s defaultima, a osam redaka je na
+mobitelu guralo gumb „Nova igra" ispod ruba. Vrijednosti se čuvaju i kad se
+sekcija sklopi; šalje se isto što i prije.
+
+### Bot: šest pravila sa stola (2026-09-20)
+
+Prijava iz žive partije, sve u `game/packages/bots` i opisano u `BOT.md` §13:
+zadnji u štihu s asom i desetkom bočne boje igra **asa** (rez dolazi); boja koju
+je suigrač otvorio, a bot uzeo asom, **vraća** mu se, osim ako ju je otvorio
+malom (7/8/9) — to je „imam dečka, vrati aduta”; zvač koji je zvao na duljinu
+bez dečka izbija ga **malim adutom**; nakon što je suigračev niski adut uzet
+**dečkom**, vraća se mali adut a devetka ostaje doma; a adutski se štih uzima
+**dečkom**, ne asom, dok devetka može sjediti iza bota. Zvačevo otvaranje
+(as/devetka, dečko zadnji) je netaknuto. Testovi su napisani, nisu pokrenuti;
+A/B mjerenja nema.

@@ -89,9 +89,10 @@ Pomaci praga po sjedalu (`bidThreshold`), svi iz dokumenta:
 Ti su pomaci na tri skupa seedova **unutar šuma**; zadržani su jer su izravno iz
 dokumenta, a ne zato što mjere bolje.
 
-**Završnica** (`mustNotPass`): ako bi protivnici jednom podjelom (uzeto kao 90
-bodova) došli do cilja, a mi ne bismo, zove se bez praga — „tad se mora zvati i
-ne dozvoliti protivniku da bira aduta”. Traži `view.targetScore`; bez njega se
+**Završnica** (`mustNotPass`): ako bi jednom podjelom (uzeto kao 90 bodova) do
+cilja došle OBJE strane, zove se bez praga — „tad se mora zvati i ne dozvoliti
+protivniku da bira aduta”. (Do 2026-09-20 dovoljno je bilo da ih protivnici
+dosegnu, pa je bot pri 572:924 zvao na 7/8/10 i pao.) Traži `view.targetScore`; bez njega se
 pravilo preskače.
 
 U musu se i dalje zove najbolja boja bez ijednog praga.
@@ -170,7 +171,8 @@ Ono što bot pošalje mora znati i pročitati. `partnerSignal` iz `trickHistory`
 `avoids` je popis boja iz kojih je odbacivao. Kad se ne da ništa pročitati, oba
 polja šute: bot koji izmisli signal gori je od bota bez signala.
 
-Zaključak se koristi **pri otvaranju štiha** (§5, pravilo 1). Uz to i dalje
+Suigračevo **otvaranje štiha** je druga rečenica i čita se u §13.2. Zaključak
+iz odbacivanja se koristi **pri otvaranju štiha** (§5, pravilo 1). Uz to i dalje
 vrijedi `seatShownVoidIn`. Ovo je zaključivanje iz **odbacivanja**; ono iz
 zvanja, podigravanja i bele je §11.
 
@@ -274,6 +276,11 @@ pravilo je ono što je 2026-09-08 izlazilo adutom osam puta po podjeli.
    ne bježi u adut**, jer bi to bilo vađenje aduta koje je pravilo 2 upravo
    odbilo.
 7. Najslabija karta koju imam (u praksi: ruka od samih aduta).
+
+Od 2026-09-20 u ovaj redoslijed ulaze i četiri pravila iz **§13**: zvačevo
+izbijanje dečka malim adutom i povrat malog aduta nakon dečka idu **iznad**
+vađenja aduta (točka 2), a vraćanje suigračeve boje i čitanje njegova niskog
+otvaranja kao „vrati aduta" sjede uz točke 1 i 1b.
 
 ---
 
@@ -472,3 +479,94 @@ je ostalo samo blefiranje, što nije bilo točno):
   iz bočnih karata nije napisana.
 - **`isMasterAgainstOpponents`** — vidi §11.4: napisano, izmjereno na −0,5 do
   −0,9 pp u svakoj kombinaciji, obrisano.
+
+---
+
+## 13. Stol, 2026-09-20
+
+Šest pravila iz jedne korisnikove prijave. Sva su o karti koja **sada** vrijedi
+više nego za dva štiha: as pod rez koji dolazi, boja koju je suigrač iznio, i
+dečko koji mora van prije nego pojede nešto vrijedno. Nijedno nije A/B mjereno
+(§9) — ušla su kao pravila stola, kao i §12.
+
+### 13.1 Zadnji sam, a doma su as i desetka (`aceOverCheapWinner`)
+
+Prijavljeni štih: na stolu 7, 8 i dečko strane boje, u ruci A, 10 i kralj. Bot
+je bacio **kralja** — najjeftiniji dobitni potez, štih je ionako njegov. Ali as
+i desetka su 21 bod u boji koja je sad prošla jedan krug, pa je sljedeći krug
+onaj u kojem netko reže. **Kad sam zadnji u štihu bočne boje i imam i asa i
+desetku te boje, ide AS.** Njegovih 11 bodova je ubrano dok je boja još sigurna,
+a desetka ostaje najjača iza njega.
+
+Samo kad as **stvarno uzima**: ako je netko već presjekao, as nije dobitna karta
+i odluku vodi obično odbacivanje. Pravilo stoji u grani „mogu uzeti štih”, pa
+nikad ne pretvara propuštanje u uzimanje, i ne dira granu u kojoj štih drži
+suigrač — ona ima svoja pravila o asu (§4).
+
+### 13.2 Suigrač je iznio boju (`suitToReturnToPartner`, `partnerLowPlainLeadAsksForTrump`)
+
+Suigrač je otvorio štih bočnom bojom, a ja sam ga uzeo **asom** te boje. Što
+dalje, odlučuje **njegova karta**, jer je karta rečenica:
+
+| Njegovo otvaranje | Značenje | Odgovor |
+|---|---|---|
+| **7, 8 ili 9** | „imam adutskog dečka, vrati aduta” | adut natrag (`trumpDrawCard`) |
+| 10, J, Q, K | boju je iznio i želi je nastaviti | ta boja natrag, **nisko** |
+| **as** | nema adutskog dečka (§11.2) | — (tad as ne može biti moj) |
+
+Dvoznačnost, pa neka piše: korisnikova rečenica („ako suigrač počne s nekom
+malom… UVIJEK ju vraća natrag; jedina iznimka je ako je suigrač 1. na štihu i
+odigra malu”) može se čitati i po **poziciji** (otvarač ili ne). Čita se po
+**karti** jer po poziciji druga polovica ostaje mrtva: as se može uzeti samo u
+boji koja je otvorena, a otvarač te boje je po definiciji prvi na štihu. Ako je
+mišljeno drugo, mijenja se samo `LOW_LEAD_RANKS` grananje.
+
+Dug se plaća **jednom**: štih koji sam kasnije sam otvorio u toj boji ga briše,
+da pravilo ne prikuje bota na jednu boju do kraja podjele. „Vrati aduta” ima
+iste dvije brane kao i §5 pravilo 1b — samo dok protivnici mogu imati adut i
+samo dok zvanja ne dokazuju da suigrač nema dečka.
+
+### 13.3 Zvač koji je zvao na količinu (`callerLengthTrumpLead`)
+
+Zvao sam na **duljinu**: tri ili više aduta, ali bez dečka (prijavljeni oblik
+7, 9, 10, baba, as). Dečko je vani i svaka moja karta živi ispod njega, pa se
+izbija **malim adutom** — 7, 8, baba ili kralj, nikad 9/10/as, jer bi to bilo
+deset bodova poklonjenih baš toj karti koju izbijam.
+
+Namjerno **izvan `shouldDrawTrumps`**: to pravilo traži najjači adut u ruci ili
+suigrača koji je zvao, a ruka bez dečka nema ni jedno ni drugo — grana unutar
+njega nikad se ne bi okinula. Gasi se sama: čim je dečko na stolu ili lociran
+kod nas (`opponentCanHold`), nema se što izbijati. **Mus** je isključen (to nije
+zvanje na količinu), a s **dva** aduta se i dalje ne vodi mali adut — to je
+postojeće pravilo i njegov test („as s desetkom iza njega, ne adut”).
+
+### 13.4 Mali adut natrag nakon dečka (`lowTrumpBackAfterJack`)
+
+Suigrač je otvorio **niskim adutom** (što po §11.2 znači da nema dečka), a ja
+sam taj štih uzeo **dečkom**. Tada najjači preostali adut vrlo vjerojatno leži u
+mojoj ruci (devetka), pa se vraća **mali** adut: dva protivnička aduta padnu na
+bezvrijednu kartu, a devetka ostaje za štih poslije.
+
+Dva uvjeta, oba provjerena a ne pretpostavljena:
+
+- moram **stvarno držati** najjači preostali adut (`isMasterCard`) — inače nema
+  što čuvati i obično vađenje aduta je bolje;
+- protivnici još moraju moći imati adut (`trumpOutlook`) — ako je sve preostalo
+  suigračevo, mali adut vuče samo njegovo.
+
+Stoji **iznad** vađenja aduta, jer `trumpDrawCard` vodi najjači adut kad ga ima,
+a to je točno karta koju ovo pravilo čuva.
+
+### 13.5 Dečko, ne as, dok je devetka iza mene (`jackOverAceOnTrumpLead`)
+
+Prijavljeni štih: suigrač je izašao adutskim **kraljem**, protivnik je pokrio
+adutskom **desetkom**, a ja imam i **asa** i **dečka**. Bot je igrao asa jer je
+jeftiniji dobitni potez po bodovima — i četvrti igrač ga je uzeo **devetkom**.
+Kad se prati adutsko otvaranje s dečkom i asom u ruci, a **devetka nije
+odigrana** i može biti kod nekoga tko igra **poslije mene**, ide **dečko**.
+Njega ne uzima ništa.
+
+Ne dira zvačevo **otvaranje** (`callerTrumpLead`, §5): ono i dalje kreće asom
+(uz strani as) ili devetkom i čuva dečka za kraj. Ovo pravilo radi samo kad je
+karta već na stolu, a ono samo kad stola još nema. Kad sam **zadnji**, devetka
+je propustila svoju priliku i as je u redu.

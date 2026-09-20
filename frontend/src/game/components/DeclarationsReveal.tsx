@@ -8,6 +8,8 @@ import { otherTeam, SEATS, teamOf } from "../util/seats"
 import { makeCard, suitKey } from "../util/cards"
 import PlayingCard, { SuitIcon } from "./PlayingCard"
 import BelotShowcase from "./BelotShowcase"
+import PlayerAvatar from "./PlayerAvatar"
+import { botAvatarPreset } from "../util/botAvatar"
 import { EVENT_DWELL_MS } from "../hooks/useEventQueue"
 import { GLASS_STRONG, INK, INK_MUTED, TEAM } from "./tableStyles"
 
@@ -156,23 +158,41 @@ export function TrumpFlash({ seats, seat, suit }: { seats: RoomState["seats"]; s
 export function BelotFlash({
     seats,
     seat,
+    mySeat,
     suit,
     reducedMotion,
 }: {
     seats: RoomState["seats"]
     seat: Seat
+    /** The viewer's own seat, to say "Mi" / "Oni"; null = a spectator. */
+    mySeat: Seat | null
     suit: Suit
     reducedMotion: boolean
 }) {
     const { t } = useTranslation()
     const name = seatName(seats, seat, t("game.seat.empty"))
+    const occupant = seats[seat]?.occupant ?? null
+    const avatarUrl = occupant?.kind === "PLAYER" ? occupant.user.avatarUrl : null
+    const avatarPreset = occupant?.kind === "PLAYER"
+        ? occupant.user.avatarPreset
+        : occupant?.kind === "BOT"
+            ? occupant.avatarPreset ?? botAvatarPreset(occupant.name)
+            : null
+    const team = mySeat === null
+        ? t(teamOf(seat) === "A" ? "game.score.teamA" : "game.score.teamB")
+        : t(teamOf(seat) === teamOf(mySeat) ? "game.score.us" : "game.score.them")
 
     return (
         <BelotShowcase
             suit={suit}
             kicker={t("game.belot.congrats")}
             title={t("game.belot.title")}
-            subtitle={t("game.belot.by", { name, suit: t(suitKey(suit)) })}
+            winner={{
+                name,
+                team,
+                avatar: <PlayerAvatar name={name} avatarUrl={avatarUrl} avatarPreset={avatarPreset} size="lg" />,
+            }}
+            subtitle={t("game.belot.by", { suit: t(suitKey(suit)) })}
             footnote={t("game.belot.wins")}
             durationMs={EVENT_DWELL_MS.BELOT}
             reducedMotion={reducedMotion}
@@ -185,7 +205,6 @@ export default function DeclarationsReveal({
     scoringTeam,
     seats,
     mySeat,
-    ownDeclarations,
     declarationPoints,
     belaDeclared,
     trumpSuit = null,
@@ -196,9 +215,6 @@ export default function DeclarationsReveal({
     scoringTeam: Team | null
     seats: RoomState["seats"]
     mySeat: Seat | null
-    /** The viewer's own declarations, from `PlayerView.declarations[mySeat]`.
-     *  Used ONLY to say "yours lost" when our pair did not win the contest. */
-    ownDeclarations?: readonly Declaration[]
     /** Live totals include Bela, which can belong to the other pair even
      *  when ordinary declarations were awarded to the scoring pair. */
     declarationPoints?: Record<Team, number>
@@ -219,8 +235,6 @@ export default function DeclarationsReveal({
             scoringTeam !== null &&
             teamOf(seat) === scoringTeam,
     )
-    const ownLost =
-        scoringTeam !== null && myTeam !== scoringTeam ? totalPoints(ownDeclarations ?? []) : 0
     const theirTeam = otherTeam(myTeam)
     const ordinaryPoints: Record<Team, number> = { A: 0, B: 0 }
     for (const seat of withDeclarations) {
@@ -265,15 +279,15 @@ export default function DeclarationsReveal({
     const myHasContent = seatRowsFor(myTeam).length > 0 || belaDeclared === myTeam
     const theirHasContent = seatRowsFor(theirTeam).length > 0 || belaDeclared === theirTeam
     // A pair with nothing to show cannot be selected at all (2026-09-20, user
-    // request: "nemoguće označiti zvanja ako netko nije imao zvanja"). The
-    // viewer's own tab also counts as having something when its declarations
-    // were lost — that is the line it exists to show.
+    // request: "nemoguće označiti zvanja ako netko nije imao zvanja"). Void
+    // declarations of the losing pair count as nothing: no tab, no "propadaju"
+    // line (user request 2026-09-20).
     const hasContent: Record<Team, boolean> = {
-        [myTeam]: myHasContent || ownLost > 0,
+        [myTeam]: myHasContent,
         [theirTeam]: theirHasContent,
     } as Record<Team, boolean>
     const defaultTeam: Team =
-        myHasContent || ownLost > 0 ? myTeam : theirHasContent ? theirTeam : myTeam
+        myHasContent ? myTeam : theirHasContent ? theirTeam : myTeam
     const [selectedTeam, setSelectedTeam] = useState<Team>(defaultTeam)
     useEffect(() => {
         setSelectedTeam(defaultTeam)
@@ -510,15 +524,6 @@ export default function DeclarationsReveal({
                             </>
                         )}
 
-                        {/* Our own declarations lost. One line, no cards: the
-                            viewer already holds these eight cards, but there is
-                            nothing to show off and nothing anyone else may see.
-                            Lives under the viewer's own team tab. */}
-                        {selectedTeam === myTeam && ownLost > 0 && (
-                            <Text fontSize="2xs" color={INK_MUTED} textAlign="center">
-                                {t("game.declarations.oursLost", { points: ownLost })}
-                            </Text>
-                        )}
                     </>
                 )}
 

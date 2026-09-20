@@ -259,10 +259,23 @@ function PillButton({
 /** The header's little state chips — connection, autoplay, spectating. Lives
  *  here rather than in the page because it is the header's own vocabulary,
  *  and the page had two copies of it. */
-export function StatusChip({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "warn" }) {
+export function StatusChip({
+    children,
+    tone = "muted",
+    label,
+}: {
+    children: ReactNode
+    tone?: "muted" | "warn"
+    /** Spoken/hover text for a chip whose visible content is only an icon. */
+    label?: string
+}) {
     return (
         <Flex
             align="center"
+            gap="1"
+            title={label}
+            role={label ? "img" : undefined}
+            aria-label={label}
             px="1.5"
             py="0.5"
             rounded="full"

@@ -187,6 +187,23 @@ export const DEAL_CARD_POINTS = 162
 /** Štiglja: sve karte + 90. */
 export const STIGLJA_POINTS = DEAL_CARD_POINTS + 90
 
+/** Zvanja koja se strani pripisuju u podjeli, zbrojena. Kod štiglje strana
+ *  koja je uzela svih 8 štihova dobiva i zvanja protivnika, a protivnik 0 —
+ *  isto pravilo kao `scoreManualDeal` u engineu. */
+export function creditedDeclarationTotals(
+    declarations: Record<BlokSide, number[] | undefined>,
+    stiglja: BlokSide | null,
+): Record<BlokSide, number> {
+    const sum = (values: number[] | undefined) => (values ?? []).reduce((a, b) => a + b, 0)
+    const totals: Record<BlokSide, number> = { us: sum(declarations.us), them: sum(declarations.them) }
+    if (stiglja !== null) {
+        const loser: BlokSide = stiglja === "us" ? "them" : "us"
+        totals[stiglja] += totals[loser]
+        totals[loser] = 0
+    }
+    return totals
+}
+
 export interface BlokRound {
     /** `crypto.randomUUID()`. Redoslijed podjela je redoslijed u polju. */
     id: string

@@ -34,7 +34,7 @@ export const game: GameDict = {
     "room.statsOverall": "Vse {wins}–{losses} · {percent}%",
     "room.statsTitle": "Skupaj",
     "room.karma": "Karma {value}/{max}",
-    "room.karmaTitle": "Karma: {value}/{max}. Zapuščena partija −1, tri odigrane +1.",
+    "karma.explain": "Karma kaže, koliko se lahko zaneseš na igralca. Vsi začnejo z {max}/{max}. Zapustitev partije, ki teče, ob vsaj še enem igralcu odvzame 1 točko (ko poteče čas za vrnitev za mizo), vsake {recovery} končane partije pa vrnejo 1 točko. Karmo vidijo drugi igralci v sobi.",
     "room.statsTarget": "{target} {wins}–{losses} · {percent}%",
     "bot.label": "Bot",
     "rules.title": "Pravila delitve",
@@ -136,6 +136,7 @@ export const game: GameDict = {
     "lobby.form.private": "Zasebna soba",
     "lobby.form.minWinRate": "Odstotek zmag",
     "lobby.form.minWinRateNone": "Brez pogoja",
+    "lobby.form.moreOptions": "Dodatne možnosti",
     "room.minWinRate": "Najmanj {percent}% zmag",
     "room.minWinRateShort": "≥ {percent}% zmag",
 
@@ -289,7 +290,6 @@ export const game: GameDict = {
     "declarations.none": "Nihče nima napovedi.",
     "declarations.noneForTeam": "Ni napovedi",
     "declarations.bela": "Bela +20",
-    "declarations.oursLost": "Tvoje napovedi ({points}) propadejo.",
 
     "bela.title": "Bela!",
     "bela.by": "kliče {name}",
@@ -303,7 +303,7 @@ export const game: GameDict = {
     "belot.title": "BELOT!",
 
     "belot.congrats": "Čestitamo!",
-    "belot.by": "{name} ima vseh osem kart — {suit}",
+    "belot.by": "Vseh osem kart — {suit}",
     "belot.wins": "Igra je takoj dobljena",
 
     /* ─── Konec delitve ─────────────────────────────────────── */

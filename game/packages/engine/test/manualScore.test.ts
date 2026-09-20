@@ -152,20 +152,34 @@ describe("scoreManualDeal — štiglja", () => {
         expect(outcome.total).toEqual({ us: 0, them: 252 })
     })
 
-    it("still counts the loser's declarations on a štiglja", () => {
-        // A štiglja does not silence declarations: the side with no tricks may
-        // still have shown one, and on the caller's fall it all goes over.
+    it("credits the loser's declarations to the štiglja side", () => {
+        // The side that took all eight tricks gets every declaration shown at
+        // the table, the opponents' included; the opponents end on 0.
         const outcome = scoreManualDeal(
             deal({
                 caller: "us",
                 cards: { us: 0, them: 252 },
-                declarations: { us: [20], them: [] },
+                declarations: { us: [20, 50], them: [20] },
                 stiglja: "them",
             }),
         )
-        expect(outcome.declarations.us).toBe(20)
+        expect(outcome.declarations).toEqual({ us: 0, them: 90 })
         expect(outcome.fell).toBe(true)
-        expect(outcome.total).toEqual({ us: 0, them: 272 })
+        expect(outcome.total).toEqual({ us: 0, them: 342 })
+    })
+
+    it("gives the whole štiglja to a passing caller and 0 to the opponents", () => {
+        const outcome = scoreManualDeal(
+            deal({
+                caller: "us",
+                cards: { us: 252, them: 0 },
+                declarations: { us: [20], them: [100, 20] },
+                stiglja: "us",
+            }),
+        )
+        expect(outcome.declarations).toEqual({ us: 140, them: 0 })
+        expect(outcome.fell).toBe(false)
+        expect(outcome.total).toEqual({ us: 392, them: 0 })
     })
 
     it("keeps the card points at 252/0 for a štiglja", () => {

@@ -6,7 +6,7 @@ import SuitGlyph from "../../game/components/SuitGlyph"
 import { suitKey } from "../../game/util/cards"
 import { useTranslation } from "../../i18n"
 import { scoreRounds, totalsOf, winnerOf } from "../store"
-import { BLOK_SIDES, type BlokGame, type BlokRound, type BlokSide } from "../types"
+import { BLOK_SIDES, creditedDeclarationTotals, type BlokGame, type BlokRound, type BlokSide } from "../types"
 import { sideName } from "./blokSide"
 import DealScoreCell from "./DealScoreCell"
 
@@ -50,10 +50,6 @@ import DealScoreCell from "./DealScoreCell"
    would go wrong the first time somebody fixed a deal in game two.
    ────────────────────────────────────────────────────────────────────── */
 
-function declarationTotal(values: number[] | undefined): number {
-    return (values ?? []).reduce((sum, value) => sum + value, 0)
-}
-
 /** One deal of a finished game in the same compact form as the live list. */
 function DealRow({
     round,
@@ -67,6 +63,7 @@ function DealRow({
     names: Record<BlokSide, string>
 }) {
     const { t } = useTranslation()
+    const credited = creditedDeclarationTotals(round.declarations, round.stiglja)
 
     return (
         <Grid
@@ -85,7 +82,7 @@ function DealRow({
                 points={total.us}
                 runningTotal={runningTotal.us}
                 called={round.caller === "us"}
-                declarations={declarationTotal(round.declarations?.us)}
+                declarations={credited.us}
                 belot={round.belot === "us"}
                 compact
             />
@@ -119,7 +116,7 @@ function DealRow({
                 points={total.them}
                 runningTotal={runningTotal.them}
                 called={round.caller === "them"}
-                declarations={declarationTotal(round.declarations?.them)}
+                declarations={credited.them}
                 belot={round.belot === "them"}
                 compact
             />

@@ -28,6 +28,7 @@ import type { Card, LegalBids, PlayerView, Seat, Suit } from "@bela/engine"
 import { cardRank, cardSuit, makeCard, nextSeat, partnerOf, teamOf } from "@bela/engine"
 import type { BidChoice, Bot } from "./index"
 import {
+    aceOverCheapWinner,
     aceToCash,
     belaLead,
     declarationRead,
@@ -35,13 +36,18 @@ import {
     defensiveTrumpCapture,
     fillPreferringTen,
     isLastOfADeadSuit,
+    jackOverAceOnTrumpLead,
+    lowTrumpBackAfterJack,
     partnerAskedForTrump,
+    partnerLowPlainLeadAsksForTrump,
     stigljaLead,
+    suitToReturnToPartner,
     stigljaTakeOver,
     forceOutTheLastTrump,
     tenThatSecuresThePass,
     highTrumpOnPartnersLowTrump,
     bestTrumpSuit,
+    callerLengthTrumpLead,
     callerTrumpLead,
     cheapestCard,
     cheapestDiscard,
@@ -138,8 +144,12 @@ function bidThreshold(view: PlayerView, best: Suit): number {
  * "ako je kraj partije i rezultat je izjednačen te onaj koji uzme i prođe je
  * pobjednik, tad se mora zvati i ne dozvoliti protivniku da bira aduta."
  *
- * Read conservatively — one ordinary deal (about 90 card points to the winning
- * side) would carry the opponents over the target while we stay short.
+ * "Izjednačen" is read as: BOTH sides are one ordinary deal (about 90 card
+ * points) from the target, so whoever takes the deal and passes wins the game
+ * and the trump is worth fighting for. If only the opponents are that close,
+ * calling gains nothing — we cannot win the game this deal either way, and a
+ * forced call on a weak hand is a fall that hands them all the points and the
+ * game (seen: 572 vs 924 on 1001, a bot called on 7/8/10 and fell).
  */
 const ONE_DEAL = 90
 
@@ -148,8 +158,34 @@ function mustNotPass(view: PlayerView, target: number): boolean {
     if (seat === null) return false
     const us = teamOf(seat)
     const them = us === "A" ? "B" : "A"
-    return view.score[them] + ONE_DEAL >= target && view.score[us] + ONE_DEAL < target
+    return view.score[them] + ONE_DEAL >= target && view.score[us] + ONE_DEAL >= target
 }
+
+/**
+ * How close the OPPONENTS are to the target, 0 (nowhere near) to 1 (any deal
+ * they take ends the game). A ramp, not a line: 930, 950 and 990 on 1001 are
+ * three different amounts of danger, and none of them is a switch.
+ *
+ * Near the finish every point they get is game, so a call that falls is not a
+ * lost deal but a lost game — better to pass and let THEM call and risk the
+ * fall. Only a hand that is very likely to make the call is worth the risk.
+ */
+const DANGER_RAMP_START = 120
+const DANGER_RAMP_SPAN = 100
+
+function opponentDanger(view: PlayerView, target: number): number {
+    const seat = view.seat
+    if (seat === null) return 0
+    const them = teamOf(seat) === "A" ? "B" : "A"
+    const danger = (view.score[them] - (target - DANGER_RAMP_START)) / DANGER_RAMP_SPAN
+    return Math.min(1, Math.max(0, danger))
+}
+
+/** Trump holding (`suitStrength`) that still justifies a call at full danger:
+ *  the jack and the nine and an ace — or the same strength in length. */
+const DANGER_MIN_TRUMP_STRENGTH = 8
+/** Extra expected tricks over the whole hand a call needs at full danger. */
+const DANGER_EXTRA_TRICKS = 1.5
 
 function chooseBid(view: PlayerView, legal: LegalBids, _rng: () => number): BidChoice {
     const best = bestTrumpSuit(view.hand, legal.suits)
@@ -158,8 +194,12 @@ function chooseBid(view: PlayerView, legal: LegalBids, _rng: () => number): BidC
     const target = view.targetScore
     if (target !== undefined && mustNotPass(view, target)) return best
 
-    if (suitStrength(view.hand, best) < MIN_TRUMP_STRENGTH) return "PASS"
-    return handTricks(view.hand, best) >= bidThreshold(view, best) ? best : "PASS"
+    const danger = target === undefined ? 0 : opponentDanger(view, target)
+    const strength = suitStrength(view.hand, best)
+    const minStrength = MIN_TRUMP_STRENGTH + danger * (DANGER_MIN_TRUMP_STRENGTH - MIN_TRUMP_STRENGTH)
+    if (strength < minStrength) return "PASS"
+    const threshold = bidThreshold(view, best) + danger * DANGER_EXTRA_TRICKS
+    return handTricks(view.hand, best) >= threshold ? best : "PASS"
 }
 
 /* ── Leading ─────────────────────────────────────────────────────────────
@@ -230,6 +270,21 @@ function chooseLead(view: PlayerView, legal: readonly Card[], trump: Suit): Card
     const callerJack = callerJackLead(view, legal, trump)
     if (callerJack !== null) return callerJack
 
+    // The caller who called on LENGTH has no jack, so `shouldDrawTrumps` below
+    // will never let him lead a trump at all — and his plain winners are all
+    // sitting under a jack somebody else holds. Flushing it with a small trump
+    // is his own lead, so it sits here beside the jack lead rather than inside
+    // a rule built for hands that hold the top trump (BOT.md §13.3).
+    const flush = callerLengthTrumpLead(view, legal)
+    if (flush !== null) return flush
+
+    // He led a low trump and I took it with the jack: the trump goes back
+    // small, keeping the nine (BOT.md §13.4). It sits ABOVE the draw on
+    // purpose — `trumpDrawCard` leads the top trump whenever it holds one, and
+    // the top trump is exactly the card this rule exists to keep in hand.
+    const backSmall = lowTrumpBackAfterJack(view, legal)
+    if (backSmall !== null) return backSmall
+
     if (shouldDrawTrumps(view)) {
         const sequenced = callerTrumpLead(view, legal)
         if (sequenced !== null) return sequenced
@@ -257,8 +312,19 @@ function chooseLead(view: PlayerView, legal: readonly Card[], trump: Suit): Card
         if (asked.length > 0) return weakestCard(asked, trump)
     }
 
+    // He opened a suit, I took it with the ace: it goes back to him, low, for
+    // the same reason `signal.wants` does — his cards there are the ones that
+    // win, mine was only the entry (BOT.md §13.2).
+    const owed = suitToReturnToPartner(view)
+    if (owed !== null) {
+        const back = legal.filter((card) => cardSuit(card) === owed)
+        if (back.length > 0) return weakestCard(back, trump)
+    }
+
     // "Podigravati 7, 8 i 9 znači: vrati aduta." He said it; this answers.
-    if (partnerAskedForTrump(view)) {
+    // A low PLAIN opening he let me take with the ace says the same thing: he
+    // is holding the jack and wants trump put through (BOT.md §13.2).
+    if (partnerAskedForTrump(view) || partnerLowPlainLeadAsksForTrump(view)) {
         // Return only with a master or a genuinely cheap trump. In particular,
         // never lead the 10/A underneath an outstanding 9 merely because the
         // partner asked earlier.
@@ -412,6 +478,22 @@ function chooseCard(view: PlayerView, legal: Card[], _rng: () => number): Card {
 
     const winner = cheapestWinningCard(view, legal)
     if (winner !== null) {
+        // Last to play, holding the ace AND the ten of the led plain suit: the
+        // cheap winner keeps 21 points in a suit that is about to be ruffed,
+        // so the ace goes in now (BOT.md §13.1). It sits inside this branch on
+        // purpose — it may only ever change HOW the trick is won, never turn a
+        // duck into a win, and the partner-holds-the-trick case above owns its
+        // own rules about aces (§4) and must not be second-guessed here.
+        const cashed = aceOverCheapWinner(view, legal)
+        if (cashed !== null) return cashed
+
+        // Trump led, both the jack and the ace in hand, and the nine still
+        // behind me: the jack wins what the ace would only offer up
+        // (BOT.md §13.5). Same placement argument as above — it decides HOW
+        // the trick is taken, never whether.
+        const overAce = jackOverAceOnTrumpLead(view, legal)
+        if (overAce !== null) return overAce
+
         // Second to play with the master of the led suit in hand: take the
         // trick with it rather than with a 9 that the third player is then
         // FORCED to go over (§1.5) — the cheap "winner" is only provisional,

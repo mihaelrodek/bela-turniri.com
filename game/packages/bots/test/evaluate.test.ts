@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest"
 import type { Card, Declaration, PlayerView, Seat, WonTrick } from "@bela/engine"
 import { cardSuit, findDeclarations, legalBids, newGame, reduce, viewFor } from "@bela/engine"
 import {
+    aceOverCheapWinner,
     aceToCash,
+    callerLengthTrumpLead,
+    jackOverAceOnTrumpLead,
+    lowTrumpBackAfterJack,
+    partnerLowPlainLeadAsksForTrump,
+    suitToReturnToPartner,
     belaLead,
     belaSeat,
     bestTrumpSuit,
@@ -2555,5 +2561,295 @@ describe("onlyPartnerCanHoldTrumps (the trump-lead stop)", () => {
         expect(belaSeat(v)).toBe(2)
         expect(outstandingInSuit(v, "HERC")).toBe(1)
         expect(onlyPartnerCanHoldTrumps(v)).toBe(true)
+    })
+})
+
+/* ──────────────────────────────────────────────────────────────────────────
+   BOT.md §13 — the table rules reported 2026-09-20.
+   ────────────────────────────────────────────────────────────────────── */
+
+describe("aceOverCheapWinner (BOT.md §13.1)", () => {
+    /** Seats 1, 2 and 3 have played; I am seat 0, last. */
+    const table = (hand: Card[], played: Card[]): PlayerView =>
+        view({
+            seat: 0,
+            hand,
+            played,
+            trick: {
+                leader: 1,
+                turn: 0,
+                cards: [
+                    { seat: 1, card: played[0] as Card },
+                    { seat: 2, card: played[1] as Card },
+                    { seat: 3, card: played[2] as Card },
+                ],
+            },
+        })
+
+    it("takes the reported trick with the ACE, not the cheap king", () => {
+        // 7, 8, J on the table and A, 10, K in hand: the king wins it for four
+        // points and leaves 21 more in a suit about to be ruffed.
+        const v = table(["APIK", "10PIK", "KPIK"], ["7PIK", "8PIK", "JPIK"])
+        expect(aceOverCheapWinner(v, ["APIK", "10PIK", "KPIK"])).toBe("APIK")
+    })
+
+    it("stays out of it without the ten — the ace is then a keeper", () => {
+        const v = table(["APIK", "KPIK", "8TREF"], ["7PIK", "8PIK", "JPIK"])
+        expect(aceOverCheapWinner(v, ["APIK", "KPIK"])).toBeNull()
+    })
+
+    it("stays out of it once somebody has ruffed: the ace wins nothing", () => {
+        const v = table(["APIK", "10PIK", "KPIK"], ["7PIK", "8PIK", "7HERC"])
+        expect(aceOverCheapWinner(v, ["APIK", "10PIK", "KPIK"])).toBeNull()
+    })
+
+    it("is only for the LAST seat — a third player still has somebody behind him", () => {
+        const v = view({
+            seat: 0,
+            hand: ["APIK", "10PIK", "KPIK"],
+            trick: {
+                leader: 2,
+                turn: 0,
+                cards: [
+                    { seat: 2, card: "7PIK" },
+                    { seat: 3, card: "8PIK" },
+                ],
+            },
+        })
+        expect(aceOverCheapWinner(v, ["APIK", "10PIK", "KPIK"])).toBeNull()
+    })
+
+    it("says nothing about a TRUMP lead: that is §13.5's question", () => {
+        const v = table(["AHERC", "10HERC", "KHERC"], ["7HERC", "8HERC", "QHERC"])
+        expect(aceOverCheapWinner(v, ["AHERC", "10HERC", "KHERC"])).toBeNull()
+    })
+})
+
+describe("suitToReturnToPartner / partnerLowPlainLeadAsksForTrump (BOT.md §13.2)", () => {
+    /** Partner (seat 2) opens; I am seat 0 and take it with the PIK ace. */
+    const afterHisLead = (opening: Card, over: Partial<PlayerView> = {}): PlayerView => {
+        const cards: Card[] = [opening, "7PIK", "APIK", "8PIK"]
+        return {
+            ...view({
+                seat: 0,
+                hand: ["KPIK", "7TREF", "8TREF"],
+                played: cards,
+                trickHistory: [wonTrick(2, cards, 0)],
+                trick: { leader: 0, turn: 0, cards: [] },
+            }),
+            ...over,
+        }
+    }
+
+    it("gives the suit back when he opened it with an honour", () => {
+        expect(suitToReturnToPartner(afterHisLead("KPIK"))).toBe("PIK")
+        expect(partnerLowPlainLeadAsksForTrump(afterHisLead("KPIK"))).toBe(false)
+    })
+
+    it("reads a LOW opening as a request for trump instead", () => {
+        expect(suitToReturnToPartner(afterHisLead("8PIK"))).toBeNull()
+        expect(partnerLowPlainLeadAsksForTrump(afterHisLead("8PIK"))).toBe(true)
+    })
+
+    it("says nothing when an OPPONENT opened the suit", () => {
+        const cards: Card[] = ["KPIK", "7PIK", "8PIK", "APIK"]
+        const v = view({
+            seat: 0,
+            hand: ["10PIK", "7TREF"],
+            played: cards,
+            trickHistory: [wonTrick(1, cards, 0)],
+        })
+        expect(suitToReturnToPartner(v)).toBeNull()
+        expect(partnerLowPlainLeadAsksForTrump(v)).toBe(false)
+    })
+
+    it("says nothing when somebody ELSE took his trick", () => {
+        expect(suitToReturnToPartner(afterHisLead("KPIK", { trickHistory: [wonTrick(2, ["KPIK", "7PIK", "APIK", "8PIK"], 3)] }))).toBeNull()
+    })
+
+    it("clears the debt once I have opened that suit myself", () => {
+        const his: Card[] = ["KPIK", "7PIK", "APIK", "8PIK"]
+        const mine: Card[] = ["10PIK", "QPIK", "9PIK", "JPIK"]
+        const v = view({
+            seat: 0,
+            hand: ["7TREF", "8TREF"],
+            played: [...his, ...mine],
+            trickHistory: [wonTrick(2, his, 0), wonTrick(0, mine, 0)],
+        })
+        expect(suitToReturnToPartner(v)).toBeNull()
+    })
+
+    it("drops the trump request once his declarations deny him the jack", () => {
+        const v = afterHisLead("8PIK", {
+            declarations: { 2: [{ kind: "SEQUENCE", cards: ["8HERC", "9HERC", "10HERC"], points: 20 }] },
+            declarationsRevealed: true,
+        })
+        expect(partnerLowPlainLeadAsksForTrump(v)).toBe(false)
+    })
+})
+
+describe("callerLengthTrumpLead (BOT.md §13.3)", () => {
+    const asCaller = (hand: Card[], over: Partial<PlayerView> = {}): PlayerView => ({
+        ...view({
+            seat: 0,
+            hand,
+            dealer: 3,
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 0 },
+            trick: { leader: 0, turn: 0, cards: [] },
+        }),
+        ...over,
+    })
+
+    it("leads the smallest trump on the reported length call", () => {
+        const hand: Card[] = ["7HERC", "9HERC", "10HERC", "QHERC", "AHERC"]
+        expect(callerLengthTrumpLead(asCaller(hand), hand)).toBe("7HERC")
+    })
+
+    it("is null with the jack in hand — the jack is its own lead", () => {
+        const hand: Card[] = ["JHERC", "9HERC", "10HERC", "QHERC"]
+        expect(callerLengthTrumpLead(asCaller(hand), hand)).toBeNull()
+    })
+
+    it("stops the moment the jack is face up", () => {
+        const hand: Card[] = ["7HERC", "9HERC", "10HERC", "QHERC"]
+        const v = asCaller(hand, { played: ["JHERC", "7PIK", "8PIK", "9PIK"] })
+        expect(callerLengthTrumpLead(v, hand)).toBeNull()
+    })
+
+    it("is null on two trumps: that is not a length call", () => {
+        const hand: Card[] = ["7HERC", "8HERC", "APIK", "10PIK", "8TREF"]
+        expect(callerLengthTrumpLead(asCaller(hand), hand)).toBeNull()
+    })
+
+    it("is null on a mus — a forced call is not a call on length", () => {
+        const hand: Card[] = ["7HERC", "9HERC", "10HERC", "QHERC"]
+        const v = asCaller(hand, {
+            dealer: 0,
+            bidding: { turn: 0, passes: [1, 2, 3], trump: "HERC", caller: 0 },
+        })
+        expect(callerLengthTrumpLead(v, hand)).toBeNull()
+    })
+
+    it("never flushes with the nine, the ten or the ace", () => {
+        const hand: Card[] = ["9HERC", "10HERC", "AHERC", "7PIK"]
+        expect(callerLengthTrumpLead(asCaller(hand), hand)).toBeNull()
+    })
+})
+
+describe("lowTrumpBackAfterJack (BOT.md §13.4)", () => {
+    /** Partner (2) opened the trump 7, I took it with the jack. */
+    const afterTheJack = (hand: Card[], over: Partial<PlayerView> = {}): PlayerView => {
+        const cards: Card[] = ["7HERC", "8HERC", "JHERC", "10HERC"]
+        return {
+            ...view({
+                seat: 0,
+                hand,
+                handSizes: { 0: 4, 1: 4, 2: 4, 3: 4 },
+                played: cards,
+                trickHistory: [wonTrick(2, cards, 0)],
+                trick: { leader: 0, turn: 0, cards: [] },
+            }),
+            ...over,
+        }
+    }
+
+    it("returns the cheap trump and keeps the master nine", () => {
+        const hand: Card[] = ["9HERC", "QHERC", "APIK", "7TREF"]
+        expect(lowTrumpBackAfterJack(afterTheJack(hand), hand)).toBe("QHERC")
+    })
+
+    it("is null without the top trump: there is no honour to protect", () => {
+        const hand: Card[] = ["QHERC", "KHERC", "APIK", "7TREF"]
+        expect(lowTrumpBackAfterJack(afterTheJack(hand), hand)).toBeNull()
+    })
+
+    it("is null when it was not MY jack that took his lead", () => {
+        const cards: Card[] = ["7HERC", "8HERC", "QHERC", "JHERC"]
+        const hand: Card[] = ["9HERC", "KHERC", "APIK", "7TREF"]
+        const v = afterTheJack(hand, {
+            played: cards,
+            trickHistory: [wonTrick(2, cards, 1)],
+        })
+        expect(lowTrumpBackAfterJack(v, hand)).toBeNull()
+    })
+
+    it("is null when he opened with an honour rather than a low trump", () => {
+        const cards: Card[] = ["KHERC", "8HERC", "JHERC", "10HERC"]
+        const hand: Card[] = ["9HERC", "QHERC", "APIK", "7TREF"]
+        const v = afterTheJack(hand, { played: cards, trickHistory: [wonTrick(2, cards, 0)] })
+        expect(lowTrumpBackAfterJack(v, hand)).toBeNull()
+    })
+})
+
+describe("jackOverAceOnTrumpLead (BOT.md §13.5)", () => {
+    /** Partner (2) led the trump king, an opponent covered with the ten, and
+     *  seat 1 still plays after me. */
+    const reported = (over: Partial<PlayerView> = {}): PlayerView => ({
+        ...view({
+            seat: 0,
+            hand: ["JHERC", "AHERC", "7PIK"],
+            played: ["KHERC", "10HERC"],
+            trick: {
+                leader: 2,
+                turn: 0,
+                cards: [
+                    { seat: 2, card: "KHERC" },
+                    { seat: 3, card: "10HERC" },
+                ],
+            },
+        }),
+        ...over,
+    })
+
+    it("wins with the JACK while the nine can still sit behind me", () => {
+        expect(jackOverAceOnTrumpLead(reported(), ["JHERC", "AHERC"])).toBe("JHERC")
+    })
+
+    it("leaves the ace alone once the nine is face up", () => {
+        const v = reported({ played: ["KHERC", "10HERC", "9HERC", "7TREF", "8TREF", "9TREF"] })
+        expect(jackOverAceOnTrumpLead(v, ["JHERC", "AHERC"])).toBeNull()
+    })
+
+    it("is null when the seat behind me has shown void in trump", () => {
+        const earlier: Card[] = ["7PIK", "7TREF", "8PIK", "9PIK"]
+        const v = reported({
+            played: [...earlier, "KHERC", "10HERC"],
+            trickHistory: [wonTrick(0, earlier, 2)],
+        })
+        expect(jackOverAceOnTrumpLead(v, ["JHERC", "AHERC"])).toBeNull()
+    })
+
+    it("is null for the LAST seat: the nine has missed its chance", () => {
+        const v = view({
+            seat: 0,
+            hand: ["JHERC", "AHERC", "7PIK"],
+            played: ["KHERC", "7TREF", "10HERC"],
+            trick: {
+                leader: 1,
+                turn: 0,
+                cards: [
+                    { seat: 1, card: "KHERC" },
+                    { seat: 2, card: "7TREF" },
+                    { seat: 3, card: "10HERC" },
+                ],
+            },
+        })
+        expect(jackOverAceOnTrumpLead(v, ["JHERC", "AHERC"])).toBeNull()
+    })
+
+    it("is null on a PLAIN lead — that trick is §13.1's", () => {
+        const v = view({
+            seat: 0,
+            hand: ["JHERC", "AHERC", "7PIK"],
+            trick: {
+                leader: 2,
+                turn: 0,
+                cards: [
+                    { seat: 2, card: "KPIK" },
+                    { seat: 3, card: "10PIK" },
+                ],
+            },
+        })
+        expect(jackOverAceOnTrumpLead(v, ["JHERC", "AHERC"])).toBeNull()
     })
 })

@@ -10,6 +10,7 @@ import {
     BLOK_SIDES,
     DEAL_CARD_POINTS,
     STIGLJA_POINTS,
+    creditedDeclarationTotals,
     type BlokRound,
     type BlokSide,
     type BlokSuit,
@@ -96,10 +97,6 @@ import Keypad from "./Keypad"
 
 /** The drawer defines a smaller value on shorter phone screens. */
 const CONTROL_H = "var(--blok-entry-control-h, 52px)"
-
-function sum(values: number[]): number {
-    return values.reduce((total, value) => total + value, 0)
-}
 
 export default function RoundEntrySheet({
     open,
@@ -299,10 +296,7 @@ function EntryForm({
         }
     }
 
-    const declarationTotals: Record<BlokSide, number> = {
-        us: sum(declarations.us),
-        them: sum(declarations.them),
-    }
+    const declarationTotals = creditedDeclarationTotals(declarations, stiglja)
 
     /* The engine, not the form, decides what is enterable: if it would refuse
        to score this deal, there is nothing worth saving. */

@@ -10,7 +10,9 @@
 
      card points  = 162 per deal (152 in the cards + 10 for the last trick);
                     a štiglja is 252 for that side and 0 for the other
-     declarations = every declaration entered for a side, summed. Unlike
+     declarations = every declaration entered for a side, summed — except on a
+                    štiglja, where the opponents' declarations are credited to
+                    the štiglja side and the opponents keep 0. Unlike
                     `scoreDeal` there is no "strongest declaration wins" contest
                     here: at the table the players have already settled that
                     among themselves and only write down what actually scores.
@@ -224,6 +226,17 @@ export function scoreManualDeal(input: ManualDealInput): RoundOutcome {
     const declarations = {
         us: sumDeclarations(input.declarations.us, "us"),
         them: sumDeclarations(input.declarations.them, "them"),
+    }
+    /* A štiglja takes the opponents' declarations with it: the side that won
+       all eight tricks is credited every declaration shown at the table, its
+       own and the opponents', and the opponents keep 0. The entered lists are
+       left untouched (they are what was said at the table); only the summed
+       parts and therefore the total move. */
+    if (input.stiglja !== null && belot === null) {
+        const winner = input.stiglja
+        const loser = otherSide(winner)
+        declarations[winner] += declarations[loser]
+        declarations[loser] = 0
     }
 
     /* A belot short-circuits the whole pad rule: the target goes to the side

@@ -11,7 +11,7 @@ import { useTranslation } from "../../i18n"
 import { showError } from "../../toaster"
 import CreateGameDialog from "../components/CreateGameDialog"
 import JoinByCodeDialog from "../components/JoinByCodeDialog"
-import { MyGameStatsPills } from "../components/GameStatsPills"
+import { MyGameStatsPills, SeatKarmaPill } from "../components/GameStatsPills"
 import PlayerAvatar from "../components/PlayerAvatar"
 import GameSettingsSheet from "../components/GameSettingsSheet"
 import RoomListItem from "../components/RoomListItem"
@@ -251,9 +251,10 @@ export default function GameLobbyPage() {
                             stats row or the gear out past the viewport. */}
                         <Text fontWeight="medium" minW="0" truncate>{socket.me?.name ?? "…"}</Text>
                     </HStack>
-                    <Box display={{ base: "none", md: "block" }}>
+                    <VStack display={{ base: "none", md: "flex" }} gap="1" align="center">
                         <MyGameStatsPills stats={socket.me?.gameStats} variant="row" />
-                    </Box>
+                        <SeatKarmaPill karma={socket.me?.karma} />
+                    </VStack>
                     <HStack>
                     <IconButton aria-label={t("game.settings.title")} variant="outline" rounded="full" onClick={() => setSettingsOpen(true)}><FiSettings /></IconButton>
                     {!connected && (
@@ -265,9 +266,10 @@ export default function GameLobbyPage() {
                     </HStack>
                 </Grid>
 
-                <Box display={{ base: "block", md: "none" }}>
+                <VStack display={{ base: "flex", md: "none" }} gap="1.5" align="center" w="full" maxW="340px">
                     <MyGameStatsPills stats={socket.me?.gameStats} />
-                </Box>
+                    <SeatKarmaPill karma={socket.me?.karma} />
+                </VStack>
 
                 {socket.me?.guest && <Text fontSize="sm" color="fg.muted">
                     <Link to="/prijava" style={{ fontWeight: 700, color: "var(--chakra-colors-brand-fg)", textDecoration: "underline", textUnderlineOffset: "3px" }}>

@@ -43,7 +43,7 @@ export const game = {
     "room.statsTitle": "Ukupno",
     /* Karma = pouzdanost igrača, 0..10. Kratica uz sjedalo u lobiju. */
     "room.karma": "Karma {value}/{max}",
-    "room.karmaTitle": "Karma: {value}/{max}. Napuštena partija −1, tri odigrane +1.",
+    "karma.explain": "Karma pokazuje koliko se na igrača možeš osloniti. Svi kreću s {max}/{max}. Napuštanje partije koja je u tijeku, uz još barem jednog igrača, oduzima 1 bod (nakon što istekne vrijeme za povratak za stol), a svake {recovery} završene partije vraćaju 1 bod. Karmu vide ostali igrači u sobi.",
     "room.statsTarget": "{target} {wins}–{losses} · {percent}%",
     "bot.label": "Bot",
     "rules.title": "Pravila podjele",
@@ -153,6 +153,7 @@ export const game = {
     "lobby.form.private": "Privatna soba",
     "lobby.form.minWinRate": "Postotak pobjeda",
     "lobby.form.minWinRateNone": "Bez uvjeta",
+    "lobby.form.moreOptions": "Dodatne opcije",
     "room.minWinRate": "Najmanje {percent}% pobjeda",
     "room.minWinRateShort": "≥ {percent}% pobjeda",
 
@@ -324,9 +325,6 @@ export const game = {
     // user request: odvojeni tabovi po paru umjesto pomiješanih redaka).
     "declarations.noneForTeam": "Nema zvanja",
     "declarations.bela": "Bela +20",
-    // Jedina rečenica o zvanjima koja su propala: karte protivničkog para se
-    // više ne šalju ni ne prikazuju (README §1.4), a svoje si ionako vidiš.
-    "declarations.oursLost": "Tvoja zvanja ({points}) propadaju.",
 
     "bela.title": "Bela!",
     "bela.by": "zove {name}",
@@ -340,7 +338,7 @@ export const game = {
     "belot.title": "BELOT!",
 
     "belot.congrats": "Čestitamo!",
-    "belot.by": "{name} ima svih osam karata — {suit}",
+    "belot.by": "Svih osam karata — {suit}",
     "belot.wins": "Partija je osvojena odmah",
 
     /* ─── Kraj podjele ──────────────────────────────────────── */

@@ -3,6 +3,7 @@ import { Box, Grid, Text, VStack } from "@chakra-ui/react"
 import { FiChevronDown, FiChevronRight } from "react-icons/fi"
 import { scoreManualDeal } from "@bela/engine"
 import DealScoreCell from "../blok/components/DealScoreCell"
+import { creditedDeclarationTotals } from "../blok/types"
 import SuitGlyph from "../game/components/SuitGlyph"
 import { suitKey } from "../game/util/cards"
 import { useTranslation } from "../i18n"
@@ -103,10 +104,6 @@ function safeRoundOutcome(
     } catch {
         return { total: { us: 0, them: 0 }, fell: false }
     }
-}
-
-function declarationTotal(values: number[] | undefined): number {
-    return (values ?? []).reduce((sum, value) => sum + value, 0)
 }
 
 export function BlokGamesList({
@@ -270,7 +267,7 @@ export function BlokGamesList({
                                         points={total.us}
                                         runningTotal={runningTotal.us}
                                         called={round.caller === "us"}
-                                        declarations={declarationTotal(round.declarations.us)}
+                                        declarations={creditedDeclarationTotals(round.declarations, round.stiglja).us}
                                         belot={round.belot === "us"}
                                         compact
                                     />
@@ -296,7 +293,7 @@ export function BlokGamesList({
                                         points={total.them}
                                         runningTotal={runningTotal.them}
                                         called={round.caller === "them"}
-                                        declarations={declarationTotal(round.declarations.them)}
+                                        declarations={creditedDeclarationTotals(round.declarations, round.stiglja).them}
                                         belot={round.belot === "them"}
                                         compact
                                     />

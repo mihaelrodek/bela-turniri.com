@@ -25,8 +25,8 @@ const CELL = {
     justify: "center",
     rounded: "l2",
     bg: "transparent",
-    borderWidth: "1px",
-    borderColor: "border",
+    border: "none",
+    outline: "none",
     boxShadow: "none",
     minW: "66px",
     minH: "54px",
@@ -60,7 +60,7 @@ export default function TrumpBadge({
         // footprint is identical before and after the call and the header
         // doesn't jump when trump is set.
         return (
-            <VStack {...CELL} borderWidth="0" gap="0" maxW="120px">
+            <VStack {...CELL} gap="0" maxW="120px">
                 <Text
                     fontSize="2xs"
                     color={INK_MUTED}
@@ -79,7 +79,6 @@ export default function TrumpBadge({
     return (
         <VStack
             {...CELL}
-            borderWidth="0"
             gap="0.5"
             maxW="120px"
             title={t(suitKey(trump))}

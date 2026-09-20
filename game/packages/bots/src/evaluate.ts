@@ -1816,3 +1816,242 @@ export function belaLead(view: PlayerView, legal: readonly Card[]): Card | null 
     const wanted = withNine ? queen : king
     return legal.includes(wanted) ? wanted : null
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   BOT.md §13 — four table rules reported 2026-09-20.
+
+   All four are about a card that is worth more NOW than it will be in two
+   tricks' time: the ace under a coming ruff, the suit the partner brought out,
+   and the jack that has to be flushed before it eats a winner.
+   ────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Last to play a PLAIN-suit trick I am about to win, holding both the ace and
+ * the ten of the led suit: take it with the ACE (BOT.md §13.1, reported).
+ *
+ * The trick is mine either way — the reported shape was 7, 8, J on the table
+ * and A, 10, K in hand, where the king wins for four points. But the ace and
+ * the ten are 21 points sitting in a suit that has now gone round once, so the
+ * next round of it is the one somebody ruffs. Cashing the ace banks its eleven
+ * while the suit is still safe and leaves the ten as the master behind it.
+ *
+ * Only when the ace actually WINS: once an opponent has ruffed, the ace is not
+ * a winner at all and the normal discard rules own the decision.
+ */
+export function aceOverCheapWinner(view: PlayerView, legal: readonly Card[]): Card | null {
+    const trump = view.bidding.trump
+    if (trump === null || !isLastToPlay(view)) return null
+
+    const led = view.trick.cards[0]
+    if (led === undefined) return null
+    const suit = cardSuit(led.card)
+    if (suit === trump) return null
+
+    const ace = makeCard("A", suit)
+    if (!legal.includes(ace) || !legal.includes(makeCard("10", suit))) return null
+    return wouldWinTrick(view, ace) ? ace : null
+}
+
+/** A plain-suit lead of 7, 8 or 9 — "mala", the card that carries a message
+ *  rather than a trick. The same three ranks `partnerAskedForTrump` reads in
+ *  the trump suit. */
+const LOW_LEAD_RANKS: ReadonlySet<string> = new Set(["7", "8", "9"])
+
+/** Did `trick` open with the partner's plain-suit card, and did I take it with
+ *  the ace of that suit? Returns the suit, or null. */
+function partnerSuitTakenByMyAce(view: PlayerView, trick: WonTrick, seat: Seat): Suit | null {
+    const trump = view.bidding.trump
+    const opener = trick.plays[0]
+    if (trump === null || opener === undefined) return null
+    if (opener.seat !== partnerOf(seat) || trick.winner !== seat) return null
+
+    const suit = cardSuit(opener.card)
+    if (suit === trump) return null
+    const mine = trick.plays.find((play) => play.seat === seat)
+    return mine !== undefined && mine.card === makeCard("A", suit) ? suit : null
+}
+
+/**
+ * The suit to give back to my partner (BOT.md §13.2, reported): he opened a
+ * trick with it, I took it with the ace, so on my next lead it goes back.
+ *
+ * His card decides which of the two readings applies, because the card is the
+ * sentence: an opening 7, 8 or 9 is the request for TRUMP below, anything else
+ * is a suit he brought out and wants continued. The two can never fire on the
+ * same trick.
+ *
+ * The debt is paid once: a later trick I opened in that suit myself clears it,
+ * so the rule cannot pin the bot to one suit for the whole deal.
+ */
+export function suitToReturnToPartner(view: PlayerView): Suit | null {
+    const seat = view.seat
+    if (seat === null || view.bidding.trump === null) return null
+
+    let wanted: Suit | null = null
+    for (const trick of reviewableTricks(view)) {
+        const opener = trick.plays[0]
+        if (opener === undefined) continue
+        if (opener.seat === seat && cardSuit(opener.card) === wanted) {
+            wanted = null
+            continue
+        }
+        const suit = partnerSuitTakenByMyAce(view, trick, seat)
+        if (suit === null || LOW_LEAD_RANKS.has(cardRank(opener.card))) continue
+        wanted = suit
+    }
+    return wanted
+}
+
+/**
+ * The other half of §13.2: my partner opened a trick with a LOW plain card and
+ * I took it with the ace. "Ako je suigrač 1. na štihu i odigra malu, znači da
+ * želi da mu podigraš aduta jer ima doma dečka" — the low lead is not about
+ * that suit at all, it is a request to put trump through while he holds the
+ * jack.
+ *
+ * Same two guards as `partnerAskedForTrump`: only while the opponents can
+ * still hold a trump, and never once the declarations or his own leads have
+ * proved he has no jack to protect.
+ */
+export function partnerLowPlainLeadAsksForTrump(view: PlayerView): boolean {
+    const seat = view.seat
+    if (seat === null || view.bidding.trump === null) return false
+    if (trumpOutlook(view).opponentMax === 0) return false
+    if (provablyNoTrumpJack(view, partnerOf(seat))) return false
+
+    for (const trick of reviewableTricks(view)) {
+        const opener = trick.plays[0]
+        if (opener === undefined || !LOW_LEAD_RANKS.has(cardRank(opener.card))) continue
+        if (partnerSuitTakenByMyAce(view, trick, seat) !== null) return true
+    }
+    return false
+}
+
+/** A length call needs this many trumps before a low lead is the way to flush
+ *  the jack; below it the hand has no trumps to spare. */
+const LENGTH_CALL_TRUMPS = 3
+
+/**
+ * The caller who called on QUANTITY leads a small trump (BOT.md §13.3,
+ * reported): three or more trumps and no jack — 7, 9, 10, Q, A was the shape
+ * described — means the jack is out there and every plain winner in the hand
+ * is living underneath it. A low trump brings it down onto nothing.
+ *
+ * Deliberately outside `shouldDrawTrumps`: that rule wants a master trump or a
+ * partner who called, and a jackless hand has neither, so a branch placed
+ * inside it could never run. This one is the caller spending a worthless card
+ * to find the one card that matters.
+ *
+ * It stops on its own — the moment the jack is face up or located on our side,
+ * `opponentCanHold` is false and there is nothing left to flush. A forced call
+ * (mus) is excluded: that hand is not a length call, it is no call at all.
+ */
+export function callerLengthTrumpLead(view: PlayerView, legal: readonly Card[]): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null || view.bidding.caller !== seat) return null
+    if (callerWasForced(view)) return null
+
+    const jack = makeCard("J", trump)
+    if (view.hand.includes(jack) || !opponentCanHold(view, jack)) return null
+
+    const trumps = legal.filter((card) => cardSuit(card) === trump)
+    if (trumps.length < LENGTH_CALL_TRUMPS) return null
+
+    // Never the 9, the 10 or the ace: leading one of those under the jack is
+    // the ten points the flush was supposed to save (same line `trumpDrawCard`
+    // draws for the support case).
+    const cheap = trumps.filter((card) => cardPoints(card, trump) <= CHEAP_TRUMP_POINTS)
+    return cheap.length > 0 ? weakestCard(cheap, trump) : null
+}
+
+/* ── §13.4 and §13.5: the two trump rules reported alongside them ──────── */
+
+/** Did my partner open a trick with a LOW trump that I then took with the
+ *  jack? The premise of `lowTrumpBackAfterJack`, and the only shape in which
+ *  his "vrati aduta" and my jack are the same sentence. */
+function partnerLowTrumpTakenByMyJack(view: PlayerView): boolean {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null) return false
+
+    const partner = partnerOf(seat)
+    const jack = makeCard("J", trump)
+    for (const trick of reviewableTricks(view)) {
+        const opener = trick.plays[0]
+        if (opener === undefined || opener.seat !== partner) continue
+        if (cardSuit(opener.card) !== trump) continue
+        if (!LOW_LEAD_RANKS.has(cardRank(opener.card))) continue
+        if (trick.winner !== seat) continue
+        if (trick.plays.some((play) => play.seat === seat && play.card === jack)) return true
+    }
+    return false
+}
+
+/**
+ * He led a low trump, I took it with the jack: the trump goes back SMALL
+ * (BOT.md §13.4, reported).
+ *
+ * His low lead already said he has no jack, and the jack is now face up in
+ * front of me — so the highest trump left is very likely the nine in my own
+ * hand. Leading it would be spending the card that the opponents' last trump
+ * has to fall under; leading a 7 or a queen pulls two of their trumps for
+ * nothing and keeps the nine for the trick after.
+ *
+ * Two conditions from the table, and neither is a guess:
+ *   - I must actually HOLD the top remaining trump (`isMasterCard`). Without
+ *     it there is no honour to protect and the ordinary draw is better;
+ *   - the opponents must still be able to hold a trump (`trumpOutlook`). If
+ *     every trump left is the partner's, a low lead only pulls his.
+ */
+export function lowTrumpBackAfterJack(view: PlayerView, legal: readonly Card[]): Card | null {
+    const trump = view.bidding.trump
+    if (trump === null || !partnerLowTrumpTakenByMyJack(view)) return null
+    if (trumpOutlook(view).opponentMax === 0) return null
+
+    const trumps = legal.filter((card) => cardSuit(card) === trump)
+    if (!trumps.some((card) => isMasterCard(view, card))) return null
+
+    const cheap = trumps.filter((card) => cardPoints(card, trump) <= CHEAP_TRUMP_POINTS)
+    return cheap.length > 0 ? weakestCard(cheap, trump) : null
+}
+
+/**
+ * Following a TRUMP lead holding both the jack and the ace, with the nine
+ * still out and a seat behind me that can hold it: win with the JACK
+ * (BOT.md §13.5, reported).
+ *
+ * The reported trick was the partner's king, an opponent's ten, and this hand
+ * holding A and J. The ace is the cheaper winner by points, which is why the
+ * bot chose it — and the fourth player's nine takes eleven points off the
+ * table with it. The jack cannot be captured by anything.
+ *
+ * Nothing here touches the caller's own LEADING sequence (`callerTrumpLead`,
+ * BOT.md §5, which opens with the ace or the nine and keeps the jack back):
+ * this only ever runs with a card already on the table.
+ */
+export function jackOverAceOnTrumpLead(view: PlayerView, legal: readonly Card[]): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null || isLastToPlay(view)) return null
+
+    const led = view.trick.cards[0]
+    if (led === undefined || cardSuit(led.card) !== trump) return null
+
+    const jack = makeCard("J", trump)
+    const ace = makeCard("A", trump)
+    if (!legal.includes(jack) || !legal.includes(ace)) return null
+
+    const nine = makeCard("9", trump)
+    if (!outstandingCardsInSuit(view, trump).includes(nine)) return null
+
+    // Only the seats that still play after me matter: a nine in front of me is
+    // a nine that has already missed its chance at my ace.
+    const owner = locatedCards(view).get(nine)
+    for (let follower = nextSeat(seat); follower !== view.trick.leader; follower = nextSeat(follower)) {
+        if (view.handSizes[follower] <= 0) continue
+        const canHoldIt = owner === undefined ? !seatShownVoidInTrump(view, follower) : owner === follower
+        if (canHoldIt) return jack
+    }
+    return null
+}

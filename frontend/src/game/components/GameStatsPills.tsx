@@ -1,9 +1,10 @@
-import { Box, HStack, SimpleGrid, Text, VStack } from "@chakra-ui/react"
+import type { MouseEvent } from "react"
+import { Box, chakra, HStack, Popover, Portal, SimpleGrid, Text, VStack } from "@chakra-ui/react"
 import { FiShield } from "react-icons/fi"
 import { KARMA_MAX } from "@bela/protocol"
 import type { GameStatRecord, PlayerGameStats } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
-import { STAT_TARGET_SCORES, overallRecord, targetRecord, winPercent, type StatTargetScore } from "../util/gameStats"
+import { KARMA_RECOVERY_GAMES, STAT_TARGET_SCORES, overallRecord, targetRecord, winPercent, type StatTargetScore } from "../util/gameStats"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Shared stat-pill formatting (2026-09-20, user request) — RoomPanel's seat
@@ -35,30 +36,49 @@ export function SeatStatPill({ stats }: { stats: PlayerGameStats }) {
     )
 }
 
-/** A player's reliability, as a "9/10" chip next to their seat (2026-09-20,
- *  user request: karma has to be readable at the moment you sit down with
- *  someone, not only in your own profile). Renders nothing when the server
- *  sent no karma — bots, dev users and guests with no profile row — because
- *  a default "10/10" on a seat that has no record would be a claim the
- *  server never made. Full karma is muted; anything below it is warned in
- *  orange, which is the only state worth a glance. */
+/** A player's reliability, as a "9/10" chip (2026-09-20, user request: karma
+ *  has to be readable at the moment you sit down with someone, not only in
+ *  your own profile). Renders nothing when the server sent no karma — bots,
+ *  dev users and guests with no profile row — because a default "10/10" on a
+ *  seat that has no record would be a claim the server never made. Full karma
+ *  is muted; anything below it is warned in orange, which is the only state
+ *  worth a glance.
+ *
+ *  The chip is a button: a tap opens a small popover saying what karma is
+ *  (`game.karma.explain`, taken from the backend's `GameReliabilityService`
+ *  rules). Its click never bubbles, so it is safe inside a clickable card. */
 export function SeatKarmaPill({ karma }: { karma: number | null | undefined }) {
     const { t } = useTranslation()
     if (typeof karma !== "number" || !Number.isFinite(karma)) return null
     const value = Math.max(0, Math.min(KARMA_MAX, Math.round(karma)))
     const low = value < KARMA_MAX
     return (
-        <Box px="2" py="0.5" rounded="full" bg={low ? "orange.subtle" : "bg.panel"}
-            color={low ? "orange.fg" : "fg.muted"} borderWidth="1px"
-            borderColor={low ? "orange.emphasized" : "border.emphasized"}
-            fontSize="2xs" lineHeight="shorter" fontVariantNumeric="tabular-nums" whiteSpace="nowrap" flexShrink={0}
-            title={t("game.room.karmaTitle", { value, max: KARMA_MAX })}
-            aria-label={t("game.room.karma", { value, max: KARMA_MAX })}>
-            <HStack gap="1" align="center">
-                <FiShield size={10} aria-hidden />
-                <span>{value}/{KARMA_MAX}</span>
-            </HStack>
-        </Box>
+        <Popover.Root positioning={{ placement: "bottom" }} lazyMount unmountOnExit>
+            <Popover.Trigger asChild>
+                <chakra.button type="button" px="2" py="0.5" rounded="full" bg={low ? "orange.subtle" : "bg.panel"}
+                    color={low ? "orange.fg" : "fg.muted"} borderWidth="1px"
+                    borderColor={low ? "orange.emphasized" : "border.emphasized"}
+                    fontSize="2xs" lineHeight="shorter" fontVariantNumeric="tabular-nums" whiteSpace="nowrap" flexShrink={0}
+                    cursor="pointer" aria-label={t("game.room.karma", { value, max: KARMA_MAX })}
+                    onClick={(e: MouseEvent) => e.stopPropagation()}>
+                    <HStack gap="1" align="center">
+                        <FiShield size={10} aria-hidden />
+                        <span>{value}/{KARMA_MAX}</span>
+                    </HStack>
+                </chakra.button>
+            </Popover.Trigger>
+            <Portal>
+                <Popover.Positioner>
+                    <Popover.Content maxW="280px">
+                        <Popover.Arrow><Popover.ArrowTip /></Popover.Arrow>
+                        <Popover.Body fontSize="sm" color="fg.soft">
+                            <Text fontWeight="semibold" color="fg" mb="1">{t("game.room.karma", { value, max: KARMA_MAX })}</Text>
+                            {t("game.karma.explain", { max: KARMA_MAX, recovery: KARMA_RECOVERY_GAMES })}
+                        </Popover.Body>
+                    </Popover.Content>
+                </Popover.Positioner>
+            </Portal>
+        </Popover.Root>
     )
 }
 

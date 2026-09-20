@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { CHAT_ENABLED } from "../chatEnabled"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Box, Button, Flex, HStack, Spinner, Text, useBreakpointValue } from "@chakra-ui/react"
-import { FiArrowLeft } from "react-icons/fi"
+import { FiArrowLeft, FiEye } from "react-icons/fi"
 import type { Card, RoomState, Seat, Suit } from "@bela/protocol"
 import { trickWinner } from "@bela/engine"
 import type { Team, TrickCard } from "@bela/engine"
@@ -1165,8 +1165,11 @@ export default function GameRoomPage() {
                                                     that allows spectators — otherwise the
                                                     number is always 0 and says nothing. */}
                                                 {room.allowSpectators && (
-                                                    <StatusChip>
-                                                        {t("game.table.spectatorCount", { count: room.spectators.length })}
+                                                    <StatusChip
+                                                        label={t("game.table.spectatorCount", { count: room.spectators.length })}
+                                                    >
+                                                        <FiEye aria-hidden="true" size={11} />
+                                                        {room.spectators.length}
                                                     </StatusChip>
                                                 )}
                                                 {socket.status !== "open" && (
@@ -1276,7 +1279,6 @@ export default function GameRoomPage() {
                                 scoringTeam={declarationsOpen ? view.declarationsScoringTeam : revealed!.scoringTeam}
                                 seats={room.seats}
                                 mySeat={mySeat}
-                                ownDeclarations={mySeat === null ? undefined : view.declarations[mySeat]}
                                 declarationPoints={declarationsOpen ? view.declarationPoints : undefined}
                                 belaDeclared={declarationsOpen ? view.belaDeclared : null}
                                 trumpSuit={declarationsOpen ? trumpSuit : null}
@@ -1302,6 +1304,7 @@ export default function GameRoomPage() {
                             <BelotFlash
                                 seats={room.seats}
                                 seat={belot.seat}
+                                mySeat={mySeat}
                                 suit={belot.suit}
                                 reducedMotion={reducedMotion}
                             />
