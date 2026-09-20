@@ -77,8 +77,8 @@ animacije** toggle, **Vrsta karata: Francuske / Mađarice / Moderne**
 
    | id | naziv | što je | gdje |
    |----|-------|--------|------|
-   | `klasicne` | Klasične / Klasične | digitalni set Tell uzorka autora `tomasdrus` (github.com/tomasdrus/hungarian-playing-cards), uz **dopuštenje autora za bela-turniri.com (2026-09-20)**. **Zadani.** | `cards/madjarice/assets/klasicne/<RANK><SUIT>.webp` + `BACK.webp` + `suits/{HERC,KARA,PIK,TREF}.webp` |
-   | `moderne` | Moderne / Moderne | naši stariji skenovi, očišćeni u **istu geometriju**, pa idu kroz identični kod (bez cropa i filtera) | `cards/madjarice/assets/moderne/<RANK><SUIT>.webp` + `BACK.webp` |
+   | `klasicne` | Klasične / Klasične | digitalni set Tell uzorka autora `tomasdrus` (github.com/tomasdrus/hungarian-playing-cards), uz **dopuštenje autora za bela-turniri.com (2026-09-20)**. | `cards/madjarice/assets/klasicne/<RANK><SUIT>.webp` + `BACK.webp` + `suits/{HERC,KARA,PIK,TREF}.webp` |
+   | `moderne` | Moderne / Moderne | naši stariji skenovi, očišćeni u **istu geometriju**, pa idu kroz identični kod (bez cropa i filtera). **Zadani.** (od 2026-09-20, zahtjev korisnika) | `cards/madjarice/assets/moderne/<RANK><SUIT>.webp` + `BACK.webp` |
    | `vektorske` | Vektorske / Vektorske | naš inline SVG (`MadjaricaCard` + `figures.tsx`, `vignettes.tsx`, `SuitGlyph.tsx`) — **nema rastera, SVG JE karta**; isti kod je ujedno fallback dok se slika špila dekodira | — |
    | `francuske` | Francuske / Francoske | originalna CSS karta (rang + ♥♦♠♣) | — |
 
@@ -567,23 +567,53 @@ tihe note kad igrač uđe u sobu ili se doda bot. Čita se iz `room.seats`, ne i
 stol kakav je zatečen, ne dolazak četvero ljudi), odlazak ne zvuči, i jedan
 okvir daje najviše jedan zvuk koliko god se sjedala promijenilo.
 
-### 7.6 Telefon u pregledniku: manja ruka, veći štih (2026-09-20)
+### 7.6 Telefon: ruka i štih se skaliraju prema stvarnom ekranu (2026-09-20)
 
-Bez instaliranog PWA-a iOS Safari drži i adresnu traku i alatnu traku, pa je
-stol dobivao stotinjak piksela manje nego u PWA-u. Posljedica na slici
-korisnika: ruka velika, a četiri karte u sredini — jedino što svi gledaju —
-najmanje karte na ekranu. Tri promjene, sve na telefonu:
+Fiksni koraci (`sm` ruka, `sm`/`md` štih, tri media queryja koji ga opet
+smanjuju) bili su ugođeni prema jednoj snimci zaslona i krivi na sljedećoj:
+instalirani PWA, isti telefon u Safari kartici (adresna + alatna traka) i
+visoki Android razlikuju se za 200 px visine. Dvije prijave u jednom danu —
+„karte na stolu su jako male”, pa nakon pokušaja s `xs` rukom „karte u ruci se
+jedva vide” — nisu bile o apsolutnoj veličini, nego o tome da je jedna hrpa
+karata vidljivo manja od druge.
 
-- **Ruka ide na `xs`** (48 × 77, `CARD_METRICS` + `MADJARICA_HEIGHT`,
-  `HAND_CARD_SIZE.base`). I dalje dva reda po četiri, i dalje iznad praga od
-  44 px za dodir, bez preklapanja slotova.
-- **Štih je `md` na svim širinama** (72 × 116). `TrickArea` više ne prati
-  veličinu ruke; `PILE_SCALE` i dalje smanjuje hrpu na TIGHT/NARROW/SHORT.
-- **Traka reakcija** je 34 px na telefonu (bila 40), od `sm` naviše ostaje 44.
+Zato je raspored na telefonu **budžet** (`hooks/useTableScale.ts`). Mjeri se
+stvarna kutija sobe (`ResizeObserver` na korijenu `GameRoomPage`), oduzmu se
+redovi koji se ne mijenjaju (semafor 106 + pilula poteza 32 + reakcije 56,
+plus 34 px za home indikator samo u instaliranom PWA-u), a ostatak se dijeli
+na dvije stvari koje se smiju rastezati:
 
-Geometrija prstena prati veću hrpu: `--seat-clear-x` 94 → 104,
-`--seat-clear-y` 72 → 102, `--cy-free` 102 → 112, `--box-h` 290/306 → 330/348,
-a TIGHT dobiva iste brojke pomnožene s 0.86 (90 / 88 / 96, `--box-h` 300/316).
+- `--hand-k` — `zoom` dvorede ruke, koja se crta kao `sm` (56 × 90);
+- `--pile-k` — `scale` štiha, koji se crta kao `md` (72 × 116), **i** razmaka
+  sjedala koji od njega odstoje: `--seat-clear-x/y`, `--cy-free` i `--box-h`
+  u `tableStyles.ts` množe se istom varijablom (116 px prstena je fiksno,
+  214 px se skalira — `RING_FIXED` / `RING_SCALED`, držati u koraku).
+
+Cilj podjele: karta na stolu i karta u ruci **podjednako široke**
+(`72 * pile ≈ 56 * hand`), uz tri ispravka nakon prve dinamičke verzije
+(korisnik: obje „malo prevelike”, štih je ulazio u bočna sjedala, avatar
+preko karata):
+
+- **štih ograničava i ŠIRINA**: pola ekrana mora primiti pola hrpe (104 px pri
+  faktoru 1), bočno sjedalo (92) i razmake; hrpa smije ući 8 px u sjedalo, koje
+  je oko avatara od 48 px uglavnom zrak. Gornja granica faktora je 1 (72 px);
+- **ruka prati štih**, malo manja (`HAND_VS_PILE` = 0.92), a nikad ispod 0.95
+  (≈ 53 px) osim ako to traži stvarna širina reda — ispod toga ruka prestaje
+  biti čitljiva (pokus s `xs`), pa na niskom ekranu prvi popušta štih;
+- **ruka je centrirana na STRANICU** (zahtjev korisnika: mreža centrirana u
+  prostoru desno od avatara čitala se kao „sve je previše udesno”). Zato
+  širinu ruke ograničava `width − 2 × 62 px`: centrirana mreža mora ostaviti
+  mjesta avataru slijeva (i isto toliko zdesna). Avatar je na telefonu
+  primaknut rubu (`insetStart` 20 → 12 px). `--hand-left` više ne postoji.
+
+Primjeri (ruka / štih): PWA 393 × 852 → 57/67 px, 393 × 850 u devtoolsu →
+61/67, Safari kartica → 53/53, Pro Max PWA → 66/72.
+
+Od 48em naviše ništa od ovoga ne vrijedi (ruka je jedan red fiksne veličine,
+oba faktora 1; položeni telefon zadržava 0.66 za štih). `TIGHT` blok u
+geometriji i `PILE_SCALE` u `TrickArea` su uklonjeni — bili su pogađanje
+onoga što hook sad mjeri. Traka reakcija ostaje 34 px na telefonu.
+Preglednik bez CSS `zoom` (Firefox < 126) jednostavno zadržava `sm` ruku.
 
 **Miješanje se čuje na svakom dijeljenju.** `gameStart` je dosad išao samo na
 `DEALT` s `dealNo === 1`, a upravo taj je bio progutan: kursor za zvukove
@@ -593,3 +623,35 @@ zvuk pušta na **svakom** `DEALT`, a prva hrpa iznimno oglasi miješanje ako joj
 je najnoviji događaj baš `DEALT` (dakle dijeljenje počinje sad, nismo upali u
 partiju u tijeku). Jaše sirovi tok događaja, pa padne dok red još igra kraj
 prethodne podjele — točno prije nego se pokažu nove karte.
+
+### 7.7 Zvanja: tabovi po paru, manji modal za adut (2026-09-20)
+
+Dvije pločice s ukupnim bodovima na vrhu overlaya zvanja (`MI +20` / `ONI
++20`) postale su prave kartice-tabovi (`role="tab"`, `aria-selected`,
+strelice lijevo/desno za prebacivanje): klik na jednu prikazuje samo redove
+tog para — njegova zvanja po sjedalu i belu, ako je baš taj par zvao belu.
+Dosad su se, kad su oba para nešto zvala, svi redovi miješali ispod obje
+pločice i nije se dalo na prvi pogled reći tko je što zvao (korisnički
+zahtjev). Zadana pločica je paru gledatelja, ako on ima što pokazati
+(uključujući "naša zvanja propadaju" retka kad je protivnički par bio
+pobjednički); inače protivnički par; ako samo jedan par ima što pokazati,
+taj se i odabere. Odabir se resetira na svaki novi prikaz (nova podjela),
+pa stara pločica ne ostane zapamćena iz prošle ruke. Par bez ičega je i
+dalje klikabilan i pokaže kratku poruku ("Nema zvanja" / novi ključ
+`declarations.noneForTeam`). Gledatelji (`mySeat === null`) i dalje vide
+oznake "Tim A"/"Tim B" kao i prije; ništa se u vremenu automatskog
+zatvaranja overlaya nije promijenilo.
+
+`TrumpFlash` (modal "X zove adut") je smanjen na korisnički zahtjev — bio je
+prevelik i tekstom i slikom boje: ikona boje 88 → 52 px, naslov `2xl` → `lg`,
+širina kartice 340 → 280 px, padding 6/6 → 5/4 (px/py). Ostaje ista obitelj
+(isti portal, pozadina i kartica kao zvanja), samo manja instanca.
+
+### 7.8 Gledatelji: bez reakcija, s brojačem (2026-09-20)
+Gledatelj **ne može slati reakcije** (zahtjev korisnika). Traka reakcija se za
+njega više ne crta, a server je odbija (`chat.react` bez sjedala →
+`BAD_REQUEST`, `ws.ts`) — klijent nije pravilo. Prije je poruka gledatelja
+prolazila sa `seat: null`. U zaglavlju stola stoji čip „Gledatelji: n" kad
+soba dopušta gledatelje (`room.allowSpectators`); broj je `room.spectators.length`
+i mijenja se uživo s `room.state`. Bez dopuštenih gledatelja čip se ne crta,
+jer bi uvijek pisao 0.

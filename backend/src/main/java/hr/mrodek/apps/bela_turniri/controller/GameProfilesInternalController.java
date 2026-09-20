@@ -6,6 +6,7 @@ import hr.mrodek.apps.bela_turniri.model.GameName;
 import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
 import hr.mrodek.apps.bela_turniri.services.AvatarPresetService;
 import hr.mrodek.apps.bela_turniri.services.GameNameService;
+import hr.mrodek.apps.bela_turniri.services.GameReliabilityService;
 import hr.mrodek.apps.bela_turniri.services.GameStatsService;
 import hr.mrodek.apps.bela_turniri.services.InternalTokenGuard;
 import jakarta.inject.Inject;
@@ -85,9 +86,13 @@ public class GameProfilesInternalController {
      *                    {@link AvatarPresetService#presetFor}), so the caller
      *                    draws the photo if it is there and the character
      *                    otherwise, with no rule of its own.
+     * @param karma       reliability on the 0..10 scale, so the lobby can show
+     *                    it next to a seat. Always present: a uid with no
+     *                    profile row yet is simply at full karma, which is
+     *                    also what a brand-new row would hold.
      */
     public record GameProfileResponse(String displayName, String avatarUrl, String gameName,
-                                      String avatarPreset, GameStatsDto gameStats) {}
+                                      String avatarPreset, GameStatsDto gameStats, int karma) {}
 
     /**
      * The accepted name plus the two instants the caller needs to render
@@ -122,9 +127,11 @@ public class GameProfilesInternalController {
                             avatarUrl,
                             gameName,
                             avatarPresets.presetFor(p, avatarUrl),
-                            stats);
+                            stats,
+                            p.getGameKarma());
                 })
-                .orElseGet(() -> new GameProfileResponse(null, null, gameName, null, stats));
+                .orElseGet(() -> new GameProfileResponse(null, null, gameName, null, stats,
+                        GameReliabilityService.MAX_KARMA));
     }
 
     /**

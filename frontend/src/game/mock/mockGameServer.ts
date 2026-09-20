@@ -458,7 +458,9 @@ class MockGame {
 
         // The same figure the scoreboard has been showing all deal — one
         // derivation, so the summary can never contradict the "+x" chip.
-        const declarationPoints = this.declarationPoints()
+        // …CONFIRMED by a trick (engine `confirmedDeclarationPoints`): a pair
+        // that took none hands its declarations, bela included, to the other.
+        const declarationPoints = this.confirmedDeclarationPoints(true)
 
         const totals: Record<Team, number> = {
             A: cardPointsPerTeam.A + declarationPoints.A,
@@ -576,8 +578,22 @@ class MockGame {
             ) ?? null
             if (stiglja) points[stiglja] += 90
         }
-        const declarations = this.declarationPoints()
+        const declarations = this.confirmedDeclarationPoints(this.tricks.length === 8)
         return { A: points.A + declarations.A, B: points.B + declarations.B }
+    }
+
+    /** Mirror of the engine's `confirmedDeclarationPoints` (2026-09-20):
+     *  declarations count only for a pair with at least one trick; once all
+     *  eight are in, a trickless pair's declarations go to the opponents. */
+    private confirmedDeclarationPoints(final: boolean): Record<Team, number> {
+        const declared = this.declarationPoints()
+        const confirmed: Record<Team, number> = { A: 0, B: 0 }
+        for (const team of ["A", "B"] as Team[]) {
+            const hasTrick = this.tricks.some((won) => teamOf(won.winner) === team)
+            if (hasTrick) confirmed[team] += declared[team]
+            else if (final) confirmed[team === "A" ? "B" : "A"] += declared[team]
+        }
+        return confirmed
     }
 
     /** Mirror of the engine's `dostaOutcome`: "tko prvi dođe do cilja". Null
@@ -709,7 +725,7 @@ class MockServer {
 
     constructor(handlers: GameTransportHandlers) {
         this.handlers = handlers
-        this.me = { uid: "mock-me", name: t("game.mock.youName"), avatarUrl: null, gameStats: MOCK_STATS }
+        this.me = { uid: "mock-me", name: t("game.mock.youName"), avatarUrl: null, gameStats: MOCK_STATS, karma: 10 }
         if (!seeded) {
             seeded = true
             this.seedRooms()
@@ -753,7 +769,7 @@ class MockServer {
                 user: { uid: "mock-host", name: t("game.mock.otherName"), avatarUrl: null, gameStats: {
                     global: { games: 47, wins: 29, losses: 18, winRate: 0.617 },
                     byTargetScore: { "1001": { games: 21, wins: 12, losses: 9, winRate: 0.571 } },
-                } },
+                }, karma: 8 },
                 ready: true,
                 connected: true,
             },

@@ -246,6 +246,7 @@ export const profile: ProfileDict = {
     "gameStats.losses.other": "{n} porazov",
     "gameStats.winRate": "Procent zmag",
     "gameStats.karma": "Karma",
+    "gameStats.karmaHint": "Vsi začnejo z {max}/{max}. Zapuščena partija je −1, tri odigrane vrnejo +1.",
     "gameStats.abandons": "Zapustitve",
     "gameStats.categoryStats": "{wins}/{n} ({winRate}%)",
     "gameStats.targetScore.163": "Hitra 163",

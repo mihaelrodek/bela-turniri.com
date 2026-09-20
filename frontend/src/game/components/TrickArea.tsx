@@ -4,7 +4,6 @@ import type { Card as CardId, Seat } from "@bela/protocol"
 import type { TrickCard } from "@bela/engine"
 import { cardScatter, positionOf, positionVector } from "../util/seats"
 import PlayingCard from "./PlayingCard"
-import { NARROW, SHORT, TIGHT } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
    TrickArea — the middle of the table.
@@ -36,9 +35,8 @@ import { NARROW, SHORT, TIGHT } from "./tableStyles"
  *  height. The hand went the other way at the same time (`xs`, see
  *  `handLayout.ts`), so the felt now reads trick-first.
  *
- *  The type stays a union because `PILE_SCALE` still shrinks the pile on
- *  screens that cannot hold a full one (TIGHT/NARROW/SHORT), and because the
- *  seat clearances in `tableStyles.ts` are stated per size. */
+ *  How big it ends up on a given phone is `--pile-k` (see the root below);
+ *  the type stays a union because the rest/fly/collect tables are per size. */
 type PileSize = "sm" | "md"
 
 /** How far from the centre a resting card sits, per axis, per card size. The
@@ -58,13 +56,6 @@ const REST_Y: Record<PileSize, number> = { sm: 32, md: 42 }
 const FLY_IN: Record<PileSize, number> = { sm: 130, md: 170 }
 /** Where the trick slides to when collected. */
 const COLLECT: Record<PileSize, number> = { sm: 260, md: 340 }
-/** The pile contracts further on screens that cannot fit even this much.
- *  Stated per size, because an `sm` pile is already 0.78 of an `md` one and
- *  shrinking it by the `md` factors again would leave a pile of stamps. */
-const PILE_SCALE: Record<PileSize, Record<string, number>> = {
-    sm: { [TIGHT]: 0.82, [NARROW]: 0.86, [SHORT]: 0.8 },
-    md: { [TIGHT]: 0.86, [NARROW]: 0.76, [SHORT]: 0.66 },
-}
 /** DESIGN §2.5: 320 ms in, 500 ms out. `COLLECT_MS` is exported because the
  *  page has to know when the sweep is finished before it clears the felt. */
 const FLY_MS = 320
@@ -168,7 +159,6 @@ export default function TrickArea({
     reducedMotion?: boolean
 }) {
     const size: PileSize = "md"
-    const scale = PILE_SCALE[size]
     return (
         // Not aria-hidden: each card carries its Croatian name as an
         // aria-label, and the trick is exactly what a screen-reader user
@@ -190,11 +180,11 @@ export default function TrickArea({
             h="0"
             zIndex={1}
             pointerEvents="none"
-            css={{
-                [TIGHT]: { transform: `scale(${scale[TIGHT]})` },
-                [NARROW]: { transform: `scale(${scale[NARROW]})` },
-                [SHORT]: { transform: `scale(${scale[SHORT]})` },
-            }}
+            // `--pile-k` comes from `useTableScale` on the room root: one
+            // factor worked out from the real screen, instead of the three
+            // media-query steps this used to carry. The seat clearances in
+            // tableStyles.ts are multiplied by the same variable.
+            css={{ transform: "scale(var(--pile-k, 1))" }}
         >
             {cards.map((entry, index) => (
                 <ThrownCard

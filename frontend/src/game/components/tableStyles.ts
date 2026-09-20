@@ -113,18 +113,17 @@ export function tableGeometry(bottomSeat: boolean) {
 
     return {
         // Just the ring: partner block (102, see SEAT_BLOCK) + its 14 px
-        // offset + `--seat-y` above the centre, `--cy-free` below it. The
-        // offset went 32 → 14 (2026-09-20, user request: the partner read as
-        // sitting too far from the trick) and the sum then went back up when
-        // the trick became `md` on a phone the same day
-        // (102 + 14 + 102 + 112 = 330). A
-        // taller box only put air between the partner and the pile
-        // (2026-09-20, user report); the parent centres this box, so a tall
-        // phone's slack now splits evenly above the partner and under the
-        // pile, and the flank seats land in the middle of the felt instead
-        // of near the hand. 300/316 → 308/324 when SEAT_BLOCK grew from 94 to
-        // 102 (2026-09-20, badge-clipping fix) — same +8, same 16 px slack.
-        "--box-h": boxH(330, 42, 348),
+        // offset + `--seat-y` above the centre, `--cy-free` below it.
+        //
+        // ON A PHONE THE RING FOLLOWS `--pile-k` (2026-09-20). The trick is
+        // drawn at `md` and scaled by that factor, which `useTableScale`
+        // works out from the real screen; the two clearances that stand off
+        // from the trick scale with it, so the box is exactly as tall as the
+        // ring it holds — 116 px that never change plus 214 px that do. There
+        // is no `vh` term and no TIGHT step any more: both were guesses at
+        // what the hook now measures. Keep 116/214 in step with RING_FIXED /
+        // RING_SCALED in `hooks/useTableScale.ts`.
+        "--box-h": `min(100%, calc(${bottomSeat ? 206 : 116}px + var(--pile-k, 1) * 214px))`,
         "--seat-w": "92px",
         "--seat-h": SEAT_BLOCK,
         /** How close a flank seat may come to the felt's own edge. Without
@@ -133,12 +132,10 @@ export function tableGeometry(bottomSeat: boolean) {
         "--seat-gutter": "8px",
         "--seat-overlap": "18px",
         // Clearances for the `md` pile (TrickArea's REST_X/REST_Y plus half a
-        // 72 × 116 card: 66+36 and 42+58). The phone used to draw an `sm`
-        // trick and could close in by the difference; since 2026-09-20 the
-        // trick is `md` on every width (user request), so the ring stands off
-        // by the full amount here too.
-        "--seat-clear-x": "104px",
-        "--seat-clear-y": "102px",
+        // 72 × 116 card: 66+36 and 42+58), times the factor the pile is
+        // actually drawn at.
+        "--seat-clear-x": "calc(var(--pile-k, 1) * 104px)",
+        "--seat-clear-y": "calc(var(--pile-k, 1) * 102px)",
         /** Grows with the box, never below the pile's clearance, and capped
          *  so a very tall window does not fling the seats into the corners. */
         "--seat-x": "max(var(--seat-clear-x), min(calc(0.46 * var(--box-h)), 200px))",
@@ -147,7 +144,7 @@ export function tableGeometry(bottomSeat: boolean) {
          *  own half-height plus a small margin, as a CONSTANT. Tying it to
          *  `--seat-y` made it grow with the box, and every pixel it grew was
          *  a pixel of empty felt between the trick and the hand tray. */
-        "--cy-free": "112px",
+        "--cy-free": "calc(var(--pile-k, 1) * 112px)",
         "--cy-bottom": cyBottom,
         /** Distance of the table's centre from the TOP of the box. For a
          *  player it is the complement of `--cy-bottom`, so the pile always
@@ -178,25 +175,8 @@ export function tableGeometry(bottomSeat: boolean) {
             "--table-cy": bottomSeat ? "50%" : "60%",
         },
 
-        // iPhone SE and friends: the pile is scaled down again by TrickArea,
-        // so the seats may close in by the same amount. `--box-h` is the same
-        // partner-block + 14 + seat-clear-y + cy-free sum as the base case
-        // above, with every clearance taken from the base one times the TIGHT
-        // pile scale (0.86 for `md`), rounded up: 104→90, 102→88, 112→96, so
-        // 102+14+88+96 = 300 (2026-09-20, user request — was 258 with the
-        // smaller `sm` trick).
-        [TIGHT]: {
-            "--box-h": boxH(300, 42, 316),
-            "--seat-clear-x": "90px",
-            "--seat-clear-y": "88px",
-            "--seat-x": "max(var(--seat-clear-x), min(calc(0.46 * var(--box-h)), 170px))",
-            "--seat-y": `max(var(--seat-clear-y), min(calc(${vy} * var(--box-h)), 150px))`,
-            "--cy-free": "96px",
-        },
-
         [NARROW]: {
             "--seat-w": "82px",
-            "--seat-clear-x": "82px",
             "--seat-x": "max(var(--seat-clear-x), min(calc(0.42 * var(--box-h)), 132px))",
             "--table-w": "min(98%, calc(2 * var(--seat-x) + 2 * var(--seat-overlap)))",
         },

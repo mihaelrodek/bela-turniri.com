@@ -203,6 +203,15 @@ Pobjednik štiha: najjači adut ako ima aduta; inače najjača karta boje `L`.
   štih dobiva **+10**.
 - **Štiglja**: tim koji osvoji **svih 8 štihova** dobiva **+90** (ukupno 252 iz karata).
 - Zvanja (1.4) se dodaju timu koji ih je obranio; bela svome timu.
+- **Zvanja se POTVRĐUJU štihom** (2026-09-20): zvanja i bela vrijede paru samo
+  ako u toj podjeli uzme **barem jedan štih** — može biti i štih od 0 bodova.
+  Par koji ostane bez ijednog štiha **predaje sva svoja zvanja, i belu,
+  protivnicima**, isto kao kod pada. Primjer: oni zovu 150 i ne uzmu štih →
+  mi 162 + 90 (štiglja) + 150 = **402**, oni 0. Prijenos ide **prije** presude
+  prolaz/pad, pa zvač koji uzme sve prolazi i na tuđim zvanjima, a zvač bez
+  štiha pada s ničim. `DealScore.declarationPoints` nosi stanje NAKON
+  prijenosa; semafor tijekom podjele i dalje pokazuje što je tko ZVAO
+  (`declarationPoints`), jedan izvor za obračun je `confirmedDeclarationPoints`.
 - **Prolaz / pad**: neka je `C` = zbroj tima koji je zvao (karte + zvanja), `O` =
   zbroj protivnika. Tim koji je zvao **prolazi ako je `C > O`**. Inače je **pad**:
   protivnici dobivaju **sve** bodove podjele (`C + O`), tim koji je zvao 0.
@@ -283,14 +292,14 @@ usred podjele. Sada je tako i u engineu.
   oduzeti:
   - bodovi karata iz **već pokupljenih** štihova (karte na stolu nisu ničije
     dok se štih ne pokupi);
-  - **zvanja para koji boduje** (§1.4), od trenutka kad su razriješena — a to
-    je izbor aduta i `DECLARATIONS_REVEALED`, dakle **prije prve karte**. Par
-    koji je 200 od cilja i otvori četiri dečka je gotov: §1.6 plaća obranjena
-    zvanja neovisno o štihovima, pa bi uvjet „samo ako si uzeo štih”
-    proturječio obračunu i vrijedio bi samo ovdje;
-  - **bela 20**, od trenutka prijave (§1.4) — jedino što zbroj može pomaknuti
-    **usred štiha**, pa partija na `dosta` može završiti i na prvoj karti
-    štiha. Odbijena bela ne postoji, pa ni ovdje;
+  - **zvanja para koji boduje** (§1.4) i **bela 20** — ali tek kad ih je taj
+    par **potvrdio štihom** (§1.6, 2026-09-20). Do prvog vlastitog štiha par
+    svoja zvanja ne može dokazati, pa na njima ne može „izaći”: par koji je
+    200 od cilja i otvori četiri dečka mora prvo uzeti štih. Prije je ovdje
+    pisalo suprotno, jer je i obračun plaćao zvanja neovisno o štihovima;
+    obračun se promijenio, pa se utrka mijenja s njim. Od trenutka potvrde
+    bela i dalje može pomaknuti zbroj **usred štiha**. Kad je svih osam
+    štihova pokupljeno, zvanja para bez štiha broje se protivnicima;
   - **+10 za zadnji štih i +90 za štiglju tek kad je osmi štih pokupljen** —
     do tada ne postoje.
 - **Što se ne broji: pad.** Pad (§1.6) se izriče na obračunu, a utrka je
@@ -1147,3 +1156,36 @@ nije kritičan, partija za igrače nije pogođena.
 ```
 Prikaz: nova kartica na profilu (`frontend/src/pages/profile/`), uz postojeće
 `TournamentsCard`/`MyPairsCard` uzorak. hr + sl i18n, obavezno.
+
+### 8.6 Karma (pouzdanost) — NORMATIVNO (2026-09-20)
+Karma je **mali cijeli broj 0..10** i prikazuje se uvijek kao `x/10`. Pravila
+su namjerno takva da ih igrač može ispričati u jednoj rečenici:
+
+| Događaj | Promjena |
+|---|---|
+| Novi igrač | počinje s **10/10** |
+| Napuštena partija u tijeku (`ABANDONED`, tek nakon isteka reconnect gracea) | **−1**, pod je 0 |
+| Tri završene partije koje se broje (§8.1) | **+1**, strop je 10 |
+
+Ranija skala bila je 0..100 (−15 / +3) i nikome nije značila ništa; migracija
+`db/changelog/game_karma_scale.xml` (`2026-09-20-game-karma-scale`) postojeće
+vrijednosti preračunava s `CEIL(stara/10)`, mijenja default stupca na 10 i
+dodaje `CHECK (game_karma BETWEEN 0 AND 10)`.
+
+Vlasnik pravila je backend `GameReliabilityService` (`MAX_KARMA`,
+`ABANDON_PENALTY`, `GAMES_PER_RECOVERY`); Node je i ovdje samo prijavitelj
+(`statsReporter.reportGameAbandonment` → `POST /internal/game-reliability-events`,
+idempotentno po `eventId`). Oporavak broji `user_profiles.game_completed_since_recovery`
+(0..2), koji se puni iz `GameStatsService` kad se zapiše završena partija i drži
+se na 0 dok je karma puna — puna karma ne skuplja kredit unaprijed.
+
+**Wire:** `GET /internal/profiles/{uid}` vraća i `karma` (uvijek, 10 za uid bez
+profila), `profiles.ts` ga parsira, `auth.ts withAppProfile` ga spaja u
+`UserInfo.karma` (`@bela/protocol`, **opcionalno** polje uz `KARMA_MAX = 10`, pa
+stariji klijent/server ne puca). Vidi se samo članovima sobe, kao `gameStats` —
+`RoomOccupant` u lobi listi ga nema.
+
+**Prikaz:** `RoomPanel` uz svako sjedalo (`SeatKarmaPill`, štit + `9/10`,
+narančasto ispod 10, ništa kad server nije poslao karmu — botovi, gosti) i
+`profile/GameStatsCard` (`x/10` + jedna rečenica pravila,
+`profile.gameStats.karmaHint`). hr + sl i18n obavezno.

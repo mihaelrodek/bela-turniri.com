@@ -175,6 +175,11 @@ export const NON_PERSISTED_KEY_ROOTS: ReadonlySet<string> = new Set([
     "myInvoices",
     // User's game statistics — scoped to the signed-in user.
     "gameStats",
+    // Karma/abandon count, same scope and same reasoning as "gameStats"
+    // (2026-09-20: it was persisted, which both leaked it across accounts on
+    // a shared device and could keep showing the pre-0..10 value after the
+    // rescale migration).
+    "gameReliability",
     // Organiser-only: names/uids of everyone who has asked to link a blok.
     "blokLinks",
     // Personal scorepad record (BLOK-HISTORY.md) — scoped to the signed-in

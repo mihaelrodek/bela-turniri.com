@@ -33,6 +33,8 @@ export const game: GameDict = {
     "room.waitingReady": "Čaka na pripravljenost",
     "room.statsOverall": "Vse {wins}–{losses} · {percent}%",
     "room.statsTitle": "Skupaj",
+    "room.karma": "Karma {value}/{max}",
+    "room.karmaTitle": "Karma: {value}/{max}. Zapuščena partija −1, tri odigrane +1.",
     "room.statsTarget": "{target} {wins}–{losses} · {percent}%",
     "bot.label": "Bot",
     "rules.title": "Pravila delitve",
@@ -239,6 +241,7 @@ export const game: GameDict = {
     "table.phaseBidding": "Klicanje aduta",
     "table.waiting": "Počakaj…",
     "table.spectating": "Gledaš igro",
+    "table.spectatorCount": "Gledalci: {count}",
 
     // Hitri odzivi za mizo (protokol `chat.react`).
     "table.reactions": "Reakcije",
@@ -281,6 +284,7 @@ export const game: GameDict = {
     /* ─── Napovedi ──────────────────────────────────────────── */
     "declarations.title": "Napovedi",
     "declarations.none": "Nihče nima napovedi.",
+    "declarations.noneForTeam": "Ni napovedi",
     "declarations.bela": "Bela +20",
     "declarations.oursLost": "Tvoje napovedi ({points}) propadejo.",
 
@@ -369,7 +373,6 @@ export const game: GameDict = {
     "settings.reduceMotion": "Zmanjšaj animacije",
     "settings.reduceMotionHint": "Sledi tudi sistemski nastavitvi za zmanjšane animacije.",
     "settings.keepAwake": "Naj zaslon ostane prižgan",
-    "settings.keepAwakeHint": "Zaslon se med deljenjem ne bo zaklenil. Zatemnitev ostane.",
     "settings.deckType": "Vrsta kart",
     "settings.deck.klasicne": "Klasične",
     "settings.deck.moderne": "Moderne",

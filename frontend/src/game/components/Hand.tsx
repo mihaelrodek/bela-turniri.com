@@ -139,12 +139,11 @@ export default function Hand({
     const { t } = useTranslation()
     const [prefs] = useGamePrefs()
     const reducedMotion = usePrefersReducedMotion() || prefs.reduceMotion
-    const cardSize: HandCardSize = useBreakpointValue<HandCardSize>(HAND_CARD_SIZE) ?? "xs"
+    const cardSize: HandCardSize = useBreakpointValue<HandCardSize>(HAND_CARD_SIZE) ?? "sm"
     const cardWidth = CARD_WIDTH[cardSize]
     // One row from the same breakpoint that grows the cards, so the tray only
     // ever has two shapes and they change together.
-    // Two rows of four on a phone (`xs`/`sm`), one row of eight above it.
-    const columns = cardSize === "xs" || cardSize === "sm" ? 4 : 8
+    const columns = cardSize === "sm" ? 4 : 8
     const legalSet = new Set(legal)
     const myTurn = legal.length > 0 && !disabled
 
@@ -237,6 +236,10 @@ export default function Hand({
             // exactly once now, on the LAST element of the column — the
             // reactions/bidding slot.
             pt={{ base: "2", md: "4" }}
+            // The grid is centred on the PAGE (2026-09-20, user request — a
+            // grid centred in the space right of my avatar read as "sve je
+            // previse udesno"). `useTableScale` keeps it narrow enough that
+            // the centred grid still clears the avatar docked on the left.
             px="2"
             css={{
                 paddingBottom: "2px",
@@ -253,6 +256,11 @@ export default function Hand({
                 css={{
                     width: `${cardWidth * columns + SLOT_GAP * (columns - 1)}px`,
                     maxWidth: "100%",
+                    // The phone hand is DRAWN at `sm` and shown at `--hand-k`
+                    // (2026-09-20): `zoom`, not `transform`, because the grid
+                    // has to take up its scaled size in the layout. A browser
+                    // without `zoom` simply keeps the `sm` hand.
+                    zoom: columns === 4 ? "var(--hand-k, 1)" : undefined,
                 }}
             >
                 {slots.map((slot, index) => {

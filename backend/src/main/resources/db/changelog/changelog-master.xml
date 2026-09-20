@@ -166,4 +166,9 @@
          alongside 501/701/1001. -->
     <include file="db/changelog/game_quick_163.xml" relativeToChangelogFile="false"/>
 
+    <!-- Karma rescaled from 0..100 to a plain 0..10 ("10/10" at the start,
+         -1 per abandoned game, +1 per three finished ones) plus the
+         persisted recovery counter that rule needs. -->
+    <include file="db/changelog/game_karma_scale.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>

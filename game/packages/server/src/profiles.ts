@@ -21,7 +21,7 @@
        every hello would be the most common request of all.
    ────────────────────────────────────────────────────────────────────── */
 
-import { LIMITS, isAvatarPreset } from "@bela/protocol"
+import { KARMA_MAX, LIMITS, isAvatarPreset } from "@bela/protocol"
 import type { PlayerGameStats, GameStatRecord } from "@bela/protocol"
 import type { Config } from "./config.js"
 import { log } from "./log.js"
@@ -45,6 +45,12 @@ export interface AppProfile {
     avatarPreset: string | null
     /** Absent on older/fake profile providers; null when backend has no valid record. */
     gameStats?: PlayerGameStats | null
+    /**
+     * Reliability on the 0..KARMA_MAX scale. Null when the backend did not
+     * send one (older backend), in which case the seat shows no chip rather
+     * than a made-up "10/10".
+     */
+    karma?: number | null
 }
 
 /** Why a `setGameName` did not go through. */
@@ -118,7 +124,7 @@ function parseGameStats(value: unknown): PlayerGameStats | null {
 
 function parseProfile(body: unknown): AppProfile | null {
     if (typeof body !== "object" || body === null) return null
-    const raw = body as { displayName?: unknown; avatarUrl?: unknown; gameName?: unknown; avatarPreset?: unknown; gameStats?: unknown }
+    const raw = body as { displayName?: unknown; avatarUrl?: unknown; gameName?: unknown; avatarPreset?: unknown; gameStats?: unknown; karma?: unknown }
     const displayName = typeof raw.displayName === "string" && raw.displayName.trim().length > 0
         ? raw.displayName.trim().slice(0, 60)
         : null
@@ -133,8 +139,15 @@ function parseProfile(body: unknown): AppProfile | null {
     // would go blank instead of falling back to initials.
     const avatarPreset = isAvatarPreset(raw.avatarPreset) ? raw.avatarPreset : null
     const gameStats = parseGameStats(raw.gameStats)
+    // Karma stays OUT of the emptiness test below: the backend answers with a
+    // karma for every uid, including guests with no profile row, so counting
+    // it would turn every "no profile" miss into a hit and cache it for the
+    // long TTL. A seat with nothing else to say still gets none.
+    const karma = typeof raw.karma === "number" && Number.isFinite(raw.karma)
+        ? Math.max(0, Math.min(KARMA_MAX, Math.round(raw.karma)))
+        : null
     if (displayName === null && avatarUrl === null && gameName === null && avatarPreset === null && gameStats === null) return null
-    return { displayName, avatarUrl, gameName, avatarPreset, gameStats }
+    return { displayName, avatarUrl, gameName, avatarPreset, gameStats, karma }
 }
 
 export function createProfileLookup(cfg: Config): ProfileLookup {

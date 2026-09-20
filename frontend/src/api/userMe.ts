@@ -62,6 +62,8 @@ export type GameStatsDto = {
 export type GameReliabilityDto = {
     karma: number
     abandons: number
+    /** The scale's top ("x/maxKarma"), so the label is never hard-coded. */
+    maxKarma: number
 }
 
 export async function getProfile(): Promise<UserProfile> {

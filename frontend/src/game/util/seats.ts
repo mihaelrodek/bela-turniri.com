@@ -86,7 +86,7 @@ export function seatsFromMe(mySeat: Seat | null): Seat[] {
  *  Each anchor is wrapped in a `min()` against the box's own edge, so a
  *  window short or narrow enough that the ring does not fit degrades to
  *  edge-to-edge instead of pushing a seat outside the felt. (The trick pile
- *  scales down on exactly those screens — see TrickArea's TIGHT/SHORT — so
+ *  scales down on exactly those screens — `--pile-k`, see useTableScale — so
  *  the two meet in the middle rather than colliding.) */
 export const SEAT_ANCHORS: Record<TablePosition, CSSProperties> = {
     /* The partner used to sit 32 px above the ring, which — with the trick

@@ -659,6 +659,13 @@ export class Hub {
                 if (!isReaction(msg.reaction)) {
                     throw new ProtocolError("BAD_REQUEST", "Neispravna reakcija.")
                 }
+                // Spectators watch; they do not talk over the table
+                // (2026-09-20, user request). Enforced here and not only by
+                // hiding the bar, because a client is not a rule.
+                const uid = conn.user?.uid
+                if (uid === undefined || room.seatOfUid(uid) === null) {
+                    throw new ProtocolError("BAD_REQUEST", "Gledatelji ne mogu slati reakcije.")
+                }
                 if (!conn.takeReaction(Date.now())) {
                     throw new ProtocolError("RATE_LIMITED", "Prebrzo šaljete reakcije.")
                 }

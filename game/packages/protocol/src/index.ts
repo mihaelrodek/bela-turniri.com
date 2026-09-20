@@ -151,7 +151,22 @@ export interface UserInfo {
     avatarPreset?: string | null
     /** Persisted record supplied only to members of the room. */
     gameStats?: PlayerGameStats | null
+    /**
+     * Reliability ("karma") on a 0..`KARMA_MAX` scale, supplied only to
+     * members of the room, like `gameStats`.
+     *
+     * Optional on purpose: bots, dev users and an older server all simply
+     * omit it, and a client that has nothing to show shows nothing rather
+     * than inventing a number.
+     */
+    karma?: number | null
 }
+
+/**
+ * Full karma. Everyone starts here; one abandoned game costs a point and
+ * three finished games give one back (backend `GameReliabilityService`).
+ */
+export const KARMA_MAX = 10
 
 export interface GameStatRecord {
     games: number

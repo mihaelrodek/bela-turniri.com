@@ -41,6 +41,9 @@ export const game = {
        u nastalom razmaku prikazivao sirovi ključ. Preimenovan i s novim
        tekstom po korisnikovu zahtjevu. */
     "room.statsTitle": "Ukupno",
+    /* Karma = pouzdanost igrača, 0..10. Kratica uz sjedalo u lobiju. */
+    "room.karma": "Karma {value}/{max}",
+    "room.karmaTitle": "Karma: {value}/{max}. Napuštena partija −1, tri odigrane +1.",
     "room.statsTarget": "{target} {wins}–{losses} · {percent}%",
     "bot.label": "Bot",
     "rules.title": "Pravila podjele",
@@ -269,6 +272,7 @@ export const game = {
     "table.phaseBidding": "Zvanje aduta",
     "table.waiting": "Čekaj…",
     "table.spectating": "Gledaš igru",
+    "table.spectatorCount": "Gledatelji: {count}",
 
     // Brze reakcije za stolom (protokol `chat.react`).
     "table.reactions": "Reakcije",
@@ -313,6 +317,9 @@ export const game = {
     /* ─── Zvanja ────────────────────────────────────────────── */
     "declarations.title": "Zvanja",
     "declarations.none": "Nitko nema zvanja.",
+    // Prazan tab kad se klikne MI/ONI za par koji ništa nije zvao (2026-09-20,
+    // user request: odvojeni tabovi po paru umjesto pomiješanih redaka).
+    "declarations.noneForTeam": "Nema zvanja",
     "declarations.bela": "Bela +20",
     // Jedina rečenica o zvanjima koja su propala: karte protivničkog para se
     // više ne šalju ni ne prikazuju (README §1.4), a svoje si ionako vidiš.
@@ -403,7 +410,6 @@ export const game = {
     "settings.reduceMotion": "Smanji animacije",
     "settings.reduceMotionHint": "Također slijedi sistemsku postavku za smanjene animacije.",
     "settings.keepAwake": "Drži zaslon uključenim",
-    "settings.keepAwakeHint": "Zaslon se neće zaključati dok traje dijeljenje. Zatamnjenje ostaje.",
     "settings.deckType": "Vrsta karata",
     /* Četiri špila (2026-09-20): tri su mađarice i razlikuju se samo po
        crtežu — registar je u game/util/cards.ts, id-evi su ono što se pamti

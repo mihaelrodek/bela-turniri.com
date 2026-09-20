@@ -175,6 +175,68 @@ describe("scoreDeal — declarations and bela (README §1.4, §1.6)", () => {
     })
 })
 
+describe("scoreDeal — declarations must be confirmed by a trick (README §1.6)", () => {
+    const declaration = (points: 50 | 100): Declaration => ({
+        kind: "FOUR",
+        cards: ["JHERC", "JKARA", "JPIK", "JTREF"],
+        points,
+    })
+    const ALL_A: Seat[] = [0, 0, 0, 0, 0, 0, 0, 0]
+
+    it("a pair without a single trick hands its declarations to the other pair", () => {
+        // The reported deal (2026-09-20): they declared 150 and took nothing.
+        const score = scored({
+            phase: "DEAL_DONE",
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 0 },
+            tricksWon: tricksFor(ALL_A),
+            trick: { leader: 0, turn: 0, cards: [] },
+            declarations: { 0: [], 1: [declaration(100)], 2: [], 3: [declaration(50)] },
+            declarationsScoringTeam: "B",
+        })
+        expect(score.declarationPoints).toEqual({ A: 150, B: 0 })
+        expect(score.passed).toBe(true)
+        expect(score.total).toEqual({ A: 162 + 90 + 150, B: 0 })
+    })
+
+    it("takes the trickless pair's bela as well", () => {
+        const score = scored({
+            phase: "DEAL_DONE",
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 0 },
+            tricksWon: tricksFor(ALL_A),
+            trick: { leader: 0, turn: 0, cards: [] },
+            declarationsScoringTeam: null,
+            belaDeclared: "B",
+        })
+        expect(score.declarationPoints).toEqual({ A: 20, B: 0 })
+        expect(score.total).toEqual({ A: 272, B: 0 })
+    })
+
+    it("a trickless CALLER falls and the defenders collect everything", () => {
+        const score = scored({
+            phase: "DEAL_DONE",
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 1 },
+            tricksWon: tricksFor(ALL_A),
+            trick: { leader: 0, turn: 0, cards: [] },
+            declarations: { 0: [], 1: [declaration(100)], 2: [], 3: [] },
+            declarationsScoringTeam: "B",
+        })
+        expect(score.passed).toBe(false)
+        expect(score.total).toEqual({ A: 352, B: 0 })
+    })
+
+    it("one trick is enough, whatever it is worth", () => {
+        const score = scored({
+            phase: "DEAL_DONE",
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 0 },
+            tricksWon: tricksFor(SEVEN_ONE),
+            trick: { leader: 1, turn: 1, cards: [] },
+            declarations: { 0: [], 1: [declaration(100)], 2: [], 3: [] },
+            declarationsScoringTeam: "B",
+        })
+        expect(score.declarationPoints).toEqual({ A: 0, B: 100 })
+    })
+})
+
 describe("scoreDeal — guards", () => {
     it("refuses to score a deal without a trump", () => {
         expect(() =>

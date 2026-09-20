@@ -3,6 +3,10 @@
    card points  = 152 in the cards + 10 for the last trick (+ 90 for a štiglja)
    declarations = only the winning team's declarations (README §1.4) + bela;
                   `declarationPoints(state)` is the single source of that sum
+   confirmation = declarations (bela included) only count for a team that
+                  takes AT LEAST ONE TRICK in the deal — the trick may be worth
+                  0. A team left without a trick hands them to the opponents,
+                  exactly as a fallen caller does (`confirmedDeclarationPoints`)
    pass/fall    = the calling team passes iff C > O; otherwise it gets 0 and the
                   opponents get C + O. No rounding to tens. */
 
@@ -70,15 +74,41 @@ export function declarationPoints(state: GameState): Record<Team, number> {
 }
 
 /**
+ * Declarations have to be CONFIRMED BY A TRICK (2026-09-20, user report: the
+ * opponents declared 150, took no trick, and still kept them — "ako netko ima
+ * zvanja on ta zvanja mora POTVRDITI sa jednim stihom ... inace ta zvanja idu
+ * protivnickoj ekipi isto kao i kod pada").
+ *
+ * `declarationPoints` stays what it always was — what each pair has DECLARED,
+ * which is what the scoreboard shows while the deal runs. This is what those
+ * declarations are WORTH given the tricks taken so far:
+ *
+ *   • a pair with at least one trick (a trick of 0 points counts) keeps its own;
+ *   • a pair with no trick yet has nothing provable — mid-deal its points are
+ *     simply not there yet (`final: false`), which is what keeps a pair from
+ *     winning a `dosta` race on declarations alone before taking a trick;
+ *   • once all eight tricks are in (`final: true`), a pair that took none
+ *     hands everything it declared, bela included, to the other pair.
+ */
+export function confirmedDeclarationPoints(state: GameState, final: boolean): Record<Team, number> {
+    const declared = declarationPoints(state)
+    const confirmed: Record<Team, number> = { A: 0, B: 0 }
+    for (const team of ["A", "B"] as Team[]) {
+        if (state.tricksWon[team].length > 0) confirmed[team] += declared[team]
+        else if (final) confirmed[opponentTeam(team)] += declared[team]
+    }
+    return confirmed
+}
+
+/**
  * What each team has PROVABLY collected in the deal in progress, at this very
  * instant — the figure the `dosta` race is run on (README §1.7).
  *
  * "Provable" means: points nobody at the table can still take away.
  *   • card points of the tricks already taken (`currentDealPoints`),
- *   • the declarations of the pair whose declarations stand, from the moment
- *     they are settled — which is the moment trump is chosen and they are
- *     revealed — plus 20 for a bela from the moment it is announced
- *     (`declarationPoints`),
+ *   • the declarations of the pair whose declarations stand, plus 20 for an
+ *     announced bela — but only once that pair has CONFIRMED them with a trick
+ *     (`confirmedDeclarationPoints`); until then nobody can prove them,
  *   • the last trick's +10 and a štiglja's +90 ONLY once the eighth trick is
  *     in, because until then neither exists.
  *
@@ -96,7 +126,8 @@ export function provisionalDealPoints(state: GameState): Record<Team, number> {
         else if (state.tricksWon.B.length === 8) points.B += STIGLJA_BONUS
     }
 
-    const declarations = declarationPoints(state)
+    const allIn = state.tricksWon.A.length + state.tricksWon.B.length === 8
+    const declarations = confirmedDeclarationPoints(state, allIn)
     return { A: points.A + declarations.A, B: points.B + declarations.B }
 }
 
@@ -120,7 +151,11 @@ export function scoreDeal(state: GameState): DealScore {
     else if (state.tricksWon.B.length === 8) stiglja = "B"
     if (stiglja !== null) cardPointsByTeam[stiglja] += STIGLJA_BONUS
 
-    const declarationPointsByTeam = declarationPoints(state)
+    // Settled deal: a pair without a trick has already lost its declarations
+    // to the other pair here, BEFORE pass/fall is judged — so a caller who
+    // took every trick passes on the opponents' declarations as well, and a
+    // trickless caller falls with nothing (0 > x is never true).
+    const declarationPointsByTeam = confirmedDeclarationPoints(state, true)
 
     const callerTeam = teamOf(caller)
     const other = opponentTeam(callerTeam)

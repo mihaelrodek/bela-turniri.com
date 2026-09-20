@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { Box, Flex, HStack, IconButton, Portal, Text, VStack } from "@chakra-ui/react"
 import { FiX } from "react-icons/fi"
 import type { RoomState, Seat } from "@bela/protocol"
@@ -82,6 +83,10 @@ export function BelaFlash({ seats, seat }: { seats: RoomState["seats"]; seat: Se
  *  below, so the two read as one family — only bigger in the suit and much
  *  shorter on screen (`TRUMP_FLASH_MS` in `GameRoomPage`, 1500 ms inside
  *  TRUMP_SET's own 1600 ms dwell, against the declarations' 4000 ms).
+ *  Trimmed down again 2026-09-20 (user request: text and suit picture were
+ *  too big) — suit icon 88 -> 52, headline "2xl" -> "lg", card maxW
+ *  340 -> 280px, padding 6/6 -> 5/4 (px/py) — still its own family with the
+ *  declarations card below, just a smaller instance of it.
  *  It cannot be dismissed by hand and eats no taps (`pointerEvents="none"`):
  *  it is gone before anybody could reach for it, and swallowing the tap that
  *  starts the next card would be worse than the beat itself.
@@ -113,9 +118,9 @@ export function TrumpFlash({ seats, seat, suit }: { seats: RoomState["seats"]; s
                     borderColor="brand.300"
                     rounded="l3"
                     w="100%"
-                    maxW="340px"
-                    px="6"
-                    py="6"
+                    maxW="280px"
+                    px="5"
+                    py="4"
                     role="status"
                     aria-live="polite"
                     boxShadow="0 18px 40px rgba(0,0,0,0.55)"
@@ -128,8 +133,8 @@ export function TrumpFlash({ seats, seat, suit }: { seats: RoomState["seats"]; s
                         },
                     }}
                 >
-                    <SuitIcon suit={suit} size={88} />
-                    <Text fontSize="2xl" fontWeight="bold" color={INK} lineHeight="1.15" textAlign="center">
+                    <SuitIcon suit={suit} size={52} />
+                    <Text fontSize="lg" fontWeight="bold" color={INK} lineHeight="1.15" textAlign="center">
                         {t("game.trump.calledBy", {
                             name: seatName(seats, seat, t("game.seat.empty")),
                             suit: t(`game.suit.${suit}`),
@@ -282,7 +287,6 @@ export default function DeclarationsReveal({
         ordinaryPoints[teamOf(seat)] += totalPoints(perSeat[seat] ?? [])
     }
     const points = declarationPoints ?? ordinaryPoints
-    const hasVisiblePoints = points.A > 0 || points.B > 0
     const teamRows = [
         {
             team: myTeam,
@@ -303,6 +307,31 @@ export default function DeclarationsReveal({
         belaDeclared !== null && trumpSuit !== null
             ? teamRows.find((row) => row.team === belaDeclared) ?? null
             : null
+    const nothingToShow = withDeclarations.length === 0 && belaDeclared === null
+
+    /* The two totals tiles double as tabs (2026-09-20, user request: "kad oba
+       para nešto imaju teško je vidjeti tko je što zvao" — clicking MI/ONI
+       should show only that team's rows). `seatRowsFor(team)` plus
+       `belaDeclared === team` answer "what does THIS team have", so both the
+       tabs' selected styling and the filtered rows below read off the same
+       source. Default selection is the
+       viewer's own team when it has anything (declarations, bela, or its own
+       lost declarations to report), else the other team, matching the user's
+       "if only one team has anything, select that one". It resets whenever
+       the actual content changes (new deal, new reveal) so a stale tab never
+       lingers into the next hand — the effect depends only on `defaultTeam`
+       itself, which is already a full function of that content. */
+    const seatRowsFor = (team: Team) => withDeclarations.filter((seat) => teamOf(seat) === team)
+    const myHasContent = seatRowsFor(myTeam).length > 0 || belaDeclared === myTeam
+    const theirHasContent = seatRowsFor(theirTeam).length > 0 || belaDeclared === theirTeam
+    const defaultTeam: Team =
+        myHasContent || ownLost > 0 ? myTeam : theirHasContent ? theirTeam : myTeam
+    const [selectedTeam, setSelectedTeam] = useState<Team>(defaultTeam)
+    useEffect(() => {
+        setSelectedTeam(defaultTeam)
+    }, [defaultTeam])
+    const selectedRows = seatRowsFor(selectedTeam)
+    const selectedBela = belaDeclared === selectedTeam
 
     return (
         <Portal>
@@ -360,145 +389,187 @@ export default function DeclarationsReveal({
                     {t("game.declarations.title")}
                 </Text>
 
-                {hasVisiblePoints && (
-                    <HStack gap="2" align="stretch">
-                        {teamRows.map(({ team, side, label }) => (
-                            <VStack
-                                key={team}
-                                flex="1"
-                                gap="0.5"
-                                align={side === "us" ? "start" : "end"}
-                                rounded="l2"
-                                px="2.5"
-                                py="2"
-                                bg="bg.subtle"
-                                borderTopWidth="2px"
-                                borderTopColor={TEAM[side]}
-                            >
-                                <Text
-                                    fontSize="2xs"
-                                    fontWeight="bold"
-                                    color={TEAM[side]}
-                                    textTransform="uppercase"
-                                    letterSpacing="wide"
-                                >
-                                    {label}
-                                </Text>
-                                <Text
-                                    fontSize="xl"
-                                    lineHeight="1"
-                                    fontWeight="black"
-                                    color={points[team] > 0 ? INK : INK_MUTED}
-                                    fontVariantNumeric="tabular-nums"
-                                >
-                                    {points[team] > 0 ? `+${points[team]}` : "—"}
-                                </Text>
-                                {belaDeclared === team && belaRow === null && (
-                                    <Text fontSize="2xs" fontWeight="bold" color={TEAM[side]}>
-                                        {t("game.declarations.bela")}
-                                    </Text>
-                                )}
-                            </VStack>
-                        ))}
-                    </HStack>
-                )}
-
-                {withDeclarations.length === 0 && belaDeclared === null ? (
+                {nothingToShow ? (
                     <Text fontSize="xs" color={INK_MUTED} textAlign="center" py="2">
                         {t("game.declarations.none")}
                     </Text>
                 ) : (
-                    withDeclarations.map((seat) => {
-                        const declarations = perSeat[seat] ?? []
-                        const points = totalPoints(declarations)
-
-                        return (
-                            <Box
-                                key={seat}
-                                rounded="l2"
-                                px="2"
-                                py="1.5"
-                                bg="bg.subtle"
-                                borderWidth="1px"
-                                borderColor="border"
-                            >
-                            <HStack justify="space-between" gap="2">
-                                <HStack gap="1.5" minW="0">
-                                    <Text fontSize="xs" fontWeight="bold" color={INK} lineClamp={1}>
-                                        {seatName(seats, seat, t("game.seat.empty"))}
-                                    </Text>
-                                    <Text
-                                        fontSize="xs"
-                                        fontWeight="black"
-                                        color="brand.fg"
-                                        fontVariantNumeric="tabular-nums"
-                                        flexShrink={0}
+                    <>
+                        {/* Real tabs now (2026-09-20, user request), not just a
+                            totals readout: selecting MI/ONI filters everything
+                            below to that team's rows, so a deal where both
+                            pairs have something no longer mixes them. */}
+                        <HStack role="tablist" aria-label={t("game.declarations.title")} gap="2" align="stretch">
+                            {teamRows.map(({ team, side, label }) => {
+                                const selected = selectedTeam === team
+                                return (
+                                    // `VStack as="button"` (project pattern — Chakra's
+                                    // polymorphic typing has no `type` prop) rather than a
+                                    // real <Button>: keeps the existing tile look intact.
+                                    <VStack
+                                        key={team}
+                                        as="button"
+                                        role="tab"
+                                        aria-selected={selected}
+                                        tabIndex={selected ? 0 : -1}
+                                        onClick={() => setSelectedTeam(team)}
+                                        onKeyDown={(event) => {
+                                            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+                                            event.preventDefault()
+                                            setSelectedTeam(otherTeam(team))
+                                        }}
+                                        flex="1"
+                                        gap="0.5"
+                                        align={side === "us" ? "start" : "end"}
+                                        rounded="l2"
+                                        px="2.5"
+                                        py="2"
+                                        bg="bg.subtle"
+                                        borderWidth={selected ? "2px" : "1px"}
+                                        borderColor={selected ? TEAM[side] : "border.subtle"}
+                                        borderTopWidth="2px"
+                                        borderTopColor={TEAM[side]}
+                                        opacity={selected ? 1 : 0.65}
+                                        cursor="pointer"
+                                        transition="opacity 120ms ease, border-color 120ms ease"
+                                        _focusVisible={{ outline: "2px solid", outlineColor: TEAM[side], outlineOffset: "2px" }}
                                     >
-                                        + {points}
-                                    </Text>
-                                </HStack>
-                            </HStack>
+                                        <Text
+                                            fontSize="2xs"
+                                            fontWeight="bold"
+                                            color={TEAM[side]}
+                                            textTransform="uppercase"
+                                            letterSpacing="wide"
+                                        >
+                                            {label}
+                                        </Text>
+                                        <Text
+                                            fontSize="xl"
+                                            lineHeight="1"
+                                            fontWeight="black"
+                                            color={points[team] > 0 ? INK : INK_MUTED}
+                                            fontVariantNumeric="tabular-nums"
+                                        >
+                                            {points[team] > 0 ? `+${points[team]}` : "—"}
+                                        </Text>
+                                    </VStack>
+                                )
+                            })}
+                        </HStack>
 
-                            {/* The cards are enough to explain the declaration;
-                                its combined value lives beside the player's
-                                name, where it is easier to scan. */}
-                            {declarations.map((declaration) => (
-                                <HStack key={declaration.cards.join("-")} gap="2" mt="1.5" wrap="wrap">
-                                    <HStack gap="0" flex="1" minW="0">
-                                        {declaration.cards.map((card, i) => (
-                                            <Box key={card} ml={i === 0 ? "0" : "-10px"}>
-                                                <PlayingCard card={card} size="sm" />
-                                            </Box>
+                        {/* The selected team's rows only — the scoring pair's
+                            declared cards, and/or its bela, whichever apply. */}
+                        {selectedRows.length === 0 && !selectedBela ? (
+                            <Text fontSize="xs" color={INK_MUTED} textAlign="center" py="2">
+                                {t("game.declarations.noneForTeam")}
+                            </Text>
+                        ) : (
+                            <>
+                                {selectedRows.map((seat) => {
+                                    const declarations = perSeat[seat] ?? []
+                                    const seatPoints = totalPoints(declarations)
+
+                                    return (
+                                        <Box
+                                            key={seat}
+                                            rounded="l2"
+                                            px="2"
+                                            py="1.5"
+                                            bg="bg.subtle"
+                                            borderWidth="1px"
+                                            borderColor="border"
+                                        >
+                                        <HStack justify="space-between" gap="2">
+                                            <HStack gap="1.5" minW="0">
+                                                <Text fontSize="xs" fontWeight="bold" color={INK} lineClamp={1}>
+                                                    {seatName(seats, seat, t("game.seat.empty"))}
+                                                </Text>
+                                                <Text
+                                                    fontSize="xs"
+                                                    fontWeight="black"
+                                                    color="brand.fg"
+                                                    fontVariantNumeric="tabular-nums"
+                                                    flexShrink={0}
+                                                >
+                                                    + {seatPoints}
+                                                </Text>
+                                            </HStack>
+                                        </HStack>
+
+                                        {/* The cards are enough to explain the declaration;
+                                            its combined value lives beside the player's
+                                            name, where it is easier to scan. */}
+                                        {declarations.map((declaration) => (
+                                            <HStack key={declaration.cards.join("-")} gap="2" mt="1.5" wrap="wrap">
+                                                <HStack gap="0" flex="1" minW="0">
+                                                    {declaration.cards.map((card, i) => (
+                                                        <Box key={card} ml={i === 0 ? "0" : "-10px"}>
+                                                            <PlayingCard card={card} size="sm" />
+                                                        </Box>
+                                                    ))}
+                                                </HStack>
+                                            </HStack>
                                         ))}
-                                    </HStack>
-                                </HStack>
-                            ))}
-                            </Box>
-                        )
-                    })
-                )}
+                                        </Box>
+                                    )
+                                })}
 
-                {belaRow && trumpSuit !== null && (
-                    <Box
-                        rounded="l2"
-                        px="2"
-                        py="1.5"
-                        bg="bg.subtle"
-                        borderWidth="1px"
-                        borderColor="border"
-                    >
-                        <HStack justify="space-between" gap="2">
-                            <Text fontSize="xs" fontWeight="bold" color={INK} lineClamp={1}>
-                                {t("game.declarations.bela")}
-                            </Text>
-                            <Text
-                                fontSize="2xs"
-                                fontWeight="bold"
-                                color={TEAM[belaRow.side]}
-                                textTransform="uppercase"
-                                letterSpacing="wide"
-                                flexShrink={0}
-                            >
-                                {belaRow.label}
-                            </Text>
-                        </HStack>
-                        <HStack gap="0" mt="1.5">
-                            {[makeCard("K", trumpSuit), makeCard("Q", trumpSuit)].map((card, i) => (
-                                <Box key={card} ml={i === 0 ? "0" : "-10px"}>
-                                    <PlayingCard card={card} size="sm" />
-                                </Box>
-                            ))}
-                        </HStack>
-                    </Box>
-                )}
+                                {selectedBela && (
+                                    belaRow && trumpSuit !== null ? (
+                                        <Box
+                                            rounded="l2"
+                                            px="2"
+                                            py="1.5"
+                                            bg="bg.subtle"
+                                            borderWidth="1px"
+                                            borderColor="border"
+                                        >
+                                            <HStack justify="space-between" gap="2">
+                                                <Text fontSize="xs" fontWeight="bold" color={INK} lineClamp={1}>
+                                                    {t("game.declarations.bela")}
+                                                </Text>
+                                                <Text
+                                                    fontSize="2xs"
+                                                    fontWeight="bold"
+                                                    color={TEAM[belaRow.side]}
+                                                    textTransform="uppercase"
+                                                    letterSpacing="wide"
+                                                    flexShrink={0}
+                                                >
+                                                    {belaRow.label}
+                                                </Text>
+                                            </HStack>
+                                            <HStack gap="0" mt="1.5">
+                                                {[makeCard("K", trumpSuit), makeCard("Q", trumpSuit)].map((card, i) => (
+                                                    <Box key={card} ml={i === 0 ? "0" : "-10px"}>
+                                                        <PlayingCard card={card} size="sm" />
+                                                    </Box>
+                                                ))}
+                                            </HStack>
+                                        </Box>
+                                    ) : (
+                                        // Bela was announced but trump has not
+                                        // propagated to this snapshot yet — see
+                                        // `trumpSuit` doc above; a plain line
+                                        // beats a missing block.
+                                        <Text fontSize="2xs" fontWeight="bold" color={INK_MUTED} textAlign="center">
+                                            {t("game.declarations.bela")}
+                                        </Text>
+                                    )
+                                )}
+                            </>
+                        )}
 
-                {/* Our own declarations lost. One line, no cards: the viewer
-                    already holds these eight cards, but there is nothing to
-                    show off and nothing anyone else may see. */}
-                {ownLost > 0 && (
-                    <Text fontSize="2xs" color={INK_MUTED} textAlign="center">
-                        {t("game.declarations.oursLost", { points: ownLost })}
-                    </Text>
+                        {/* Our own declarations lost. One line, no cards: the
+                            viewer already holds these eight cards, but there is
+                            nothing to show off and nothing anyone else may see.
+                            Lives under the viewer's own team tab. */}
+                        {selectedTeam === myTeam && ownLost > 0 && (
+                            <Text fontSize="2xs" color={INK_MUTED} textAlign="center">
+                                {t("game.declarations.oursLost", { points: ownLost })}
+                            </Text>
+                        )}
+                    </>
                 )}
 
             </VStack>

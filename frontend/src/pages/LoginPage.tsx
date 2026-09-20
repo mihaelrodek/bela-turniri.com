@@ -8,6 +8,7 @@ import {
     Heading,
     HStack,
     Input,
+    Stack,
     Text,
     VStack,
 } from "@chakra-ui/react"
@@ -197,7 +198,16 @@ export default function LoginPage() {
                             </VStack>
                         </form>
 
-                        <HStack justify="space-between" wrap="wrap" gap="2">
+                        {/* Stacked and centred on a phone (2026-09-20, user
+                            request): the two links used to share one wrapped
+                            row and sat ragged against opposite edges. From
+                            `sm` up they are the same left/right pair. */}
+                        <Stack
+                            direction={{ base: "column", sm: "row" }}
+                            justify={{ base: "center", sm: "space-between" }}
+                            align="center"
+                            gap="2"
+                        >
                             <Button
                                 type="button"
                                 variant="ghost"
@@ -206,13 +216,13 @@ export default function LoginPage() {
                             >
                                 {t("forms.login.forgotPassword")}
                             </Button>
-                            <Text fontSize="sm" color="fg.muted">
+                            <Text fontSize="sm" color="fg.muted" textAlign="center">
                                 {t("forms.login.noAccount")}{" "}
                                 <Box as="span" color="blue.fg" fontWeight="medium">
                                     <RouterLink to="/registracija">{t("forms.login.registerLink")}</RouterLink>
                                 </Box>
                             </Text>
-                        </HStack>
+                        </Stack>
                     </VStack>
                 </Card.Body>
             </Card.Root>

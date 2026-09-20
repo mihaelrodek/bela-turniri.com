@@ -335,7 +335,7 @@ describe("chat.react", () => {
         expect(err.code).toBe("RATE_LIMITED")
     })
 
-    it("reports the sender's seat as null when spectating", async () => {
+    it("refuses a reaction from a spectator (2026-09-20)", async () => {
         server = await startTestServer()
         const host = await connect("Domacin")
         // A real spectator needs both halves: no seat left to auto-take, and a
@@ -348,9 +348,11 @@ describe("chat.react", () => {
         guest.send({ t: "room.join", roomId: joined.room.id })
         expect((await guest.nextOfType("room.joined")).yourSeat).toBeNull()
 
+        // Spectators watch; they do not react. Enforced on the server, so a
+        // client that still draws the bar cannot talk over the table.
         guest.send({ t: "chat.react", reaction: "🤝" })
-        const reaction = await host.nextOfType("chat.reaction")
-        expect(reaction.seat).toBeNull()
+        const err = await guest.nextOfType("error")
+        expect(err.code).toBe("BAD_REQUEST")
     })
 })
 

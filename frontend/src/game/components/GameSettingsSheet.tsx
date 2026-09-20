@@ -293,11 +293,9 @@ export default function GameSettingsSheet({ open, onClose, room, isHost = false,
                                     do it (Screen Wake Lock: Chrome/Edge, and
                                     Safari from iOS 16.4) — a switch that
                                     silently does nothing is worse than no
-                                    switch. The hint says what it does NOT do:
-                                    the screen still dims, it just will not
-                                    lock. */}
+                                    switch. */}
                                 {keepAwakeSupported() && (
-                                    <GameOption label={t("game.settings.keepAwake")} hint={t("game.settings.keepAwakeHint")}
+                                    <GameOption label={t("game.settings.keepAwake")}
                                         checked={prefs.keepAwake} onChange={(keepAwake) => setPrefs({ keepAwake })} />
                                 )}
                                 <Text fontSize="sm" fontWeight="semibold" mt="3">{t("game.settings.deckType")}</Text>

@@ -1,4 +1,6 @@
 import { Box, HStack, SimpleGrid, Text, VStack } from "@chakra-ui/react"
+import { FiShield } from "react-icons/fi"
+import { KARMA_MAX } from "@bela/protocol"
 import type { GameStatRecord, PlayerGameStats } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import { STAT_TARGET_SCORES, overallRecord, targetRecord, winPercent, type StatTargetScore } from "../util/gameStats"
@@ -29,6 +31,33 @@ export function SeatStatPill({ stats }: { stats: PlayerGameStats }) {
         <Box px="2" py="0.5" rounded="full" bg="bg.panel" color="fg.muted" borderWidth="1px" borderColor="border.emphasized"
             fontSize="2xs" lineHeight="shorter" fontVariantNumeric="tabular-nums" whiteSpace="nowrap" flexShrink={0}>
             <StatChip record={overallRecord(stats)} />
+        </Box>
+    )
+}
+
+/** A player's reliability, as a "9/10" chip next to their seat (2026-09-20,
+ *  user request: karma has to be readable at the moment you sit down with
+ *  someone, not only in your own profile). Renders nothing when the server
+ *  sent no karma — bots, dev users and guests with no profile row — because
+ *  a default "10/10" on a seat that has no record would be a claim the
+ *  server never made. Full karma is muted; anything below it is warned in
+ *  orange, which is the only state worth a glance. */
+export function SeatKarmaPill({ karma }: { karma: number | null | undefined }) {
+    const { t } = useTranslation()
+    if (typeof karma !== "number" || !Number.isFinite(karma)) return null
+    const value = Math.max(0, Math.min(KARMA_MAX, Math.round(karma)))
+    const low = value < KARMA_MAX
+    return (
+        <Box px="2" py="0.5" rounded="full" bg={low ? "orange.subtle" : "bg.panel"}
+            color={low ? "orange.fg" : "fg.muted"} borderWidth="1px"
+            borderColor={low ? "orange.emphasized" : "border.emphasized"}
+            fontSize="2xs" lineHeight="shorter" fontVariantNumeric="tabular-nums" whiteSpace="nowrap" flexShrink={0}
+            title={t("game.room.karmaTitle", { value, max: KARMA_MAX })}
+            aria-label={t("game.room.karma", { value, max: KARMA_MAX })}>
+            <HStack gap="1" align="center">
+                <FiShield size={10} aria-hidden />
+                <span>{value}/{KARMA_MAX}</span>
+            </HStack>
         </Box>
     )
 }

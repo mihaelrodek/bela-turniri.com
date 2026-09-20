@@ -86,17 +86,26 @@ public class UserProfile {
     private String locale;
 
     /**
-     * Reliability score for online Bela. It starts at 100, loses points only
-     * after a confirmed mid-game abandonment, and recovers through completed
-     * games. The event ledger is the audit source; these two columns are the
-     * fast, per-user values used by the game server.
+     * Reliability score for online Bela, on a 0..10 scale. It starts at 10,
+     * loses one point per confirmed mid-game abandonment, and recovers one
+     * point per three completed games. The event ledger is the audit source;
+     * these columns are the fast, per-user values used by the game server.
      */
     @Column(name = "game_karma", nullable = false)
-    private int gameKarma = 100;
+    private int gameKarma = 10;
 
     /** Number of confirmed mid-game abandonments, never reset automatically. */
     @Column(name = "game_abandons", nullable = false)
     private long gameAbandons = 0;
+
+    /**
+     * Finished online games counted since the last karma point was earned
+     * back (0..2). Persisted rather than derived so the recovery rule
+     * survives a restart and never has to re-read the whole result history;
+     * held at 0 while karma is full.
+     */
+    @Column(name = "game_completed_since_recovery", nullable = false)
+    private int gameCompletedSinceRecovery = 0;
 
     /**
      * When this account was deleted by its owner, or null for a live account.

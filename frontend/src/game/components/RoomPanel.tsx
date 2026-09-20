@@ -9,7 +9,7 @@ import { botAvatarPreset } from "../util/botAvatar"
 import { TEAM } from "./tableStyles"
 import PlayerAvatar from "./PlayerAvatar"
 import GameOption from "./GameOption"
-import { SeatStatPill } from "./GameStatsPills"
+import { SeatKarmaPill, SeatStatPill } from "./GameStatsPills"
 
 export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit, onAddBot,
     onRemoveBot, onReady, onStart, onLeave, onPrivacyChange, onSettings }: {
@@ -205,15 +205,16 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                                             {/* Bots already say "Bot" in their name (e.g. "Bot Mate") — a
                                                 repeated subtitle just burns a line; only players need a
                                                 connection/ready subtitle. */}
-                                            {occupant?.kind === "PLAYER" && <Text fontSize="xs" color={occupant.ready ? "brand.500" : "fg.muted"}>
+                                            {occupant?.kind === "PLAYER" && <Text fontSize="xs" color={!occupant.connected ? "fg.muted" : occupant.ready ? "brand.500" : "red.500"}>
                                                 {occupant.connected ? (occupant.ready ? t("game.room.ready") : t("game.room.waitingReady")) : t("game.seat.disconnected")}
                                             </Text>}
                                         </VStack>
                                     </HStack>
-                                    {occupant?.kind === "PLAYER" && occupant.user.gameStats && (
-                                        <Box ms="auto" flexShrink={0}>
-                                            <SeatStatPill stats={occupant.user.gameStats} />
-                                        </Box>
+                                    {occupant?.kind === "PLAYER" && (occupant.user.gameStats || occupant.user.karma != null) && (
+                                        <HStack ms="auto" flexShrink={0} gap="1" justify="end" wrap="wrap">
+                                            {occupant.user.gameStats && <SeatStatPill stats={occupant.user.gameStats} />}
+                                            <SeatKarmaPill karma={occupant.user.karma} />
+                                        </HStack>
                                     )}
                                     <HStack justify="end" gap="2">
                                         {!occupant && mySeat === null && onSit && (

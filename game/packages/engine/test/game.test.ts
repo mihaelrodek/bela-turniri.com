@@ -10,6 +10,7 @@ import {
     legalMoves,
     newGame,
     nextSeat,
+    provisionalDealPoints,
     reduce,
     sortHand,
     teamOf,
@@ -983,10 +984,22 @@ describe("dosta ends the game mid-deal (README §1.7)", () => {
             leader: 0,
             hands: { 0: ["KHERC", "QHERC", "7PIK"], 1: ["7KARA"], 2: ["7TREF"], 3: ["9KARA"] },
         })
-        const start: GameState = {
+        const unconfirmed: GameState = {
             ...base,
             config: { ...base.config, targetScore: DOSTA_TARGET, gameEndRule: "dosta", seed: "bela-dosta" },
             score: { A: DOSTA_TARGET - 20, B: 0 },
+        }
+        // A bela is a declaration, and declarations need a trick behind them
+        // (README §1.6, 2026-09-20): with none taken yet the 20 are announced
+        // but not provable, and the race goes on.
+        const tooEarly = reduce(unconfirmed, { type: "PLAY", seat: 0, card: "KHERC" })
+        expect(tooEarly.state.belaDeclared).toBe("A")
+        expect(tooEarly.state.phase).toBe("PLAYING")
+
+        // One trick — worth 0 — is all the confirmation it takes.
+        const start: GameState = {
+            ...unconfirmed,
+            tricksWon: { A: [won(1, 0, ["8KARA", "8PIK", "8TREF", "9PIK"])], B: [] },
         }
 
         const step = reduce(start, { type: "PLAY", seat: 0, card: "KHERC" })
@@ -1066,28 +1079,21 @@ describe("dosta and the declarations (README §1.4, §1.7)", () => {
         })
     }
 
-    it("lets a pair go out on declarations alone, before a card is led", () => {
-        // 301 + 200 = 501. Nothing in §1.6 makes a declaration wait for a
-        // trick — the defended declarations are paid whatever the tricks say —
-        // so the race counts them from the moment they are settled, which is
-        // this one.
+    it("does NOT let a pair go out on declarations before it has taken a trick", () => {
+        // 301 + 200 = 501, but declarations have to be CONFIRMED by a trick
+        // (README §1.6, 2026-09-20): until team A takes one, its 200 are
+        // declared, not provable, and the race does not count them. This test
+        // used to assert the opposite — the game ending right here — which
+        // was the rule before the confirmation requirement existed.
         const step = reduce(beforeBid({ A: 301, B: 0 }, "dosta"), { type: "BID", seat: 0, trump: "HERC" })
 
         expect(step.state.declarationsScoringTeam).toBe("A")
         expect(declarationPoints(step.state)).toEqual({ A: 200, B: 0 })
-        expect(step.state.phase).toBe("GAME_OVER")
-        expect(step.state.winner).toBe("A")
-        expect(step.state.score).toEqual({ A: DOSTA_TARGET, B: 0 })
-        expect(step.state.dealScore).toBeNull()
-        expect(step.state.history).toHaveLength(0)
-        // The declarations are shown, and then the game is over.
-        expect(step.events.map((e) => e.type)).toEqual([
-            "BID",
-            "TRUMP_SET",
-            "HAND_COMPLETED",
-            "DECLARATIONS_REVEALED",
-            "GAME_OVER",
-        ])
+        expect(provisionalDealPoints(step.state)).toEqual({ A: 0, B: 0 })
+        expect(step.state.phase).toBe("PLAYING")
+        expect(step.state.winner).toBeNull()
+        expect(step.state.score).toEqual({ A: 301, B: 0 })
+        expect(step.events.some((e) => e.type === "GAME_OVER")).toBe(false)
     })
 
     it("leaves the same bid alone under prolaz", () => {

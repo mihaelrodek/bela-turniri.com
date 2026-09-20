@@ -268,6 +268,7 @@ export const profile = {
     "gameStats.losses.other": "{n} poraza",
     "gameStats.winRate": "Postotak pobjeda",
     "gameStats.karma": "Karma",
+    "gameStats.karmaHint": "Svi kreću s {max}/{max}. Napuštena partija je −1, tri odigrane vraćaju +1.",
     "gameStats.abandons": "Napuštanja",
     "gameStats.categoryStats": "{wins}/{n} ({winRate}%)",
     "gameStats.targetScore.163": "Brza 163",

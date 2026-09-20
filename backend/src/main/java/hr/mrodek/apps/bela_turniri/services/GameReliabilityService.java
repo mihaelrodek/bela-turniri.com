@@ -11,25 +11,37 @@ import jakarta.inject.Inject;
 import java.time.OffsetDateTime;
 
 /**
- * Persistent reliability rules for online Bela.
+ * Persistent reliability rules for online Bela ("karma").
+ *
+ * <p>Deliberately a tiny, human-sized scale: everyone starts at
+ * {@code 10/10}, abandoning a running game costs exactly one point (floor 0)
+ * and every {@link #GAMES_PER_RECOVERY} finished games give one point back
+ * (cap 10). A player can therefore say what their number means without
+ * reading anything.
  *
  * <p>The game process only reports a leave after its reconnect grace expires.
- * A unique event id makes a retry harmless. A completed game may later call
- * {@link #recordCompleted(String)}; keeping that update here gives the score
- * one owner and prevents UI/server rules from drifting.
+ * A unique event id makes a retry harmless. A completed game calls
+ * {@link #recordCompleted(String)} from {@code GameStatsService}; keeping
+ * both updates here gives the score one owner and prevents UI/server rules
+ * from drifting.
  */
 @ApplicationScoped
 public class GameReliabilityService {
-    public static final int DEFAULT_KARMA = 100;
-    public static final int ABANDON_PENALTY = 15;
-    public static final int COMPLETION_RECOVERY = 3;
+    /** Full karma, and the value a brand-new player starts with. */
+    public static final int MAX_KARMA = 10;
+    /** Kept as the "starting value" name used by callers and tests. */
+    public static final int DEFAULT_KARMA = MAX_KARMA;
+    /** One abandoned game = one point. */
+    public static final int ABANDON_PENALTY = 1;
+    /** Finished games needed to earn a single point back. */
+    public static final int GAMES_PER_RECOVERY = 3;
 
     @Inject UserProfileRepository profiles;
     @Inject GameReliabilityEventRepository events;
 
     public GameReliabilityDto forUser(String uid) {
         return profiles.findByUid(uid)
-                .map(p -> new GameReliabilityDto(p.getGameKarma(), p.getGameAbandons()))
+                .map(p -> new GameReliabilityDto(p.getGameKarma(), p.getGameAbandons(), MAX_KARMA))
                 .orElse(GameReliabilityDto.DEFAULT);
     }
 
@@ -52,10 +64,28 @@ public class GameReliabilityService {
         return true;
     }
 
-    /** Small recovery after a completed eligible game; never exceeds 100. */
+    /**
+     * Count one finished, eligible game towards recovery.
+     *
+     * <p>Every {@link #GAMES_PER_RECOVERY}rd finished game returns one point.
+     * The progress counter lives on the profile, so it survives restarts, and
+     * it is held at zero while karma is full: a player at 10/10 is not
+     * banking credit against a future abandonment.
+     */
     public void recordCompleted(String uid) {
         if (uid == null || uid.isBlank()) return;
-        profiles.findByUid(uid).ifPresent(profile ->
-                profile.setGameKarma(Math.min(DEFAULT_KARMA, profile.getGameKarma() + COMPLETION_RECOVERY)));
+        profiles.findByUid(uid).ifPresent(profile -> {
+            if (profile.getGameKarma() >= MAX_KARMA) {
+                profile.setGameKarma(MAX_KARMA);
+                profile.setGameCompletedSinceRecovery(0);
+                return;
+            }
+            int progress = profile.getGameCompletedSinceRecovery() + 1;
+            if (progress >= GAMES_PER_RECOVERY) {
+                progress = 0;
+                profile.setGameKarma(Math.min(MAX_KARMA, profile.getGameKarma() + 1));
+            }
+            profile.setGameCompletedSinceRecovery(progress);
+        });
     }
 }

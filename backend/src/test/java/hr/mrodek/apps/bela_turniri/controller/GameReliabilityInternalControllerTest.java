@@ -48,6 +48,30 @@ class GameReliabilityInternalControllerTest {
         assertEquals(GameReliabilityService.DEFAULT_KARMA - GameReliabilityService.ABANDON_PENALTY, value.karma());
     }
 
+    /**
+     * The 0..10 rule: one abandoned game costs a point, and it takes exactly
+     * {@code GAMES_PER_RECOVERY} finished games to earn that point back — the
+     * intermediate finished games must NOT move the number.
+     */
+    @Test
+    void threeCompletedGamesGiveOnePointBack() {
+        post("{\"eventId\":\"" + UUID.randomUUID() + "\",\"userUid\":\"" + uid
+                + "\",\"eventType\":\"ABANDONED\"}").statusCode(200);
+        assertEquals(GameReliabilityService.MAX_KARMA - 1, reliability.forUser(uid).karma());
+
+        for (int i = 0; i < GameReliabilityService.GAMES_PER_RECOVERY - 1; i++) {
+            QuarkusTransaction.requiringNew().run(() -> reliability.recordCompleted(uid));
+            assertEquals(GameReliabilityService.MAX_KARMA - 1, reliability.forUser(uid).karma());
+        }
+        QuarkusTransaction.requiringNew().run(() -> reliability.recordCompleted(uid));
+        assertEquals(GameReliabilityService.MAX_KARMA, reliability.forUser(uid).karma());
+
+        // Already full: further finished games bank nothing.
+        QuarkusTransaction.requiringNew().run(() -> reliability.recordCompleted(uid));
+        assertEquals(GameReliabilityService.MAX_KARMA, reliability.forUser(uid).karma());
+        assertEquals(GameReliabilityService.MAX_KARMA, reliability.forUser(uid).maxKarma());
+    }
+
     private io.restassured.response.ValidatableResponse post(String body) {
         return given().contentType(ContentType.JSON)
                 .header("X-Internal-Token", TOKEN)

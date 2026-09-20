@@ -95,10 +95,21 @@ export function GameStatsCard() {
                     <GlobalStatsRow stats={stats.global} plural={plural} t={t} />
 
                     {reliability && (
-                        <HStack gap="4" wrap="wrap">
-                            <StatTile label={t("profile.gameStats.karma")} value={`${reliability.karma}/100`} accent="green" />
-                            <StatTile label={t("profile.gameStats.abandons")} value={reliability.abandons} />
-                        </HStack>
+                        <VStack align="stretch" gap="1">
+                            <HStack gap="4" wrap="wrap">
+                                <StatTile
+                                    label={t("profile.gameStats.karma")}
+                                    value={`${reliability.karma}/${reliability.maxKarma}`}
+                                    accent={reliability.karma < reliability.maxKarma ? "orange" : "teal"}
+                                />
+                                <StatTile label={t("profile.gameStats.abandons")} value={reliability.abandons} />
+                            </HStack>
+                            {/* The rule in one line: a number nobody can explain
+                                is the reason this was reworked (2026-09-20). */}
+                            <Text fontSize="xs" color="fg.muted">
+                                {t("profile.gameStats.karmaHint", { max: reliability.maxKarma })}
+                            </Text>
+                        </VStack>
                     )}
 
                     {/* Per-category breakdown — only if categories exist */}

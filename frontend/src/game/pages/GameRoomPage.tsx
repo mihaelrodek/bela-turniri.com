@@ -47,6 +47,7 @@ import { occupantName, otherTeam, teamOf } from "../util/seats"
 import { playHaptic } from "../util/haptics"
 import { installAudioUnlock, playSound, primeAudio } from "../util/sounds"
 import { useKeepAwake } from "../hooks/useKeepAwake"
+import { useTableScale } from "../hooks/useTableScale"
 
 /* ──────────────────────────────────────────────────────────────────────────
    GameRoomPage (/igra/soba/:roomId) — the room, and then the table.
@@ -498,6 +499,10 @@ export default function GameRoomPage() {
        the Wake Lock API simply gets nothing (see `useKeepAwake`). */
     useKeepAwake(phase !== null && phase !== "GAME_OVER")
 
+    /* Hand and trick sizes on a phone come from the room's measured box, not
+       from breakpoints (2026-09-20) — see `useTableScale`. */
+    const tableScale = useTableScale(socket.yourSeat !== null)
+
     /* ── "Propustio si potez" (2026-09-20, user request) ──────────────────
        When a human's 15 s turn clock expires the server's bot plays exactly
        ONE move for that seat and the `game.state` of that transition carries
@@ -781,7 +786,7 @@ export default function GameRoomPage() {
     // From 48em the hand is one row and my avatar docks right against its
     // left edge (2026-09-20, user request) instead of at a fixed inset from
     // the column's edge, which on a wide column left it stranded.
-    const handRow = handRowWidth(useBreakpointValue(HAND_CARD_SIZE) ?? "xs")
+    const handRow = handRowWidth(useBreakpointValue(HAND_CARD_SIZE) ?? "sm")
     const turnTimeoutMs = room?.turnTimeoutMs ?? 0
     useEffect(() => {
         if (mySeat === null || turn !== mySeat || turnDeadline === null || turnTimeoutMs <= 0) return
@@ -964,6 +969,8 @@ export default function GameRoomPage() {
 
     return (
         <Flex
+            ref={tableScale.ref}
+            style={tableScale.style}
             className="fold-game-board"
             direction="column"
             position="relative"
@@ -1108,6 +1115,15 @@ export default function GameRoomPage() {
                                         chips={
                                             <>
                                                 {mySeat === null && <StatusChip>{t("game.table.spectating")}</StatusChip>}
+                                                {/* How many people are watching this game
+                                                    (2026-09-20, user request). Only in a room
+                                                    that allows spectators — otherwise the
+                                                    number is always 0 and says nothing. */}
+                                                {room.allowSpectators && (
+                                                    <StatusChip>
+                                                        {t("game.table.spectatorCount", { count: room.spectators.length })}
+                                                    </StatusChip>
+                                                )}
                                                 {socket.status !== "open" && (
                                                     <StatusChip tone="warn">{slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}</StatusChip>
                                                 )}
@@ -1295,7 +1311,7 @@ export default function GameRoomPage() {
                             <Box visibility={declarationsVisible || !turnShown ? "hidden" : undefined}>
                                 <TurnPill tone={tone} label={turnLabel} />
                             </Box>
-                            {view?.phase !== "BIDDING" && (
+                            {view?.phase !== "BIDDING" && mySeat !== null && (
                                 <Box display="none" css={{ [SHORT]: { display: "block" } }}>
                                     <ReactionsBar
                                         disabled={socket.status !== "open"}
@@ -1359,7 +1375,11 @@ export default function GameRoomPage() {
                                 <Box
                                     position="absolute"
                                     {...(handRow === null
-                                        ? { insetStart: "5" }
+                                        // 12 px on a phone (was 20): the hand is
+                                        // centred on the page again and needs the
+                                        // 8 px (2026-09-20). Still clears the
+                                        // caller medallion's ~9 px overhang.
+                                        ? { insetStart: "3" }
                                         : { right: `calc(50% + ${handRow / 2 + 10}px)` })}
                                     // Align my seat with the first card's top
                                     // edge. Its reaction bubble grows upward,
@@ -1439,7 +1459,7 @@ export default function GameRoomPage() {
                                         socket.send({ t: "game.pass" })
                                     }}
                                 />
-                            ) : (
+                            ) : mySeat === null ? null : (
                                 <Box css={{ [SHORT]: { display: "none" } }}>
                                     <ReactionsBar
                                         disabled={socket.status !== "open"}

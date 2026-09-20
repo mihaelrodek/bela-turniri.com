@@ -95,6 +95,7 @@ export function withAppProfile(
         gameName?: string | null
         avatarPreset?: string | null
         gameStats?: UserInfo["gameStats"]
+        karma?: UserInfo["karma"]
     } | null,
 ): UserInfo {
     if (!profile) return user
@@ -110,6 +111,9 @@ export function withAppProfile(
             ? { avatarPreset: profile.avatarPreset ?? user.avatarPreset }
             : {}),
         ...(profile.gameStats ? { gameStats: profile.gameStats } : {}),
+        // Same "omit rather than send null" rule as `avatarPreset`: every seat
+        // frame carries this, and a client that gets no karma shows no chip.
+        ...(typeof profile.karma === "number" ? { karma: profile.karma } : {}),
         // The IN-GAME name wins over the account name, which wins over the
         // token's (2026-09-09). A player who typed a name for the card table
         // meant it for the card table; the account name is what the rest of

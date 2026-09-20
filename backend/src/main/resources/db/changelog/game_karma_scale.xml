@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+    <!--
+      Karma moves from an opaque 0..100 score to a human-sized 0..10 one:
+      everyone starts at 10, an abandoned game costs 1, three finished games
+      give 1 back. Existing values are rescaled with CEIL(old/10) so nobody
+      loses a point to rounding (100 -> 10, 85 -> 9, 15 -> 2, 1 -> 1) and the
+      result is clamped into 0..10 for safety.
+    -->
+    <changeSet id="2026-09-20-game-karma-scale" author="mrodek">
+        <addColumn tableName="user_profiles">
+            <column name="game_completed_since_recovery" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <sql>UPDATE user_profiles SET game_karma = LEAST(10, GREATEST(0, CEIL(game_karma::numeric / 10)))</sql>
+
+        <dropDefaultValue tableName="user_profiles" columnName="game_karma"/>
+        <addDefaultValue tableName="user_profiles" columnName="game_karma" defaultValueNumeric="10"/>
+
+        <sql>ALTER TABLE user_profiles ADD CONSTRAINT ck_user_profiles_game_karma CHECK (game_karma BETWEEN 0 AND 10)</sql>
+        <rollback>
+            <sql>ALTER TABLE user_profiles DROP CONSTRAINT IF EXISTS ck_user_profiles_game_karma</sql>
+            <sql>UPDATE user_profiles SET game_karma = game_karma * 10</sql>
+            <dropDefaultValue tableName="user_profiles" columnName="game_karma"/>
+            <addDefaultValue tableName="user_profiles" columnName="game_karma" defaultValueNumeric="100"/>
+            <dropColumn tableName="user_profiles" columnName="game_completed_since_recovery"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>
