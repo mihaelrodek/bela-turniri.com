@@ -116,40 +116,47 @@ export default function ScoreBoard({
             position="relative"
             zIndex={10}
             px="3"
-            pt="1"
-            pb="1.5"
-            css={{ [SHORT]: { paddingTop: "4px", paddingBottom: "4px" } }}
+            // Trimmed on a phone (2026-09-20): the panel was ~135 px of a
+            // 796 px column, and every pixel it gives back is a pixel of
+            // felt. Only padding and gaps went — the type is untouched.
+            pt={{ base: "0.5", md: "1" }}
+            pb={{ base: "0.5", md: "1.5" }}
+            css={{ [SHORT]: { paddingTop: "2px", paddingBottom: "2px" } }}
         >
+            {/* Moved off the "ONI" progress bar (2026-09-20, user request):
+                it used to sit `insetEnd`/`bottom` of the score Flex below,
+                level with "Zvanja", which on md+ put it tiny and half-hidden
+                at the right end of the away team's progress line, overlapping
+                the bar. It now mirrors the settings gear's own corner
+                (`TableHeader.tsx`, `insetEnd="0" top="0"`, 32px hit target)
+                on the OPPOSITE side of the same header row — a corner that
+                row leaves empty otherwise — instead of sharing a row with
+                anything that moves or means something else. Absolutely
+                positioned against this Box exactly like the gear is against
+                its own row, so it costs no height: the collapsed panel is
+                exactly as tall on a phone as it was before this moved, and
+                the table below (tuned to that height) does not shift. */}
+            {hasHistory && (
+                <IconButton
+                    position="absolute"
+                    insetStart="0"
+                    top="0"
+                    size="xs"
+                    minW="32px"
+                    minH="32px"
+                    variant="ghost"
+                    color={INK_MUTED}
+                    _hover={{ bg: "bg.muted" }}
+                    aria-label={t("game.score.historyTitle")}
+                    title={t("game.score.historyTitle")}
+                    aria-expanded={open}
+                    onClick={() => setOpen((v) => !v)}
+                >
+                    {open ? <FiChevronUp /> : <FiChevronDown />}
+                </IconButton>
+            )}
             {header}
             <Flex position="relative" align="stretch" justify="space-between" gap={{ base: "1.5", md: "2" }}>
-                {/* Purely right, under the settings gear, level with "Zvanja"
-                    (2026-09-18, user request — moved off the Zvanja row
-                    itself). `insetEnd="0"` matches the gear's own inset
-                    (TableHeader.tsx) since neither this Flex nor the header
-                    above it adds any extra margin from the panel's own
-                    padding edge; `bottom="0"` rides the bottom of whichever
-                    column is tallest, which is this middle one whenever it
-                    carries a rule chip or is simply not shorter than a team
-                    card — i.e. lines up with the LAST thing in the middle
-                    column, "Zvanja", in every state this panel renders. */}
-                {hasHistory && (
-                    <IconButton
-                        position="absolute"
-                        insetEnd="0"
-                        bottom="0"
-                        size="2xs"
-                        variant="plain"
-                        color={INK_MUTED}
-                        minW="20px"
-                        h="20px"
-                        aria-label={t("game.score.historyTitle")}
-                        aria-expanded={open}
-                        onClick={() => setOpen((v) => !v)}
-                    >
-                        {open ? <FiChevronUp /> : <FiChevronDown />}
-                    </IconButton>
-                )}
-
                 <TeamCard
                     label={usLabel}
                     team="us"
@@ -165,7 +172,7 @@ export default function ScoreBoard({
                     align="start"
                 />
 
-                <VStack gap="0.5" align="center" flexShrink={0}>
+                <VStack gap={{ base: "0", md: "0.5" }} align="center" flexShrink={0}>
                     {(noDeclarations || !allowBela) && (
                         <HStack gap="1" role="group" aria-label={t("game.rules.title")}>
                             {noDeclarations && <RuleChip>{t("game.rules.noDeclarations")}</RuleChip>}
@@ -321,8 +328,8 @@ function TeamCard({
             minW="0"
             flex="1"
             px={{ base: "1.5", md: "2" }}
-            pt="0.5"
-            pb="1"
+            pt="0"
+            pb={{ base: "0", md: "1" }}
             rounded="l2"
             bg="transparent"
             borderWidth="1px"
@@ -343,41 +350,39 @@ function TeamCard({
                 is a phone in portrait and there is no row to spare (DESIGN §4.6).
                 It sits INBOARD (right of the left column, left of the right
                 one) so the two big numbers keep the outer edges. */}
-            <HStack
-                position="relative"
-                gap="1"
-                align="baseline"
-                justify="center"
-                w="100%"
-            >
-                <Text
-                    fontSize={{ base: "2xl", md: "4xl" }}
-                    lineHeight="1.05"
-                    fontWeight="bold"
-                    color={INK}
-                    fontVariantNumeric="tabular-nums"
-                    css={{ [SHORT]: { fontSize: "22px" } }}
-                >
-                    {dealPoints}
-                </Text>
-                {declarationPoints > 0 && (
+            <Flex justify="center" w="100%">
+                <Box position="relative" display="inline-flex" alignItems="baseline">
                     <Text
-                        position="absolute"
-                        top="50%"
-                        transform="translateY(-50%)"
-                        {...(align === "end" ? { right: "calc(50% + 28px)" } : { left: "calc(50% + 28px)" })}
-                        fontSize="xs"
+                        fontSize={{ base: "2xl", md: "4xl" }}
+                        lineHeight="1.05"
                         fontWeight="bold"
-                        color={TEAM[team]}
+                        color={INK}
                         fontVariantNumeric="tabular-nums"
-                        whiteSpace="nowrap"
-                        title={declarationLabel}
-                        aria-label={`${declarationLabel}: ${declarationPoints}`}
+                        css={{ [SHORT]: { fontSize: "22px" } }}
                     >
-                        +{declarationPoints}
+                        {dealPoints}
                     </Text>
-                )}
-            </HStack>
+                    {declarationPoints > 0 && (
+                        <Text
+                            position="absolute"
+                            top="50%"
+                            transform="translateY(-50%)"
+                            {...(align === "end"
+                                ? { right: "calc(100% + 4px)" }
+                                : { left: "calc(100% + 4px)" })}
+                            fontSize="xs"
+                            fontWeight="bold"
+                            color={TEAM[team]}
+                            fontVariantNumeric="tabular-nums"
+                            whiteSpace="nowrap"
+                            title={declarationLabel}
+                            aria-label={`${declarationLabel}: ${declarationPoints}`}
+                        >
+                            +{declarationPoints}
+                        </Text>
+                    )}
+                </Box>
+            </Flex>
 
             {/* Match total, under the deal number. The deal figure resets
                 every hand; a player mid-deal still wants "how much have we
@@ -399,7 +404,7 @@ function TeamCard({
             <Box
                 w="100%"
                 h="2px"
-                mt="1"
+                mt={{ base: "0.5", md: "1" }}
                 rounded="full"
                 bg="border.subtle"
                 overflow="hidden"

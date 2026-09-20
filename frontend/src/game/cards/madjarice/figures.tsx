@@ -1,136 +1,156 @@
 import type { Suit } from "@bela/engine"
 import { CARD_INK } from "../../util/cards"
-import { INK, SKIN, STEEL, SUIT_PALETTE } from "./palette"
+import { FIG_LINE, HAIR, SKIN, SKIN_SHADE, STEEL, SUIT_PALETTE } from "./palette"
+import { Pip } from "./SuitGlyph"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Court figures — Dolnji (unter), Gornji (ober), Kralj.
 
-   A Tell court card is a **doppeldeutsch**: one waist-up figure drawn in the
-   top half and repeated upside-down in the bottom, so the card reads the same
-   whichever way it is picked up. So only the TOP half is authored here, in
-   card coordinates (200 × 300, this half is y 0…150), and the composer
-   rotates the exact same `<g>` 180° about the card's centre for the bottom.
-   Half the drawing, and the two halves can never drift apart.
+   NOT doppeldeutsch any more (2026-09-20). A Tell court is traditionally one
+   waist-up figure mirrored across the middle, and that is what this file drew
+   until today — but two half-figures means each one is half the size, and in
+   a skewed trick pile at 70 px a half-figure is a coloured smudge. So: ONE
+   upright bust filling the whole card, head ~40 % of the card's width, and
+   the card stays readable upside-down through the rotated corner index that
+   `VectorFace` stamps on every card anyway. Size beat symmetry.
 
-   Everything below the neck is shared; the three ranks differ only in
-   headwear and what the figure holds, which is also how the real pattern
-   tells them apart at a glance across a table.
+   Art direction:
+
+     · THREE READS, IN ORDER. The corner letter (J / Q / K, see
+       `VectorFace.RANK_MARK`) is the guarantee; the headwear is the glance —
+       a low soft cap, a wide brim over long hair, a crown; the face is the
+       close read — the Unter young and clean-shaven, the Ober neither, the
+       King bearded.
+     · THE SUIT IS ON HIS CHEST. A full-size suit mark sits on the robe, so
+       the suit survives even when both corners are covered in the pile. That
+       is the one thing bela.fun does not do and the reason these read faster.
+     · Everything is centred on x = 100 and the bust bleeds to a rounded
+       bottom that echoes the card's own corner radius, so the figure looks
+       cropped by the card rather than floating in it.
+     · Flat fills, one dark tone per material (`robeLine`, `FIG_LINE`), no
+       gradients. Everything but the headwear and the facial hair is shared
+       geometry recoloured per suit, so a court costs ~34 elements.
    ────────────────────────────────────────────────────────────────────── */
 
-const HAIR = "#4a3527"
-const FEATHER = "#efd9a0"
+const FEATHER = "#f0dca8"
+const CX = 100
 
-/** Torso, head and beard — identical for all three courts, recoloured by suit. */
-function Body({ robe, alt }: { robe: string; alt: string }) {
+/** Neck, robe, collar and the suit mark on the chest — shared by all three. */
+function Bust({ suit, robe, robeLine }: { suit: Suit; robe: string; robeLine: string }) {
     return (
         <>
-            <rect x={92} y={84} width={16} height={12} fill={SKIN} stroke={INK} strokeWidth={2} />
+            <path d="M85 140h30v46H85Z" fill={SKIN_SHADE} />
             <path
-                d="M50 150v-22c0-13 9-22 20-24 5-10 16-15 30-15s25 5 30 15c11 2 20 11 20 24v22Z"
+                d="M36 272v-56c0-23 17-38 38-42l12-3h28l12 3c21 4 38 19 38 42v56a14 14 0 0 1-14 14H50a14 14 0 0 1-14-14Z"
                 fill={robe}
-                stroke={INK}
-                strokeWidth={2.5}
+                stroke={robeLine}
+                strokeWidth={3}
                 strokeLinejoin="round"
             />
-            <path d="M87 92 100 112 113 92c-8-4-18-4-26 0Z" fill={alt} stroke={INK} strokeWidth={2} strokeLinejoin="round" />
-            <circle cx={100} cy={70} r={18} fill={SKIN} stroke={INK} strokeWidth={2.5} />
-            <path
-                d="M83 71c0 16 8 24 17 24s17-8 17-24c-5 9-29 9-34 0Z"
-                fill={HAIR}
-                stroke={INK}
-                strokeWidth={2}
-                strokeLinejoin="round"
-            />
-            <circle cx={93} cy={66} r={2} fill={INK} />
-            <circle cx={107} cy={66} r={2} fill={INK} />
+            <path d="M80 183 100 216 120 183c-13-4-27-4-40 0Z" fill={robeLine} />
+            <Pip suit={suit} x={CX} y={250} size={56} />
         </>
     )
 }
 
-/** The arm that reaches out and grips a pole — the two ranks that carry one. */
-function GripArm({ robe }: { robe: string }) {
+/** The head: hair mass, face, eyes, and the facial hair that separates the
+ *  three ranks once the card is actually in your hand. */
+function Head({ beard }: { beard?: boolean }) {
     return (
         <>
-            <path
-                d="M126 106c10-3 19-7 25-10l4 12c-7 3-16 8-25 12Z"
-                fill={robe}
-                stroke={INK}
-                strokeWidth={2.5}
-                strokeLinejoin="round"
-            />
-            <circle cx={152} cy={102} r={7} fill={SKIN} stroke={INK} strokeWidth={2.5} />
+            <circle cx={CX} cy={116} r={43} fill={HAIR} />
+            <circle cx={CX} cy={112} r={40} fill={SKIN} stroke={FIG_LINE} strokeWidth={3} />
+            {beard && (
+                <path
+                    d="M64 118c0 32 16 50 36 50s36-18 36-50c-10 16-62 16-72 0Z"
+                    fill={HAIR}
+                    stroke={FIG_LINE}
+                    strokeWidth={2.6}
+                    strokeLinejoin="round"
+                />
+            )}
+            <circle cx={86} cy={108} r={4.2} fill={FIG_LINE} />
+            <circle cx={114} cy={108} r={4.2} fill={FIG_LINE} />
+            {!beard && (
+                <path
+                    d="M90 132c6 6 14 6 20 0"
+                    fill="none"
+                    stroke={FIG_LINE}
+                    strokeWidth={3.4}
+                    strokeLinecap="round"
+                />
+            )}
         </>
     )
 }
 
-/** A hat feather: a tapered blade with a visible spine, so it does not read
- *  as a second weapon at 56 px. */
+/** A hat feather: a tapered blade with a spine, so it does not read as a
+ *  weapon at 56 px. Both are kept clear of the card's top edge. */
 function Feather({ d, spine }: { d: string; spine: string }) {
     return (
         <>
-            <path d={d} fill={FEATHER} stroke={INK} strokeWidth={2} strokeLinejoin="round" />
-            <path d={spine} stroke={INK} strokeWidth={1.6} fill="none" opacity={0.55} />
+            <path d={d} fill={FEATHER} stroke={FIG_LINE} strokeWidth={2.2} strokeLinejoin="round" />
+            <path d={spine} stroke={FIG_LINE} strokeWidth={1.8} fill="none" />
         </>
     )
 }
 
-/** Dolnji — the foot soldier: soft brimmed cap with a feather, and a halberd. */
-function Dolnji({ robe, alt }: { robe: string; alt: string }) {
+/** Dolnji — the young foot soldier: a low soft cap over short hair. */
+function Dolnji({ suit, robe, robeLine, alt }: { suit: Suit; robe: string; robeLine: string; alt: string }) {
     return (
         <>
-            <rect x={149} y={22} width={6} height={128} fill={CARD_INK.brown} stroke={INK} strokeWidth={2} />
-            <path d="M152 2 158 22h-12Z" fill={STEEL} stroke={INK} strokeWidth={2} strokeLinejoin="round" />
-            <path d="M155 28 176 36v18l-21-8Z" fill={STEEL} stroke={INK} strokeWidth={2} strokeLinejoin="round" />
-            <Body robe={robe} alt={alt} />
-            <GripArm robe={robe} />
-            <Feather d="M120 42c11-11 22-14 28-19-9 12-18 21-27 26Z" spine="M147 24 121 47" />
-            <path d="M78 55c2-21 42-21 44 0Z" fill={alt} stroke={INK} strokeWidth={2.5} strokeLinejoin="round" />
-            <rect x={70} y={52} width={60} height={9} rx={4.5} fill={alt} stroke={INK} strokeWidth={2.5} />
+            <Feather d="M138 60c14-13 25-21 34-28-10 17-22 30-34 36Z" spine="M170 36 139 66" />
+            <Bust suit={suit} robe={robe} robeLine={robeLine} />
+            <Head />
+            <path d="M66 82c0-26 68-26 68 0v5H66Z" fill={alt} stroke={FIG_LINE} strokeWidth={3} strokeLinejoin="round" />
+            <rect x={58} y={83} width={84} height={14} rx={7} fill={alt} stroke={FIG_LINE} strokeWidth={3} />
         </>
     )
 }
 
-/** Gornji — the nobleman: wide feathered hat and a sash, no weapon. */
-function Gornji({ robe, alt }: { robe: string; alt: string }) {
+/** Gornji — the wide feathered brim, and long hair under it. */
+function Gornji({ suit, robe, robeLine, alt }: { suit: Suit; robe: string; robeLine: string; alt: string }) {
     return (
         <>
-            <Body robe={robe} alt={alt} />
-            <path d="M72 104 116 150h20L86 96Z" fill={alt} stroke={INK} strokeWidth={2} strokeLinejoin="round" />
-            <Feather d="M122 38c19-17 35-24 46-32-13 20-28 35-45 43Z" spine="M167 7 123 48" />
-            <path d="M78 53c1-24 43-24 44 0Z" fill={alt} stroke={INK} strokeWidth={2.5} strokeLinejoin="round" />
-            <ellipse cx={100} cy={53} rx={40} ry={9} fill={alt} stroke={INK} strokeWidth={2.5} />
+            <Feather d="M136 56c17-16 30-25 41-33-12 21-27 36-41 44Z" spine="M177 26 137 62" />
+            <ellipse cx={56} cy={158} rx={16} ry={42} fill={HAIR} />
+            <ellipse cx={144} cy={158} rx={16} ry={42} fill={HAIR} />
+            <Bust suit={suit} robe={robe} robeLine={robeLine} />
+            <Head />
+            <path d="M64 78c0-30 72-30 72 0v4H64Z" fill={alt} stroke={FIG_LINE} strokeWidth={3} strokeLinejoin="round" />
+            <ellipse cx={CX} cy={83} rx={58} ry={13} fill={alt} stroke={FIG_LINE} strokeWidth={3} />
         </>
     )
 }
 
-/** Kralj — crown and a cross-bearing sceptre. */
-function Kralj({ robe, alt }: { robe: string; alt: string }) {
+/** Kralj — crown and beard. No sceptre: the mirrored copy used to put a
+ *  second gold rod on the far side of the card, and nothing was gained. */
+function Kralj({ suit, robe, robeLine }: { suit: Suit; robe: string; robeLine: string }) {
     return (
         <>
-            <rect x={149} y={44} width={6} height={106} fill={CARD_INK.gold} stroke={INK} strokeWidth={2} />
-            <circle cx={152} cy={34} r={11} fill={CARD_INK.gold} stroke={INK} strokeWidth={2} />
-            <path d="M152 23v22M141 34h22" stroke={INK} strokeWidth={2} />
-            <Body robe={robe} alt={alt} />
-            <GripArm robe={robe} />
+            <Bust suit={suit} robe={robe} robeLine={robeLine} />
+            <Head beard />
             <path
-                d="M73 48 78 20l10 18 12-22 12 22 10-18 5 28Z"
+                d="M58 80 64 26l16 26 20-32 20 32 16-26 6 54Z"
                 fill={CARD_INK.gold}
-                stroke={INK}
-                strokeWidth={2.5}
+                stroke={FIG_LINE}
+                strokeWidth={3}
                 strokeLinejoin="round"
             />
-            <rect x={72} y={46} width={56} height={11} rx={3} fill={CARD_INK.gold} stroke={INK} strokeWidth={2.5} />
-            <circle cx={100} cy={52} r={3.2} fill={alt} />
-            <circle cx={84} cy={52} r={2.4} fill={alt} />
-            <circle cx={116} cy={52} r={2.4} fill={alt} />
+            <rect x={57} y={76} width={86} height={16} rx={4} fill={CARD_INK.gold} stroke={FIG_LINE} strokeWidth={3} />
+            <circle cx={CX} cy={84} r={4.6} fill={STEEL} />
+            <circle cx={76} cy={84} r={3.6} fill={STEEL} />
+            <circle cx={124} cy={84} r={3.6} fill={STEEL} />
         </>
     )
 }
 
-/** The top half of a court card, ready to be rotated for the bottom half. */
+/** One upright court bust, filling the card. The corner rank/suit indices are
+ *  stamped by `VectorFace` on every card, so nothing rank-specific is drawn
+ *  outside the figure itself. */
 export default function CourtFigure({ suit, court }: { suit: Suit; court: "J" | "Q" | "K" }) {
-    const { robe, alt } = SUIT_PALETTE[suit]
-    if (court === "J") return <Dolnji robe={robe} alt={alt} />
-    if (court === "Q") return <Gornji robe={robe} alt={alt} />
-    return <Kralj robe={robe} alt={alt} />
+    const { robe, robeLine, alt } = SUIT_PALETTE[suit]
+    if (court === "J") return <Dolnji suit={suit} robe={robe} robeLine={robeLine} alt={alt} />
+    if (court === "Q") return <Gornji suit={suit} robe={robe} robeLine={robeLine} alt={alt} />
+    return <Kralj suit={suit} robe={robe} robeLine={robeLine} />
 }

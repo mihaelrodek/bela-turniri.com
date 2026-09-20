@@ -28,7 +28,73 @@ import { isNative } from "../platform"
    On that signal we show a toast that never auto-dismisses (`duration:
    Infinity`) with a "Reload" action — not an automatic reload, which would
    discard whatever the user is mid-typing, but persistent enough that the
-   tab can't end up stuck on stale code without the user ever being told. */
+   tab can't end up stuck on stale code without the user ever being told.
+
+   ── 2026-09-20: investigated "the toast keeps reappearing after Osvježi" ──
+   Read `install`/`activate`/`message` in public/sw.js end to end and fetched
+   `/sw.js` from production twice back to back (SHA-256 compared, byte-for-
+   byte identical) while reading `navigator.serviceWorker.getRegistration()`:
+   `active` was "activated", `waiting`/`installing` both null, a controller
+   was present. That is the clean, fully-settled state — no stuck installing
+   worker, no drifting bytes from Caddy (`@nostore` sends `Cache-Control:
+   no-cache`, which forces revalidation rather than serving something stale;
+   confirmed via two `cache: "no-store"` fetches). `install`'s only fallible
+   step (`cache.addAll(SHELL)`) is already inside a try/catch that swallows
+   the rejection before `self.skipWaiting()` runs, so a bad shell entry can't
+   loop the install either. In short: nothing in this file's logic or in
+   sw.js reproduces the loop on demand, and the one thing that reliably WOULD
+   — a genuinely new deploy landing again shortly after the user reloaded —
+   matches this repo's own "small, frequent deploys" cadence and the several
+   `fix game` commits shipped back to back around when this was reported.
+   Unable to reproduce on an iOS device (simulators are off-limits here), so
+   a WebKit-specific SW-lifecycle quirk in standalone/home-screen mode can't
+   be ruled out either. Given that, this file no longer tries to pin the
+   exact trigger and instead makes the *symptom* impossible to hit twice in
+   a row: `recentlyReloadedForUpdate()` below suppresses any update signal
+   that fires within `RELOAD_GUARD_MS` of the user's own reload click, and
+   the toast is deferred entirely while a live game table is on screen (see
+   `deferUntilOffTable`). */
+
+/** `/igra/soba/<code>` — an in-progress hand. Forcing a reload here (or even
+ *  just interrupting the player with a persistent toast) fights the table:
+ *  the update can wait until the player navigates away on their own. */
+const LIVE_TABLE_ROUTE = /^\/igra\/soba\//
+
+function isLiveTableRoute(): boolean {
+    return LIVE_TABLE_ROUTE.test(window.location.pathname)
+}
+
+/** How often to re-check the route while an update is ready but the player
+ *  is at a live table. Coarse on purpose — this only ever runs during that
+ *  narrow, rare window, not for the component's whole lifetime. */
+const LIVE_TABLE_POLL_MS = 3000
+
+/** sessionStorage key + window for the reload-loop guard. sessionStorage
+ *  (not a ref) is what makes this survive the reload it's guarding against —
+ *  `window.location.reload()` throws away every in-memory ref and remounts
+ *  this component from scratch, so only storage that predates the reload can
+ *  answer "did *I* just cause this". */
+const RELOAD_FLAG_KEY = "bela:swUpdateReloadedAt"
+const RELOAD_GUARD_MS = 60_000
+
+function markReloadedForUpdate() {
+    try {
+        sessionStorage.setItem(RELOAD_FLAG_KEY, String(Date.now()))
+    } catch {
+        /* private mode / storage blocked — the guard just won't apply */
+    }
+}
+
+function recentlyReloadedForUpdate(): boolean {
+    try {
+        const raw = sessionStorage.getItem(RELOAD_FLAG_KEY)
+        if (!raw) return false
+        const at = Number(raw)
+        return Number.isFinite(at) && Date.now() - at < RELOAD_GUARD_MS
+    } catch {
+        return false
+    }
+}
 
 export default function SwUpdateToast() {
     const { t } = useTranslation()
@@ -43,8 +109,27 @@ export default function SwUpdateToast() {
         if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return
         if (!import.meta.env.PROD) return
 
-        function notifyUpdateReady() {
-            if (notifiedRef.current) return
+        // Bounded to the rare case where an update becomes ready while the
+        // player is mid-hand — started only from `notifyUpdateReady` below,
+        // stopped the moment the route clears or the component unmounts.
+        let deferTimer: ReturnType<typeof setInterval> | null = null
+        function stopDeferring() {
+            if (deferTimer !== null) {
+                clearInterval(deferTimer)
+                deferTimer = null
+            }
+        }
+        function deferUntilOffTable() {
+            if (deferTimer !== null) return
+            deferTimer = setInterval(() => {
+                if (!isLiveTableRoute()) {
+                    stopDeferring()
+                    showUpdateToast()
+                }
+            }, LIVE_TABLE_POLL_MS)
+        }
+
+        function showUpdateToast() {
             notifiedRef.current = true
             toaster.create({
                 id: "sw-update-available",
@@ -55,9 +140,26 @@ export default function SwUpdateToast() {
                 closable: true,
                 action: {
                     label: t("common.swUpdate.reload"),
-                    onClick: () => window.location.reload(),
+                    onClick: () => {
+                        markReloadedForUpdate()
+                        window.location.reload()
+                    },
                 },
             })
+        }
+
+        function notifyUpdateReady() {
+            if (notifiedRef.current) return
+            // A signal that fires just after the user's own reload click is
+            // either this same deploy re-announcing itself or a WebKit SW-
+            // lifecycle quirk (see the file header) — either way, showing
+            // the toast again a few seconds after "Osvježi" reads as a loop.
+            if (recentlyReloadedForUpdate()) return
+            if (isLiveTableRoute()) {
+                deferUntilOffTable()
+                return
+            }
+            showUpdateToast()
         }
 
         function wireRegistration(registration: ServiceWorkerRegistration) {
@@ -112,7 +214,10 @@ export default function SwUpdateToast() {
         }
 
         window.addEventListener("load", onLoad)
-        return () => window.removeEventListener("load", onLoad)
+        return () => {
+            window.removeEventListener("load", onLoad)
+            stopDeferring()
+        }
     }, [t])
 
     return null

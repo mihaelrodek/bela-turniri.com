@@ -208,6 +208,7 @@ export function leaveRoom(): void {
     leavingRetainers = leavingRoomId === undefined
         ? null
         : new Set([...retainers].filter((retainer) => retainer.active && retainer.roomId === leavingRoomId))
+    lastLeftRoomId = leavingRoomId
     if (state.room || state.stickyRoomId || state.activeSeat) send({ t: "room.leave" })
     setSticky(null)
     // Leaving a lobby is final. Clear this tab immediately instead of keeping
@@ -239,10 +240,21 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
             return { ...prev, me: msg.user, error: null }
         case "pong":
             return prev
-        case "error":
+        case "error": {
+            // A `room.join` this tab fired at itself while steering back to
+            // wherever `applyDesired` last pointed — never the player's own
+            // action — can lose the race against the server deleting that
+            // exact room because we ourselves just left it (last human out).
+            // That is not a failure to report: the user asked to leave, and
+            // leaving IS why the room is gone. A genuinely stale shared link
+            // to some other vanished room still surfaces normally.
+            const isStaleSelfRejoin = msg.code === "ROOM_NOT_FOUND" &&
+                msg.ref === "room.join" &&
+                lastLeftRoomId !== undefined &&
+                joinedRoomId === lastLeftRoomId
             return {
                 ...prev,
-                error: { code: msg.code, message: msg.message, ref: msg.ref },
+                error: isStaleSelfRejoin ? prev.error : { code: msg.code, message: msg.message, ref: msg.ref },
                 // A direct link can outlive its room. Do not keep rendering a
                 // cached table while the room page handles the terminal error
                 // and returns to the lobby.
@@ -250,6 +262,7 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
                     ? { room: null, yourSeat: null, view: null, turnDeadline: null, turnDurationMs: null }
                     : {}),
             }
+        }
         case "lobby.rooms":
             return { ...prev, rooms: msg.rooms }
         case "game.active":
@@ -477,6 +490,13 @@ let joinedRoomId: string | undefined
 let leavingRoomId: string | undefined
 /** Retainers that belonged to the table at the moment its leave was sent. */
 let leavingRetainers: Set<Retainer> | null = null
+/**
+ * The room this tab most recently, explicitly left — kept around (not just
+ * for the round trip above) so a `ROOM_NOT_FOUND` that comes back from an
+ * auto-rejoin of THAT room can be told apart from a genuinely unknown one
+ * (a stale shared link). See `leaveRoom` and the `"error"` case below.
+ */
+let lastLeftRoomId: string | undefined
 let lobbySubscribed = false
 let connectedUid: string | null = null
 let connectedMock = false
@@ -598,6 +618,12 @@ async function greet(mine: GameTransport): Promise<void> {
 function afterHello(): void {
     helloOk = true
     attempt = 0
+    // A `room.leave` sent on the PREVIOUS connection whose `room.left` (or
+    // error) never made it back — the socket dropped in between — is
+    // resolved here instead: this fresh greet supersedes it. `finishLeave`
+    // is a no-op when nothing was left pending, and otherwise applies the
+    // same "did a NEW retainer reopen it" check a normal ack would.
+    finishLeave()
     applyDesired()
     // A lobby-only connection is ready as soon as hello succeeds. A table
     // stays "connecting" until the server confirms the room rejoin, so the
@@ -672,6 +698,10 @@ async function connect(): Promise<void> {
             set(applyMessage(state, msg))
             reconcileSticky(msg)
             if (msg.t === "room.left" || (msg.t === "error" && msg.ref === "room.leave")) finishLeave()
+            // Holding a room again — whichever one — retires the bookkeeping
+            // for whatever we last explicitly left; it is no longer relevant
+            // to any future `ROOM_NOT_FOUND`.
+            if (msg.t === "room.joined" || msg.t === "room.state") lastLeftRoomId = undefined
             const d = desired()
             if ((msg.t === "room.joined" || msg.t === "room.state") && msg.room.id === d.roomId) {
                 setStatus("open")
@@ -686,8 +716,15 @@ async function connect(): Promise<void> {
         onClose: () => {
             helloOk = false
             joinedRoomId = undefined
-            leavingRoomId = undefined
-            leavingRetainers = null
+            // `leavingRoomId`/`leavingRetainers` deliberately survive the drop:
+            // they record an explicit `room.leave` this tab is still owed an
+            // ordered `room.left` for. Wiping them here used to let a
+            // reconnect's own `applyDesired` immediately re-`room.join` the
+            // very room we just asked to leave — the server had already
+            // deleted it (last human out), so the rejoin came back
+            // `ROOM_NOT_FOUND` and surfaced as a spurious red toast on an
+            // intentional exit. `afterHello` resolves the leave properly
+            // (via `finishLeave`) once the new connection is greeted.
             lobbySubscribed = false
             transport = null
             // Losing the socket while seated is exactly what starts the

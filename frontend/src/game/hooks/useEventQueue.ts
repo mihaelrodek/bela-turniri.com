@@ -61,9 +61,13 @@ export const EVENT_DWELL_MS: Record<GameEvent["type"], number> = {
      *  event ever became active, so the full read is: card lands → beat →
      *  four cards held → winner sweeps them up. */
     TRICK_WON: 1550,
-    /** The declarations overlay before the first card — 5.2 s, or until it is
-     *  closed explicitly (game/DESIGN.md §2.7). */
-    DECLARATIONS_REVEALED: 5200,
+    /** The declarations overlay before the first card — 4 s, or until it is
+     *  closed explicitly (game/DESIGN.md §2.7). Sized so the overlay ends
+     *  WITH the server's own 8 s no-play window (`declarationsMs`), not 1.2 s
+     *  after it: BID 800 + TRUMP_SET 1600 + HAND_COMPLETED 1600 + this = 8000.
+     *  Everybody at the table can then start playing at the same instant
+     *  (2026-09-20, user request). */
+    DECLARATIONS_REVEALED: 4000,
     /** The deal summary is a dialog the player dismisses; no dwell. */
     DEAL_SCORED: 0,
     GAME_OVER: 0,
@@ -82,7 +86,8 @@ const REDUCED_DWELL_MS: Record<GameEvent["type"], number> = {
     BELA: 1200,
     BELOT: 3000,
     TRICK_WON: 600,
-    DECLARATIONS_REVEALED: 4800,
+    // 500 + 1200 + 1200 + this = the same 8000 as above.
+    DECLARATIONS_REVEALED: 5100,
     DEAL_SCORED: 0,
     GAME_OVER: 0,
 }
@@ -92,6 +97,17 @@ export interface EventQueue {
     active: GameEvent | null
     /** Still waiting behind `active` — the table dims interaction while > 0. */
     pending: number
+    /** A BELA announced by the very card in `active`. The engine emits it
+     *  right behind its CARD_PLAYED; queued on its own it only appeared after
+     *  the card's whole dwell, which read as lag (2026-09-20). It rides along
+     *  with the card instead, and never becomes `active` itself. */
+    companion: Extract<GameEvent, { type: "BELA" }> | null
+    /** Nothing playing, nothing queued AND nothing in `incoming` this hook
+     *  has yet to pick up. `active === null` alone is true for one render when
+     *  a frame's events and its state land together — the events are only
+     *  queued in an effect — so anything that must not get ahead of the queue
+     *  (the trump mark) asks this instead. */
+    settled: boolean
 }
 
 /**
@@ -126,6 +142,8 @@ export function useEventQueue(incoming: QueuedGameEvent[], reducedMotion = false
 
     const [active, setActive] = useState<GameEvent | null>(null)
     const [pending, setPending] = useState(0)
+    const [, bump] = useState(0)
+    const [companion, setCompanion] = useState<EventQueue["companion"]>(null)
 
     // Explicitly typed because the body references `pump` recursively — an
     // inferred self-referential const is an implicit `any` under `strict`.
@@ -134,14 +152,23 @@ export function useEventQueue(incoming: QueuedGameEvent[], reducedMotion = false
         const next = queueRef.current.shift()
         if (!next) {
             setActive(null)
+            setCompanion(null)
             setPending(0)
             return
         }
+        const dwellOf = (type: GameEvent["type"]) =>
+            reducedRef.current ? REDUCED_DWELL_MS[type] : EVENT_DWELL_MS[type]
+        let dwell = dwellOf(next.event.type)
+        const follower = queueRef.current[0]?.event
+        if (next.event.type === "CARD_PLAYED" && follower?.type === "BELA") {
+            queueRef.current.shift()
+            setCompanion(follower)
+            dwell = Math.max(dwell, dwellOf("BELA"))
+        } else {
+            setCompanion(null)
+        }
         setActive(next.event)
         setPending(queueRef.current.length)
-        const dwell = reducedRef.current
-            ? REDUCED_DWELL_MS[next.event.type]
-            : EVENT_DWELL_MS[next.event.type]
         timerRef.current = setTimeout(() => {
             timerRef.current = null
             pump()
@@ -155,6 +182,7 @@ export function useEventQueue(incoming: QueuedGameEvent[], reducedMotion = false
             timerRef.current = null
             queueRef.current = []
             setActive(null)
+            setCompanion(null)
             setPending(0)
             return
         }
@@ -162,6 +190,10 @@ export function useEventQueue(incoming: QueuedGameEvent[], reducedMotion = false
             // Backlog from before this consumer existed — see `startedRef`.
             startedRef.current = true
             cursorRef.current = incoming[incoming.length - 1].id
+            // `settled` is derived from these refs during render, so moving
+            // them has to be followed by a render or a rejoining client can
+            // sit on a stale "not settled" until something unrelated repaints.
+            bump((n) => n + 1)
             return
         }
         let added = false
@@ -184,5 +216,7 @@ export function useEventQueue(incoming: QueuedGameEvent[], reducedMotion = false
         timerRef.current = null
     }, [])
 
-    return { active, pending }
+    const last = incoming.length > 0 ? incoming[incoming.length - 1].id : null
+    const caughtUp = last === null || (startedRef.current && last <= cursorRef.current)
+    return { active, pending, companion, settled: active === null && pending === 0 && caughtUp }
 }

@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react"
+import { DEFAULT_DECK, isDeckStyle, type DeckStyle } from "../util/cards"
 
 /* ──────────────────────────────────────────────────────────────────────────
    useGamePrefs — per-device game preferences (game/DESIGN.md §2.10).
@@ -10,10 +11,14 @@ import { useCallback, useSyncExternalStore } from "react"
    site data) and the defaults must still work.
    ────────────────────────────────────────────────────────────────────── */
 
-export type DeckStyle = "madjarice" | "francuske"
+/** Re-exported for the many components that only ever import from this hook.
+ *  The registry — ids, defaults, `isHungarianDeck`, `deckHasImages` — lives in
+ *  `../util/cards`, which has no React dependency. */
+export type { DeckStyle }
 
 export interface GamePrefs {
-    /** Card artwork. Bela is played with Hungarian cards — that is the default. */
+    /** Card artwork. Bela is played with Hungarian cards, so the default is a
+     *  Hungarian deck; see the registry in `../util/cards`. */
     deck: DeckStyle
     sound: boolean
     /** Manual "Smanji animacije"; combined with `prefers-reduced-motion` by consumers. */
@@ -22,7 +27,7 @@ export interface GamePrefs {
 }
 
 export const DEFAULT_GAME_PREFS: GamePrefs = {
-    deck: "madjarice",
+    deck: DEFAULT_DECK,
     sound: true,
     reduceMotion: false,
     // ON for everybody (2026-09-09, user request). Sitting down IS saying you
@@ -42,7 +47,7 @@ function load(): GamePrefs {
         if (!raw) return DEFAULT_GAME_PREFS
         const parsed = JSON.parse(raw) as Partial<GamePrefs>
         return {
-            deck: parsed.deck === "francuske" ? "francuske" : "madjarice",
+            deck: migrateDeck(parsed.deck),
             sound: parsed.sound !== false,
             reduceMotion: parsed.reduceMotion === true,
             // Absent reads as the default (true), so an install from before
@@ -53,6 +58,20 @@ function load(): GamePrefs {
     } catch {
         return DEFAULT_GAME_PREFS
     }
+}
+
+/**
+ * Stored deck → a deck that still exists.
+ *
+ * Until 2026-09-20 there was ONE Hungarian deck, stored as `"madjarice"`; it
+ * is now `klasicne` (same artwork, since the licensed set is what that pref
+ * had been showing), so an existing install keeps the cards it knows. Any
+ * other unknown value — a deck removed later, a hand-edited key — falls back
+ * to the default rather than rendering nothing.
+ */
+function migrateDeck(stored: unknown): DeckStyle {
+    if (stored === "madjarice") return "klasicne"
+    return isDeckStyle(stored) ? stored : DEFAULT_DECK
 }
 
 function persist(next: GamePrefs) {

@@ -212,11 +212,17 @@ Pobjednik štiha: najjači adut ako ima aduta; inače najjača karta boje `L`.
 - Cilj: `targetScore` (default **1001**, opcije 501/701/1001) i pravilo
   `gameEndRule` (default **`prolaz`**):
   - **prolaz** — partiju dobiva par koji u podjeli koju je zvao prođe, dosegne
-    cilj i nakon obračuna vodi u ukupnom rezultatu;
-  - **dosta** — čim nakon obračuna barem jedan par dosegne cilj, pobjeđuje par
-    s višim ukupnim rezultatom.
+    cilj i nakon obračuna vodi u ukupnom rezultatu. Cilj se gleda **tek kad je
+    podjela odigrana do zadnje karte i obračunata** — usred podjele se ne
+    gleda nikad, koliko god bodova par već držao;
+  - **dosta** — „tko prvi dođe do cilja”: partija završava **odmah, usred
+    podjele**, u trenutku u kojem zbroj jednog para (dotadašnji ukupni
+    rezultat + ono što je u tekućoj podjeli **dokazano** skupio) dosegne cilj.
+    Ostatak podjele se ne igra, ni ostatak štiha — karte idu dolje. V. „Utrka
+    na `dosta`” niže.
   Kod oba pravila izjednačenje na cilju ili iznad njega znači još jednu
-  podjelu.
+  podjelu (na `dosta` i: utrka se nastavlja, do prvih bodova koji razlikuju
+  zbrojeve).
 - **Gdje se to događa (odluka, 2026-09-08).** "Kraj podjele" znači **trenutak
   obračuna**, a ne sljedeća akcija: `reduce` na četvrtoj karti osmog štiha
   obračuna podjelu i, ako odabrano pravilo daje pobjednika, odmah
@@ -239,6 +245,46 @@ Pobjednik štiha: najjači adut ako ima aduta; inače najjača karta boje `L`.
   - Posljedica za UI: zadnja podjela nema svoj `DEAL_DONE`, pa ni sažetak
     podjele; njezini brojevi ostaju u `history` (povijest na semaforu), a
     kraj partije objavljuje **jedan** dijalog s konačnim rezultatom.
+
+**Utrka na `dosta` — NORMATIVNO (2026-09-20).** `dosta` se prije ponašala
+jednako kao `prolaz`, samo bez uvjeta o zvaču: cilj se gledao **nakon
+obračuna**. To je krivo — na `dosta` se za stolom staje čim se dođe do 1001,
+usred podjele. Sada je tako i u engineu.
+
+- **Što se broji** (`provisionalDealPoints`) — ono što nitko više ne može
+  oduzeti:
+  - bodovi karata iz **već pokupljenih** štihova (karte na stolu nisu ničije
+    dok se štih ne pokupi);
+  - **zvanja para koji boduje** (§1.4), od trenutka kad su razriješena — a to
+    je izbor aduta i `DECLARATIONS_REVEALED`, dakle **prije prve karte**. Par
+    koji je 200 od cilja i otvori četiri dečka je gotov: §1.6 plaća obranjena
+    zvanja neovisno o štihovima, pa bi uvjet „samo ako si uzeo štih”
+    proturječio obračunu i vrijedio bi samo ovdje;
+  - **bela 20**, od trenutka prijave (§1.4) — jedino što zbroj može pomaknuti
+    **usred štiha**, pa partija na `dosta` može završiti i na prvoj karti
+    štiha. Odbijena bela ne postoji, pa ni ovdje;
+  - **+10 za zadnji štih i +90 za štiglju tek kad je osmi štih pokupljen** —
+    do tada ne postoje.
+- **Što se ne broji: pad.** Pad (§1.6) se izriče na obračunu, a utrka je
+  odlučena ranije — u trenutku prelaska. Par koji je zvao, prešao cilj i bio
+  bi pao **već je pobijedio**: obračuna nema jer podjela nikad nije
+  dovršena. Isto vrijedi i na osmom štihu: utrka se pita **prije** obračuna.
+- **Oba para se knjiže sirovo.** Konačni `score` je dotadašnji rezultat plus
+  gore nabrojeno **za svaki par posebno**; ništa se ne preraspodjeljuje.
+  Protivnik zadržava ono što je do tog trena skupio.
+- **Izjednačen zbroj ne odlučuje ništa** — isto pravilo kao gore: s oba para
+  na cilju ili iznad njega i jednakim zbrojem utrka se nastavlja (do sljedećih
+  bodova, odnosno u sljedeću podjelu).
+- **Događaji i knjiženje.** Nedovršena podjela se **ne obračunava**: nema
+  `DealScore`, nema unosa u `history`, nema `DEAL_SCORED`. `GAME_OVER` ide
+  odmah iza događaja koji ga je izazvao — `TRICK_WON`, `BELA` ili
+  `DECLARATIONS_REVEALED` — pa UI (red događaja, `useEventQueue`) prvo odigra
+  taj trenutak, a tek onda otvori dijalog kraja partije. `dealScore` je tada
+  `null`, sažetka podjele nema, a `GameOverDialog` i ne treba ništa osim
+  `winner` i `score`. Statistika (§8) broji `history.length`, pa nedovršena
+  podjela u `dealsCount` ne ulazi — nije ni odigrana.
+- Testovi: `packages/engine/test/game.test.ts` („dosta ends the game mid-deal”,
+  „dosta and the declarations”).
 
 ### 1.8 Gledanje štihova — NORMATIVNO (2026-09-08)
 
@@ -313,12 +359,15 @@ type Seat = 0 | 1 | 2 | 3
 type Team = "A" | "B"                   // teamOf(seat): 0,2 → A; 1,3 → B
 
 // Faze podjele. DEAL_DONE znači "podjela je obračunata i SLIJEDI još jedna";
-// podjela koja odluči partiju ide ravno u GAME_OVER (§1.7).
+// podjela koja odluči partiju ide ravno u GAME_OVER (§1.7). Na `dosta` u
+// GAME_OVER se može ući i usred podjele, s kartama još u rukama (§1.7).
 type Phase = "BIDDING" | "PLAYING" | "DEAL_DONE" | "GAME_OVER"
 
 type TrickReview = "off" | "leaderPair" | "all"   // §1.8; default "off"
+type GameEndRule = "prolaz" | "dosta"             // §1.7; default "prolaz"
 interface GameConfig {
   targetScore: 501 | 701 | 1001; seed: string
+  gameEndRule?: GameEndRule             // kraj partije (§1.7); default "prolaz"
   noDeclarations?: boolean; allowBela?: boolean
   trickReview?: TrickReview            // vidljivost, NE pravilo igre (§1.8)
 }
@@ -411,6 +460,10 @@ teamOf(seat): Team ; nextSeat(seat): Seat ; partnerOf(seat): Seat
 cardPoints(card, trump): number ; trickWinner(cards, trump): Seat
 findDeclarations(hand: Card[]): Declaration[]     // čisto, testabilno
 declarationPoints(state): Record<Team, number>    // bodovi iz zvanja + bela (v. gore)
+provisionalDealPoints(state): Record<Team, number>// što je svaki par DOKAZANO
+                                                  // skupio u tekućoj podjeli —
+                                                  // brojka na kojoj stoji utrka
+                                                  // na `dosta` (§1.7); bez pada
 ```
 
 `GameEvent` (za animacije/UI, isti tipovi su u `@bela/protocol`):
@@ -422,7 +475,10 @@ declarationPoints(state): Record<Team, number>    // bodovi iz zvanja + bela (v.
 tuđe. `DEAL_SCORED` {dealScore}, `GAME_OVER` {winner, score}.
 Zadnja karta partije nosi `CARD_PLAYED`, `TRICK_WON`, `DEAL_SCORED` **i**
 `GAME_OVER` u jednom nizu (§1.7) — UI ih odigrava redom, pa se zadnji štih
-pokupi prije nego što se objavi kraj partije.
+pokupi prije nego što se objavi kraj partije. Na `dosta` partija može završiti
+usred podjele: tada `DEAL_SCORED` **nema** (podjela nije obračunata), a
+`GAME_OVER` ide odmah iza `TRICK_WON`, `BELA` ili `DECLARATIONS_REVEALED`
+(§1.7, „Utrka na `dosta`”).
 
 Engine je **deterministički**: `newGame({seed})` + isti niz akcija ⇒ isto stanje.
 Test-suite (vitest) mora pokriti: kompletnu podjelu iz seeda, sva pravila
@@ -490,6 +546,8 @@ Ključni tokovi:
     boduje drugu. `private` zato ovdje **nije**: privatnost nije pravilo
     podjele, mijenja se i tijekom igre i već ima `room.setPrivate` (dva puta za
     upis iste zastavice je način da se te dvije razidu).
+    `room.setPrivate` smije poslati **svaki igrač za stolom**, ne samo domaćin
+    (2026-09-20) — isto pravilo kao `room.start`; gledatelj bez mjesta ne smije.
   - `noDeclarations` i `allowBela` rješavaju se **zajedno**, istim pravilom koje
     primjenjuje `room.create` (`belaCounts` u `room.ts`): uz uključena zvanja
     bela je zvanje kao i svako drugo i **uvijek** se broji, pa `allowBela: false`
@@ -528,7 +586,8 @@ Ključni tokovi:
   (§1.4): svoja + para koji boduje.
   `game.nextDeal` je smislen **samo** u `DEAL_DONE`; podjela koja odluči
   partiju stiže već kao `GAME_OVER` (§1.7) i server takav zahtjev tiho
-  ignorira.
+  ignorira. To je **potvrda sjedala**, ne naredba: stol krene tek kad potvrde
+  sva povezana ljudska sjedala, inače na `dealDoneAutoMs` (§3.1).
   `game.play.bela` je odgovor na „Zovi belu?” (§1.4), koji je klijent postavio
   **prije** slanja poteza — nema zasebne poruke ni faze. Poslužitelj provjeri
   samo **oblik** (boolean ili ništa; sve drugo je `BAD_REQUEST`), a je li
@@ -550,7 +609,21 @@ Ključni tokovi:
 - **Potez**: `turnTimeoutMs` (default 15 000). Istekom bot odigra **jedan**
   potez za igrača; `game.state.autoPlayed` to označava. Taj potez ide **bez
   `bela` zastavice**, pa se eventualna bela prijavljuje — nitko nije odgovorio,
-  a šutnja zove (§1.4).
+  a šutnja zove (§1.4). U **zvanju aduta** istek za čovjeka znači **„dalje"**
+  (2026-09-20): bot bira adut umjesto njega samo kad „dalje" nije dopušteno
+  (mus).
+- **Kraj podjele (`dealDoneAutoMs`, default 5 000)** — NORMATIVNO, 2026-09-20.
+  `game.nextDeal` je **potvrda po sjedalu**, a ne „prvi klik pomiče stol":
+  server ga pamti za podjelu koja je na ekranu i dijeli sljedeću čim su je
+  potvrdila **sva povezana ljudska sjedala**. Botovi i sjedala na čuvanju
+  (`connected: false`) ne glasaju, gledatelji ne mogu potvrditi
+  (`NOT_YOUR_TURN`), a potvrde se brišu sa svakom novom podjelom.
+  `dealDoneAutoMs` je samo **zaštitni timer** za potvrdu koja nikad ne stigne
+  (stari klijent, uspavana kartica). Klijent (`DealSummary.tsx`) zatvori svoj
+  sažetak — sam od sebe nakon `AUTO_CLOSE_MS` ili na ✕ — i **tek tada** šalje
+  potvrdu, pa nova podjela nikad ne stigne iza otvorenog dijaloga.
+  Ranije je ovo bilo fiksnih 8 s bez ikakve potvrde, što je na stolu s
+  botovima značilo „Čekaj…” dulje nego što je itko trebao za čitanje računa.
 - **Čuvanje sjedala (`reconnectGraceMs`, default 120 000 = 2 min)** vrijedi
   samo dok je soba `PLAYING`. Pokreće ga pad socketa. Izričit `room.leave` u
   aktivnoj partiji pokreće ga samo ako nakon izlaska za stolom ostanu najmanje

@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom"
 import { FiVolume2 } from "react-icons/fi"
 import { useTranslation } from "../i18n"
 import { usePrefersReducedMotion } from "../game/hooks/usePrefersReducedMotion"
-import { MOBILE_TABBAR_CLEARANCE } from "../components/navChrome"
+import { WHATS_NEW_FAB } from "../components/navChrome"
 import { open, useHasUnseenWhatsNew } from "./store"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -37,11 +37,11 @@ export default function WhatsNewFab() {
     return (
         <Box
             position="fixed"
-            right={{ base: "4", md: "24px" }}
+            right={{ base: `${WHATS_NEW_FAB.right.base}px`, md: `${WHATS_NEW_FAB.right.md}px` }}
             /* Clear of BOTH bottom chromes (2026-09-10): the mobile tab bar
                plus a gap on phones, and the site footer on desktop — sitting
                level with either one read as part of it. */
-            bottom={{ base: `calc(${MOBILE_TABBAR_CLEARANCE} + 12px)`, md: "88px" }}
+            bottom={WHATS_NEW_FAB.bottom}
             // Below CookieConsent (950) and the sticky header (1000), above
             // MobileTabBar (900) — it floats just clear of the tab bar, not
             // over it, so this ordering rarely matters in practice.
@@ -55,7 +55,7 @@ export default function WhatsNewFab() {
                     colorPalette="brand"
                     variant="solid"
                     rounded="full"
-                    boxSize="48px"
+                    boxSize={`${WHATS_NEW_FAB.size}px`}
                     boxShadow="raised"
                     // A single gentle pulse the first time this shows up
                     // unseen — never a loop, and skipped entirely under

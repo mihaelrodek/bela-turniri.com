@@ -1,10 +1,5 @@
 import type { Suit } from "@bela/engine"
-import { INK, SUIT_PALETTE } from "./palette"
-
-const PRINT_RED = "#b72b22"
-const PRINT_GOLD = "#e0bf18"
-const PRINT_GREEN = "#34753a"
-const PRINT_DARK_GREEN = "#20542e"
+import { SUIT_PALETTE } from "./palette"
 
 /* ──────────────────────────────────────────────────────────────────────────
    The four German suits of the Tell pattern, drawn flat.
@@ -12,116 +7,132 @@ const PRINT_DARK_GREEN = "#20542e"
    Every glyph is authored in its OWN 100 × 100 box with the origin top-left,
    and renders as bare `<path>`/`<circle>` children — never an `<svg>`. That
    is the whole trick that keeps this deck small: a caller places a glyph with
-   one `<g transform="translate(x,y) scale(s/100)">`, so the same four paths
-   serve as the pip on a numeral card, the corner mark on a court card, the
-   big motif on an ace and the icon in the bidding panel. 32 cards, four
-   shapes.
+   one `<g transform="translate(x,y) scale(s/100)">`, so the same four shapes
+   serve as the pip on a numeral card, the mark a court figure holds, the big
+   motif on an ace and the icon in the bidding panel. 32 cards, four shapes.
+
+   Art direction (2026-09-20, when `vektorske` became a deck you can pick):
+
+     · SILHOUETTE FIRST. The smallest a glyph is ever drawn is 11 px, in the
+       trump indicator, where colour is all but the only thing left — so the
+       four outlines are deliberately four different families: heart =
+       notched top, bell = a circle, acorn = egg under a cap, leaf = a point
+       with a midrib. Hold the sheet at arm's length and no two are the same
+       blob.
+     · FOUR SHAPES, NOT FOUR COLOURS. žir and bundeva were both gold in the
+       printed pack; here the acorn is brown-dominant under a green cap and
+       the bell is gold with a red band, because at 56 px in a fan that is the
+       one confusion a trick-taking game cannot afford.
+     · Outlines are the suit's own dark tone (`SuitPalette.line`), at 3 units
+       — roughly a third of a device pixel once a pip is on a phone-sized
+       card, so it firms the edge up instead of ringing it in black.
+     · At most ~6 nodes per glyph. A X has ten pips and a hand has twelve
+       cards; everything here is paid for 120 times over.
 
    Strokes are drawn with `vectorEffect="non-scaling-stroke"` NOWHERE on
    purpose: the outline must thin out with the glyph, otherwise a 24-unit pip
-   becomes a black blob at `sm`.
+   becomes a blob at `sm`.
    ────────────────────────────────────────────────────────────────────── */
 
-/** srce — the one suit shared with the French deck. */
-function Heart({ main }: { main: string }) {
-    return (
-        <>
-            <path
-                d="M50 94C18 70 6 52 6 34 6 17 18 6 32 6c9 0 15 5 18 12 3-7 9-12 18-12 14 0 26 11 26 28 0 18-12 36-44 60Z"
-                fill={main} stroke={INK} strokeWidth={3.5} strokeLinejoin="round"
-            />
-            <path d="M50 20c5-9 12-12 20-10 13 4 20 16 18 29-3 17-15 31-38 49Z" fill={PRINT_RED} opacity={0.55} />
-            <path d="M50 20v66" fill="none" stroke={INK} strokeWidth={1.5} opacity={0.55} />
-        </>
-    )
-}
+/** Shared edge weight, in the 100 × 100 glyph box. */
+const EDGE_W = 3
 
-/** list / zelena — a linden leaf with a midrib and a short stem. */
-function Leaf({ main, alt }: { main: string; alt: string }) {
+/** srce — the one suit shared with the French deck. A clean, slightly tall
+ *  heart: the notch is the read at 11 px, so it is cut deep, and there is no
+ *  midrib — on the ace it is drawn 130 units wide and any inner line there
+ *  reads as a scratch. */
+function Heart({ main, line }: { main: string; line: string }) {
     return (
         <>
             <path
-                d="M50 4C40 18 10 23 7 48 4 69 22 84 46 76l4 20 4-20c24 8 42-7 39-28C90 23 60 18 50 4Z"
-                fill={PRINT_GOLD}
-                stroke={INK}
-                strokeWidth={3.5}
+                d="M50 95C20 73 6 55 6 36 6 19 18 7 33 7c8 0 14 4 17 11 3-7 9-11 17-11 15 0 27 12 27 29 0 19-14 37-44 59Z"
+                fill={main}
+                stroke={line}
+                strokeWidth={EDGE_W}
                 strokeLinejoin="round"
             />
-            <path d="M50 5c10 13 40 19 43 43 3 21-15 36-39 28L50 96Z" fill={main} />
-            <path d="M50 12v67M50 30 29 22M50 43 17 37M50 57 15 57M50 70 27 79M50 30l21-8M50 43l33-6M50 57h35M50 70l23 9"
-                fill="none" stroke={alt} strokeWidth={2.2} strokeLinecap="round" />
         </>
     )
 }
 
-/** žir — a brown nut under a gold cap.
- *
- *  The printed pack has it the other way round (gold nut, dark cap), but then
- *  žir and bundeva are both dominantly gold, and at 56 px in a fan that is the
- *  one confusion a trick-taking game cannot afford. Brown-dominant also
- *  matches the suit colour the design system assigns žir (DESIGN §3). */
-function Acorn({ main, alt }: { main: string; alt: string }) {
+/** list / zelena — a linden leaf: one point up, a fat midrib, four veins.
+ *  Drawn as a rounded rhombus rather than the printed pack's spade-ish blade,
+ *  because a spade silhouette is exactly what a bela player must NOT read
+ *  here — the French deck is one setting away. */
+function Leaf({ main, line, alt }: { main: string; line: string; alt: string }) {
     return (
         <>
             <path
-                d="M50 98C30 98 19 81 19 63c0-14 14-23 31-23s31 9 31 23c0 18-11 35-31 35Z"
+                d="M50 4C36 23 15 38 15 56c0 21 17 37 35 40 18-3 35-19 35-40C85 38 64 23 50 4Z"
+                fill={main}
+                stroke={line}
+                strokeWidth={EDGE_W}
+                strokeLinejoin="round"
+            />
+            <path d="M50 13v82" stroke={line} strokeWidth={4} strokeLinecap="round" fill="none" />
+            <path
+                d="M50 38 30 28M50 38l20-10M50 62 27 55M50 62l23-7"
+                stroke={alt}
+                strokeWidth={3.2}
+                strokeLinecap="round"
+                fill="none"
+            />
+        </>
+    )
+}
+
+/** žir — a brown nut under a green cap on a short stalk. Egg-shaped on
+ *  purpose: it is the only glyph wider at the top than at the bottom. */
+function Acorn({ main, line, alt }: { main: string; line: string; alt: string }) {
+    return (
+        <>
+            <path d="M50 2v18" stroke={line} strokeWidth={6} strokeLinecap="round" fill="none" />
+            <path
+                d="M50 39h29c0 31-13 55-29 55S21 70 21 39Z"
+                fill={main}
+                stroke={line}
+                strokeWidth={EDGE_W}
+                strokeLinejoin="round"
+            />
+            <path
+                d="M50 12c-20 0-34 12-34 23 0 5 4 8 10 8h48c6 0 10-3 10-8 0-11-14-23-34-23Z"
                 fill={alt}
-                stroke={INK}
-                strokeWidth={3.5}
+                stroke={line}
+                strokeWidth={EDGE_W}
                 strokeLinejoin="round"
             />
-            <path d="M50 42v53c15-3 24-17 24-32 0-11-10-19-24-21Z" fill={main} opacity={0.85} />
-            <path d="M50 43v51" stroke={INK} strokeWidth={1.5} opacity={0.55} />
-            <rect x="18" y="35" width="64" height="11" rx="4" fill={PRINT_RED} stroke={INK} strokeWidth={3} />
-            <path
-                d="M50 4C29 4 15 19 14 34c0 7 6 10 14 10h44c8 0 14-3 14-10C85 19 71 4 50 4Z"
-                fill={PRINT_GREEN}
-                stroke={INK}
-                strokeWidth={3.5}
-                strokeLinejoin="round"
-            />
-            <path d="M24 35c5-10 10-10 15 0 5-10 10-10 15 0 5-10 10-10 15 0 4-8 8-9 12-3"
-                fill="none" stroke={PRINT_DARK_GREEN} strokeWidth={4} strokeLinecap="round" />
+            <path d="M28 33h44" stroke={line} strokeWidth={2.4} strokeLinecap="round" fill="none" />
         </>
     )
 }
 
-/** bundeva — a hawking bell: knob, body, rim, clapper. */
-function Bell({ main, alt }: { main: string; alt: string }) {
+/** bundeva — a hawking bell: stud, round gold body, red band, a dark slot.
+ *  The only circular glyph in the pack, which is what carries it at 11 px. */
+function Bell({ main, line, alt }: { main: string; line: string; alt: string }) {
     return (
         <>
-            <path
-                d="M50 4C26 4 13 20 13 40c0 17 8 29 15 36h44c7-7 15-19 15-36C87 20 74 4 50 4Z"
-                fill={PRINT_GOLD}
-                stroke={INK}
-                strokeWidth={3.5}
-                strokeLinejoin="round"
-            />
-            <path d="M50 6c19 0 31 13 31 34 0 14-7 25-13 31H50Z" fill={main} opacity={0.5} />
-            <path d="M46 5h8v18h-8Z" fill={INK} />
-            <rect x="10" y="55" width="80" height="14" rx="5" fill={alt} stroke={INK} strokeWidth={3} />
-            <path d="M19 61h62M25 56c3 8 7 8 10 0 3 8 7 8 10 0 3 8 7 8 10 0 3 8 7 8 10 0 3 8 7 8 10 0"
-                fill="none" stroke={PRINT_RED} strokeWidth={2} />
-            <path d="M20 68h60c-2 17-13 24-30 24S22 85 20 68Z" fill={PRINT_GREEN} stroke={INK} strokeWidth={3.5} />
-            <path d="M25 76c5-8 10-8 15 0 5-8 10-8 15 0 5-8 10-8 15 0" fill="none" stroke={PRINT_DARK_GREEN} strokeWidth={4} strokeLinecap="round" />
-            <circle cx="50" cy="96" r="4" fill={PRINT_RED} stroke={INK} strokeWidth={2.5} />
+            <rect x={42} y={4} width={16} height={16} rx={5} fill={line} />
+            <circle cx={50} cy={54} r={40} fill={main} stroke={line} strokeWidth={EDGE_W} />
+            <path d="M12 46h76v14H12Z" fill={alt} />
+            <path d="M12 46h76M12 60h76" stroke={line} strokeWidth={2.4} fill="none" />
+            <ellipse cx={50} cy={76} rx={15} ry={6} fill={line} />
         </>
     )
 }
 
 /**
  * One suit glyph in a 100 × 100 local box. Wrap it in a `<g transform>` to
- * place and size it; `mono` collapses the two-tone printing to a single
- * colour for the secondary etched lines when a caller needs a quieter mark.
- * The main printed colours remain intact so the suit never changes identity.
+ * place and size it; `mono` drops the secondary printed tone (veins, band)
+ * back to the suit's own dark line colour when a caller needs a quieter mark.
+ * The main fill never changes, so the suit keeps its identity.
  */
 export default function SuitGlyph({ suit, mono = false }: { suit: Suit; mono?: boolean }) {
-    const { main, alt: printed } = SUIT_PALETTE[suit]
-    const alt = mono ? main : printed
-    if (suit === "HERC") return <Heart main={main} />
-    if (suit === "PIK") return <Leaf main={main} alt={alt} />
-    if (suit === "TREF") return <Acorn main={main} alt={alt} />
-    return <Bell main={main} alt={alt} />
+    const { main, line, alt: printed } = SUIT_PALETTE[suit]
+    const alt = mono ? line : printed
+    if (suit === "HERC") return <Heart main={main} line={line} />
+    if (suit === "PIK") return <Leaf main={main} line={line} alt={alt} />
+    if (suit === "TREF") return <Acorn main={main} line={line} alt={alt} />
+    return <Bell main={main} line={line} alt={alt} />
 }
 
 /** `SuitGlyph` already placed and scaled — the form every card uses. */

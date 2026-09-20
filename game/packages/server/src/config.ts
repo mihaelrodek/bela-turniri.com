@@ -45,9 +45,13 @@ export interface Timings {
     botThinkMinMs: number
     botThinkMaxMs: number
     /**
-     * How long a scored deal stays on screen before the next one is dealt.
-     * Unconditional since 2026-09-08 — nobody has to confirm a summary. Kept
-     * just above the client's 7 s auto-dismiss so the dialog is gone first.
+     * How long a scored deal may stay on screen before the next one is dealt
+     * WITHOUT being acked. Since 2026-09-20 this is only the fallback: each
+     * connected human seat sends `game.nextDeal` when it closes its summary
+     * and the table advances as soon as the last of them has (gameRoom.ts).
+     * Kept just above the client's own auto-dismiss (`DealSummary`'s
+     * `AUTO_CLOSE_MS` plus the ~2.3 s the event queue spends on the last card
+     * and the trick sweep) so the dialog is gone first either way.
      */
     dealDoneAutoMs: number
     /** Empty room is deleted this long after the last member leaves. */
@@ -72,7 +76,7 @@ export const DEFAULT_TIMINGS: Timings = {
     reconnectGraceMs: DEFAULTS.reconnectGraceMs,
     botThinkMinMs: DEFAULTS.botThinkMinMs,
     botThinkMaxMs: DEFAULTS.botThinkMaxMs,
-    dealDoneAutoMs: 8_000,
+    dealDoneAutoMs: 5_000,
     emptyRoomTtlMs: 5 * 60_000,
     finishedRoomTtlMs: 10 * 60_000,
     heartbeatMs: 25_000,

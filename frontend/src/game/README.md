@@ -16,7 +16,31 @@ lazy chunks behind `GameIdentityGate` (`src/App.tsx`), and both hide
 ```
 components/     PlayingCard, Hand, Seat, TrickArea, Table, BiddingPanel,
                 ScoreBoard, DeclarationsReveal (+ BelaFlash), BelaPrompt,
-                DealSummary, RoomPanel, Chat
+                DealSummary, RoomPanel, Chat, DeckSuitIcon (THE one answer to
+                "what does a suit look like in this deck" — klasicne draws its
+                own printed mark, the other mađarice decks our vector glyph,
+                francuske ♥♦♠♣; SuitIcon/SuitGlyph only add the preference)
+cards/          deckOffline.ts     hands a warmed pack to the service worker
+cards/madjarice The three Hungarian decks (registry in util/cards.ts:
+                DeckStyle / DECK_STYLES / isHungarianDeck / deckHasImages):
+                  assets/klasicne/  <RANK><SUIT>.webp + BACK.webp +
+                                    suits/<SUIT>.webp — the licensed deck by
+                                    tomasdrus/hungarian-playing-cards, used
+                                    with the author's permission for
+                                    bela-turniri.com (2026-09-20). DEFAULT.
+                  assets/moderne/   <RANK><SUIT>.webp + BACK.webp — our own
+                                    cleaned scans, SAME geometry on purpose
+                  (vektorske)       no files at all: VectorFace.tsx IS that
+                                    deck — our own flat, frameless drawing
+                                    (figures/vignettes/SuitGlyph/palette
+                                    under it), art-directed 2026-09-20 as a
+                                    deck people pick; the same code is still
+                                    the image decks' stand-in until a face
+                                    decodes
+                WebP 363×585 with transparent corners — one file IS one card,
+                drawn edge to edge, no frame. imageAssets.ts registers them
+                per deck; preload.ts warms one pack at idle (idempotent per
+                deck, from the lobby on) and caches it offline.
 hooks/          useGameSocket      one WS per page: hello → room → play
                 useEventQueue      plays game.events back one at a time
                 useTurnCountdown   turnDeadline → draining seat/pill rings

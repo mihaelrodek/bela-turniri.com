@@ -11,8 +11,10 @@
        NOT fast-forwarded: the table keeps its normal rhythm while their seat
        is held, and they can walk back in mid-deadline (README §3 "Timeri")
      • bot seat → the bot acts after a random think delay
-     • DEAL_DONE                → advances on its own after `dealDoneAutoMs`;
-       `game.nextDeal` may still short-circuit it (first one wins).
+     • DEAL_DONE                → `game.nextDeal` is a per-seat ACK: the deal
+       advances as soon as every CONNECTED human seat has acked (bots and
+       seats on hold do not vote), and otherwise on the `dealDoneAutoMs`
+       fallback timer. Acks are kept per deal and reset with it.
        A deal that DECIDES the game never gets here: the engine settles it
        straight into GAME_OVER (README §1.7), so this phase always means
        "another deal follows" and nothing has to auto-advance a finished game
@@ -27,6 +29,7 @@ import {
     legalMoves,
     newGame,
     reduce,
+    SEATS,
     viewFor,
 } from "@bela/engine"
 import type { Card, GameAction, GameEvent, GameState, PlayerView, Seat, Suit } from "@bela/engine"
@@ -60,6 +63,9 @@ export class GameRoom {
     private readonly t: Timings
     /** One bot serves every bot seat: it is stateless and level-free (README §5). */
     private readonly bot: Bot
+    /** Seats that have acked the deal currently on screen (`dealAcksFor`). */
+    private readonly dealAcks: Set<Seat>
+    private dealAcksFor: number | null
     private turnTimer: Timer | null
     private botTimer: Timer | null
     private dealDoneTimer: Timer | null
@@ -78,6 +84,8 @@ export class GameRoom {
         this.room = room
         this.t = timings
         this.bot = makeBot()
+        this.dealAcks = new Set<Seat>()
+        this.dealAcksFor = null
         this.turnTimer = null
         this.botTimer = null
         this.dealDoneTimer = null
@@ -135,11 +143,54 @@ export class GameRoom {
         this.applyChecked({ type: "PLAY", seat: this.seatOf(conn), card, bela }, false)
     }
 
+    /**
+     * "I have read the receipt." NOT "deal now": one player closing their
+     * summary used to yank the table forward under everybody else, which is
+     * why the client stopped sending this at all and the 8 s timer became the
+     * only pace. It is an ACK now — the table advances when every connected
+     * human has acked, so a solo game against bots is instant and a table of
+     * four waits for the slowest of the four, capped by `dealDoneAutoMs`.
+     *
+     * `seatOf` throws for a spectator: watching is not voting.
+     */
     nextDeal(conn: Connection): void {
-        this.seatOf(conn)
-        // "First one wins": a second confirmation for the same deal is a no-op.
+        const seat = this.seatOf(conn)
         if (this.state.phase !== "DEAL_DONE") return
-        this.applyChecked({ type: "NEXT_DEAL" }, false)
+        this.ackDeal(seat)
+    }
+
+    /** Record one seat's ack for the deal on screen and advance if it was the
+     *  last one outstanding. */
+    private ackDeal(seat: Seat): void {
+        if (this.dealAcksFor !== this.state.dealNo) {
+            this.dealAcksFor = this.state.dealNo
+            this.dealAcks.clear()
+        }
+        this.dealAcks.add(seat)
+        this.advanceIfAllAcked()
+    }
+
+    /** Every connected human seat has acked (and there is at least one). A
+     *  disconnected player — seat on hold — and a bot never hold the table. */
+    private allConnectedHumansAcked(): boolean {
+        if (this.dealAcksFor !== this.state.dealNo) return false
+        let voters = 0
+        for (const seat of SEATS) {
+            const slot = this.room.slotAt(seat)
+            if (!slot || slot.kind !== "PLAYER" || !slot.connected) continue
+            voters += 1
+            if (!this.dealAcks.has(seat)) return false
+        }
+        return voters > 0
+    }
+
+    private advanceIfAllAcked(): boolean {
+        if (this.state.phase !== "DEAL_DONE") return false
+        if (!this.allConnectedHumansAcked()) return false
+        // `autoPlayed: false` — a deal somebody asked for is not a deal the
+        // server played for them.
+        this.autoApply({ type: "NEXT_DEAL" }, false)
+        return true
     }
 
     /* ───────────────────────── engine plumbing ───────────────────────── */
@@ -157,7 +208,16 @@ export class GameRoom {
         if (autoPlayed && action.type !== "NEXT_DEAL") this.autoPlayedActions += 1
         const result = reduce(this.state, action)
         this.state = result.state
-        if (result.events.some((event) => event.type === "DECLARATIONS_REVEALED")) {
+        // Not when the same action also ENDED the game: on "dosta" a pair can
+        // go out on its declarations alone (README §1.7), and arming the
+        // display window then made `schedule()` park the GAME_OVER
+        // finalisation (stats, live activity, room back to LOBBY) behind an
+        // 8 s timer that a room emptying out in the meantime would cancel for
+        // good. The client's own event queue still plays the reveal first.
+        if (
+            result.state.phase !== "GAME_OVER"
+            && result.events.some((event) => event.type === "DECLARATIONS_REVEALED")
+        ) {
             this.declarationsUntil = Date.now() + this.t.declarationsMs
         }
         this.lastAutoPlayed = autoPlayed
@@ -291,14 +351,15 @@ export class GameRoom {
             this.turnDurationMs = null
             this.scheduledSeat = null
             this.scheduledAsBot = null
-            // Always auto-advance, whether or not a human is watching
-            // (2026-09-08, user's request): the summary is a receipt, not a
-            // decision, so making four people each click "Sljedeća podjela"
-            // only added a wait for whoever clicked first. `game.nextDeal`
-            // stays in the protocol — a client may still short-circuit the
-            // wait — but nothing depends on it arriving any more. The client
-            // dismisses its own summary dialog slightly BEFORE this fires so
-            // the next deal never lands behind an open modal.
+            // The FALLBACK, not the pace (2026-09-20). Nobody has to press
+            // anything — the summary is a receipt, not a decision — but the
+            // clients say when they are done with it (`game.nextDeal`, one
+            // ack per connected human seat) and the table moves the moment
+            // the last of them has. This timer is what happens when an ack
+            // never comes: an old client, a tab in the background, a seat
+            // whose socket is limping. Each client dismisses its own summary
+            // dialog BEFORE acking, so the next deal never lands behind an
+            // open modal.
             this.dealDoneTimer = unref(
                 setTimeout(() => {
                     this.dealDoneTimer = null
@@ -342,6 +403,9 @@ export class GameRoom {
         if (this.disposed) return
         const st = this.state
         if (st.phase === "DEAL_DONE") {
+            // Somebody we were waiting on may have just dropped: the deal is
+            // held by the seats that are HERE, so re-count before re-arming.
+            if (this.advanceIfAllAcked()) return
             this.schedule()
             return
         }
@@ -389,7 +453,12 @@ export class GameRoom {
                 const legal = legalBids(st, seat)
                 let choice: Suit | "PASS"
                 try {
-                    choice = chooseBid(bot, view, legal)
+                    // A human who let the clock run out said nothing, and at
+                    // a bela table nothing means "dalje" — the bot must not
+                    // name a trump on their behalf (2026-09-20, user
+                    // request). Only the forced call ("mus", no pass
+                    // allowed) still needs the bot to pick a suit.
+                    choice = autoPlayed && legal.canPass ? "PASS" : chooseBid(bot, view, legal)
                 } catch (e) {
                     log.warn("bot.bid.threw", { room: this.room.id, seat, err: e })
                     choice = legal.canPass ? "PASS" : (legal.suits[0] ?? "HERC")

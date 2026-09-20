@@ -30,6 +30,14 @@ export default function TurnPill({
     return (
         <Text
             fontSize="sm"
+            // Fixed line-height and height (2026-09-20, user report): the
+            // tones differ only in weight/colour, but weight alone can move
+            // a font's own line metrics a hair, and this line sits directly
+            // above the hand — any wobble there moves the hand too. Pinning
+            // both means "Tvoj potez" ↔ "Bot Lucija je na potezu" swap the
+            // words, never the row's height.
+            lineHeight="20px"
+            h="20px"
             fontWeight={skin.weight}
             color={skin.color}
             textAlign="center"

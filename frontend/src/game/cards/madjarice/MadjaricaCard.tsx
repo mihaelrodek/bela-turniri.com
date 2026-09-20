@@ -1,237 +1,125 @@
-import { useState, type CSSProperties } from "react"
+import { type CSSProperties } from "react"
 import type { Rank, Suit } from "@bela/engine"
-import { RANK_HU_MARK, type CardSize } from "../../util/cards"
-import { SUIT_PALETTE, ACE_PALETTE, FACE, HAIRLINE, INK, NUMERAL_FONT } from "./palette"
-import SuitGlyph, { Pip } from "./SuitGlyph"
-import CourtFigure from "./figures"
-import SeasonVignette from "./vignettes"
+import { deckHasImages, type CardSize, type DeckStyle } from "../../util/cards"
+
+import SuitGlyph from "./SuitGlyph"
+import VectorFace from "./VectorFace"
 import { cardImage } from "./imageAssets"
+import { useDecodedImage } from "./useDecodedImage"
 
 /* ──────────────────────────────────────────────────────────────────────────
-   MadjaricaCard — prepared image when available, otherwise inline SVG.
+   MadjaricaCard — one Hungarian (Tell) card, in one of the THREE mađarice
+   decks (game/DESIGN.md §2.1). Same box, same names, same shadow; only the
+   paint differs, and `deck` is the whole switch:
 
-   Image assets are registered by engine card ID in imageAssets.ts.
-   The geometry described below applies to the existing SVG fallback.
+     klasicne   the licensed tomasdrus set (github.com/tomasdrus/
+                hungarian-playing-cards, used with the author's permission for
+                bela-turniri.com, 2026-09-20): clean digital faces, 363×585
+                with transparent rounded corners, so one image is the entire
+                card — no frame, no inset, no colour correction.
+     moderne    our own cleaned scans, in the IDENTICAL geometry on purpose,
+                so they go through this exact same image path.
+     vektorske  no raster at all — our OWN drawn deck, `VectorFace.tsx`.
+                Since 2026-09-20 it is art-directed as a deck people pick
+                (flat, frameless, four silhouettes); it still doubles as the
+                pre-decode stand-in for the two image decks, which is what it
+                used to be exclusively.
 
-   The geometry is a real Tell card's:
-     · 200 × 300 (2:3), cream face, thin double frame;
-     · numeral cards VII–X: roman numeral in the corner, two overlapping pip
-       columns flanking a stem, mirrored across the middle;
-     · courts: a waist-up figure, **doppeldeutsch** — the identical `<g>`
-       rotated 180° for the lower half, with the corner suit mark coming
-       along for the ride;
-     · aces: the one undoubled card — a big suit glyph standing on a season
-       vignette, because a Tell ace names a season (srce = proljeće,
-       bundeva = ljeto, list = jesen, žir = zima).
+   Files are registered by engine card ID in imageAssets.ts;
+   assets/klasicne/README.md has the licence note.
+
+   This file therefore holds NO drawing at all: the deck switch, the decode
+   gate and the two stacked layers live here, the 200 × 300 artwork lives in
+   `VectorFace.tsx` (and `figures` / `vignettes` / `SuitGlyph` / `palette`
+   under it). Keep it that way — the layer switching below is a fixed-shape,
+   unconditional-hooks component on purpose (2026-09-20 flicker fix).
    ────────────────────────────────────────────────────────────────────── */
 
-/**
- * Pip layout. A Tell VII–X shows exactly as many pips as its value, split
- * across the two halves: the top half carries ⌈n/2⌉, the bottom ⌊n/2⌋, so a
- * VII is 4 over 3 and a X is 5 over 5. Each half is rendered from the same
- * template (the bottom one rotated 180°), only the pip count differs.
- *
- *   3 → two flanking the stem + one on top of it
- *   4 → two columns of two
- *   5 → two columns of two + one on top of the stem
- */
-type HalfPips = 3 | 4 | 5
-function halfPips(rank: "7" | "8" | "9" | "10", top: boolean): HalfPips {
-    const n = Number(rank)
-    return (top ? Math.ceil(n / 2) : Math.floor(n / 2)) as HalfPips
-}
-
-const PIP_SIZE = 34
-const PIP_ROWS = { one: 78, two: 118 }
-const COL_X = { left: 52, right: 148 }
-const CORNER = 30
-const CORNER_SIZE = 30
-
-function isNumeral(rank: Rank): rank is "7" | "8" | "9" | "10" {
-    return rank === "7" || rank === "8" || rank === "9" || rank === "10"
-}
-
-/** One half's pips (3, 4 or 5) around the stem. */
-function PipHalf({ suit, pips }: { suit: Suit; pips: HalfPips }) {
-    const crown = pips === 3 || pips === 5
-    const rows = pips === 3 ? [PIP_ROWS.two] : [PIP_ROWS.one, PIP_ROWS.two]
-    return (
-        <>
-            {crown && <Pip suit={suit} x={100} y={40} size={PIP_SIZE} />}
-            {rows.map((y) => (
-                <g key={y}>
-                    <Pip suit={suit} x={COL_X.left} y={y} size={PIP_SIZE} />
-                    <Pip suit={suit} x={COL_X.right} y={y} size={PIP_SIZE} />
-                </g>
-            ))}
-        </>
-    )
-}
-
-/** One half of a VII–X. The caller rotates it to make the bottom half. */
-function NumeralHalf({ suit, pips, mark }: { suit: Suit; pips: HalfPips; mark: string }) {
-    const { main } = SUIT_PALETTE[suit]
-    const crown = pips === 3 || pips === 5
-    return (
-        <>
-            <path
-                d={`M100 ${crown ? 58 : 40}V146`}
-                stroke={main}
-                strokeWidth={2.5}
-                strokeLinecap="round"
-                fill="none"
-            />
-            <path
-                d="M100 100q-13-4-17-16M100 100q13-4 17-16"
-                stroke={main}
-                strokeWidth={2}
-                strokeLinecap="round"
-                fill="none"
-            />
-            <PipHalf suit={suit} pips={pips} />
-            <text
-                x={18}
-                y={46}
-                fill={INK}
-                fontFamily={NUMERAL_FONT}
-                fontSize={32}
-                fontWeight={700}
-                letterSpacing={-0.5}
-            >
-                {mark}
-            </text>
-        </>
-    )
-}
-
-/** The top half of a court card: the figure plus its corner suit mark. */
-function CourtHalf({ suit, rank }: { suit: Suit; rank: "J" | "Q" | "K" }) {
-    return (
-        <>
-            <CourtFigure suit={suit} court={rank} />
-            <Pip suit={suit} x={CORNER} y={CORNER} size={CORNER_SIZE} />
-        </>
-    )
-}
-
-/** The ace — a whole-card picture, not a doubled half. */
-function AceFace({ suit }: { suit: Suit }) {
-    const { sky, ground, motif } = ACE_PALETTE[suit]
-    return (
-        <>
-            <rect x={24} y={42} width={152} height={216} rx={12} fill={sky} stroke={HAIRLINE} strokeWidth={1.5} />
-            <path d="M24 214h152v32a12 12 0 0 1-12 12H36a12 12 0 0 1-12-12Z" fill={ground} />
-            <SeasonVignette suit={suit} motif={motif} />
-            <Pip suit={suit} x={100} y={172} size={120} />
-            <Pip suit={suit} x={CORNER} y={CORNER} size={CORNER_SIZE} />
-            <g transform="rotate(180 100 150)">
-                <Pip suit={suit} x={CORNER} y={CORNER} size={CORNER_SIZE} />
-            </g>
-        </>
-    )
-}
-
-const ART_INSET: Record<CardSize, number> = { sm: 2, md: 3, lg: 4 }
-const ART_RADIUS: Record<CardSize, number> = { sm: 4, md: 6, lg: 8 }
-
-/** The SVG underneath is the immediate, complete card face. The scanned art
- * fades in only after the browser has decoded it, rather than briefly
- * replacing a card with an undecoded white image on slower mobile devices. */
-function ScannedArtwork({ src, style }: { src: string; style: CSSProperties }) {
-    const [ready, setReady] = useState(false)
-    return (
-        <span aria-hidden="true" style={{ ...style, pointerEvents: "none" }}>
-            <img
-                src={src}
-                alt=""
-                draggable={false}
-                decoding="async"
-                onLoad={() => setReady(true)}
-                style={{
-                    display: "block",
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    opacity: ready ? 1 : 0,
-                    transition: "opacity 110ms ease-out",
-                    WebkitTouchCallout: "none",
-                    WebkitUserSelect: "none",
-                    userSelect: "none",
-                    // Normalize only the scanned artwork. Keeping this off
-                    // the parent lets its margin retain the same quiet
-                    // grey-paper tone instead of being pushed to pure white.
-                    filter: "saturate(1.08) contrast(1.04) brightness(1.08)",
-                    // The source scans include a few uneven grey pixels at
-                    // their paper edge. Crop those inside the clean frame.
-                    transform: "scale(1.045)",
-                    transformOrigin: "center",
-                }}
-            />
-        </span>
-    )
+/* The artwork fills the whole card box: since the licensed deck (2026-09-20)
+   the file IS the card — its own white face, printed edge and rounded,
+   TRANSPARENT corners — so there is no frame to inset it into and no scan
+   paper to colour-correct. `contain` rather than `fill` because the box is
+   rounded off the true 0.6205 ratio by a fraction of a pixel and squashing a
+   printed card is more visible than a hairline of felt. */
+const ART_STYLE: CSSProperties = {
+    display: "block",
+    position: "absolute",
+    inset: 0,
+    width: "100%",
+    height: "100%",
 }
 
 export default function MadjaricaCard({
     rank,
     suit,
-    size = "md",
+    deck = "klasicne",
 }: {
     rank: Rank
     suit: Suit
+    /** Which of the three mađarice decks to paint. */
+    deck?: DeckStyle
+    /** Accepted but unused since the artwork fills the box (2026-09-20): the
+     *  face no longer needs a per-size inset or corner radius, and every
+     *  caller already sizes the card root. Kept so call sites stay unchanged
+     *  and a future size-dependent face has somewhere to read it. */
     size?: CardSize
 }) {
-    const inset = ART_INSET[size]
-    const artStyle = {
-        display: "block",
-        position: "absolute" as const,
-        inset: `${inset}px`,
-        width: `calc(100% - ${inset * 2}px)`,
-        height: `calc(100% - ${inset * 2}px)`,
-        borderRadius: `${ART_RADIUS[size]}px`,
-        overflow: "hidden",
-    }
-    const image = cardImage(rank, suit)
+    /* `vektorske` has no file to wait for, so `image` is undefined and the
+       hook below answers "not ready" — which leaves the SVG visible forever,
+       exactly right. The hook is called unconditionally either way: a deck
+       change may remount a card, but `ready` flipping must never change the
+       shape of this component (2026-09-20 flicker fix). */
+    const image = deckHasImages(deck) ? cardImage(deck, rank, suit) : undefined
+    const { ready, imgRef, settle } = useDecodedImage(image)
     return (
         <>
-            {/* The scanned face may be this browser's first request for an
-                opponent's card. Keep the complete vector face underneath it
-                so the 320 ms throw animation never starts as an empty white
-                frame while the image is fetched and asynchronously decoded. */}
+            {/* On an image deck this may be this browser's first request for
+                an opponent's card. The complete vector face stands in until it
+                has decoded, so the 320 ms throw animation never starts as an
+                empty hole. It is HIDDEN the moment the image is up: the
+                artwork's corners are transparent, so anything left underneath
+                would show through them as a stray outline.
+
+                On `vektorske` it is not a stand-in but the card itself, and
+                it has to be a FINISHED one on a transparent root — the white
+                frame that used to sit behind it in `PlayingCard` is gone
+                (2026-09-20). `VectorFace` paints that face, rounded to the
+                same radius the artwork decks carry in their pixels. */}
             <svg
                 viewBox="0 0 200 300"
+                preserveAspectRatio="none"
                 width="100%"
                 height="100%"
                 aria-hidden="true"
                 focusable="false"
-                style={artStyle}
+                style={{ ...ART_STYLE, visibility: ready ? "hidden" : "visible" }}
             >
-                <rect x={1} y={1} width={198} height={298} rx={14} fill={FACE} stroke={INK} strokeWidth={2} />
-                <rect x={8} y={8} width={184} height={284} rx={9} fill="none" stroke={HAIRLINE} strokeWidth={1.5} />
-                {rank === "A" ? (
-                    <AceFace suit={suit} />
-                ) : (
-                    <>
-                        <path d="M9 150h182" stroke={HAIRLINE} strokeWidth={1.2} />
-                        {isNumeral(rank) ? (
-                            <>
-                                <NumeralHalf suit={suit} pips={halfPips(rank, true)} mark={RANK_HU_MARK[rank]} />
-                                <g transform="rotate(180 100 150)">
-                                    <NumeralHalf suit={suit} pips={halfPips(rank, false)} mark={RANK_HU_MARK[rank]} />
-                                </g>
-                            </>
-                        ) : (
-                            <>
-                                <CourtHalf suit={suit} rank={rank} />
-                                <g transform="rotate(180 100 150)">
-                                    <CourtHalf suit={suit} rank={rank} />
-                                </g>
-                            </>
-                        )}
-                    </>
-                )}
+                <VectorFace rank={rank} suit={suit} />
             </svg>
 
-            {image && <ScannedArtwork src={image} style={artStyle} />}
+            {image && (
+                <img
+                    ref={imgRef}
+                    src={image}
+                    alt=""
+                    aria-hidden="true"
+                    draggable={false}
+                    decoding="async"
+                    onLoad={settle}
+                    style={{
+                        ...ART_STYLE,
+                        objectFit: "contain",
+                        pointerEvents: "none",
+                        // No cross-fade: the swap happens on the one render
+                        // where the SVG is hidden, so there is never a frame
+                        // with both, or with neither.
+                        opacity: ready ? 1 : 0,
+                        WebkitTouchCallout: "none",
+                        WebkitUserSelect: "none",
+                        userSelect: "none",
+                    }}
+                />
+            )}
         </>
     )
 }
@@ -239,7 +127,7 @@ export default function MadjaricaCard({
 /**
  * The bare suit glyph as a standalone `<svg>` — what the bidding panel, the
  * trump indicator and the scoreboard put next to a word. It uses the same
- * full-colour print as the photographed cards by default.
+ * full-colour print as the deck artwork by default.
  */
 export function MadjaricaSuitIcon({ suit, mono = false }: { suit: Suit; mono?: boolean }) {
     return (

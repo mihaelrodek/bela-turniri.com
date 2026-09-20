@@ -4,7 +4,7 @@ import { Box, HStack, IconButton, Text } from "@chakra-ui/react"
 import { FiX } from "react-icons/fi"
 import { useTranslation } from "../../i18n"
 import ConfirmDialog from "../../components/ConfirmDialog"
-import { MOBILE_TABBAR_CLEARANCE } from "../../components/navChrome"
+import { WHATS_NEW_FAB } from "../../components/navChrome"
 import { ACTION_BAR_RESERVE } from "../../blok/actionBar"
 import { useActiveRoom } from "../hooks/useGameSocket"
 
@@ -27,10 +27,13 @@ import { useActiveRoom } from "../hooks/useGameSocket"
        is a passive reader and no connection is made at all;
      • collapsed and dismissed states are local: hiding it is not leaving.
 
-   It floats clear of `MobileTabBar` (and of the home-indicator inset) via
-   `MOBILE_TABBAR_CLEARANCE`, and sits below Chakra's dialog layer so a modal
+   It docks beside the "Novosti" FAB (`WHATS_NEW_FAB` in navChrome.ts, which
+   already clears `MobileTabBar` and the home-indicator inset), and sits below Chakra's dialog layer so a modal
    always wins.
    ────────────────────────────────────────────────────────────────────── */
+
+/** Pill height, px — needed to centre it on the FAB beside it. */
+const PILL_H = 34
 
 export default function ActiveRoomWidget() {
     const { t } = useTranslation()
@@ -60,23 +63,33 @@ export default function ActiveRoomWidget() {
         <>
             <Box
                 position="fixed"
-                right={{ base: "max(0px, env(safe-area-inset-right, 0px))", md: "4" }}
-                bottom={{
-                    base: onBlokRoute
-                        ? `calc(${ACTION_BAR_RESERVE} + 12px)`
-                        : `calc(${MOBILE_TABBAR_CLEARANCE} + 12px)`,
-                    md: "4",
-                }}
+                // A free-standing pill docked LEFT of the "Novosti" FAB, level
+                // with its centre, on every width (2026-09-20, user request).
+                // /blok has no FAB (it hides there) and its own action bar, so
+                // there the pill takes the corner itself.
+                right={onBlokRoute
+                    ? { base: "calc(12px + env(safe-area-inset-right, 0px))", md: "4" }
+                    : {
+                        base: `${WHATS_NEW_FAB.right.base + WHATS_NEW_FAB.size + 8}px`,
+                        md: `${WHATS_NEW_FAB.right.md + WHATS_NEW_FAB.size + 8}px`,
+                    }}
+                bottom={onBlokRoute
+                    ? { base: `calc(${ACTION_BAR_RESERVE} + 12px)`, md: "4" }
+                    : {
+                        base: `calc(${WHATS_NEW_FAB.bottom.base} + ${(WHATS_NEW_FAB.size - PILL_H) / 2}px)`,
+                        md: `calc(${WHATS_NEW_FAB.bottom.md} + ${(WHATS_NEW_FAB.size - PILL_H) / 2}px)`,
+                    }}
+                h={`${PILL_H}px`}
+                display="flex"
+                alignItems="center"
                 zIndex={950}
-                w={{ base: "min(320px, calc(100vw - env(safe-area-inset-right, 0px)))", md: "320px" }}
-                roundedStart="l3"
+                maxW="min(240px, calc(100vw - 96px))"
+                rounded="full"
                 borderWidth="1px"
-                borderEndWidth="0"
                 borderColor={playing ? "orange.400" : "brand.400"}
-                borderInlineStartWidth="3px"
                 bg="bg.opaque"
                 backdropFilter="none"
-                shadow="0 12px 34px rgba(0, 0, 0, 0.28)"
+                shadow="0 6px 18px rgba(0, 0, 0, 0.28)"
                 cursor="pointer"
                 role="button"
                 tabIndex={0}
@@ -89,14 +102,15 @@ export default function ActiveRoomWidget() {
                     }
                 }}
             >
-                <HStack justify="space-between" gap="2" px="4" py="3">
+                <HStack justify="space-between" gap="1" ps="3" pe="1" py="1">
                 <HStack gap="2" minW="0">
                     <Box boxSize="8px" rounded="full" bg={playing ? "green.400" : "orange.400"} flexShrink={0} />
-                    <Text fontSize="sm" fontWeight="bold" color="fg.ink" lineClamp={1}>{room.name}</Text>
+                    <Text fontSize="xs" fontWeight="bold" color="fg.ink" lineClamp={1}>{room.name}</Text>
                 </HStack>
                 <HStack flexShrink={0}>
                     <IconButton
-                        size="xs"
+                        size="2xs"
+                        rounded="full"
                         variant="ghost"
                         aria-label={t("game.active.leave")}
                         onClick={(event) => {

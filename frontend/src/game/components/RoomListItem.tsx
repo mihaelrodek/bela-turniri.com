@@ -114,33 +114,30 @@ export default function RoomListItem({
         >
             <HStack justify="space-between" gap="2">
                 <VStack align="stretch" gap="2" flex="1" minW="0">
-                    {/* Phone: keep the title clean, give "Privatna" its own
-                        line, then keep the three game rules together in the
-                        same predictable order. This prevents one long name
-                        from splitting the rules into a confusing staircase. */}
+                    {/* Phone: status badge lives top-right, on the SAME line
+                        as the name (2026-09-20, user request) — it used to
+                        sit on its own row below, one row taller than it
+                        needed to be. The name truncates so a long one never
+                        pushes the badge off the card; the badge text itself
+                        never wraps. Everything else that used to share that
+                        row ("Privatna", the win-rate gate) moves down to sit
+                        with the other rule chips, directly under the name. */}
                     <VStack display={{ base: "flex", md: "none" }} align="stretch" gap="1.5">
-                        <Text fontWeight="semibold" lineClamp={1}>{room.name}</Text>
-                        {(room.private || room.status === "PLAYING" || room.minWinRatePercent > 0) && (
-                            <HStack gap="1.5" wrap="wrap">
-                                {room.private && (
-                                    <Badge size="sm" variant="subtle" colorPalette="gray"
-                                        aria-label={t("game.lobby.privateAria")} title={t("game.lobby.privateAria")}>
-                                        <FiLock size={12} /> {t("game.lobby.private")}
-                                    </Badge>
-                                )}
-                                {room.status === "PLAYING" && (
-                                    <Badge size="sm" variant="solid" colorPalette="orange">
-                                        {t("game.lobby.playing")}
-                                    </Badge>
-                                )}
-                                {room.minWinRatePercent > 0 && (
-                                    <Badge size="sm" variant="subtle" colorPalette="orange">
-                                        {t("game.room.minWinRateShort", { percent: room.minWinRatePercent })}
-                                    </Badge>
-                                )}
-                            </HStack>
-                        )}
-                        <HStack gap="1" wrap="nowrap" whiteSpace="nowrap">
+                        <HStack justify="space-between" align="start" gap="2">
+                            <Text fontWeight="semibold" lineClamp={1} minW="0">{room.name}</Text>
+                            {room.status === "PLAYING" && (
+                                <Badge size="sm" variant="solid" colorPalette="orange" flexShrink={0} whiteSpace="nowrap">
+                                    {t("game.lobby.playing")}
+                                </Badge>
+                            )}
+                        </HStack>
+                        <HStack gap="1.5" wrap="wrap">
+                            {room.private && (
+                                <Badge size="sm" variant="subtle" colorPalette="gray"
+                                    aria-label={t("game.lobby.privateAria")} title={t("game.lobby.privateAria")}>
+                                    <FiLock size={12} /> {t("game.lobby.private")}
+                                </Badge>
+                            )}
                             <Badge size="sm" px={{ base: "1.5", sm: "2" }} fontSize={{ base: "2xs", sm: "xs" }} variant="subtle" colorPalette="brand">
                                 {room.targetScore}
                             </Badge>
@@ -150,6 +147,11 @@ export default function RoomListItem({
                             <Badge size="sm" px={{ base: "1.5", sm: "2" }} fontSize={{ base: "2xs", sm: "xs" }} variant="subtle" colorPalette="gray">
                                 {t(`game.lobby.finishMode.${room.gameEndRule}`)}
                             </Badge>
+                            {room.minWinRatePercent > 0 && (
+                                <Badge size="sm" variant="subtle" colorPalette="orange">
+                                    {t("game.room.minWinRateShort", { percent: room.minWinRatePercent })}
+                                </Badge>
+                            )}
                         </HStack>
                     </VStack>
 

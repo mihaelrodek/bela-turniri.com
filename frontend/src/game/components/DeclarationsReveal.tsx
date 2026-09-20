@@ -5,7 +5,7 @@ import type { Declaration, Suit, Team } from "@bela/engine"
 import { useTranslation } from "../../i18n"
 import { otherTeam, SEATS, teamOf } from "../util/seats"
 import { RANKS, makeCard, suitKey } from "../util/cards"
-import PlayingCard from "./PlayingCard"
+import PlayingCard, { SuitIcon } from "./PlayingCard"
 import { GLASS_STRONG, INK, INK_MUTED, TEAM } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -70,6 +70,45 @@ export function BelaFlash({ seats, seat }: { seats: RoomState["seats"]; seat: Se
                     {t("game.bela.by", { name: seatName(seats, seat, t("game.seat.empty")) })}
                 </Text>
             </VStack>
+        </Flex>
+    )
+}
+
+/** "Bot Dora zove žir" — a beat in the middle of the felt the moment trump is
+ *  settled, gone again well inside TRUMP_SET's dwell (GameRoomPage times it).
+ *  The caller's medallion and the score panel carry the fact for the rest of
+ *  the deal; this only makes sure nobody missed the moment it happened. */
+export function TrumpFlash({ seats, seat, suit }: { seats: RoomState["seats"]; seat: Seat; suit: Suit }) {
+    const { t } = useTranslation()
+    return (
+        <Flex position="absolute" inset="0" align="center" justify="center" pointerEvents="none" zIndex={9}>
+            <HStack
+                gap="3"
+                {...GLASS_STRONG}
+                borderColor="brand.300"
+                rounded="l3"
+                px="5"
+                py="3"
+                role="status"
+                aria-live="polite"
+                boxShadow="0 0 40px rgba(127,196,150,0.4)"
+                css={{
+                    ...GLASS_STRONG.css,
+                    animation: "trumpFlashIn 180ms cubic-bezier(0.22, 1.2, 0.36, 1)",
+                    "@keyframes trumpFlashIn": {
+                        from: { transform: "scale(0.7)", opacity: 0 },
+                        to: { transform: "scale(1)", opacity: 1 },
+                    },
+                }}
+            >
+                <SuitIcon suit={suit} size={36} />
+                <Text fontSize="lg" fontWeight="bold" color={INK} lineHeight="1.2">
+                    {t("game.trump.calledBy", {
+                        name: seatName(seats, seat, t("game.seat.empty")),
+                        suit: t(`game.suit.${suit}`),
+                    })}
+                </Text>
+            </HStack>
         </Flex>
     )
 }
@@ -140,7 +179,7 @@ export function BelotFlash({
                         <Box
                             key={rank}
                             w="48px"
-                            h="72px"
+                            h="70px"
                             overflow="hidden"
                             rounded="6px"
                             css={{
@@ -176,6 +215,7 @@ export default function DeclarationsReveal({
     ownDeclarations,
     declarationPoints,
     belaDeclared,
+    trumpSuit = null,
     onDismiss,
 }: {
     /** The SCORING pair only — that is all the engine sends (README §1.4). */
@@ -190,6 +230,10 @@ export default function DeclarationsReveal({
      *  when ordinary declarations were awarded to the scoring pair. */
     declarationPoints?: Record<Team, number>
     belaDeclared: Team | null
+    /** Trump of the running deal — the only thing needed to DRAW a bela, since
+     *  bela is always K+Q of trump. Null before trump is settled, in which case
+     *  there can be no bela either. */
+    trumpSuit?: Suit | null
     onDismiss?: () => void
 }) {
     const { t } = useTranslation()
@@ -223,6 +267,14 @@ export default function DeclarationsReveal({
             label: mySeat === null ? t("game.score.teamB") : t("game.score.them"),
         },
     ]
+    /* Bela is K+Q of trump and the engine only ever tells us the TEAM that
+       announced it (`PlayerView.belaDeclared`), never the seat — so it is
+       drawn as its own row, attributed to that pair, with the two real cards
+       rather than a footnote under the total. */
+    const belaRow =
+        belaDeclared !== null && trumpSuit !== null
+            ? teamRows.find((row) => row.team === belaDeclared) ?? null
+            : null
 
     return (
         <Portal>
@@ -307,7 +359,7 @@ export default function DeclarationsReveal({
                                 >
                                     {points[team] > 0 ? `+${points[team]}` : "—"}
                                 </Text>
-                                {belaDeclared === team && (
+                                {belaDeclared === team && belaRow === null && (
                                     <Text fontSize="2xs" fontWeight="bold" color={TEAM[side]}>
                                         {t("game.declarations.bela")}
                                     </Text>
@@ -370,6 +422,40 @@ export default function DeclarationsReveal({
                             </Box>
                         )
                     })
+                )}
+
+                {belaRow && trumpSuit !== null && (
+                    <Box
+                        rounded="l2"
+                        px="2"
+                        py="1.5"
+                        bg="bg.subtle"
+                        borderWidth="1px"
+                        borderColor="border"
+                    >
+                        <HStack justify="space-between" gap="2">
+                            <Text fontSize="xs" fontWeight="bold" color={INK} lineClamp={1}>
+                                {t("game.declarations.bela")}
+                            </Text>
+                            <Text
+                                fontSize="2xs"
+                                fontWeight="bold"
+                                color={TEAM[belaRow.side]}
+                                textTransform="uppercase"
+                                letterSpacing="wide"
+                                flexShrink={0}
+                            >
+                                {belaRow.label}
+                            </Text>
+                        </HStack>
+                        <HStack gap="0" mt="1.5">
+                            {[makeCard("K", trumpSuit), makeCard("Q", trumpSuit)].map((card, i) => (
+                                <Box key={card} ml={i === 0 ? "0" : "-10px"}>
+                                    <PlayingCard card={card} size="sm" />
+                                </Box>
+                            ))}
+                        </HStack>
+                    </Box>
                 )}
 
                 {/* Our own declarations lost. One line, no cards: the viewer

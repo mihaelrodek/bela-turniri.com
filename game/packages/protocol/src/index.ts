@@ -33,7 +33,7 @@ export type {
 
 export const PROTOCOL_VERSION = 1
 
-export const REACTIONS = ["👏", "🍀", "😱", "⏰", "🤝"] as const
+export const REACTIONS = ["👏", "🍀", "😱", "🤬", "⏰", "🤝"] as const
 export type Reaction = (typeof REACTIONS)[number]
 
 /** Allowed minimum overall win percentages when a room is created. */

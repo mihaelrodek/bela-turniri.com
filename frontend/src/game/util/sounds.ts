@@ -61,10 +61,12 @@ export function playSound(sound: GameSound): void {
     const ctx = audioContext
     const now = ctx.currentTime
 
-    // Create a gain node with a quick attack/decay envelope (≤ 250 ms, gain ≤ 0.25).
+    // Shared output for this cue. Each oscillator below owns its attack/decay
+    // envelope; this node must remain open or it multiplies every envelope by
+    // zero and makes the complete cue inaudible.
     const gain = ctx.createGain()
     gain.connect(ctx.destination)
-    gain.gain.setValueAtTime(0, now)
+    gain.gain.setValueAtTime(1, now)
 
     switch (sound) {
         case "gameStart":
@@ -76,8 +78,7 @@ export function playSound(sound: GameSound): void {
             break
 
         case "card":
-            // One soft "tock": low sine 180 Hz, 60 ms.
-            playSine(ctx, gain, now, 180, 60, 0.15)
+            playFeltCard(ctx, gain, now)
             break
 
         case "gameWon":
@@ -95,6 +96,47 @@ export function playSound(sound: GameSound): void {
             playSine(ctx, gain, now + 95, 440, 90, 0.11)
             playSine(ctx, gain, now + 190, 349, 140, 0.11)
             break
+    }
+}
+
+/** A short, muted card impact: filtered noise supplies the felt texture and
+ *  a quiet low body keeps it from sounding like digital static. */
+function playFeltCard(ctx: AudioContext, output: GainNode, startTime: number): void {
+    try {
+        const duration = 0.065
+        const frameCount = Math.ceil(ctx.sampleRate * duration)
+        const buffer = ctx.createBuffer(1, frameCount, ctx.sampleRate)
+        const samples = buffer.getChannelData(0)
+
+        for (let i = 0; i < frameCount; i += 1) {
+            const fade = 1 - i / frameCount
+            samples[i] = (Math.random() * 2 - 1) * fade
+        }
+
+        const source = ctx.createBufferSource()
+        const filter = ctx.createBiquadFilter()
+        const gain = ctx.createGain()
+        const endTime = startTime + duration
+
+        source.buffer = buffer
+        filter.type = "lowpass"
+        filter.Q.setValueAtTime(0.7, startTime)
+        filter.frequency.setValueAtTime(1_100, startTime)
+        filter.frequency.exponentialRampToValueAtTime(420, endTime)
+
+        gain.gain.setValueAtTime(0, startTime)
+        gain.gain.linearRampToValueAtTime(0.085, startTime + 0.003)
+        gain.gain.exponentialRampToValueAtTime(0.001, endTime)
+
+        source.connect(filter)
+        filter.connect(gain)
+        gain.connect(output)
+        source.start(startTime)
+        source.stop(endTime)
+
+        playSine(ctx, output, startTime, 125, 45, 0.04)
+    } catch {
+        // WebAudio unavailable for this cue — keep the game uninterrupted.
     }
 }
 

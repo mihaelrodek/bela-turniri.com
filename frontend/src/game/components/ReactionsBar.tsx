@@ -8,7 +8,7 @@ import { REACTION_TEXT_KEYS } from "../util/reactions"
 import { GLASS, INK_MUTED } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
-   ReactionsBar — five quick phrases under the hand (game/DESIGN.md §2.8).
+   ReactionsBar — six quick phrases under the hand (game/DESIGN.md §2.8).
 
    The whole social surface of a table where three of the four players may
    be bots: no typing, no thinking, one tap. The protocol's own
@@ -17,17 +17,17 @@ import { GLASS, INK_MUTED } from "./tableStyles"
    does nothing reads as a broken button, while a button that is obviously
    resting reads as a rule.
 
-   FIVE SEPARATE RINGS in a row under the hand (2026-09-18, user request —
+   SIX SEPARATE RINGS in a row under the hand (2026-09-18, user request —
    reverted the fused segmented-capsule look: each reaction is its own glass
    circle with its own border, gapped from its neighbours, not one long box
    with hairline dividers).
 
    The FIRST circle is a plain, colourless smile icon (`FiSmile`, not an
-   emoji) that shows or hides the other five. Expanded by default: collapsing
+   emoji) that shows or hides the other six. Expanded by default: collapsing
    is for a player who wants the row out of the way, not a hoop to jump
    through before the row is ever useful.
 
-   The five reaction circles stay MOUNTED and reserve their layout space even
+   The six reaction circles stay MOUNTED and reserve their layout space even
    while collapsed — only `opacity`/`pointerEvents` toggle. The row is
    `justify="center"`, so if they were removed from the DOM instead, the row
    would shrink to just the toggle and RE-CENTRE around it alone, visibly
@@ -80,8 +80,8 @@ export default function ReactionsBar({
             <chakra.button
                 type="button"
                 {...GLASS}
-                w="44px"
-                h="44px"
+                w={{ base: "40px", sm: "44px" }}
+                h={{ base: "40px", sm: "44px" }}
                 rounded="full"
                 display="flex"
                 alignItems="center"
@@ -106,8 +106,8 @@ export default function ReactionsBar({
                     type="button"
                     key={reaction}
                     {...GLASS}
-                    w="44px"
-                    h="44px"
+                    w={{ base: "40px", sm: "44px" }}
+                    h={{ base: "40px", sm: "44px" }}
                     rounded="full"
                     display="flex"
                     alignItems="center"

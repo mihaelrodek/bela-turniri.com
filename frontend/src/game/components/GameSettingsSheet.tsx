@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Box, Button, Dialog, HStack, IconButton, Input, Popover, Portal, Separator, Text, VStack } from "@chakra-ui/react"
+import { Box, Button, Dialog, HStack, IconButton, Input, Popover, Portal, Separator, SimpleGrid, Text, VStack } from "@chakra-ui/react"
 import { LIMITS, TRICK_REVIEWS } from "@bela/protocol"
 import type { ClientMessage, RoomState, TargetScore } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
@@ -7,6 +7,7 @@ import { formatDate } from "../../utils/format"
 import AvatarPicker from "../../components/avatars/AvatarPicker"
 import { type AvatarId } from "../../components/avatars/avatarArt"
 import { useGamePrefs } from "../hooks/useGamePrefs"
+import { DECK_STYLES } from "../util/cards"
 import { useGameSocket } from "../hooks/useGameSocket"
 import { readGuest, saveGuest } from "../hooks/guestIdentity"
 import PlayingCard from "./PlayingCard"
@@ -282,15 +283,23 @@ export default function GameSettingsSheet({ open, onClose, room, isHost = false,
                                 <GameOption label={t("game.settings.sound")} checked={prefs.sound} onChange={(sound) => setPrefs({ sound })} />
                                 <GameOption label={t("game.settings.reduceMotion")} checked={prefs.reduceMotion} onChange={(reduceMotion) => setPrefs({ reduceMotion })} />
                                 <Text fontSize="sm" fontWeight="semibold" mt="3">{t("game.settings.deckType")}</Text>
-                                <HStack gap="3" align="stretch">
-                                    {(["madjarice", "francuske"] as const).map((deck) => (
-                                        <Button key={deck} flex="1" h="auto" py="4" flexDirection="column" gap="3" colorPalette="brand"
+                                {/* Four decks since 2026-09-20 (util/cards.ts),
+                                    so 2×2 rather than a row: four sample cards
+                                    side by side do not fit a 360 px phone.
+                                    Each sample FORCES its deck through
+                                    `PlayingCard`'s `deck` prop — including the
+                                    image decks, which decode here exactly as
+                                    they do at the table. */}
+                                <SimpleGrid columns={2} gap="3">
+                                    {DECK_STYLES.map((deck) => (
+                                        <Button key={deck} h="auto" py="4" px="2" flexDirection="column" gap="3" colorPalette="brand"
+                                            fontSize="sm" whiteSpace="normal"
                                             variant={prefs.deck === deck ? "subtle" : "outline"} aria-pressed={prefs.deck === deck} onClick={() => setPrefs({ deck })}>
                                             <PlayingCard card="JHERC" size="sm" deck={deck} />
                                             {t(`game.settings.deck.${deck}`)}
                                         </Button>
                                     ))}
-                                </HStack>
+                                </SimpleGrid>
                             </VStack>
                         </Dialog.Body>
                         <Dialog.Footer><Button colorPalette="brand" onClick={onClose}>{t("game.common.close")}</Button></Dialog.Footer>

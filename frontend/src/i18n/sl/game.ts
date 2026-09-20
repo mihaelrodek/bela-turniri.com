@@ -22,7 +22,7 @@ export const game: GameDict = {
     "guest.loginInline": "Prijavi se",
     "guest.statsHintSuffix": "za shranjevanje statistike v vseh napravah.",
     "declarations.calculating": "Igra računa napovedi…",
-    "declarations.reviewing": "Pregled napovedi…",
+    "declarations.starting": "Igra se začenja…",
 
     "lobby.heroLabel": "Bela na spletu",
     "lobby.heroTitle": "Tvoja miza. Tvoja ekipa.",
@@ -32,7 +32,7 @@ export const game: GameDict = {
     "room.public": "Javna",
     "room.waitingReady": "Čaka na pripravljenost",
     "room.statsOverall": "Vse {wins}–{losses} · {percent}%",
-    "room.statsOverallLabel": "Vse",
+    "room.statsTitle": "Skupaj",
     "room.statsTarget": "{target} {wins}–{losses} · {percent}%",
     "bot.label": "Bot",
     "rules.title": "Pravila delitve",
@@ -243,6 +243,7 @@ export const game: GameDict = {
     "table.reaction.nicePlay": "Bravo, mojster!",
     "table.reaction.lucky": "Sreča spremlja pogumne!",
     "table.reaction.mistake": "Joj, kaj sem to vrgel?!",
+    "table.reaction.angry": "Grrrrr!",
     "table.reaction.hurry": "Dajmo, odigraj že enkrat!",
     "table.reaction.goodGame": "Dobra igra, vse čestitke!",
 
@@ -281,6 +282,7 @@ export const game: GameDict = {
 
     "bela.title": "Bela!",
     "bela.by": "kliče {name}",
+    "trump.calledBy": "{name} kliče {suit}",
     // Klic bele je IZBIRA (game/README.md §1.4): vprašamo enkrat, ko igralec
     // vrže prvo od K/Q aduta. Zavrnitev velja za celotno delitev.
     "bela.ask": "Kličeš belo?",
@@ -363,7 +365,9 @@ export const game: GameDict = {
     "settings.reduceMotion": "Zmanjšaj animacije",
     "settings.reduceMotionHint": "Sledi tudi sistemski nastavitvi za zmanjšane animacije.",
     "settings.deckType": "Vrsta kart",
-    "settings.deck.madjarice": "Madžarske",
+    "settings.deck.klasicne": "Klasične",
+    "settings.deck.moderne": "Moderne",
+    "settings.deck.vektorske": "Vektorske",
     "settings.deck.francuske": "Francoske",
     "settings.recommended": "Priporočeno",
     "common.close": "Zapri",
@@ -373,8 +377,6 @@ export const game: GameDict = {
 
     /* ─── Hranjenje sedeža, aktivna soba, vrnitev (game/README.md §3) ─────
        DODANO NA KONEC — ne premikaj in ne briši ključev zgoraj. */
-    "active.title": "Imaš aktivno igro",
-    "active.description": "Igra še teče. Vrni se za mizo ali jo zapusti.",
     "active.holdLeft": "Sedež ti hranimo še {time}",
     "active.holdNone": "Sedež je še vedno tvoj.",
     "active.resume": "Vrni se v igro",

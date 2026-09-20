@@ -71,10 +71,13 @@ export const HOVER = "@media (hover: hover) and (pointer: fine)"
  * The centre follows the available height, including compact desktop windows. */
 
 /** The reserved height of one seat block: the 42 px avatar in its 3 px ring
- *  (48), 4 px, the name pill (22), 2 px, and the 17 px status slot. Stated
- *  here because the anchors clamp against it and the box's own floor is the
- *  sum of it and the two gaps — see `Seat.tsx` for the drawing. */
-const SEAT_BLOCK = "94px"
+ *  (48), 10 px of padding above it that clears the dealer/caller badges'
+ *  overhang (2026-09-20, user report — was 2 px, which let the turn frame's
+ *  border cut across both badges; see the padding comment in `Seat.tsx`), 4
+ *  px, the name pill (22), 2 px, and the 17 px status slot. Stated here
+ *  because the anchors clamp against it and the box's own floor is the sum
+ *  of it and the two gaps — see `Seat.tsx` for the drawing. */
+const SEAT_BLOCK = "102px"
 
 /**
  * The geometry block for the table's root element.
@@ -97,28 +100,53 @@ export function tableGeometry(bottomSeat: boolean) {
     // so the seat anchors and trick centre shrink with the visible felt.
     const boxH = (min: number, vh: number, max: number) =>
         `min(100%, clamp(${bottomSeat ? min + 90 : min}px, ${vh}vh, ${bottomSeat ? max + 90 : max}px))`
-    // How fast the vertical gap grows with the box. A spectator's ring has to
-    // fit TWICE over (`--cy-bottom` is a whole seat for them), so their gap
-    // grows at two thirds the rate; at 0.32 the top seat would be pushed off
-    // the top of the box on every window under ~520 px.
-    const vy = bottomSeat ? "0.22" : "0.32"
+    // How fast the vertical gap grows with the box. On a phone the box is
+    // barely taller than the ring, so this stays at the pile's clearance: the
+    // partner sits right above the trick, and the slack lives OUTSIDE the
+    // box, where the parent splits it evenly (2026-09-20). A spectator's ring
+    // has to fit twice over (`--cy-bottom` is a whole seat for them).
+    const vy = bottomSeat ? "0.22" : "0.24"
+    // From 48em the column is not height-starved (the hand is one row there),
+    // so the felt keeps the geometry it has always had: a centred ring and a
+    // gentler rate. The compaction below is a phone fix, not a desktop one.
+    const vyWide = bottomSeat ? "0.22" : "0.32"
 
     return {
-        "--box-h": boxH(352, 44, 470),
+        // Just the ring: partner block (102, see SEAT_BLOCK) + its 32 px
+        // offset + `--seat-y` above the centre, `--cy-free` below it. A
+        // taller box only put air between the partner and the pile
+        // (2026-09-20, user report); the parent centres this box, so a tall
+        // phone's slack now splits evenly above the partner and under the
+        // pile, and the flank seats land in the middle of the felt instead
+        // of near the hand. 300/316 → 308/324 when SEAT_BLOCK grew from 94 to
+        // 102 (2026-09-20, badge-clipping fix) — same +8, same 16 px slack.
+        "--box-h": boxH(308, 38, 324),
         "--seat-w": "92px",
         "--seat-h": SEAT_BLOCK,
         "--seat-overlap": "18px",
-        "--seat-clear-x": "108px",
-        "--seat-clear-y": "120px",
+        // Clearances for an `sm` pile (TrickArea's REST_X/REST_Y plus half a
+        // 56 × 93 card): a phone draws the trick in the same size as the hand
+        // below it, so the ring may close in by the difference.
+        "--seat-clear-x": "94px",
+        "--seat-clear-y": "72px",
         /** Grows with the box, never below the pile's clearance, and capped
          *  so a very tall window does not fling the seats into the corners. */
         "--seat-x": "max(var(--seat-clear-x), min(calc(0.46 * var(--box-h)), 200px))",
-        "--seat-y": `max(var(--seat-clear-y), min(calc(${vy} * var(--box-h)), 176px))`,
-        /** Room under the pile when nothing is seated there. */
-        "--cy-free": "calc(var(--seat-y) + 8px)",
+        "--seat-y": `max(var(--seat-clear-y), min(calc(${vy} * var(--box-h)), 200px))`,
+        /** Room under the pile when nothing is seated there: the `sm` pile's
+         *  own half-height plus a small margin, as a CONSTANT. Tying it to
+         *  `--seat-y` made it grow with the box, and every pixel it grew was
+         *  a pixel of empty felt between the trick and the hand tray. */
+        "--cy-free": "102px",
         "--cy-bottom": cyBottom,
-        /** Distance of the table's centre from the TOP of the box. */
-        "--table-cy": bottomSeat ? "50%" : "60%",
+        /** Distance of the table's centre from the TOP of the box. For a
+         *  player it is the complement of `--cy-bottom`, so the pile always
+         *  rests the same short distance above the turn pill however tall the
+         *  box turns out to be, and whatever slack a tall phone has left over
+         *  collects as felt around the seats instead of as one hole under the
+         *  trick (2026-09-20). A spectator keeps the symmetric centre: they
+         *  have a seat down there to put the other half of the box to use. */
+        "--table-cy": bottomSeat ? "50%" : "calc(100% - var(--cy-free))",
         /** The stadium: as wide as the ring of seats (plus the rim they sit
          *  on), capped at 94 % so it never touches the column's own edge. */
         "--table-w": "min(94%, calc(2 * var(--seat-x) + 2 * var(--seat-overlap)))",
@@ -127,23 +155,31 @@ export function tableGeometry(bottomSeat: boolean) {
         "--table-h": "min(calc(2 * var(--cy-bottom) - 10px), calc(2 * var(--seat-y) + 2 * var(--seat-overlap)))",
         height: "var(--box-h)",
 
+        // From 48em the pile is `md` again, so the clearances go back up with
+        // it — keep these in step with TrickArea's REST_X/REST_Y.
         [WIDE]: {
             "--box-h": boxH(392, 50, 520),
             "--seat-w": "116px",
+            "--seat-clear-x": "108px",
+            "--seat-clear-y": "120px",
             "--seat-x": "max(var(--seat-clear-x), min(calc(0.46 * var(--box-h)), 240px))",
-            "--seat-y": `max(var(--seat-clear-y), min(calc(${vy} * var(--box-h)), 190px))`,
+            "--seat-y": `max(var(--seat-clear-y), min(calc(${vyWide} * var(--box-h)), 190px))`,
             "--cy-free": "calc(var(--seat-y) + 10px)",
+            "--table-cy": bottomSeat ? "50%" : "60%",
         },
 
-        // iPhone SE and friends: the pile is already scaled to 0.86 by
-        // TrickArea, so the seats may close in by the same amount.
+        // iPhone SE and friends: the pile is scaled down again by TrickArea,
+        // so the seats may close in by the same amount. `--box-h` is the same
+        // partner-block + 32 + seat-clear-y + cy-free sum as the base case
+        // above (94+32+60+82=268, now 102+32+60+82=276), so it grew by the
+        // same +8 when SEAT_BLOCK did (2026-09-20, badge-clipping fix).
         [TIGHT]: {
-            "--box-h": boxH(320, 42, 372),
-            "--seat-clear-x": "93px",
-            "--seat-clear-y": "104px",
+            "--box-h": boxH(276, 40, 292),
+            "--seat-clear-x": "86px",
+            "--seat-clear-y": "60px",
             "--seat-x": "max(var(--seat-clear-x), min(calc(0.46 * var(--box-h)), 170px))",
             "--seat-y": `max(var(--seat-clear-y), min(calc(${vy} * var(--box-h)), 150px))`,
-            "--cy-free": "calc(var(--seat-y) + 8px)",
+            "--cy-free": "82px",
         },
 
         [NARROW]: {
@@ -160,13 +196,17 @@ export function tableGeometry(bottomSeat: boolean) {
         // asking for its own. The gaps are stated as plain numbers here
         // because `--box-h` is no longer a length we control.
         [SHORT]: {
-            "--seat-h": "76px",
+            // 94 (base, old) − 19 (the status slot + its gap, dropped below)
+            // = 75, rounded up to 76; now 102 (base, new) − 19 = 83, rounded
+            // to 84 the same way (2026-09-20, badge-clipping fix — keep this
+            // in step with SEAT_BLOCK and `Seat.tsx`'s own SHORT query).
+            "--seat-h": "84px",
             "--seat-clear-x": "72px",
             "--seat-clear-y": "80px",
             "--seat-overlap": "14px",
             "--seat-x": "170px",
             "--seat-y": "84px",
-            "--cy-free": "92px",
+            "--cy-free": "86px",
             height: "100%",
         },
     } as const

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { Badge, Box, Button, Grid, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Spinner, Text, VStack } from "@chakra-ui/react"
-import { FiLogIn, FiPlus, FiSearch, FiSettings, FiUsers } from "react-icons/fi"
+import { Badge, Box, Button, Flex, Grid, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Spinner, Text, VStack } from "@chakra-ui/react"
+import { FiLogIn, FiLogOut, FiPlus, FiSearch, FiSettings, FiUsers } from "react-icons/fi"
 import type { RoomStatus, RoomSummary } from "@bela/protocol"
 import type { CreateGameOptions } from "../components/CreateGameDialog"
 import EmptyState from "../../components/EmptyState"
@@ -11,9 +11,12 @@ import { useTranslation } from "../../i18n"
 import { showError } from "../../toaster"
 import CreateGameDialog from "../components/CreateGameDialog"
 import JoinByCodeDialog from "../components/JoinByCodeDialog"
+import { MyGameStatsPills } from "../components/GameStatsPills"
 import PlayerAvatar from "../components/PlayerAvatar"
 import GameSettingsSheet from "../components/GameSettingsSheet"
 import RoomListItem from "../components/RoomListItem"
+import { preloadDeck } from "../cards/madjarice/preload"
+import { useGamePrefs } from "../hooks/useGamePrefs"
 import { formatCountdown, useHoldCountdown } from "../hooks/useHoldCountdown"
 import { useGameSocket } from "../hooks/useGameSocket"
 import { useSlowConnection } from "../hooks/useSlowConnection"
@@ -55,52 +58,50 @@ function ActiveGameCard({
             borderColor={status === "PLAYING" ? "orange.400" : "brand.400"}
             bg="bg.opaque"
             px="3"
-            py="2.5"
+            py="2"
             shadow="md"
         >
-            <VStack align="stretch" gap="3">
-                <HStack gap="2" minW="0" wrap="wrap">
-                    <Text fontWeight="semibold">{t("game.active.title")}</Text>
-                    <Badge size="sm" variant="subtle" colorPalette={status === "PLAYING" ? "green" : "gray"}>
+            {/* Compact — one row on web, at most two tight rows on a narrow
+                phone (2026-09-20, user request). The card used to say "you
+                have an active game" twice (a heading AND a badge) with a
+                whole sentence underneath repeating it a third time; the
+                badge alone now carries that ("Igra u tijeku" / "Čeka
+                početak"), and the room name sits right next to it so the
+                whole thing reads as one line: [badge] name … [resume]. */}
+            <Flex align="center" justify="space-between" gap="2" wrap={{ base: "wrap", md: "nowrap" }}>
+                <HStack gap="2" minW="0" flex="1">
+                    <Badge size="sm" variant="subtle" colorPalette={status === "PLAYING" ? "green" : "gray"} flexShrink={0}>
                         {t(`game.active.status.${status}`)}
                     </Badge>
+                    <Text fontWeight="semibold" minW="0" truncate>{roomName}</Text>
                     {remaining !== null && remaining > 0 && (
-                        <Badge size="sm" variant="subtle" colorPalette="orange">
+                        <Badge size="sm" variant="subtle" colorPalette="orange" flexShrink={0}>
                             {t("game.active.holdLeft", { time: formatCountdown(remaining) })}
                         </Badge>
                     )}
                 </HStack>
-                <Text fontSize="sm" color="fg.muted" lineClamp={1}>{roomName}</Text>
-                <HStack gap="2" w="full">
+                <HStack gap="1.5" flexShrink={0} w={{ base: "full", md: "auto" }}>
                     <Button
                         size="sm"
-                        flex="1"
-                        minW="0"
-                        px={{ base: "2", sm: "3" }}
-                        fontSize={{ base: "xs", sm: "sm" }}
+                        flex={{ base: "1", md: "initial" }}
                         colorPalette="brand"
                         onClick={onResume}
                     >
                         <FiLogIn /> {t("game.active.resume")}
                     </Button>
                     {status !== "PLAYING" && (
-                        <Button
+                        <IconButton
+                            aria-label={t("game.active.leave")}
+                            title={t("game.active.leave")}
                             size="sm"
-                            flex="1"
-                            minW="0"
-                            px={{ base: "2", sm: "3" }}
-                            fontSize={{ base: "xs", sm: "sm" }}
-                            variant="outline"
+                            variant="ghost"
                             onClick={onLeave}
                         >
-                            {t("game.active.leave")}
-                        </Button>
+                            <FiLogOut />
+                        </IconButton>
                     )}
                 </HStack>
-            </VStack>
-            <Text mt="1.5" fontSize="sm" color="fg.muted">
-                {t("game.active.description")}
-            </Text>
+            </Flex>
         </Box>
     )
 }
@@ -119,6 +120,19 @@ export default function GameLobbyPage() {
     const [settingsOpen, setSettingsOpen] = useState(false)
 
     useDocumentHead({ title: t("game.lobby.metaTitle"), description: t("game.lobby.metaDescription") })
+
+    /* Warm the chosen pack here as well as at the table (2026-09-20, user
+       request): /igra is where a player spends the seconds before sitting
+       down, so the deck can be fetched and decoded at idle instead of
+       competing with the first deal. `preloadDeck` is idempotent PER DECK and
+       skips the drawn decks entirely, so the table's own call is a no-op and
+       switching the setting warms the newly chosen pack. It also hands the
+       pack to the service worker for offline play. See
+       cards/madjarice/preload.ts. */
+    const [gamePrefs] = useGamePrefs()
+    useEffect(() => {
+        preloadDeck(gamePrefs.deck)
+    }, [gamePrefs.deck])
 
     // The server answers `room.create` / `room.joinByCode` with `room.joined`,
     // so the moment a room appears we hand over to the room page — but ONLY
@@ -218,11 +232,28 @@ export default function GameLobbyPage() {
     return (
         <Box maxW="1040px" mx="auto" pb={{ base: "32", md: "8" }}>
             <VStack gap="6" align="stretch">
-                <Grid templateColumns="minmax(0, 1fr) auto" alignItems="center" columnGap="3" w="full">
+                {/* Three columns from `md` (name | stats row | gear) instead
+                    of two — plenty of horizontal room there for the four
+                    stat tiles to sit beside the avatar/name instead of
+                    getting their own row (2026-09-20, user request). The
+                    middle cell only ever RENDERS on md+ (`display: none`
+                    below `md`), so at `base` this collapses back to exactly
+                    the two-column row it always was and the phone keeps its
+                    own tile row underneath, unchanged. `MyGameStatsPills`
+                    returns `null` for a guest/no-stats account either way,
+                    so there is never a gap or shift where the tiles would
+                    have been. */}
+                <Grid templateColumns={{ base: "minmax(0, 1fr) auto", md: "minmax(0, 1fr) auto auto" }} alignItems="center" columnGap="3" w="full">
                     <HStack gap="2" minW="0">
                         <PlayerAvatar name={socket.me?.name} avatarUrl={socket.me?.avatarUrl} avatarPreset={socket.me?.avatarPreset} size="sm" />
-                        <Text fontWeight="medium" lineClamp={1}>{socket.me?.name ?? "…"}</Text>
+                        {/* `truncate` (ellipsis, single line) rather than
+                            `lineClamp`: a long name must never push the
+                            stats row or the gear out past the viewport. */}
+                        <Text fontWeight="medium" minW="0" truncate>{socket.me?.name ?? "…"}</Text>
                     </HStack>
+                    <Box display={{ base: "none", md: "block" }}>
+                        <MyGameStatsPills stats={socket.me?.gameStats} variant="row" />
+                    </Box>
                     <HStack>
                     <IconButton aria-label={t("game.settings.title")} variant="outline" rounded="full" onClick={() => setSettingsOpen(true)}><FiSettings /></IconButton>
                     {!connected && (
@@ -233,6 +264,10 @@ export default function GameLobbyPage() {
                     )}
                     </HStack>
                 </Grid>
+
+                <Box display={{ base: "block", md: "none" }}>
+                    <MyGameStatsPills stats={socket.me?.gameStats} />
+                </Box>
 
                 {socket.me?.guest && <Text fontSize="sm" color="fg.muted">
                     <Link to="/prijava" style={{ fontWeight: 700, color: "var(--chakra-colors-brand-fg)", textDecoration: "underline", textUnderlineOffset: "3px" }}>

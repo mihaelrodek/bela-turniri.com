@@ -8,7 +8,9 @@
      rules.ts         legalMoves, legalBids, trickWinner
      declarations.ts  findDeclarations, compareDeclarations, bela detection
      scoring.ts       scoreDeal (card points, +10, štiglja, pass/fall),
-                      declarationPoints (the declaration bonus, live)
+                      declarationPoints (the declaration bonus, live),
+                      provisionalDealPoints (what is provably collected right
+                      now — the figure the `dosta` race runs on, §1.7)
      game.ts          newGame, reduce, and the deal state machine
      view.ts          viewFor (redaction)
      manualScore.ts   scoreManualDeal — the same §1.6 arithmetic for a deal
@@ -28,7 +30,7 @@ export {
 } from "./cards"
 export { legalMoves, legalBids, trickWinner, trickPoints } from "./rules"
 export { findDeclarations, compareDeclarations, hasBela } from "./declarations"
-export { currentDealPoints, declarationPoints, scoreDeal } from "./scoring"
+export { currentDealPoints, declarationPoints, provisionalDealPoints, scoreDeal } from "./scoring"
 export { findBelot, newGame, reduce } from "./game"
 export { viewFor } from "./view"
 export type { ViewOptions } from "./view"

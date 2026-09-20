@@ -22,8 +22,8 @@ export default function TurnProgressBar({
     return (
         <Flex
             w="100%"
-            maxW="340px"
-            minH="10px"
+            maxW="200px"
+            minH="6px"
             mx="auto"
             px="2"
             align="center"
@@ -31,7 +31,8 @@ export default function TurnProgressBar({
         >
             <Box
                 flex="1"
-                h="3px"
+                h="2px"
+                rounded="full"
                 bg="border.subtle"
                 overflow="hidden"
                 role={active ? "progressbar" : undefined}

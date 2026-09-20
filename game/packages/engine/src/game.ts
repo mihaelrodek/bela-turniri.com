@@ -23,7 +23,7 @@ import { createRng, nextInt, shuffle } from "./rng"
 import { nextSeat, seatFrom, teamOf } from "./seats"
 import { isForcedBid, legalMoves, trickPoints, trickWinner } from "./rules"
 import { declarationsScoringTeam, findDeclarations } from "./declarations"
-import { scoreDeal } from "./scoring"
+import { provisionalDealPoints, scoreDeal } from "./scoring"
 
 const EMPTY_DECLARATIONS = (): Record<Seat, Declaration[]> => ({ 0: [], 1: [], 2: [], 3: [] })
 
@@ -120,11 +120,69 @@ function startDeal(
 }
 
 /**
- * Decide a game only after a complete deal. Under `dosta`, reaching the target
- * is enough and the higher total wins. Under `prolaz` (the default), the team
- * that called must pass, reach the target and lead on the running total.
- * A level score always buys another deal, however far past the target both
- * teams are.
+ * The `dosta` race, asked at THIS instant of the deal (README §1.7).
+ *
+ * "Dosta" is "tko prvi dođe do 1001": the game is over the moment a team's
+ * total — its running score plus what it has provably collected in the deal
+ * in progress (`provisionalDealPoints`) — reaches the target. The rest of the
+ * deal is not played, and neither is the rest of the trick: the cards go down.
+ *
+ * Three consequences, all deliberate:
+ *   • **No pass/fall.** The race is decided at the instant of the crossing,
+ *     and a fall is only decided at settlement. A pair that called, crossed
+ *     the target and would have fallen has already won — the fall never
+ *     happens, because the deal never ends.
+ *   • **Both sides are booked raw.** Whatever the other team collected in the
+ *     unfinished deal is theirs too; nothing is redistributed. Which is why
+ *     the answer carries the whole `score`, not just the winner.
+ *   • **A level total never ends anything** — the same rule as §1.7's tie:
+ *     with both teams at or past the target and equal, the race simply goes
+ *     on (mid-deal to the next points, or into another deal).
+ *
+ * Returns null under `prolaz`, before trump is chosen (there is no deal to
+ * count yet), and whenever the race is undecided.
+ */
+function dostaOutcome(state: GameState): { winner: Team; score: Record<Team, number> } | null {
+    if ((state.config.gameEndRule ?? DEFAULT_GAME_END_RULE) !== "dosta") return null
+    if (state.bidding.trump === null) return null
+
+    const inDeal = provisionalDealPoints(state)
+    const score: Record<Team, number> = {
+        A: state.score.A + inDeal.A,
+        B: state.score.B + inDeal.B,
+    }
+    if (score.A === score.B) return null
+    if (score.A < state.config.targetScore && score.B < state.config.targetScore) return null
+    return { winner: score.A > score.B ? "A" : "B", score }
+}
+
+/**
+ * End the game where the `dosta` race was won: the totals of the moment go in
+ * as the final score, the unfinished deal is NOT scored (no `DealScore`, no
+ * `history` entry, no `DEAL_SCORED`), and `GAME_OVER` is appended to whatever
+ * event made it happen — the trick that was just taken, the "Bela!", the
+ * declarations. The UI plays those in order, so the deciding moment is seen
+ * before the dialog.
+ */
+function finishByDosta(
+    state: GameState,
+    outcome: { winner: Team; score: Record<Team, number> },
+    events: GameEvent[],
+): { state: GameState; events: GameEvent[] } {
+    return {
+        state: { ...state, phase: "GAME_OVER", score: outcome.score, winner: outcome.winner },
+        events: [...events, { type: "GAME_OVER", winner: outcome.winner, score: { ...outcome.score } }],
+    }
+}
+
+/**
+ * Decide a game after a complete deal. Under `dosta`, reaching the target is
+ * enough and the higher total wins — but by then the race (`dostaOutcome`)
+ * has normally already ended the game mid-deal; this is the settled-deal
+ * fallback and the answer for a DEAL_DONE handed in from outside. Under
+ * `prolaz` (the default), the team that called must pass, reach the target
+ * and lead on the running total. A level score always buys another deal,
+ * however far past the target both teams are.
  *
  * Returns the winner, or null when the game goes on.
  */
@@ -271,19 +329,26 @@ function applyBid(
     }
 
     const opener = nextSeat(state.dealer)
-    return {
-        state: {
-            ...state,
-            phase: "PLAYING",
-            hands,
-            stock: [],
-            bidding: { turn: seat, passes: state.bidding.passes, trump, caller: seat },
-            trick: { leader: opener, turn: opener, cards: [] },
-            declarations,
-            declarationsScoringTeam: scoringTeam,
-        },
-        events,
+    const next: GameState = {
+        ...state,
+        phase: "PLAYING",
+        hands,
+        stock: [],
+        bidding: { turn: seat, passes: state.bidding.passes, trump, caller: seat },
+        trick: { leader: opener, turn: opener, cards: [] },
+        declarations,
+        declarationsScoringTeam: scoringTeam,
     }
+
+    /* `dosta` can be decided before a card is led: declarations are settled
+       here, and a pair that is 150 from home and reveals 150 is home (README
+       §1.7). No "you must take a trick first" condition exists anywhere in
+       these rules — §1.6 pays the defended declarations whatever the tricks
+       say — so inventing one for `dosta` alone would contradict settlement. */
+    const raced = dostaOutcome(next)
+    if (raced !== null) return finishByDosta(next, raced, events)
+
+    return { state: next, events }
 }
 
 function applyPass(state: GameState, seat: Seat): { state: GameState; events: GameEvent[] } {
@@ -371,16 +436,24 @@ function applyPlay(
     const trickCards: TrickCard[] = [...state.trick.cards, { seat, card }]
 
     if (trickCards.length < 4) {
-        return {
-            state: {
-                ...state,
-                hands,
-                belaDeclared,
-                belaRefused,
-                trick: { ...state.trick, turn: nextSeat(seat), cards: trickCards },
-            },
-            events,
+        const mid: GameState = {
+            ...state,
+            hands,
+            belaDeclared,
+            belaRefused,
+            trick: { ...state.trick, turn: nextSeat(seat), cards: trickCards },
         }
+        /* An announced bela is 20 points the instant it is said, so under
+           `dosta` it can end the game in the middle of a trick (README §1.7).
+           It is the ONLY thing that can: the cards already on the table belong
+           to nobody until the trick is taken, so a total cannot move mid-trick
+           for any other reason — and asking anyway would let a hand-built
+           state "cross" on a card that changed nothing. */
+        if (belaDeclared !== state.belaDeclared) {
+            const midRace = dostaOutcome(mid)
+            if (midRace !== null) return finishByDosta(mid, midRace, events)
+        }
+        return { state: mid, events }
     }
 
     // Fourth card: resolve the trick immediately.
@@ -415,6 +488,15 @@ function applyPlay(
         tricksWon,
         trick: { leader: winner, turn: winner, cards: [] },
     }
+
+    /* The trick is in the books, so its points are now provable: under
+       `dosta` this is where the game normally ends (README §1.7). On the
+       eighth trick the race is asked BEFORE settlement, because at that
+       instant the last trick's +10 and a štiglja are provable too while the
+       pass/fall verdict of §1.6 is not yet spoken — and `dosta` is decided by
+       the crossing, not by the verdict. */
+    const race = dostaOutcome(next)
+    if (race !== null) return finishByDosta(next, race, events)
 
     if (trickNo === 8) {
         const dealScore = scoreDeal(next)

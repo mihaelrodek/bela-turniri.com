@@ -69,6 +69,37 @@ export function declarationPoints(state: GameState): Record<Team, number> {
     return points
 }
 
+/**
+ * What each team has PROVABLY collected in the deal in progress, at this very
+ * instant — the figure the `dosta` race is run on (README §1.7).
+ *
+ * "Provable" means: points nobody at the table can still take away.
+ *   • card points of the tricks already taken (`currentDealPoints`),
+ *   • the declarations of the pair whose declarations stand, from the moment
+ *     they are settled — which is the moment trump is chosen and they are
+ *     revealed — plus 20 for a bela from the moment it is announced
+ *     (`declarationPoints`),
+ *   • the last trick's +10 and a štiglja's +90 ONLY once the eighth trick is
+ *     in, because until then neither exists.
+ *
+ * What it deliberately does NOT contain is the pass/fall verdict of §1.6:
+ * a fall is decided when the deal is settled, and the `dosta` race is decided
+ * earlier, at the instant the target is crossed. See `dostaOutcome`.
+ */
+export function provisionalDealPoints(state: GameState): Record<Team, number> {
+    const points = currentDealPoints(state)
+
+    if (state.tricksWon.A.length + state.tricksWon.B.length === 8) {
+        // The leader of the (now empty) current trick is the winner of the last one.
+        points[teamOf(state.trick.leader)] += LAST_TRICK_BONUS
+        if (state.tricksWon.A.length === 8) points.A += STIGLJA_BONUS
+        else if (state.tricksWon.B.length === 8) points.B += STIGLJA_BONUS
+    }
+
+    const declarations = declarationPoints(state)
+    return { A: points.A + declarations.A, B: points.B + declarations.B }
+}
+
 export function scoreDeal(state: GameState): DealScore {
     const trump = state.bidding.trump
     const caller = state.bidding.caller

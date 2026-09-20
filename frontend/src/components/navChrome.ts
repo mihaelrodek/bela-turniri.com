@@ -37,6 +37,22 @@ export const CONTENT_STICKY_TOP = {
     md: `calc(${NAVBAR_H.md + 24}px + env(safe-area-inset-top, 0px))`,
 }
 
+/** Where the shared toaster (`src/toaster.ts`) should start its "top"
+ *  placement stack, as a single CSS length (zag-js's `offsets.top` is a
+ *  plain string, not a Chakra responsive object, so this picks the larger
+ *  `md` navbar height — 4px of extra clearance on `base` is harmless).
+ *
+ *  Why this exists: iOS 26 Safari tints the status bar from whatever fixed
+ *  element touches the very top of the viewport, and never re-samples while
+ *  a page (e.g. the game table) has scrolling locked. A toast placed at
+ *  `top: 0` — zag-js's default — sits over that edge, so an error toast can
+ *  leave the status bar red long after the toast itself is gone. Starting
+ *  the stack below the sticky navbar keeps every toast, of any colour, off
+ *  the top edge entirely. `max(env(safe-area-inset-top), offset)` in
+ *  zag-js's own placement math means this value already dominates the
+ *  bare safe-area inset, so no extra calc is needed on top of it. */
+export const TOAST_TOP_OFFSET = `calc(${NAVBAR_H.md}px + env(safe-area-inset-top, 0px) + 8px)`
+
 /** Approximate rendered height of `MobileTabBar` (base breakpoint only — it's
  *  hidden md+): its own `pt="2"` + icon/label row + `py="2"` on each cell,
  *  NOT counting the `padding-bottom: env(safe-area-inset-bottom)` it adds on
@@ -48,3 +64,12 @@ export const MOBILE_TABBAR_H = 64
 
 /** `MOBILE_TABBAR_H` plus the safe-area inset the bar itself pads for. */
 export const MOBILE_TABBAR_CLEARANCE = `calc(${MOBILE_TABBAR_H}px + env(safe-area-inset-bottom, 0px))`
+
+/** Where the "Novosti" FAB (`whatsNew/WhatsNewFab.tsx`) sits, so that the
+ *  active-room pill (`game/components/ActiveRoomWidget.tsx`) can dock right
+ *  beside it instead of guessing — px, per breakpoint. */
+export const WHATS_NEW_FAB = {
+    size: 48,
+    right: { base: 16, md: 24 },
+    bottom: { base: `calc(${MOBILE_TABBAR_CLEARANCE} + 12px)`, md: "88px" },
+} as const

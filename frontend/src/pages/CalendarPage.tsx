@@ -24,14 +24,12 @@ import EmptyState from "../components/EmptyState"
 import CalendarSubscribeButton from "../components/CalendarSubscribeButton"
 import CalendarEventRow, { CalendarEventRowSkeleton } from "../components/CalendarEventRow"
 import CalendarMonthGrid from "../components/CalendarMonthGrid"
-import { CONTENT_STICKY_TOP } from "../components/navChrome"
 import {
     MONTH_KEYS,
     buildMonthGrid,
     dateKey,
     dayIso,
     groupByDay,
-    monthOrdinal,
     startMs,
     startOfDayMs,
     type CalendarTournament,
@@ -64,20 +62,6 @@ type View = "agenda" | "month"
  *  a new reference on every render and bust the memos below. */
 const EMPTY_TOURNAMENTS: CalendarTournament[] = []
 
-/** How many upcoming months the agenda renders before asking for more. Keeps
- *  the first paint short on a season with a long tail; "prikaži još" raises
- *  it. Months, not rows, so a month is never cut in half. */
-const AGENDA_MONTH_PAGE = 4
-
-/** One month's worth of agenda rows. */
-type AgendaGroup = {
-    /** `year * 12 + month`, for keys and comparisons. */
-    ordinal: number
-    year: number
-    month: number
-    items: CalendarTournament[]
-}
-
 export default function CalendarPage() {
     const { t } = useTranslation()
     const plural = usePlural()
@@ -100,7 +84,6 @@ export default function CalendarPage() {
         month: today.getMonth(),
     })
     const [selectedKey, setSelectedKey] = useState<string | null>(null)
-    const [visibleMonths, setVisibleMonths] = useState(AGENDA_MONTH_PAGE)
 
     /* ── Data ────────────────────────────────────────────────────────────
        Unchanged from the previous implementation on purpose: one cache entry
@@ -186,23 +169,7 @@ export default function CalendarPage() {
         [decorated, todayMs],
     )
 
-    /** Upcoming rows bucketed into month groups, in order. */
-    const agendaGroups = useMemo<AgendaGroup[]>(() => {
-        const groups: AgendaGroup[] = []
-        for (const item of upcoming) {
-            const when = new Date(item.startAt as string)
-            const ordinal = monthOrdinal(when.getFullYear(), when.getMonth())
-            const last = groups[groups.length - 1]
-            if (last && last.ordinal === ordinal) last.items.push(item)
-            else groups.push({ ordinal, year: when.getFullYear(), month: when.getMonth(), items: [item] })
-        }
-        return groups
-    }, [upcoming])
-
-    const shownGroups = agendaGroups.slice(0, visibleMonths)
-    const hiddenGroupCount = agendaGroups.length - shownGroups.length
-
-    /* ── Month view state ────────────────────────────────────────────── */
+    /* ── Selected month ──────────────────────────────────────────────── */
     const monthItems = useMemo(
         () =>
             decorated
@@ -317,109 +284,55 @@ export default function CalendarPage() {
 
             {view === "agenda" ? (
                 <VStack align="stretch" gap="4">
+                    <MonthNavigation
+                        monthLabel={monthLabel}
+                        onPrevious={() => stepMonth(-1)}
+                        onNext={() => stepMonth(1)}
+                        onToday={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
+                    />
                     {loading ? (
                         <VStack align="stretch" gap="2">
                             <CalendarEventRowSkeleton />
                             <CalendarEventRowSkeleton />
                             <CalendarEventRowSkeleton />
                         </VStack>
-                    ) : agendaGroups.length === 0 ? (
+                    ) : monthItems.length === 0 ? (
                         <Box borderWidth="1px" borderStyle="dashed" borderColor="border.emphasized" rounded="xl">
                             <EmptyState
                                 icon={FiCalendar}
-                                title={t("pages.calendar.emptyAgenda.title")}
-                                description={t("pages.calendar.emptyAgenda.description")}
-                                action={
+                                title={tournaments.length === 0
+                                    ? t("pages.calendar.emptyAgenda.title")
+                                    : t("pages.calendar.emptyMonth.title")}
+                                description={tournaments.length === 0
+                                    ? t("pages.calendar.emptyAgenda.description")
+                                    : t("pages.calendar.emptyMonth.description")}
+                                action={tournaments.length === 0 ? (
                                     <Button size="sm" colorPalette="brand" asChild>
                                         <RouterLink to="/turniri">
                                             {t("pages.calendar.emptyAgenda.cta")}
                                         </RouterLink>
                                     </Button>
-                                }
+                                ) : undefined}
                             />
                         </Box>
                     ) : (
-                        <>
-                            {shownGroups.map((group, groupIndex) => (
-                                <VStack key={group.ordinal} align="stretch" gap="2">
-                                    {/* Sticky so the month you are reading stays
-                                        named while you scroll. The offset comes
-                                        from navChrome, never a literal. */}
-                                    <Box
-                                        position="sticky"
-                                        top={CONTENT_STICKY_TOP}
-                                        zIndex="1"
-                                        layerStyle="glass.bar"
-                                        py="1.5"
-                                    >
-                                        <HStack justify="space-between" align="baseline" gap="2">
-                                            <Heading size="sm" color="fg.soft">
-                                                {`${t(`pages.calendar.month.${MONTH_KEYS[group.month]}`)} ${group.year}`}
-                                            </Heading>
-                                            <Text fontSize="xs" color="fg.muted">
-                                                {plural("pages.calendar.monthCount", group.items.length)}
-                                            </Text>
-                                        </HStack>
-                                        <Box h="1px" bg="border.subtle" mt="1.5" />
-                                    </Box>
-                                    {group.items.map((item, itemIndex) => (
-                                        <CalendarEventRow
-                                            key={item.uuid}
-                                            item={item}
-                                            highlight={groupIndex === 0 && itemIndex === 0}
-                                        />
-                                    ))}
-                                </VStack>
-                            ))}
-                            {hiddenGroupCount > 0 && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    alignSelf="center"
-                                    onClick={() => setVisibleMonths((n) => n + AGENDA_MONTH_PAGE)}
-                                >
-                                    {plural("pages.calendar.moreMonths", hiddenGroupCount)}
-                                </Button>
-                            )}
-                        </>
+                        monthItems.map((item) => (
+                            <CalendarEventRow
+                                key={item.uuid}
+                                item={item}
+                                highlight={item.uuid === upcoming[0]?.uuid}
+                            />
+                        ))
                     )}
                 </VStack>
             ) : (
                 <VStack align="stretch" gap="3">
-                    {/* Month toolbar */}
-                    <HStack justify="space-between" gap="2" wrap="wrap">
-                        <HStack gap="1">
-                            <IconButton
-                                aria-label={t("pages.calendar.prevMonth")}
-                                size="sm"
-                                variant="outline"
-                                onClick={() => stepMonth(-1)}
-                            >
-                                <FiChevronLeft />
-                            </IconButton>
-                            <IconButton
-                                aria-label={t("pages.calendar.nextMonth")}
-                                size="sm"
-                                variant="outline"
-                                onClick={() => stepMonth(1)}
-                            >
-                                <FiChevronRight />
-                            </IconButton>
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
-                            >
-                                {t("pages.calendar.today")}
-                            </Button>
-                        </HStack>
-                        <VStack gap="0" align={{ base: "start", sm: "end" }}>
-                            <Heading size="md" textTransform="capitalize">{monthLabel}</Heading>
-                            <Text fontSize="xs" color="fg.muted">
-                                {plural("pages.calendar.monthCount", monthItems.length)}
-                            </Text>
-                        </VStack>
-                    </HStack>
+                    <MonthNavigation
+                        monthLabel={monthLabel}
+                        onPrevious={() => stepMonth(-1)}
+                        onNext={() => stepMonth(1)}
+                        onToday={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
+                    />
 
                     <CalendarMonthGrid
                         year={cursor.year}
@@ -455,6 +368,50 @@ export default function CalendarPage() {
                 </VStack>
             )}
         </VStack>
+    )
+}
+
+function MonthNavigation({
+    monthLabel,
+    onPrevious,
+    onNext,
+    onToday,
+}: {
+    monthLabel: string
+    onPrevious: () => void
+    onNext: () => void
+    onToday: () => void
+}) {
+    const { t } = useTranslation()
+
+    return (
+        <Box display="grid" gridTemplateColumns="1fr auto 1fr" alignItems="center" gap="2">
+            <IconButton
+                aria-label={t("pages.calendar.prevMonth")}
+                size="sm"
+                variant="outline"
+                justifySelf="start"
+                onClick={onPrevious}
+            >
+                <FiChevronLeft />
+            </IconButton>
+            <Heading size="md" textTransform="capitalize" textAlign="center" whiteSpace="nowrap">
+                {monthLabel}
+            </Heading>
+            <HStack gap="1" justifySelf="end">
+                <IconButton
+                    aria-label={t("pages.calendar.nextMonth")}
+                    size="sm"
+                    variant="outline"
+                    onClick={onNext}
+                >
+                    <FiChevronRight />
+                </IconButton>
+                <Button size="sm" variant="ghost" onClick={onToday}>
+                    {t("pages.calendar.today")}
+                </Button>
+            </HStack>
+        </Box>
     )
 }
 

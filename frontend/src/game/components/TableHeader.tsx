@@ -30,9 +30,12 @@ export default function TableHeader({
             position="relative"
             align="center"
             justify="center"
-            minH="32px"
+            // Shorter on a phone (2026-09-20): one line of 12 px type does
+            // not need 32 px of row, and the gear keeps its own 32 px tap
+            // target by overhanging it.
+            minH={{ base: "24px", md: "32px" }}
             px="9"
-            pt="1"
+            pt="0"
             flexShrink={0}
             minW="0"
         >
@@ -194,9 +197,9 @@ function PillButton({
             display="inline-flex"
             alignItems="center"
             gap="1.5"
-            h="28px"
+            h={{ base: "24px", md: "28px" }}
             minW="32px"
-            minH="28px"
+            minH={{ base: "24px", md: "28px" }}
             px="2"
             rounded="full"
             {...GLASS}

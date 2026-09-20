@@ -150,6 +150,8 @@ export const pages: PagesDict = {
     "calendar.emptyAgenda.description":
         "Takoj ko kdo objavi nov turnir, se bo pojavil tukaj. Naroči se na koledar in pride samodejno.",
     "calendar.emptyAgenda.cta": "Poglej vse turnirje",
+    "calendar.emptyMonth.title": "V tem mesecu ni turnirjev",
+    "calendar.emptyMonth.description": "Izberi drug mesec ali se vrni na današnji datum.",
 
     "calendar.day.selectAria": "Prikaži turnirje za {date}",
     "calendar.day.none": "Na ta dan ni turnirjev.",

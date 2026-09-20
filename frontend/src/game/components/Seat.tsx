@@ -397,13 +397,11 @@ export default function Seat({
     // carries what is true right now.
     const chip: ReactNode = disconnected
         ? <Chip tone="danger">{t("game.seat.disconnected")}</Chip>
-        : isTurn
-            ? <Chip tone="accent">{t("game.seat.onTurn")}</Chip>
-            : bid?.kind === "pass"
-                ? <Chip tone="muted">{t("game.bidding.pass")}</Chip>
-                : bid?.kind === "suit"
-                    ? <Chip tone="accent"><SuitGlyph suit={bid.suit} size={12} /></Chip>
-                    : null
+        // No chip for a pass (2026-09-20, user request): the turn frame moving
+        // on already says it, and four "Dalje" labels were noise.
+        : bid?.kind === "suit"
+            ? <Chip tone="accent"><SuitGlyph suit={bid.suit} size={12} /></Chip>
+            : null
 
     return (
         <Flex
@@ -413,49 +411,85 @@ export default function Seat({
             w="var(--seat-w)"
             minH="var(--seat-h)"
         >
-            <SeatAvatar
-                occupant={occupant}
-                name={name}
-                size={42}
-                isTurn={isTurn}
-                isDealer={isDealer}
-                callerTrump={callerTrump}
-                countdown={countdown}
-                reaction={reaction}
-                reactionAlign={reactionAlign}
-                reducedMotion={reducedMotion}
-                team={team}
-            />
+            {/* Whose turn it is: a green frame around the avatar AND the name,
+                not an "on turn" chip under them (2026-09-20, user request).
+                The frame is always there — transparent off-turn — so a seat
+                never changes size as the turn goes round.
 
-            <Box
-                mt="0.5"
+                `pt="10px"` (2026-09-20, user report): the dealer's "D" and
+                the caller's medallion are pinned OUTSIDE the avatar ring
+                (`pinAt` in this file) and overhang its top edge by ~9.04 px
+                at `size=42` — with the old 2 px of padding the frame's own
+                top border cut straight across both badges instead of
+                sitting above them. 10 px clears the 9.04 px overhang with a
+                couple of px of air on top; horizontally the badges overhang
+                by the same ~9 px, but the seat column (`--seat-w`, 92/116 px)
+                gives the 48 px avatar frame 20+ px of clearance on each
+                side, so only the top needed the extra room. This adds 8 px
+                to the seat block's height — see `SEAT_BLOCK` / `--seat-h` /
+                `--box-h` in tableStyles.ts, kept in step. */}
+            <Flex
+                direction="column"
+                align="center"
                 w="100%"
-                px="1.5"
-                py="0.5"
-                rounded="full"
-                textAlign="center"
-                bg={isTurn ? "bg.opaque" : "transparent"}
-                color={INK}
-                borderWidth="1px"
-                borderColor={isTurn ? "border" : "transparent"}
-                boxShadow={isTurn ? "0 2px 8px rgba(0,0,0,0.06)" : undefined}
-                fontSize={{ base: "11px", md: "12px" }}
-                fontWeight={isTurn || isMe ? "bold" : "medium"}
-                lineHeight="1.45"
-                // The pill gets the seat's FULL width now. The old flank seat
-                // shared its line with the status chip, which is why a bot
-                // called "Bot Ivo" rendered as "Bot…" with empty felt on
-                // either side of it. Nothing in this app's own vocabulary
-                // truncates at 92 px / 11 px any more; a long human name still
-                // can, and keeps its `title`.
-                whiteSpace="nowrap"
-                overflow="hidden"
-                textOverflow="ellipsis"
-                title={name}
-                transition="background 0.2s ease, color 0.2s ease"
+                pt="10px"
+                pb="1px"
+                rounded="xl"
+                borderWidth="2px"
+                borderColor={isTurn ? "brand.400" : "transparent"}
+                bg={isTurn ? "brand.500/15" : "transparent"}
+                boxShadow={isTurn ? "0 0 12px var(--chakra-colors-brand-500)" : undefined}
+                transition="border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease"
+                aria-current={isTurn ? "true" : undefined}
             >
-                {isMe ? t("game.seat.youSuffix", { name }) : name}
-            </Box>
+                <SeatAvatar
+                    occupant={occupant}
+                    name={name}
+                    size={42}
+                    isTurn={isTurn}
+                    isDealer={isDealer}
+                    callerTrump={callerTrump}
+                    countdown={countdown}
+                    reaction={reaction}
+                    reactionAlign={reactionAlign}
+                    reducedMotion={reducedMotion}
+                    team={team}
+                />
+
+                <Box
+                    mt="0.5"
+                    w="100%"
+                    px="1.5"
+                    py="0.5"
+                    rounded="full"
+                    textAlign="center"
+                    bg="transparent"
+                    color={INK}
+                    fontSize={{ base: "11px", md: "12px" }}
+                    // Constant weight (2026-09-20, user report): this used to
+                    // go bold on turn/me, which changes the text's metrics
+                    // and reflows the pill (and everything below it) by a
+                    // couple of px every time the turn moves. Whose turn it
+                    // is already reads from the frame above, the avatar ring
+                    // and "(ti)"/"(you)" in the name itself, so the pill does
+                    // not need to repeat it at the cost of a layout jump.
+                    fontWeight="medium"
+                    lineHeight="1.45"
+                    // The pill gets the seat's FULL width now. The old flank seat
+                    // shared its line with the status chip, which is why a bot
+                    // called "Bot Ivo" rendered as "Bot…" with empty felt on
+                    // either side of it. Nothing in this app's own vocabulary
+                    // truncates at 92 px / 11 px any more; a long human name still
+                    // can, and keeps its `title`.
+                    whiteSpace="nowrap"
+                    overflow="hidden"
+                    textOverflow="ellipsis"
+                    title={name}
+                    transition="background 0.2s ease, color 0.2s ease"
+                >
+                    {isMe ? t("game.seat.youSuffix", { name }) : name}
+                </Box>
+            </Flex>
 
             {/* The status slot. Present even when empty: four seats that
                 change height as the bidding goes round is four seats that
@@ -465,8 +499,9 @@ export default function Seat({
                 and the trick, so there the slot goes entirely — everything it
                 could have said is still on the turn ring, on the status pill
                 above the hand, or (for the caller) on the avatar's medallion.
-                `--seat-h` drops to 76 px under the same query; the two have to
-                move together. */}
+                `--seat-h` drops to 84 px under the same query (2026-09-20:
+                was 76, +8 in step with `SEAT_BLOCK` growing for the badge-
+                clipping fix above); the two have to move together. */}
             <Flex
                 h="17px"
                 mt="0.5"

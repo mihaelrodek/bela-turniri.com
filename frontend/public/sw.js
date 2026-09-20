@@ -45,10 +45,27 @@
  * that carries an `Authorization` header — the response is by definition the
  * signed-in variant, and several endpoints return organiser-only fields to the
  * owner and a trimmed body to everyone else on the very same URL.
+ *
+ * DECK_CACHE (2026-09-20): bela online's card decks (`frontend/src/game/cards`)
+ * are hashed Vite assets under /assets/, exactly like the shell's own chunks,
+ * but they must NOT ride in `/precache-manifest.json` — a visitor who only
+ * ever opens the tournament pages would otherwise download ~1.8 MB of card
+ * art they never look at. So deck images get their OWN cache, filled only on
+ * request (see the `bela:cache-deck` message handler below, called from
+ * `src/game/cards/deckOffline.ts` once a player has actually chosen a deck),
+ * kept in a cache separate from CACHE so `refreshPrecache`'s prune (which
+ * only ever walks CACHE) and a future shell cache-name bump never touch it.
+ * `assetCacheFirst` checks it as a second cache, after the shell's — same
+ * "hashed name IS the version" safety property as the rest of /assets/*.
+ * HONEST SCOPE: the game itself needs a live WebSocket, so caching the deck
+ * does not make a hand playable offline. What it buys is (a) a flaky
+ * connection or reconnect never shows a blank card, because the art was
+ * already local, and (b) a repeat visit never re-downloads the same deck.
  */
 
 const CACHE = "bela-shell-v4";
 const API_CACHE = "bela-api-v1";
+const DECK_CACHE = "bela-decks-v1";
 // Public files do not get Vite hashes, so list the decorative background
 // explicitly. It is fixed behind every route and must paint from Cache
 // Storage as soon as the app has been opened once, even on weak Wi-Fi.
@@ -263,8 +280,10 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
     // Wipe any caches that aren't in the current whitelist (older shell
-    // versions); keep the shell AND the runtime API-snapshot cache.
-    const keep = new Set([CACHE, API_CACHE]);
+    // versions); keep the shell, the runtime API-snapshot cache, AND the
+    // deck cache — bumping CACHE (a shell version change) must not throw
+    // away card art a player already has offline.
+    const keep = new Set([CACHE, API_CACHE, DECK_CACHE]);
     event.waitUntil(
         caches.keys().then((keys) =>
             Promise.all(keys.filter((k) => !keep.has(k)).map((k) => caches.delete(k)))
@@ -276,12 +295,22 @@ self.addEventListener("activate", (event) => {
 /* The app asking the worker to re-check the deployed build — see
    src/components/SwUpdateToast.tsx, which sends this on every page load once
    the worker is active. That is what keeps the precache tracking deploys on a
-   worker whose own bytes never change. Anything else posted here is ignored;
-   the message channel is otherwise unused. */
+   worker whose own bytes never change. `bela:cache-deck` is the other message
+   this channel understands (see `cacheDeckOffline` and its header for the
+   full design) — sent by `src/game/cards/deckOffline.ts` once a player has
+   picked a deck, never on every page load. Anything else posted here is
+   ignored. */
 self.addEventListener("message", (event) => {
     const data = event.data;
-    if (!data || data.type !== "bela:precache") return;
-    event.waitUntil(refreshPrecache());
+    if (!data || typeof data !== "object") return;
+    if (data.type === "bela:precache") {
+        event.waitUntil(refreshPrecache());
+        return;
+    }
+    if (data.type === "bela:cache-deck") {
+        event.waitUntil(handleCacheDeckMessage(data));
+        return;
+    }
 });
 
 self.addEventListener("fetch", (event) => {
@@ -339,6 +368,13 @@ self.addEventListener("fetch", (event) => {
  * needs it" from "some route happened to be visited once" — a runtime
  * write-through would fill the shell cache with every chunk of the app and
  * make the pruning meaningless.
+ *
+ * The one exception is DECK_CACHE, checked second: card art is also a hashed
+ * /assets/* file but is filled explicitly via `bela:cache-deck` (see that
+ * handler's header) rather than the build-wide manifest, precisely so a
+ * tournament-only visitor never pays for it. This is still read-only here —
+ * a miss on both caches falls through to the network exactly as before, and
+ * still never write-through-caches an arbitrary asset.
  */
 async function assetCacheFirst(req) {
     try {
@@ -349,9 +385,146 @@ async function assetCacheFirst(req) {
         /* storage unavailable — go to the network like any normal request */
     }
     try {
+        const deckCache = await caches.open(DECK_CACHE);
+        const deckHit = await deckCache.match(req);
+        if (deckHit) return deckHit;
+    } catch (_) {
+        /* storage unavailable */
+    }
+    try {
         return await fetch(req);
     } catch (_) {
         return new Response("", { status: 503, statusText: "Offline" });
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ *  DECK CACHE — on-demand offline caching for bela online's card art
+ * ────────────────────────────────────────────────────────────────────── */
+
+// A deck is 32 faces + a back + up to four suit icons (37 files today), so 80
+// leaves headroom without accepting an unbounded list.
+const DECK_URLS_LIMIT = 80;
+const DECK_NAME_RE = /^[a-z]{1,24}$/;
+const DECK_ASSET_EXT_RE = /\.(webp|png|jpe?g|svg)$/i;
+// A synthetic (never-fetched) request path per deck, used as a cache key to
+// remember which /assets/* files that deck's LAST successful pass put in
+// DECK_CACHE — see `cacheDeckOffline` for why this is needed to prune stale
+// hashes across a deploy without ever touching another deck's entries.
+const DECK_INDEX_PREFIX = "/__deck-index__/";
+
+/**
+ * Validate and normalise the `urls` from a `bela:cache-deck` message down to
+ * root-relative, same-origin `/assets/*` paths with an image extension.
+ * Anything else (cross-origin, non-/assets/, wrong extension, not a string)
+ * is silently dropped — this is untrusted input from a page context, even
+ * though today only `deckOffline.ts` sends it.
+ */
+function sanitizeDeckUrls(urls) {
+    const out = [];
+    for (const raw of urls) {
+        if (typeof raw !== "string") continue;
+        let parsed;
+        try {
+            parsed = new URL(raw, self.location.origin);
+        } catch (_) {
+            continue;
+        }
+        if (parsed.origin !== self.location.origin) continue;
+        if (!parsed.pathname.startsWith("/assets/")) continue;
+        if (!DECK_ASSET_EXT_RE.test(parsed.pathname)) continue;
+        out.push(parsed.pathname);
+    }
+    // De-dupe, then enforce the cap — after sanitising, so a malformed entry
+    // never eats a slot that a valid one needed.
+    return Array.from(new Set(out)).slice(0, DECK_URLS_LIMIT);
+}
+
+/** Entry point from the `message` listener: validates the envelope itself
+ *  (`deck`, `urls` shape) before handing sanitised URLs to `cacheDeckOffline`. */
+async function handleCacheDeckMessage(data) {
+    if (typeof data.deck !== "string" || !DECK_NAME_RE.test(data.deck)) return;
+    if (!Array.isArray(data.urls) || data.urls.length === 0) return;
+    if (data.urls.length > DECK_URLS_LIMIT) return;
+    const wanted = sanitizeDeckUrls(data.urls);
+    if (wanted.length === 0) return;
+    await cacheDeckOffline(data.deck, wanted);
+}
+
+/**
+ * Fill DECK_CACHE with `wanted` (already sanitised, deduped, capped) for
+ * `deck`, then reconcile that deck's index.
+ *
+ * Best-effort per file: a failed fetch (offline, one bad file) just leaves
+ * whatever was already cached in place — see the file header, this mirrors
+ * `refreshPrecache`'s "a half-applied pass changes nothing it doesn't have
+ * to" property.
+ *
+ * The index (see DECK_INDEX_PREFIX) only gets reconciled — and old hashes
+ * from a previous deploy only get pruned — once EVERY wanted URL is actually
+ * sitting in the cache. A partial pass must never delete art this session
+ * already has offline; stale entries simply wait for a pass that fully
+ * succeeds (typically the next time the player is online with this deck
+ * selected).
+ */
+async function cacheDeckOffline(deck, wanted) {
+    let cache;
+    try {
+        cache = await caches.open(DECK_CACHE);
+    } catch (_) {
+        return; // storage unavailable — nothing to do
+    }
+
+    for (const path of wanted) {
+        try {
+            const already = await cache.match(path);
+            if (already) continue;
+            const resp = await fetch(path);
+            if (resp && resp.ok && resp.type === "basic") {
+                await cache.put(path, resp.clone());
+            }
+        } catch (_) {
+            /* offline or one bad file — keep going, see the header */
+        }
+    }
+
+    let complete = true;
+    for (const path of wanted) {
+        try {
+            if (!(await cache.match(path))) {
+                complete = false;
+                break;
+            }
+        } catch (_) {
+            complete = false;
+            break;
+        }
+    }
+    if (!complete) return;
+
+    try {
+        const indexReq = new Request(DECK_INDEX_PREFIX + deck);
+        let previous = [];
+        try {
+            const indexHit = await cache.match(indexReq);
+            if (indexHit) {
+                const parsed = await indexHit.json();
+                if (Array.isArray(parsed)) previous = parsed;
+            }
+        } catch (_) {
+            /* unreadable or missing index — treat as "nothing recorded yet" */
+        }
+        await cache.put(indexReq, new Response(JSON.stringify(wanted)));
+        for (const oldPath of previous) {
+            // Only this deck's own previous list is ever consulted, so this
+            // can never delete another deck's entries.
+            if (typeof oldPath === "string" && !wanted.includes(oldPath)) {
+                await cache.delete(oldPath);
+            }
+        }
+    } catch (_) {
+        /* index bookkeeping failed — the images themselves are still cached,
+           just without the stale-hash prune this time */
     }
 }
 

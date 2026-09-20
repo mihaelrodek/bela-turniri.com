@@ -72,9 +72,57 @@ export function makeCard(rank: Rank, suit: Suit): Card {
    K → Kralj, A → As (a Tell ace carries a season).
    ────────────────────────────────────────────────────────────────────── */
 
-/** Which deck a card is drawn as. Mirrors `DeckStyle` in `useGamePrefs`, but
- *  lives here so the pure helpers below need no hook import. */
-export type DeckStyle = "madjarice" | "francuske"
+/* ─────────────────────────── the deck registry ───────────────────────────
+
+   Four selectable decks since 2026-09-20 (game/DESIGN.md §2.1). THREE of them
+   are mađarice — same Tell pattern, same names, same aria labels, same card
+   box — and differ only in how a face is painted:
+
+     klasicne   the licensed tomasdrus set (github.com/tomasdrus/
+                hungarian-playing-cards, used with the author's permission for
+                bela-turniri.com, 2026-09-20) — 363×585 RGBA WebP, the image
+                IS the card. DEFAULT, and the only deck that also ships its own
+                suit icons (see `suitImage`), so a called trump is shown in the
+                artwork the player is actually holding.
+     moderne    our own older scanned deck, cleaned into the SAME geometry, so
+                it renders through the exact same code path (no crop, no filter).
+     vektorske  our own inline-SVG faces — no raster at all, the SVG is the
+                card. This is the code that used to be only the pre-decode
+                fallback in `cards/madjarice/MadjaricaCard.tsx`.
+     francuske  the original CSS card (rank + ♥♦♠♣), unchanged.
+
+   `DeckStyle` lives here rather than in `useGamePrefs` so the pure helpers
+   below need no hook import; the hook re-exports this type.
+   ────────────────────────────────────────────────────────────────────── */
+
+/** Which deck a card is drawn as. The ids are the PERSISTED pref values. */
+export type DeckStyle = "klasicne" | "moderne" | "vektorske" | "francuske"
+
+/** Every deck, in the order the settings sheet offers them. */
+export const DECK_STYLES = ["klasicne", "moderne", "vektorske", "francuske"] as const
+
+export const DEFAULT_DECK: DeckStyle = "klasicne"
+
+export function isDeckStyle(value: unknown): value is DeckStyle {
+    return (DECK_STYLES as readonly string[]).includes(value as string)
+}
+
+/**
+ * Mađarice — everything except the French deck. Drives the Hungarian NAMES
+ * (suit/rank/season keys, aria labels) and the Hungarian card BOX (taller
+ * 363×585 ratio, artwork radius, drop shadow instead of a frame).
+ */
+export function isHungarianDeck(deck: DeckStyle): boolean {
+    return deck !== "francuske"
+}
+
+/**
+ * Decks whose faces are raster files on disk. `vektorske` and `francuske` are
+ * drawn, so they need no preload, no decode gate and no offline caching.
+ */
+export function deckHasImages(deck: DeckStyle): boolean {
+    return deck === "klasicne" || deck === "moderne"
+}
 
 /**
  * Fixed card ink (game/DESIGN.md §3). A playing card is a physical object —
@@ -83,7 +131,9 @@ export type DeckStyle = "madjarice" | "francuske"
  */
 export const CARD_INK = {
     face: "#f7f1e3",
-    /** Neutral scan-paper tone used for the margin around Hungarian artwork. */
+    /** The CSS-painted card back's base tone. The Hungarian FACES no longer
+     *  use it: since the licensed deck (2026-09-20) the artwork carries its
+     *  own white face and rounded edge, so the card root is transparent. */
     frame: "#f3f5f2",
     /** The French deck's face is a touch whiter — it is a modern card. */
     faceFrench: "#fdfdfb",
@@ -156,11 +206,11 @@ export function seasonKey(suit: Suit): string {
 
 /** Deck-aware key pair, so one call site labels either deck. */
 export function suitKeyFor(suit: Suit, deck: DeckStyle): string {
-    return deck === "francuske" ? suitKey(suit) : suitHuKey(suit)
+    return isHungarianDeck(deck) ? suitHuKey(suit) : suitKey(suit)
 }
 
 export function rankKeyFor(rank: Rank, deck: DeckStyle): string {
-    return deck === "francuske" ? rankKey(rank) : rankHuKey(rank)
+    return isHungarianDeck(deck) ? rankHuKey(rank) : rankKey(rank)
 }
 
 /**
@@ -180,7 +230,7 @@ export function cardAriaLabel(
     const suit = cardSuit(card)
     const rank = cardRank(card)
     // The Tell ace is the one card whose face names a season, so it says so.
-    if (deck === "madjarice" && rank === "A") {
+    if (isHungarianDeck(deck) && rank === "A") {
         return t("game.card.ariaAce", { suit: t(suitHuKey(suit)), season: t(seasonKey(suit)) })
     }
     return t("game.card.aria", {
@@ -191,7 +241,7 @@ export function cardAriaLabel(
 
 /**
  * Fixed display order for every hand: heart, bell, leaf, acorn, matching the
- * bidding controls and the photographed Hungarian deck. Trump never moves a
+ * bidding controls and the Hungarian deck itself. Trump never moves a
  * suit to the front, so the same card always occupies the same relative place
  * from one shuffle and deal to the next. Ranks stay in natural low-to-high
  * order within their suit.
@@ -206,14 +256,16 @@ export function sortHandForDisplay(hand: readonly Card[]): Card[] {
 
 /* ─────────────────────────── card metrics ─────────────────────────── */
 
-export type CardSize = "sm" | "md" | "lg"
+/** `ml` exists for the desktop hand only: a step between `md` and `lg`, the
+ *  biggest card whose row of eight still fits the column beside my avatar. */
+export type CardSize = "sm" | "md" | "ml" | "lg"
 
 /**
  * One table of card geometry, so a card in the trick, a card in the hand and
  * a card in the declarations overlay are the same object at three scales.
  *
- * These base metrics are 2:3 for the French deck. The photographed mađarice
- * use the same widths with their physical 3:5 height below. `md` is the hand
+ * These base metrics are 2:3 for the French deck. The mađarice artwork uses
+ * the same widths with its own slightly taller height below. `md` is the hand
  * size on a phone: 72 px wide stays a 44 px+
  * tap target even once the fan overlaps the cards by a third, which is the
  * accessibility floor for a control a player hits sixteen times a deal.
@@ -228,13 +280,46 @@ export const CARD_METRICS: Record<CardSize, {
 }> = {
     sm: { w: "56px", h: "84px", rankFont: "15px", pipFont: "26px", cornerFont: "12px", radius: "sm" },
     md: { w: "72px", h: "108px", rankFont: "19px", pipFont: "34px", cornerFont: "15px", radius: "md" },
+    ml: { w: "84px", h: "126px", rankFont: "22px", pipFont: "40px", cornerFont: "17px", radius: "md" },
     lg: { w: "96px", h: "144px", rankFont: "25px", pipFont: "46px", cornerFont: "19px", radius: "md" },
 }
 
-/** The photographed Hungarian pack is 3:5, slightly narrower than the
- * modern 2:3 French cards represented by CARD_METRICS. */
+/**
+ * The Hungarian artwork's own aspect, 363 × 585 = 0.6205 — a touch narrower
+ * than the modern 2:3 French card in CARD_METRICS.
+ *
+ * These are `CARD_METRICS[size].w / 0.6205`, rounded (2026-09-20): the deck is
+ * now a digital one whose file IS the card, so the box must match the file or
+ * the art letterboxes inside it. Every value is slightly SMALLER than the old
+ * 3:5 box the photographs used, so no layout that was tuned around a card can
+ * overflow because of this.
+ */
 export const MADJARICA_HEIGHT: Record<CardSize, string> = {
-    sm: "93px",
-    md: "120px",
-    lg: "160px",
+    sm: "90px",
+    md: "116px",
+    ml: "135px",
+    lg: "155px",
 }
+
+/**
+ * Corner radius of the artwork itself — measured from the source alpha: the
+ * first opaque pixel of the top row sits 22 px in on a 363 px wide card, i.e.
+ * 6 % of the width. The card root uses this (not `CARD_METRICS.radius`) so the
+ * focus ring and the selected outline hug the drawn edge instead of floating
+ * around a squarer box, and nothing of the art is clipped.
+ */
+export const MADJARICA_RADIUS: Record<CardSize, string> = {
+    sm: "3px",
+    md: "4px",
+    ml: "5px",
+    lg: "6px",
+}
+
+/**
+ * A card has no border any more (2026-09-20, user request: "modern, no
+ * borders, like bela.fun"), so its separation from the felt and from its
+ * neighbours in the fan comes from a shadow. `drop-shadow` rather than
+ * `box-shadow` because it follows the artwork's ALPHA — a box shadow would
+ * draw the rectangle the transparent corners just got rid of.
+ */
+export const CARD_SHADOW = "drop-shadow(0 1px 1px rgba(0,0,0,0.28)) drop-shadow(0 3px 6px rgba(0,0,0,0.22))"

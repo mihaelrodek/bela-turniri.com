@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Badge, Box, CloseButton, Dialog, HStack, Portal, Text, VStack } from "@chakra-ui/react"
 import type { DealScore, Team } from "@bela/engine"
 import { useTranslation } from "../../i18n"
@@ -15,19 +15,33 @@ import { useTranslation } from "../../i18n"
    happens to somebody learning the game.
 
    It is a RECEIPT, not a decision (changed 2026-09-08 on the user's
-   request): the server deals the next hand on its own after
-   `dealDoneAutoMs`, so there is no "Sljedeća podjela" button to press and
-   nobody waits on anybody. This closes itself after AUTO_CLOSE_MS — kept
-   just under the server's timer so the next deal never arrives behind an
-   open modal — and the ✕ only skips the remaining seconds.
+   request): there is no "Sljedeća podjela" button to press. It closes itself
+   after AUTO_CLOSE_MS, and the ✕ only skips the remaining seconds.
+
+   Closing it — either way — ACKS the deal (`game.nextDeal`, 2026-09-20). The
+   server treats that as one vote per seat and deals again once every
+   connected human has voted, so a table of one person and three bots moves on
+   the moment this dialog goes away instead of sitting on "Čekaj…" for the
+   rest of the server's fallback timer. The ack is sent AFTER the dismissal,
+   so the next deal can never arrive behind an open modal, and it is sent at
+   most once per deal. A spectator has no seat and therefore no vote
+   (`canContinue` is false for them; the server would answer NOT_YOUR_TURN).
 
    Deliberately not shown: the deal number (the scoreboard already carries
    it) and the prose explaining a fall (the red "Pali smo" badge and a
    0 in "Upisano" say it in the time this dialog is actually on screen).
    ────────────────────────────────────────────────────────────────────── */
 
-/** How long the receipt stays up. Below `dealDoneAutoMs` on the server. */
-const AUTO_CLOSE_MS = 7000
+/**
+ * How long the receipt stays up before it dismisses itself and acks.
+ *
+ * Budgeted against the server's `dealDoneAutoMs` fallback (5 000 ms): this
+ * dialog only opens once the event queue is idle, which is ~2.3 s after the
+ * deal was scored (the last card's own dwell plus the trick sweep), so
+ * 2.3 s + AUTO_CLOSE_MS has to stay under that timer for the ack — not the
+ * timer — to be what moves the table.
+ */
+const AUTO_CLOSE_MS = 2500
 
 function Row({
     label,
@@ -76,19 +90,31 @@ export default function DealSummary({
     open,
     dealScore,
     myTeam,
-    // `busy` / `canContinue` / `onNextDeal` are still passed by the call
-    // site and deliberately NOT destructured: the deal now advances
-    // server-side, so nothing here waits on them. They stay in the type so
-    // the parent keeps compiling until it is next touched.
+    canContinue = false,
+    onNextDeal,
+    // `busy` stays in the type and is deliberately unused: nothing in this
+    // dialog waits on the connection — it is a receipt, and the ack below is
+    // fire-and-forget.
 }: {
     open: boolean
     dealScore: DealScore | null
     myTeam: Team
     busy?: boolean
+    /** We hold a seat, so our ack counts. False for a spectator. */
     canContinue?: boolean
     onNextDeal?: () => void
 }) {
     const { t } = useTranslation()
+
+    /* Read through refs, never through effect deps: the auto-close timeout
+       below must survive re-renders (the parent passes a fresh arrow for
+       `onNextDeal` on every one of them), and re-arming it each render would
+       mean it never fires. */
+    const nextDealRef = useRef(onNextDeal)
+    nextDealRef.current = onNextDeal
+    const canContinueRef = useRef(canContinue)
+    canContinueRef.current = canContinue
+    const ackedDeal = useRef<number | null>(null)
 
     /* Dismissal is owned HERE, not by the parent: the parent's `open` is
        derived from the phase, and the whole point is to disappear before the
@@ -98,11 +124,21 @@ export default function DealSummary({
     const [dismissedDeal, setDismissedDeal] = useState<number | null>(null)
     const shown = open && dealNo !== null && dismissedDeal !== dealNo
 
+    /** Close, then tell the table we are done with this receipt — once. */
+    const dismiss = (deal: number): void => {
+        setDismissedDeal(deal)
+        if (!canContinueRef.current || ackedDeal.current === deal) return
+        ackedDeal.current = deal
+        nextDealRef.current?.()
+    }
+
     // Hooks run before the early return: `dealScore` is null between deals.
     useEffect(() => {
         if (!shown || dealNo === null) return
-        const id = setTimeout(() => setDismissedDeal(dealNo), AUTO_CLOSE_MS)
+        const id = setTimeout(() => dismiss(dealNo), AUTO_CLOSE_MS)
         return () => clearTimeout(id)
+        // `dismiss` reads everything it needs from refs, so this timer is
+        // deliberately not re-armed when the parent re-renders.
     }, [shown, dealNo])
 
     if (!dealScore) return null
@@ -124,7 +160,7 @@ export default function DealSummary({
                             right="2"
                             size="sm"
                             variant="ghost"
-                            onClick={() => setDismissedDeal(dealScore.dealNo)}
+                            onClick={() => dismiss(dealScore.dealNo)}
                         />
                         <Dialog.Body pt="5">
                             <VStack gap="2" align="stretch">

@@ -1,5 +1,6 @@
 import { createToaster } from "@chakra-ui/react"
 import { hasTranslation, t } from "./i18n"
+import { TOAST_TOP_OFFSET } from "./components/navChrome"
 
 /**
  * Single shared toaster instance. Components and the axios interceptor
@@ -10,12 +11,19 @@ import { hasTranslation, t } from "./i18n"
  * if you POST a tournament create and then we navigate away to the
  * detail page, the success toast must keep ticking down on the new page.
  * A per-component toaster would be torn down and miss that.
+ *
+ * `offsets.top` pulls the whole "top" stack down below the sticky navbar
+ * (see `TOAST_TOP_OFFSET` in navChrome.ts for why — iOS 26's status-bar
+ * tinting from anything touching the viewport's top edge). left/right/bottom
+ * stay at zag-js's own default ("1rem") — only the record form lets one side
+ * differ, so all four have to be spelled out here.
  */
 export const toaster = createToaster({
     placement: "top",
     pauseOnPageIdle: true,
     overlap: true,
     max: 5,
+    offsets: { top: TOAST_TOP_OFFSET, bottom: "1rem", left: "1rem", right: "1rem" },
 })
 
 /**

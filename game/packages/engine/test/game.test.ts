@@ -848,3 +848,230 @@ describe("the deal that reaches the target (README §1.7)", () => {
         expect(state.winner).toBeNull()
     })
 })
+
+/* ── "dosta" — tko prvi dođe do cilja (README §1.7) ───────────────────────
+   Under `dosta` the target is not a thing you check after a deal: it is a
+   race, and it is over the instant a team's total — its running score plus
+   what it has PROVABLY collected in the deal in progress — reaches the
+   target. The deal stops where it stands, both teams are booked with what
+   they had collected at that instant, and nobody ever finds out whether the
+   calling pair would have fallen. `prolaz` is the opposite in one word: it
+   looks at nothing until the last card of the deal has been played. */
+
+const DOSTA_TARGET = 501
+
+/**
+ * A deal in progress: seat 0 leads the trump ace and the other three hold
+ * neither hearts nor any trump, so the trick is worth EXACTLY 11 (A 11, K 4,
+ * Q 3, J 20, 9 14, 10 10 — everything the others can throw is a 7, an 8 or a
+ * 9 off-suit, worth 0) and team A takes it.
+ */
+function trumpAceTrick(
+    score: Record<Team, number>,
+    gameEndRule: "dosta" | "prolaz" = "dosta",
+): GameState {
+    const base = playing({
+        trump: "HERC",
+        leader: 0,
+        hands: {
+            0: ["AHERC", "7PIK"],
+            1: ["7KARA", "8KARA"],
+            2: ["7TREF", "8TREF"],
+            3: ["9KARA", "9PIK"],
+        },
+    })
+    return {
+        ...base,
+        config: { ...base.config, targetScore: DOSTA_TARGET, gameEndRule, seed: "dosta" },
+        score: { ...score },
+    }
+}
+
+/** Play `n` cards of the current trick, first legal move each time, stopping
+ *  early if the game ends under us — which is the whole point here. */
+function playCards(start: GameState, n: number): { state: GameState; events: GameEvent[] } {
+    let state = start
+    const events: GameEvent[] = []
+    for (let i = 0; i < n && state.phase === "PLAYING"; i++) {
+        const seat = state.trick.turn
+        const step = reduce(state, { type: "PLAY", seat, card: legalMoves(state, seat)[0] as Card })
+        state = step.state
+        events.push(...step.events)
+    }
+    return { state, events }
+}
+
+describe("dosta ends the game mid-deal (README §1.7)", () => {
+    it("ends on the trick that carries a team over the target, without scoring the deal", () => {
+        const start = trumpAceTrick({ A: DOSTA_TARGET - 11, B: 0 })
+
+        // Nothing happens while the cards are still on the table: they belong
+        // to nobody until the trick is taken.
+        const threeDown = playCards(start, 3)
+        expect(threeDown.state.phase).toBe("PLAYING")
+        expect(threeDown.state.score).toEqual({ A: DOSTA_TARGET - 11, B: 0 })
+        expect(threeDown.events.some((e) => e.type === "GAME_OVER")).toBe(false)
+
+        const { state, events } = playCards(threeDown.state, 1)
+        expect(state.phase).toBe("GAME_OVER")
+        expect(state.winner).toBe("A")
+        expect(state.score).toEqual({ A: DOSTA_TARGET, B: 0 })
+
+        // The deal is NOT settled: no DealScore, no history entry, no
+        // DEAL_SCORED. It was never finished, so there is nothing to book.
+        expect(state.dealScore).toBeNull()
+        expect(state.history).toHaveLength(0)
+        expect(events.some((e) => e.type === "DEAL_SCORED")).toBe(false)
+        // The deciding trick is seen first, the result second.
+        expect(events.map((e) => e.type).slice(-2)).toEqual(["TRICK_WON", "GAME_OVER"])
+        expect(events.at(-1)).toEqual({ type: "GAME_OVER", winner: "A", score: { A: DOSTA_TARGET, B: 0 } })
+
+        expectEngineError(() => reduce(state, { type: "NEXT_DEAL" }), "BAD_PHASE")
+    })
+
+    it("books BOTH teams raw and never speaks the fall verdict", () => {
+        // The opponents already hold 28 points of this deal, and the CALLER is
+        // seat 0 (team A), which has 11 — a certain fall at settlement. Under
+        // `dosta` settlement never comes: A crossed the line first, so A has
+        // won, and B keeps the 28 it had collected by that instant.
+        const base = trumpAceTrick({ A: DOSTA_TARGET - 11, B: 0 })
+        const start: GameState = {
+            ...base,
+            tricksWon: { A: [], B: [won(1, 1, ["AKARA", "10KARA", "KKARA", "QKARA"])] },
+        }
+        expect(start.bidding.caller).toBe(0)
+
+        const { state } = playCards(start, 4)
+        expect(state.phase).toBe("GAME_OVER")
+        expect(state.winner).toBe("A")
+        expect(state.score).toEqual({ A: DOSTA_TARGET, B: 28 })
+        expect(state.dealScore).toBeNull()
+    })
+
+    it("ends on a bela the moment it is announced, in the middle of a trick", () => {
+        const base = playing({
+            trump: "HERC",
+            leader: 0,
+            hands: { 0: ["KHERC", "QHERC", "7PIK"], 1: ["7KARA"], 2: ["7TREF"], 3: ["9KARA"] },
+        })
+        const start: GameState = {
+            ...base,
+            config: { ...base.config, targetScore: DOSTA_TARGET, gameEndRule: "dosta", seed: "bela-dosta" },
+            score: { A: DOSTA_TARGET - 20, B: 0 },
+        }
+
+        const step = reduce(start, { type: "PLAY", seat: 0, card: "KHERC" })
+        expect(step.state.phase).toBe("GAME_OVER")
+        expect(step.state.winner).toBe("A")
+        expect(step.state.score).toEqual({ A: DOSTA_TARGET, B: 0 })
+        // The "Bela!" is heard before the result, and the trick stays where it
+        // stopped: one card down, three that will never be played.
+        expect(step.events.map((e) => e.type)).toEqual(["CARD_PLAYED", "BELA", "GAME_OVER"])
+        expect(step.state.trick.cards).toHaveLength(1)
+
+        // The same 20 points under `prolaz` change nothing at all.
+        const prolaz = reduce(
+            { ...start, config: { ...start.config, gameEndRule: "prolaz" } },
+            { type: "PLAY", seat: 0, card: "KHERC" },
+        )
+        expect(prolaz.state.phase).toBe("PLAYING")
+        expect(prolaz.state.winner).toBeNull()
+        expect(prolaz.state.score).toEqual({ A: DOSTA_TARGET - 20, B: 0 })
+    })
+
+    it("plays on while both teams are level past the target, then ends on the points that break it", () => {
+        // A tie at or past the target decides nothing — §1.7's rule, asked
+        // mid-deal now instead of only between deals.
+        const start = trumpAceTrick({ A: 550, B: 550 })
+        const threeDown = playCards(start, 3)
+        expect(threeDown.state.phase).toBe("PLAYING")
+
+        const { state } = playCards(threeDown.state, 1)
+        expect(state.phase).toBe("GAME_OVER")
+        expect(state.winner).toBe("A")
+        expect(state.score).toEqual({ A: 561, B: 550 })
+    })
+
+    it("prolaz never ends mid-deal, however far past the target the points run", () => {
+        const { state, events } = playCards(trumpAceTrick({ A: DOSTA_TARGET - 11, B: 0 }, "prolaz"), 4)
+        expect(state.phase).toBe("PLAYING")
+        expect(state.winner).toBeNull()
+        // The running score does not move inside a deal under `prolaz`: the
+        // 11 points are in `tricksWon`, and only settlement books them.
+        expect(state.score).toEqual({ A: DOSTA_TARGET - 11, B: 0 })
+        expect(events.some((e) => e.type === "GAME_OVER")).toBe(false)
+    })
+})
+
+describe("dosta and the declarations (README §1.4, §1.7)", () => {
+    /* Seat 0 holds all four jacks — 200, the strongest declaration there is,
+       so team A wins the contest — and seat 2, its partner, holds nothing at
+       all, which makes team A's bonus exactly 200. Every card of the 32 is
+       dealt, and nobody holds a complete suit (no belot). */
+    const HANDS: Record<Seat, Card[]> = {
+        0: ["JHERC", "JKARA", "JPIK", "JTREF", "7HERC", "8KARA", "9PIK", "10TREF"],
+        1: ["9HERC", "QHERC", "AHERC", "9KARA", "QKARA", "KKARA", "7PIK", "10PIK"],
+        2: ["8HERC", "10HERC", "KHERC", "7KARA", "10KARA", "8PIK", "QPIK", "9TREF"],
+        3: ["AKARA", "KPIK", "APIK", "7TREF", "8TREF", "QTREF", "KTREF", "ATREF"],
+    }
+
+    /** The state just before the bid: six cards each, the other eight waiting
+     *  in the stock in dealing order (dealer 3 → seats 0, 1, 2, 3, two each),
+     *  so completing the hands reproduces HANDS exactly. */
+    function beforeBid(score: Record<Team, number>, gameEndRule: "dosta" | "prolaz"): GameState {
+        const six: Record<Seat, Card[]> = { 0: [], 1: [], 2: [], 3: [] }
+        const stock: Card[] = []
+        for (const seat of SEATS) {
+            six[seat] = HANDS[seat].slice(0, 6)
+            stock.push(...HANDS[seat].slice(6, 8))
+        }
+        return makeState({
+            config: { targetScore: DOSTA_TARGET, gameEndRule, seed: "declarations-dosta" },
+            phase: "BIDDING",
+            dealer: 3,
+            hands: six,
+            stock,
+            bidding: { turn: 0, passes: [], trump: null, caller: null },
+            trick: { leader: 0, turn: 0, cards: [] },
+            score: { ...score },
+        })
+    }
+
+    it("lets a pair go out on declarations alone, before a card is led", () => {
+        // 301 + 200 = 501. Nothing in §1.6 makes a declaration wait for a
+        // trick — the defended declarations are paid whatever the tricks say —
+        // so the race counts them from the moment they are settled, which is
+        // this one.
+        const step = reduce(beforeBid({ A: 301, B: 0 }, "dosta"), { type: "BID", seat: 0, trump: "HERC" })
+
+        expect(step.state.declarationsScoringTeam).toBe("A")
+        expect(declarationPoints(step.state)).toEqual({ A: 200, B: 0 })
+        expect(step.state.phase).toBe("GAME_OVER")
+        expect(step.state.winner).toBe("A")
+        expect(step.state.score).toEqual({ A: DOSTA_TARGET, B: 0 })
+        expect(step.state.dealScore).toBeNull()
+        expect(step.state.history).toHaveLength(0)
+        // The declarations are shown, and then the game is over.
+        expect(step.events.map((e) => e.type)).toEqual([
+            "BID",
+            "TRUMP_SET",
+            "HAND_COMPLETED",
+            "DECLARATIONS_REVEALED",
+            "GAME_OVER",
+        ])
+    })
+
+    it("leaves the same bid alone under prolaz", () => {
+        const step = reduce(beforeBid({ A: 301, B: 0 }, "prolaz"), { type: "BID", seat: 0, trump: "HERC" })
+        expect(step.state.phase).toBe("PLAYING")
+        expect(step.state.winner).toBeNull()
+        expect(step.state.score).toEqual({ A: 301, B: 0 })
+        expect(step.events.some((e) => e.type === "GAME_OVER")).toBe(false)
+    })
+
+    it("does not end the game when the declarations stop short of the target", () => {
+        const step = reduce(beforeBid({ A: 300, B: 0 }, "dosta"), { type: "BID", seat: 0, trump: "HERC" })
+        expect(step.state.phase).toBe("PLAYING")
+        expect(step.state.winner).toBeNull()
+    })
+})

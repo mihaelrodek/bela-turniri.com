@@ -65,6 +65,10 @@ import {
 
 const BOT_THINK_MS = 1800
 const DECLARATIONS_MS = 8_000
+/** The server's `dealDoneAutoMs` fallback (game/packages/server/src/config.ts):
+ *  the deal advances on the seat's ack (`game.nextDeal`, sent by
+ *  `DealSummary` when it closes) and only otherwise on this timer. */
+const DEAL_DONE_AUTO_MS = 5_000
 const NETWORK_MS = 40
 /** The backend's `GameNameService.CHANGE_INTERVAL`, mirrored for the mock. */
 const NAME_CHANGE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
@@ -337,6 +341,11 @@ class MockGame {
         }
         this.phase = "PLAYING"
         this.trick = { leader: nextSeat(this.dealer), turn: nextSeat(this.dealer), cards: [] }
+
+        // `dosta` can be decided before a card is led: the declarations are
+        // settled right here (game/README.md §1.7).
+        const raced = this.dostaOutcome()
+        if (raced !== null) this.finishByDosta(raced)
     }
 
     legalFor(seat: Seat): Card[] {
@@ -362,6 +371,7 @@ class MockGame {
         // Bela: K + Q of trump in one hand, DECIDED on the first of the two
         // (README §1.4). No answer announces — the mock's bots never send a
         // flag, exactly like the real server's.
+        const belaBefore = this.belaDeclared
         if ((!this.noDeclarations || this.allowBela) && !this.belaAnnounced && this.belaRefused === null && cardSuit(card) === trump && (cardRank(card) === "K" || cardRank(card) === "Q")) {
             const partner = cardRank(card) === "K" ? makeCard("Q", trump) : makeCard("K", trump)
             if (this.hands[seat].includes(partner)) {
@@ -377,6 +387,15 @@ class MockGame {
 
         if (this.trick.cards.length < 4) {
             this.trick.turn = nextSeat(seat)
+            // An announced bela is 20 points the instant it is said, so under
+            // `dosta` it can end the game in the middle of a trick (§1.7) —
+            // and it is the only thing that can, since the cards on the table
+            // belong to nobody until the trick is taken. Same guard as the
+            // engine's `applyPlay`.
+            if (this.belaDeclared !== belaBefore) {
+                const midRace = this.dostaOutcome()
+                if (midRace !== null) this.finishByDosta(midRace)
+            }
             return true
         }
         this.resolveTrick(trump)
@@ -407,6 +426,14 @@ class MockGame {
 
 
         this.trick = { leader: winner, turn: winner, cards: [] }
+        // The trick's points are now provable, so this is where `dosta`
+        // normally ends a game — on the eighth trick too, before settlement
+        // speaks its pass/fall verdict (§1.7).
+        const race = this.dostaOutcome()
+        if (race !== null) {
+            this.finishByDosta(race)
+            return
+        }
         if (isLast) this.scoreDeal(trump)
     }
 
@@ -513,6 +540,52 @@ class MockGame {
         }
         if (this.belaDeclared !== null) points[this.belaDeclared] += 20
         return points
+    }
+
+    /** Mirror of the engine's `provisionalDealPoints` (game/README.md §1.7):
+     *  what each team has PROVABLY collected in the deal in progress — tricks
+     *  already taken, the settled declarations and an announced bela, plus the
+     *  last trick's +10 and a štiglja once the eighth trick is in. No pass/fall:
+     *  that verdict belongs to settlement, and `dosta` is decided before it. */
+    private provisionalDealPoints(): Record<Team, number> {
+        const points: Record<Team, number> = { A: 0, B: 0 }
+        const trump = this.bidding.trump
+        if (trump === null) return points
+        for (const won of this.tricks) {
+            points[teamOf(won.winner)] += won.cards.reduce((sum, c) => sum + cardPoints(c, trump), 0)
+        }
+        if (this.tricks.length === 8) {
+            const last = this.tricks[this.tricks.length - 1] as WonTrick
+            points[teamOf(last.winner)] += 10
+            const stiglja = (["A", "B"] as Team[]).find(
+                (team) => this.tricks.every((won) => teamOf(won.winner) === team),
+            ) ?? null
+            if (stiglja) points[stiglja] += 90
+        }
+        const declarations = this.declarationPoints()
+        return { A: points.A + declarations.A, B: points.B + declarations.B }
+    }
+
+    /** Mirror of the engine's `dostaOutcome`: "tko prvi dođe do cilja". Null
+     *  under `prolaz`, before trump, and while the race is undecided — which
+     *  includes a level total at or past the target (§1.7's tie). */
+    private dostaOutcome(): { winner: Team; score: Record<Team, number> } | null {
+        if (this.gameEndRule !== "dosta" || this.bidding.trump === null) return null
+        const inDeal = this.provisionalDealPoints()
+        const score: Record<Team, number> = { A: this.score.A + inDeal.A, B: this.score.B + inDeal.B }
+        if (score.A === score.B) return null
+        if (score.A < this.targetScore && score.B < this.targetScore) return null
+        return { winner: score.A > score.B ? "A" : "B", score }
+    }
+
+    /** The unfinished deal is NOT scored: no DealScore, no history entry, no
+     *  DEAL_SCORED — only the totals of the moment and GAME_OVER behind the
+     *  event that caused it. Exactly the engine's `finishByDosta`. */
+    private finishByDosta(outcome: { winner: Team; score: Record<Team, number> }): void {
+        this.score = { ...outcome.score }
+        this.winner = outcome.winner
+        this.phase = "GAME_OVER"
+        this.events.push({ type: "GAME_OVER", winner: outcome.winner, score: { ...outcome.score } })
     }
 
     view(seat: Seat | null): PlayerView {
@@ -899,7 +972,8 @@ class MockServer {
             case "room.setPrivate": {
                 const room = this.room()
                 if (!room) return
-                if (room.hostUid !== this.me.uid) { this.error("NOT_HOST", msg.t); return }
+                // Any seated player, like the real server (`Room.setPrivate`).
+                if (this.mySeat === null) { this.error("BAD_REQUEST", msg.t); return }
                 room.private = msg.private
                 this.pushRoom()
                 this.pushLobby()
@@ -1052,7 +1126,11 @@ class MockServer {
                 return
             }
             case "game.nextDeal": {
-                if (!this.game) return
+                // The real server counts this as one ACK per connected human
+                // seat and advances when the last one is in (README §3.1).
+                // A mock table has exactly one human — us — so our ack IS the
+                // last one; a spectator has no seat and no vote.
+                if (!this.game || this.mySeat === null) return
                 this.game.nextDeal()
                 this.pushGame()
                 this.scheduleBot()
@@ -1104,6 +1182,14 @@ class MockServer {
         const paused = turn === null || game.declarationsUntil > Date.now()
         const playerTurn = turn !== null && room?.seats[turn]?.occupant?.kind === "PLAYER"
         const turnDeadline = paused || !playerTurn ? null : Date.now() + DEFAULTS.turnTimeoutMs
+        // EVENTS BEFORE THE STATE, exactly like `gameRoom.ts#apply`: the
+        // events describe the transition and the state is its result. The
+        // other way round — which this mock used to do — the client saw
+        // `phase: "DEAL_DONE"` with an empty event queue for one frame, so
+        // the deal summary opened, closed again when the trick's events
+        // landed a moment later, and reopened after their dwell. A flicker
+        // that exists only in the mock is worse than no mock at all.
+        if (events.length > 0) this.emit({ t: "game.events", events }, ms)
         this.emit({
             t: "game.state",
             view: game.view(this.mySeat),
@@ -1112,7 +1198,6 @@ class MockServer {
             turnDurationMs: turnDeadline === null ? null : DEFAULTS.turnTimeoutMs,
             autoPlayed: false,
         }, ms)
-        if (events.length > 0) this.emit({ t: "game.events", events }, ms)
     }
 
     /** Bots think for a beat so the table doesn't snap through a whole deal. */
@@ -1121,6 +1206,17 @@ class MockServer {
         if (!game) return
         if (game.declarationsUntil > Date.now()) {
             this.later(() => { if (this.game !== game) return; this.pushGame(); this.scheduleBot() }, game.declarationsUntil - Date.now() + 5)
+            return
+        }
+        if (game.phase === "DEAL_DONE") {
+            // The ack fallback, mirroring the real server: normally the
+            // client's `game.nextDeal` gets here first.
+            this.later(() => {
+                if (this.game !== game || game.phase !== "DEAL_DONE") return
+                game.nextDeal()
+                this.pushGame()
+                this.scheduleBot()
+            }, DEAL_DONE_AUTO_MS)
             return
         }
         const turn = game.turn()

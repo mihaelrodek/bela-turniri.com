@@ -76,7 +76,7 @@ describe("room visibility and rules", () => {
         expect((await watcher.nextOfType("room.joined")).room.id).toBe(joined.room.id)
     })
 
-    it("rejects privacy changes from a guest", async () => {
+    it("lets any seated player change privacy, not only the host", async () => {
         server = await startTestServer()
         const host = await connect("Host")
         host.send({ t: "room.create", targetScore: 501, private: true })
@@ -84,8 +84,12 @@ describe("room visibility and rules", () => {
         const guest = await connect("Guest")
         guest.send({ t: "room.joinByCode", code: joined.room.code })
         await guest.nextOfType("room.joined")
+        // A joiner is seated on arrival; being seated is what it takes, host
+        // or not (2026-09-20).
         guest.send({ t: "room.setPrivate", private: false })
-        expect((await guest.nextOfType("error")).code).toBe("NOT_HOST")
+        let state = await guest.nextOfType("room.state")
+        while (state.room.private) state = await guest.nextOfType("room.state")
+        expect(state.room.private).toBe(false)
     })
 
     it("carries no-declaration rules into a running game and permits changing privacy", async () => {

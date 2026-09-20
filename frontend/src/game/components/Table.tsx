@@ -40,6 +40,7 @@ export default function Table({
     flyIn = null,
     collectTo = null,
     reducedMotion = false,
+    showTurn = true,
     bids,
     reactions,
 }: {
@@ -56,6 +57,10 @@ export default function Table({
     flyIn?: CardId | null
     collectTo?: SeatId | null
     reducedMotion?: boolean
+    /** False while a finished trick is still being held and swept: the server
+     *  has already handed the turn to the winner, but lighting their seat up
+     *  before the trick is even gone reads as a jump (2026-09-20). */
+    showTurn?: boolean
     /** Per-seat bid chip while the deal is being called. */
     bids?: Partial<Record<SeatId, SeatBid>>
     /** Per-seat quick phrase currently floating (from `chat.reaction`). */
@@ -109,13 +114,13 @@ export default function Table({
                         <SeatView
                             info={room.seats[seat]}
                             isMe={seat === mySeat}
-                            isTurn={view.turn === seat}
+                            isTurn={showTurn && view.turn === seat}
                             isDealer={view.dealer === seat}
                             // The caller's medallion has to last the whole
                             // deal, so it is keyed off the SETTLED trump, not
                             // off the moment of the bid.
                             callerTrump={caller === seat ? trump : null}
-                            countdown={view.turn === seat && !isBotTurn ? countdown : null}
+                            countdown={showTurn && view.turn === seat && !isBotTurn ? countdown : null}
                             bid={bids?.[seat] ?? null}
                             reaction={reactions?.[seat] ?? null}
                             reactionAlign={position === "left" || position === "right" ? position : "center"}

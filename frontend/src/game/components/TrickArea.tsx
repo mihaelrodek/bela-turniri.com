@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Box } from "@chakra-ui/react"
+import { Box, useBreakpointValue } from "@chakra-ui/react"
 import type { Card as CardId, Seat } from "@bela/protocol"
 import type { TrickCard } from "@bela/engine"
 import { cardScatter, positionOf, positionVector } from "../util/seats"
@@ -29,16 +29,30 @@ import { NARROW, SHORT, TIGHT } from "./tableStyles"
    500 ms as soon as the next event started.
    ────────────────────────────────────────────────────────────────────── */
 
-/** How far from the centre a resting card sits, per axis. A medium card is
- *  roughly 72 × 120 px, so these offsets leave only a small, natural overlap
- *  at the corners and make the throwing seat unambiguous. Seat geometry in
- *  tableStyles.ts clears these extents. */
-const REST_X = 66
-const REST_Y = 54
+/** The pile is drawn in the SAME card size as the hand below it — `sm` on a
+ *  phone, `md` from 48em up. A phone used to get a full `md` pile over an
+ *  `sm` hand, which both looked wrong and ran the top card into the partner's
+ *  avatar and name (reported 2026-09-20). */
+type PileSize = "sm" | "md"
+
+/** How far from the centre a resting card sits, per axis, per card size. The
+ *  offsets leave only a small, natural overlap at the corners and make the
+ *  throwing seat unambiguous. Seat geometry in tableStyles.ts clears these
+ *  extents — `--seat-clear-x` / `--seat-clear-y` are stated against the `sm`
+ *  numbers, since that is what a phone draws. */
+const REST_X: Record<PileSize, number> = { sm: 50, md: 66 }
+const REST_Y: Record<PileSize, number> = { sm: 42, md: 54 }
 /** Where a card starts its flight (off toward its owner). */
-const FLY_IN = 170
+const FLY_IN: Record<PileSize, number> = { sm: 130, md: 170 }
 /** Where the trick slides to when collected. */
-const COLLECT = 340
+const COLLECT: Record<PileSize, number> = { sm: 260, md: 340 }
+/** The pile contracts further on screens that cannot fit even this much.
+ *  Stated per size, because an `sm` pile is already 0.78 of an `md` one and
+ *  shrinking it by the `md` factors again would leave a pile of stamps. */
+const PILE_SCALE: Record<PileSize, Record<string, number>> = {
+    sm: { [TIGHT]: 0.82, [NARROW]: 0.86, [SHORT]: 0.8 },
+    md: { [TIGHT]: 0.86, [NARROW]: 0.76, [SHORT]: 0.66 },
+}
 /** DESIGN §2.5: 320 ms in, 500 ms out. `COLLECT_MS` is exported because the
  *  page has to know when the sweep is finished before it clears the felt. */
 const FLY_MS = 320
@@ -48,6 +62,7 @@ function ThrownCard({
     entry,
     order,
     mySeat,
+    size,
     animateIn,
     collectTo,
     reducedMotion,
@@ -56,6 +71,8 @@ function ThrownCard({
     /** Play order within the trick — later cards lie on top. */
     order: number
     mySeat: Seat | null
+    /** The card size the hand is drawing at this width. */
+    size: PileSize
     /** false = this card was already on the felt when we started looking. */
     animateIn: boolean
     collectTo: Seat | null
@@ -81,17 +98,17 @@ function ThrownCard({
     let opacity = 1
     if (collectTo !== null) {
         const away = positionVector(positionOf(collectTo, mySeat))
-        transform = `translate(-50%, -50%) translate(${away.x * COLLECT}px, ${away.y * COLLECT}px) rotate(${tilt}deg) scale(0.7)`
+        transform = `translate(-50%, -50%) translate(${away.x * COLLECT[size]}px, ${away.y * COLLECT[size]}px) rotate(${tilt}deg) scale(0.7)`
         opacity = 0
     } else if (!landed) {
-        transform = `translate(-50%, -50%) translate(${vector.x * FLY_IN}px, ${vector.y * FLY_IN}px) rotate(${tilt * 1.6}deg) scale(0.88)`
+        transform = `translate(-50%, -50%) translate(${vector.x * FLY_IN[size]}px, ${vector.y * FLY_IN[size]}px) rotate(${tilt * 1.6}deg) scale(0.88)`
         opacity = 0.45
     } else {
         // The top seat's transient status chip sits immediately above the
         // trick. Pull only that card a little toward the centre so the chip
         // reads above it instead of touching its top edge.
-        const restY = position === "top" ? REST_Y - 12 : REST_Y
-        transform = `translate(-50%, -50%) translate(${vector.x * REST_X + dx}px, ${vector.y * restY + dy}px) rotate(${tilt}deg)`
+        const restY = position === "top" ? REST_Y[size] - 12 : REST_Y[size]
+        transform = `translate(-50%, -50%) translate(${vector.x * REST_X[size] + dx}px, ${vector.y * restY + dy}px) rotate(${tilt}deg)`
     }
 
     return (
@@ -107,7 +124,7 @@ function ThrownCard({
                     : `transform ${collectTo !== null ? COLLECT_MS : FLY_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity ${collectTo !== null ? COLLECT_MS : FLY_MS}ms ease-out`
             }
         >
-            <PlayingCard card={entry.card} size="md" />
+            <PlayingCard card={entry.card} size={size} />
         </Box>
     )
 }
@@ -138,6 +155,8 @@ export default function TrickArea({
     collectTo?: Seat | null
     reducedMotion?: boolean
 }) {
+    const size = (useBreakpointValue<PileSize>({ base: "sm", md: "md" }) ?? "sm") as PileSize
+    const scale = PILE_SCALE[size]
     return (
         // Not aria-hidden: each card carries its Croatian name as an
         // aria-label, and the trick is exactly what a screen-reader user
@@ -160,9 +179,9 @@ export default function TrickArea({
             zIndex={1}
             pointerEvents="none"
             css={{
-                [TIGHT]: { transform: "scale(0.86)" },
-                [NARROW]: { transform: "scale(0.76)" },
-                [SHORT]: { transform: "scale(0.66)" },
+                [TIGHT]: { transform: `scale(${scale[TIGHT]})` },
+                [NARROW]: { transform: `scale(${scale[NARROW]})` },
+                [SHORT]: { transform: `scale(${scale[SHORT]})` },
             }}
         >
             {cards.map((entry, index) => (
@@ -171,6 +190,7 @@ export default function TrickArea({
                     entry={entry}
                     order={index}
                     mySeat={mySeat}
+                    size={size}
                     animateIn={entry.card === flyIn}
                     collectTo={collectTo}
                     reducedMotion={reducedMotion}

@@ -60,9 +60,33 @@ animacije** toggle, **Vrsta karata: Francuske / Mađarice / Moderne**
 
 ## 2. Naš cilj (v2) — što se mijenja
 
-1. **Mađarice su zadani špil.** Bela se igra mađaricama. Naš špil je
-   vlastiti (public-domain skenovi Tell uzorka ili vlastiti flat SVG),
-   nikad tuđi PNG. Mapiranje engine → mađarice:
+1. **Mađarice su zadani špil — a od 2026-09-20 biraju se ČETIRI špila.**
+   Registar je `frontend/src/game/util/cards.ts` (`DeckStyle`, `DECK_STYLES`,
+   `DEFAULT_DECK`, `isHungarianDeck`, `deckHasImages`); id-evi su ono što se
+   pamti u `localStorage` (stari `"madjarice"` migrira u `klasicne`):
+
+   | id | naziv | što je | gdje |
+   |----|-------|--------|------|
+   | `klasicne` | Klasične / Klasične | digitalni set Tell uzorka autora `tomasdrus` (github.com/tomasdrus/hungarian-playing-cards), uz **dopuštenje autora za bela-turniri.com (2026-09-20)**. **Zadani.** | `cards/madjarice/assets/klasicne/<RANK><SUIT>.webp` + `BACK.webp` + `suits/{HERC,KARA,PIK,TREF}.webp` |
+   | `moderne` | Moderne / Moderne | naši stariji skenovi, očišćeni u **istu geometriju**, pa idu kroz identični kod (bez cropa i filtera) | `cards/madjarice/assets/moderne/<RANK><SUIT>.webp` + `BACK.webp` |
+   | `vektorske` | Vektorske / Vektorske | naš inline SVG (`MadjaricaCard` + `figures.tsx`, `vignettes.tsx`, `SuitGlyph.tsx`) — **nema rastera, SVG JE karta**; isti kod je ujedno fallback dok se slika špila dekodira | — |
+   | `francuske` | Francuske / Francoske | originalna CSS karta (rang + ♥♦♠♣) | — |
+
+   Rasterski špilovi su WebP 363 × 585, alfa — zaobljeni kutovi su prozirni,
+   pa je *slika cijela karta*: bez bijelog okvira, bez inseta i bez korekcije
+   boje; ispod nje stoji vektorsko lice dok se slika ne dekodira. Sva tri
+   mađarska špila dijele istu kutiju, isti radijus i istu sjenu. Ako špil ikad
+   nestane, fallback je vlastiti SVG — nikad tuđi PNG bez dopuštenja.
+
+   **Adut prati špil** (2026-09-20, zahtjev korisnika: „kad se pozove adut
+   koristi prikaz aduta vezan uz odabrane karte”). Jedna komponenta,
+   `components/DeckSuitIcon.tsx`, odgovara na „kako izgleda boja”: `klasicne`
+   → vlastiti otisnuti znak iz `assets/klasicne/suits/`, `moderne` i
+   `vektorske` → naš vektorski glif, `francuske` → ♥♦♠♣. Kroz nju idu semafor,
+   medaljon zvača, `TrumpBadge`, tipke za zvanje, trump flash i blok (preko
+   `SuitIcon` / `SuitGlyph`, koji samo čitaju postavku).
+
+   Mapiranje engine → mađarice:
    `HERC`=**srce** ❤, `KARA`=**bundeva** (zvono), `PIK`=**list/zelena**,
    `TREF`=**žir**; `7 8 9 10`=**VII VIII IX X** (rimski), `J`=**Dolnji**
    (unter), `Q`=**Gornji** (ober), `K`=**Kralj**, `A`=**As** (godišnje doba
@@ -100,8 +124,12 @@ animacije** toggle, **Vrsta karata: Francuske / Mađarice / Moderne**
    riječi), **šifra za ulaz** (4 znamenke) + "Pridruži se šifrom", privatna
    igra, sjedala u redovima s "Dodaj bota" / ✕, "Pokreni igru".
 10. **Postavke igre** (u `/igra`, ikona zupčanika): zvuk (WebAudio, bez
-    datoteka), smanji animacije, vrsta karata (Mađarice / Francuske),
-    spremljeno u `localStorage` preko `hooks/useGamePrefs.ts`.
+    datoteka), smanji animacije, vrsta karata (Klasične / Moderne / Vektorske
+    / Francuske — mreža 2 × 2 da stane na 360 px, svaka opcija crta uzorak
+    svojim špilom), spremljeno u `localStorage` preko `hooks/useGamePrefs.ts`.
+    Odabir špila grije taj špil (`cards/madjarice/preload.ts` →
+    `preloadDeck`, idempotentno **po špilu**) i predaje ga servisnom workeru
+    za offline (`cards/deckOffline.ts`).
 11. **Mobilno**: `100dvh` stol, safe-area dolje, bez page-scrolla, ruka
     dokirana dolje, scoreboard kompaktan (jedan red), landscape podržan
     (ruka i dalje dolje, sjedala bliže sredini).

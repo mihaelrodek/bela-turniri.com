@@ -832,8 +832,14 @@ export class Room {
         }
     }
 
+    /** Any SEATED player may flip this, not only the host (2026-09-20, user
+     *  request) — the same rule `start` has. A spectator may not: whether the
+     *  room is listed is the table's call, not the audience's. */
     setPrivate(conn: Connection, isPrivate: boolean): void {
-        this.requireHost(conn)
+        const user = this.requireUser(conn)
+        if (this.seatOfUid(user.uid) === null) {
+            throw new ProtocolError("BAD_REQUEST", "Samo igrač za stolom može mijenjati privatnost sobe.")
+        }
         this.private = isPrivate
         this.broadcastState()
         this.lobby.changed()

@@ -24,7 +24,7 @@ export const game = {
     "guest.loginInline": "Prijavi se",
     "guest.statsHintSuffix": "za spremanje statistike na svim uređajima.",
     "declarations.calculating": "Igra računa zvanja…",
-    "declarations.reviewing": "Pregled zvanja…",
+    "declarations.starting": "Igra počinje…",
 
     "lobby.heroLabel": "Bela online",
     "lobby.heroTitle": "Tvoj stol. Tvoja ekipa.",
@@ -34,7 +34,13 @@ export const game = {
     "room.public": "Javna",
     "room.waitingReady": "Nije spreman",
     "room.statsOverall": "Sve {wins}–{losses} · {percent}%",
-    "room.statsOverallLabel": "Sve",
+    /* Naslov ukupne pločice u redu statistike (lobby header, 2026-09-20).
+       Stari ključ `statsOverallLabel` ("Sve") ostao je bez čitača kad je
+       RoomPanel prešao na `SeatStatPill` — `GameStatsPills.tsx` je posegnuo
+       za istim imenom prije nego što je ikad postojao u ovom obliku, pa se
+       u nastalom razmaku prikazivao sirovi ključ. Preimenovan i s novim
+       tekstom po korisnikovu zahtjevu. */
+    "room.statsTitle": "Ukupno",
     "room.statsTarget": "{target} {wins}–{losses} · {percent}%",
     "bot.label": "Bot",
     "rules.title": "Pravila podjele",
@@ -264,6 +270,7 @@ export const game = {
     "table.reaction.nicePlay": "Bravo, majstore!",
     "table.reaction.lucky": "Sreća prati hrabre!",
     "table.reaction.mistake": "Ajoooooj!",
+    "table.reaction.angry": "Grrrrr!",
     "table.reaction.hurry": "Može li to sporije? 🙄",
     "table.reaction.goodGame": "Dobra igra, svaka čast!",
 
@@ -306,6 +313,7 @@ export const game = {
 
     "bela.title": "Bela!",
     "bela.by": "zove {name}",
+    "trump.calledBy": "{name} zove {suit}",
     // Zvanje bele je IZBOR (game/README.md §1.4): pitamo jednom, kad se baca
     // prva od K/Q aduta. Odbijanje vrijedi za cijelu podjelu.
     "bela.ask": "Zovi belu?",
@@ -388,7 +396,12 @@ export const game = {
     "settings.reduceMotion": "Smanji animacije",
     "settings.reduceMotionHint": "Također slijedi sistemsku postavku za smanjene animacije.",
     "settings.deckType": "Vrsta karata",
-    "settings.deck.madjarice": "Mađarice",
+    /* Četiri špila (2026-09-20): tri su mađarice i razlikuju se samo po
+       crtežu — registar je u game/util/cards.ts, id-evi su ono što se pamti
+       u localStorageu. */
+    "settings.deck.klasicne": "Klasične",
+    "settings.deck.moderne": "Moderne",
+    "settings.deck.vektorske": "Vektorske",
     "settings.deck.francuske": "Francuske",
     "settings.recommended": "Preporučeno",
     "common.close": "Zatvori",
@@ -400,8 +413,6 @@ export const game = {
 
     /* ─── Čuvanje sjedala, aktivna soba, povratak (game/README.md §3) ─────
        DODANO NA KRAJ — ne premještaj i ne briši ključeve iznad. */
-    "active.title": "Imaš aktivnu igru",
-    "active.description": "Igra još traje. Vrati se za stol ili je napusti.",
     "active.holdLeft": "Sjedalo ti se čuva još {time}",
     "active.holdNone": "Sjedalo je i dalje tvoje.",
     "active.resume": "Vrati se u igru",

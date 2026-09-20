@@ -203,6 +203,8 @@ export const pages = {
     "calendar.emptyAgenda.description":
         "Čim netko objavi novi turnir, pojavit će se ovdje. Pretplati se na kalendar i stiže ti automatski.",
     "calendar.emptyAgenda.cta": "Pogledaj sve turnire",
+    "calendar.emptyMonth.title": "Nema turnira u ovom mjesecu",
+    "calendar.emptyMonth.description": "Odaberi drugi mjesec ili se vrati na današnji datum.",
 
     // --- Dan u mjesečnoj mreži ----------------------------------------------
     "calendar.day.selectAria": "Prikaži turnire za {date}",
