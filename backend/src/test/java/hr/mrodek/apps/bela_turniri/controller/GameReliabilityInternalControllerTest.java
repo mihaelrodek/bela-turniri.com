@@ -43,7 +43,7 @@ class GameReliabilityInternalControllerTest {
         post(body).statusCode(200).body("recorded", is(true));
         post(body).statusCode(200).body("recorded", is(false));
 
-        var value = reliability.forUser(uid);
+        var value = QuarkusTransaction.requiringNew().call(() -> reliability.forUser(uid));
         assertEquals(1, value.abandons());
         assertEquals(GameReliabilityService.DEFAULT_KARMA - GameReliabilityService.ABANDON_PENALTY, value.karma());
     }
@@ -57,19 +57,32 @@ class GameReliabilityInternalControllerTest {
     void threeCompletedGamesGiveOnePointBack() {
         post("{\"eventId\":\"" + UUID.randomUUID() + "\",\"userUid\":\"" + uid
                 + "\",\"eventType\":\"ABANDONED\"}").statusCode(200);
-        assertEquals(GameReliabilityService.MAX_KARMA - 1, reliability.forUser(uid).karma());
+        assertEquals(GameReliabilityService.MAX_KARMA - 1, karma());
 
         for (int i = 0; i < GameReliabilityService.GAMES_PER_RECOVERY - 1; i++) {
             QuarkusTransaction.requiringNew().run(() -> reliability.recordCompleted(uid));
-            assertEquals(GameReliabilityService.MAX_KARMA - 1, reliability.forUser(uid).karma());
+            assertEquals(GameReliabilityService.MAX_KARMA - 1, karma());
         }
         QuarkusTransaction.requiringNew().run(() -> reliability.recordCompleted(uid));
-        assertEquals(GameReliabilityService.MAX_KARMA, reliability.forUser(uid).karma());
+        assertEquals(GameReliabilityService.MAX_KARMA, karma());
 
         // Already full: further finished games bank nothing.
         QuarkusTransaction.requiringNew().run(() -> reliability.recordCompleted(uid));
-        assertEquals(GameReliabilityService.MAX_KARMA, reliability.forUser(uid).karma());
-        assertEquals(GameReliabilityService.MAX_KARMA, reliability.forUser(uid).maxKarma());
+        assertEquals(GameReliabilityService.MAX_KARMA, karma());
+        assertEquals(GameReliabilityService.MAX_KARMA,
+                QuarkusTransaction.requiringNew().call(() -> reliability.forUser(uid)).maxKarma());
+    }
+
+    /**
+     * Karma as the database has it RIGHT NOW. A bare {@code forUser} in the
+     * test method reads through the request-scoped persistence context that
+     * Quarkus keeps open for the whole test, so after the first read it hands
+     * back the same cached entity for ever — the recovery below did happen,
+     * the test just could not see it (CI, 2026-09-20: "expected 10 but was 9").
+     * A read inside its own transaction gets a fresh session.
+     */
+    private int karma() {
+        return QuarkusTransaction.requiringNew().call(() -> reliability.forUser(uid).karma());
     }
 
     private io.restassured.response.ValidatableResponse post(String body) {

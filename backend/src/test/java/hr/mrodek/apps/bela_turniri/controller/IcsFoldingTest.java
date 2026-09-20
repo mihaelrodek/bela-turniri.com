@@ -69,7 +69,15 @@ class IcsFoldingTest {
     /**
      * Assert the RFC-5545 §3.1 shape of a folded value: CRLF-separated
      * physical lines, none longer than 75 octets, every continuation line
-     * starting with exactly one space.
+     * starting with the fold space.
+     *
+     * <p>NOT "exactly one space" (2026-09-20, CI): the chunk that follows a
+     * fold may itself begin with a content space — the value
+     * {@code "…Začretje — dvorana"} splits right before one. That is legal
+     * (unfolding removes CRLF plus ONE space and keeps the rest), and the
+     * lossless round trip is asserted separately by every caller through
+     * {@link #unfold}, which is what actually proves no space was added or
+     * lost. Rejecting a leading content space rejected correct output.
      */
     private static void assertWellFolded(String folded) {
         String[] lines = folded.split("\r\n", -1);
@@ -82,9 +90,7 @@ class IcsFoldingTest {
                     "line " + i + " is " + octets(lines[i]) + " octets: <" + lines[i] + ">");
             if (i > 0) {
                 assertTrue(lines[i].startsWith(" "),
-                        "continuation line " + i + " must start with a single space");
-                assertFalse(lines[i].startsWith("  "),
-                        "continuation line " + i + " must start with exactly one space");
+                        "continuation line " + i + " must start with the fold space");
             }
         }
     }
