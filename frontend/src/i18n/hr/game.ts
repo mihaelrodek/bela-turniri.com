@@ -20,7 +20,10 @@ export const game = {
     "guest.avatarHint": "Izaberi lik koji te predstavlja za stolom.",
     "guest.play": "Igraj kao gost",
     "guest.statsHint": "Prijavi se za spremanje statistike na svim uređajima.",
-    "guest.login": "Prijava",
+    "guest.chooseHint": "Kako želiš igrati?",
+    "guest.loginOrRegister": "Prijavi se ili kreiraj račun",
+    "guest.playAsGuest": "Igraj kao gost",
+    "guest.back": "Natrag",
     "guest.loginInline": "Prijavi se",
     "guest.statsHintSuffix": "za spremanje statistike na svim uređajima.",
     "guest.nameOffensive": "To ime nije dopušteno. Odaberi drugo.",
@@ -277,7 +280,7 @@ export const game = {
     "table.turnYourCall": "Zovi aduta",
     "table.phaseBidding": "Zvanje aduta",
     "table.waiting": "Čekaj…",
-    "table.spectating": "Gledaš igru",
+    "table.spectatingIntro": "Gledaš igru",
     "table.spectatorCount": "Gledatelji: {count}",
 
     // Brze reakcije za stolom (protokol `chat.react`).

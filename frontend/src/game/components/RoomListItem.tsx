@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from "react"
 import { Badge, Box, HStack, Text, VStack } from "@chakra-ui/react"
+import { keyframes } from "@emotion/react"
 import { FiChevronRight, FiEye, FiLock } from "react-icons/fi"
 import type { RoomOccupant, RoomSummary } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
@@ -58,12 +60,39 @@ function Occupant({ occupant, emptyLabel }: { occupant: RoomOccupant; emptyLabel
     )
 }
 
+/* Module-scope emotion keyframes (a nested "@keyframes" in Chakra's `css` prop
+   does not run — game/DESIGN.md). Both animations END on the card's resting
+   look, so a dead animation leaves an ordinary card, never a hidden one. */
+const roomEnter = keyframes`
+    0%   { opacity: 0; transform: translateY(14px) scale(0.97); }
+    60%  { opacity: 1; transform: translateY(-2px) scale(1.005); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+`
+const roomStarted = keyframes`
+    0%   { box-shadow: 0 0 0 0 rgba(251, 146, 60, 0.55); transform: scale(1); }
+    25%  { transform: scale(1.012); }
+    100% { box-shadow: 0 0 0 14px rgba(251, 146, 60, 0); transform: scale(1); }
+`
+const badgePop = keyframes`
+    0%   { opacity: 0; transform: scale(0.6); }
+    60%  { opacity: 1; transform: scale(1.12); }
+    100% { opacity: 1; transform: scale(1); }
+`
+const ENTER_MS = 480
+const STARTED_MS = 1100
+
 export default function RoomListItem({
     room,
     mine = false,
     disabled = false,
+    entering = false,
+    reducedMotion = false,
     onClick,
 }: {
+    /** The room appeared in the list just now (not part of the first load):
+     *  it slides in instead of popping into the grid. */
+    entering?: boolean
+    reducedMotion?: boolean
     room: RoomSummary
     /** This room is holding a seat for us (`game.active`). */
     mine?: boolean
@@ -84,6 +113,30 @@ export default function RoomListItem({
     const full = !room.joinable && !mine
     const blocked = disabled || full
     const playing = room.status === "PLAYING"
+    /* "Igra je počela": the moment THIS row goes from waiting to playing, the
+       card pulses once and the badge pops — so a glance at the lobby shows
+       which table just started, not only which ones are running. Rooms that
+       were already playing when the list loaded stay still. */
+    const previousStatus = useRef(room.status)
+    const [justStarted, setJustStarted] = useState(false)
+    useEffect(() => {
+        const before = previousStatus.current
+        previousStatus.current = room.status
+        if (before === "PLAYING" || room.status !== "PLAYING") return
+        setJustStarted(true)
+        const timer = window.setTimeout(() => setJustStarted(false), STARTED_MS)
+        return () => window.clearTimeout(timer)
+    }, [room.status])
+
+    const animation = reducedMotion
+        ? undefined
+        : justStarted
+            ? `${roomStarted} ${STARTED_MS}ms ease-out both`
+            : entering
+                ? `${roomEnter} ${ENTER_MS}ms cubic-bezier(0.22, 1, 0.36, 1) both`
+                : undefined
+    const badgeAnimation = !reducedMotion && justStarted ? `${badgePop} 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both` : undefined
+
     const names = room.occupants.map((o) => o?.name ?? t("game.lobby.emptySeat")).join(", ")
 
     return (
@@ -103,6 +156,7 @@ export default function RoomListItem({
             p="2.5"
             minH="44px"
             cursor={blocked ? "not-allowed" : "pointer"}
+            animation={animation}
             transition="background-color 0.15s ease, border-color 0.15s ease"
             _hover={blocked ? undefined : {
                 borderColor: playing ? "orange.400" : "brand.400",
@@ -126,7 +180,7 @@ export default function RoomListItem({
                         <HStack justify="space-between" align="start" gap="2">
                             <Text fontWeight="semibold" lineClamp={1} minW="0">{room.name}</Text>
                             {room.status === "PLAYING" && (
-                                <Badge size="sm" variant="solid" colorPalette="orange" flexShrink={0} whiteSpace="nowrap">
+                                <Badge size="sm" variant="solid" colorPalette="orange" flexShrink={0} whiteSpace="nowrap" animation={badgeAnimation}>
                                     {t("game.lobby.playing")}
                                 </Badge>
                             )}
@@ -167,7 +221,7 @@ export default function RoomListItem({
                         </HStack>
                         <HStack gap="1.5" justify="end" wrap="wrap" flexShrink={{ base: 1, sm: 0 }} maxW={{ base: "68%", sm: "none" }}>
                             {room.status === "PLAYING" && (
-                                <Badge size="sm" variant="solid" colorPalette="orange">
+                                <Badge size="sm" variant="solid" colorPalette="orange" animation={badgeAnimation}>
                                     {t("game.lobby.playing")}
                                 </Badge>
                             )}

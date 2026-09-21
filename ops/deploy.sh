@@ -109,4 +109,11 @@ fi
 echo "🧹 Prune old images…"
 docker image prune -f
 
+# Build cache is what actually fills the disk: every deploy adds a few hundred
+# MB of layers and nothing ever removes them (2026-09-21: 26 GB of it, disk at
+# 82 %, 25 GB reclaimable). A week of cache is kept so the next build stays
+# fast; `|| true` because failing to tidy up must never fail a finished deploy.
+echo "🧹 Prune build cache older than 7 days…"
+docker builder prune -f --filter until=168h || true
+
 # EXIT trap clears the flag → maintenance OFF.

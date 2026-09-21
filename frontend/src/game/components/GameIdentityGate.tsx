@@ -36,8 +36,23 @@ export default function GameIdentityGate({ children }: { children: ReactNode }) 
     // above the name field is never an empty circle and a guest who never
     // touches the grid still sits down as somebody.
     const [avatar, setAvatar] = useState<AvatarId>(randomAvatar)
+    // The first screen only asks WHO you are playing as (2026-09-21, user
+    // request): a guest gets the name-and-face form, everybody else goes to
+    // sign-in. Nothing about the form is shown until "guest" is chosen.
+    const [choosingGuest, setChoosingGuest] = useState(false)
     if (loading || !hydrated) return <Spinner />
     if (user || guest) return children
+    if (!choosingGuest) {
+        return <Box maxW="420px" mx="auto" py="8">
+            <VStack align="stretch" gap="4" p="5" rounded="xl" bg="bg.panel" borderWidth="1px" borderColor="border.subtle">
+                <Heading size="lg">{t("game.guest.title")}</Heading>
+                <Text fontSize="sm" color="fg.muted">{t("game.guest.chooseHint")}</Text>
+                <Button asChild colorPalette="brand" size="lg"><Link to="/prijava" state={{ from: location }}>{t("game.guest.loginOrRegister")}</Link></Button>
+                <Text fontSize="sm" color="fg.muted">{t("game.guest.statsHint")}</Text>
+                <Button variant="outline" size="lg" onClick={() => setChoosingGuest(true)}>{t("game.guest.playAsGuest")}</Button>
+            </VStack>
+        </Box>
+    }
     // Client-side hint only — the server (`ws.ts`/`auth.ts`) is the
     // authoritative check and rejects the `hello` if this is ever bypassed.
     // Blank/whitespace-only never shows the error text: that state is already
@@ -61,8 +76,7 @@ export default function GameIdentityGate({ children }: { children: ReactNode }) 
                 <Input aria-label={t("game.guest.name")} placeholder={t("game.guest.name")} value={name} maxLength={LIMITS.playerNameMax} autoComplete="nickname" onChange={(e) => setName(e.target.value)} required />
                 {offensive && <Text fontSize="sm" color="fg.error">{t("game.guest.nameOffensive")}</Text>}
                 <Button type="submit" colorPalette="brand" disabled={!validation.ok}>{t("game.guest.play")}</Button>
-                <Text fontSize="sm" color="fg.muted">{t("game.guest.statsHint")}</Text>
-                <Button asChild variant="outline"><Link to="/prijava" state={{ from: location }}>{t("game.guest.login")}</Link></Button>
+                <Button variant="ghost" size="sm" onClick={() => setChoosingGuest(false)}>{t("game.guest.back")}</Button>
             </VStack>
         </form>
     </Box>

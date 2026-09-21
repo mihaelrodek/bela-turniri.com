@@ -273,8 +273,10 @@ export class Lobby implements RoomHost, DemoLobbyApi {
         const uid = conn.user?.uid ?? null
         const out: RoomSummary[] = []
         for (const room of this.rooms.values()) {
-            const mine =
-                conn.roomId === room.id || (uid !== null && room.seatOfUid(uid) !== null)
+            // The private code goes to people who HOLD a seat, not to everyone
+            // who is merely in the room: a spectator of a running private game
+            // must not be handed the way in.
+            const mine = uid !== null && room.seatOfUid(uid) !== null
             out.push(room.toSummary(mine))
         }
         out.sort((a, b) => b.createdAt - a.createdAt)

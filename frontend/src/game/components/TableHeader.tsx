@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { Box, Flex, HStack, IconButton, Text, chakra } from "@chakra-ui/react"
-import { FiFileText, FiLayers, FiSettings } from "react-icons/fi"
+import { FiEye, FiFileText, FiLayers, FiSettings } from "react-icons/fi"
 import type { GameEndRule } from "@bela/protocol"
 import { useTranslation, usePlural } from "../../i18n"
 import { GLASS, INK, INK_MUTED, TEAM, type TeamSide } from "./tableStyles"
@@ -76,7 +76,9 @@ export function TableActions({
     tricksEnabled,
     tricksPlayed,
     onTricks,
+    spectators = null,
 }: {
+    spectators?: number | null
     declarationsEnabled: boolean
     declarationPoints: Record<TeamSide, number>
     onDeclarations: () => void
@@ -115,6 +117,15 @@ export function TableActions({
                     badgeLabel={plural("game.table.trickCount", tricksPlayed, { n: tricksPlayed })}
                     onClick={onTricks}
                 />
+            )}
+            {/* How many people are watching, beside the buttons rather than in
+                the header line (2026-09-21, user request). Null when the room
+                takes no spectators — the number would always be 0. */}
+            {spectators !== null && (
+                <StatusChip label={t("game.table.spectatorCount", { count: spectators })}>
+                    <FiEye aria-hidden="true" size={11} />
+                    {spectators}
+                </StatusChip>
             )}
         </HStack>
     )

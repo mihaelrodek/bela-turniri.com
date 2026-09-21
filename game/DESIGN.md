@@ -1027,3 +1027,23 @@ Trenutne datoteke u `public/games/` su kopije logotipa turnira kao rezervno
 rješenje dok se ne dostavi novi.
 
 Naziv brenda domena igre je **Bela Online** (odluka vlasnika 2026-09-21); isti naziv nosi i mobilna aplikacija (`appName`).
+
+### Tri blage animacije u lobbyju i na ulazu (2026-09-21)
+
+- **Nova soba** (`RoomListItem` `entering`): kartica uklizi odozdo (480 ms).
+  Prva lista koju poslužitelj pošalje je stanje svijeta, ne vijest — ne animira
+  se; animira se samo id koji se pojavi u KASNIJOJ listi. Prati se nefiltrirana
+  lista, pa pretraga ne „dovodi" stare sobe.
+- **Soba je krenula** (`justStarted`): u trenutku prelaska u „Igra se" kartica
+  jednom pulsira narančastim prstenom (1,1 s), a značka iskoči. Sobe koje su već
+  igrale kad se lista učitala miruju.
+- **Ulaz kao gledatelj** (`SpectatorIntro`): pilula „Gledaš igru" s okom koje
+  trepne, 2,2 s preko stola, ne hvata dodire. Zamjenjuje stalnu oznaku u
+  zaglavlju — biti gledatelj je vijest jednom, na ulazu.
+
+Sve tri: keyframes na razini modula (emotion), stanje mirovanja = zadnji kadar,
+uz „smanjeno kretanje" (sustav ili postavka igre) bez animacije.
+
+„Dodaj bota" u demo sobi dodaje **pravog, vidljivog bota** koji se može maknuti
+(ispravak isti dan; prije je tiho sjedala lažna osoba). Botovi koje je posjetitelj
+dodao odlaze s njim kad zadnji pravi igrač napusti čekaonicu.

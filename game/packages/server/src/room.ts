@@ -385,6 +385,21 @@ export class Room {
      * never disagree about whether a room is full. It deliberately ignores the
      * private-room code — that is a separate question with its own error.
      */
+    /**
+     * A PRIVATE room whose game is already running and which the host opened to
+     * spectators may be WATCHED without the code (owner, 2026-09-21): a running
+     * table has no free seat, so the newcomer can only ever be an audience, and
+     * the lobby ("Privatna" + "Gledatelji omogućeni") has already told everyone
+     * what they may do. The code still guards SITTING — it is required in the
+     * waiting room, and it is never sent to a spectator (`stateFor`), so
+     * watching is not a way to learn it.
+     *
+     * Demo rooms are scenery and stay closed however they are configured.
+     */
+    private openToWatchers(): boolean {
+        return this.status === "PLAYING" && this.allowSpectators && !this.demo
+    }
+
     canAdmitNewcomer(): boolean {
         if (this.conns.size >= MAX_MEMBERS) return false
         // Seats cannot be taken mid-game, so a running table only admits
@@ -544,7 +559,7 @@ export class Room {
         }
     }
 
-    toState(): RoomState {
+    toState(includeCode = true): RoomState {
         const spectators: UserInfo[] = []
         const seen = new Set<string>()
         for (const c of this.conns) {
@@ -556,7 +571,7 @@ export class Room {
             spectators.push(u)
         }
         return {
-            ...this.toSummary(true),
+            ...this.toSummary(includeCode),
             hostUid: this.hostUid,
             allowBela: this.allowBela,
             trickReview: this.trickReview,
@@ -577,16 +592,21 @@ export class Room {
         const uid = conn.user?.uid ?? null
         return {
             t: "room.joined",
-            room: this.toState(),
+            room: this.toState(uid !== null && this.seatOfUid(uid) !== null),
             yourSeat: uid ? this.seatOfUid(uid) : null,
         }
     }
 
     broadcastState(): void {
-        const room = this.toState()
+        // Two snapshots at most: one with the private code for people who hold
+        // a seat, one without it for spectators — a spectator of a private room
+        // (allowed once the game runs) must not leave with the way in.
+        const withCode = this.toState(true)
+        const withoutCode = this.private ? this.toState(false) : withCode
         for (const c of this.conns) {
             const uid = c.user?.uid ?? null
-            c.send({ t: "room.state", room, yourSeat: uid ? this.seatOfUid(uid) : null })
+            const seat = uid ? this.seatOfUid(uid) : null
+            c.send({ t: "room.state", room: seat !== null ? withCode : withoutCode, yourSeat: seat })
         }
     }
 
@@ -605,7 +625,7 @@ export class Room {
         const uid = conn.user?.uid
         const returningPlayer = uid !== undefined && this.seatOfUid(uid) !== null
         const alreadyHere = uid !== undefined && this.hasConnFor(uid)
-        if (this.private && !codeProvided && !returningPlayer && !alreadyHere) {
+        if (this.private && !codeProvided && !returningPlayer && !alreadyHere && !this.openToWatchers()) {
             throw new ProtocolError("ROOM_CODE_REQUIRED", "Za ulaz u privatnu sobu potrebna je šifra.")
         }
         if (returningPlayer || alreadyHere) return
@@ -761,7 +781,21 @@ export class Room {
         this.fireDemo((e) => e.onHumanGone?.(seat))
     }
 
+    /**
+     * A demo waiting room that its last real visitor has left goes back to
+     * being scenery — and scenery has no "Bot Ana" in it. Bots a visitor added
+     * leave with him; mid-game nothing is touched (the deal needs its players).
+     */
+    private sweepDemoBots(): void {
+        if (!this.demo || this.status !== "LOBBY") return
+        if (this.conns.size > 0 || this.realHumanSeats().length > 0) return
+        for (const seat of SEATS) {
+            if (this.seats[seat]?.kind === "BOT") this.seats[seat] = null
+        }
+    }
+
     private afterMembershipChange(leavingUid: string | null, freedSeat: Seat | null = null): void {
+        this.sweepDemoBots()
         if (leavingUid !== null && this.isHost(leavingUid)) this.transferHost(leavingUid)
         if (this.removeBotOnlyLobby()) return
         this.broadcastState()
@@ -985,22 +1019,12 @@ export class Room {
         this.requireUser(conn)
         this.requireLobby()
         if (this.seats[seat]) throw new ProtocolError("SEAT_TAKEN")
-        // "+ Dodaj bota" is offered to every member, not just the host, so a
-        // real visitor to a demo room can press it — and "Bot Ana" sitting
-        // between three fake people is the tell DEMO-LOBBY.md §3 warns about.
-        // Ask the director for a PERSON instead. It answers synchronously
-        // because the seat has to be filled in this same tick, and a refusal
-        // is SEAT_TAKEN: the one existing error whose meaning ("that chair is
-        // spoken for") survives what the user sees next, which is somebody
-        // arriving in it.
-        if (this.demo) {
-            const identity = this.demo.events.onBotRequested?.(seat) ?? null
-            if (identity === null) throw new ProtocolError("SEAT_TAKEN")
-            this.seats[seat] = { kind: "DEMO", identity }
-            this.broadcastState()
-            this.lobby.changed()
-            return
-        }
+        // "Dodaj bota" adds a BOT — a visible one, with no record and a
+        // "Makni bota" button — in a demo room exactly as anywhere else (owner,
+        // 2026-09-21; an earlier version quietly seated a fake PERSON here,
+        // which is not what the button says). The director sees the seat as
+        // taken ("HUMAN" in `demoSeatMap` = not his to touch) and the bots are
+        // swept out again when the last real person leaves (`sweepDemoBots`).
         this.seats[seat] = this.makeBotSlot(seat)
         this.broadcastState()
         this.lobby.changed()

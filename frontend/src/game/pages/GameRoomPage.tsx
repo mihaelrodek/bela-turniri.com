@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Box, Button, Flex, HStack, Spinner, Text, useBreakpointValue } from "@chakra-ui/react"
-import { FiArrowLeft, FiEye } from "react-icons/fi"
+import { FiArrowLeft } from "react-icons/fi"
 import type { Card, RoomState, Seat, Suit } from "@bela/protocol"
 import { trickWinner } from "@bela/engine"
 import type { Team, TrickCard } from "@bela/engine"
@@ -38,6 +38,7 @@ import { useGamePrefs } from "../hooks/useGamePrefs"
 import { useGameSocket } from "../hooks/useGameSocket"
 import { useLiveActivity } from "../hooks/useLiveActivity"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
+import SpectatorIntro from "../components/SpectatorIntro"
 import { useTurnCountdown } from "../hooks/useTurnCountdown"
 import { preloadDeck } from "../cards/madjarice/preload"
 import { cardRank, cardSuit, makeCard } from "../util/cards"
@@ -1127,25 +1128,13 @@ export default function GameRoomPage() {
                                 view={shownView ?? view}
                                 seats={room.seats}
                                 targetScore={room.targetScore}
+                                onBackgroundClick={view.declarationsRevealed ? () => setDeclarationsOpen((value) => !value) : undefined}
                                 header={
                                     <TableHeader
                                         targetScore={room.targetScore}
                                         gameEndRule={room.gameEndRule}
                                         chips={
                                             <>
-                                                {mySeat === null && <StatusChip>{t("game.table.spectating")}</StatusChip>}
-                                                {/* How many people are watching this game
-                                                    (2026-09-20, user request). Only in a room
-                                                    that allows spectators — otherwise the
-                                                    number is always 0 and says nothing. */}
-                                                {room.allowSpectators && (
-                                                    <StatusChip
-                                                        label={t("game.table.spectatorCount", { count: room.spectators.length })}
-                                                    >
-                                                        <FiEye aria-hidden="true" size={11} />
-                                                        {room.spectators.length}
-                                                    </StatusChip>
-                                                )}
                                                 {socket.status !== "open" && (
                                                     <StatusChip tone="warn">{slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}</StatusChip>
                                                 )}
@@ -1169,6 +1158,7 @@ export default function GameRoomPage() {
                                         tricksEnabled={room.trickReview !== "off"}
                                         tricksPlayed={view.tricksWon.A + view.tricksWon.B}
                                         onTricks={() => setTricksOpen((value) => !value)}
+                                        spectators={room.allowSpectators ? room.spectators.length : null}
                                     />
                                 }
                                 noDeclarations={room.noDeclarations}
@@ -1239,6 +1229,10 @@ export default function GameRoomPage() {
                                 </HStack>
                             </Flex>
                         )}
+
+                        {/* Keyed by the room: walking into ANOTHER game as a
+                            spectator greets again, a re-render does not. */}
+                        {mySeat === null && <SpectatorIntro key={room.id} reducedMotion={reducedMotion} />}
 
                         {declarationsVisible && (
                             <DeclarationsReveal

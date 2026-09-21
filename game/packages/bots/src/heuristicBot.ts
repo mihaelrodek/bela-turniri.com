@@ -25,7 +25,7 @@
    ────────────────────────────────────────────────────────────────────── */
 
 import type { Card, LegalBids, PlayerView, Seat, Suit } from "@bela/engine"
-import { cardRank, cardSuit, makeCard, nextSeat, partnerOf, teamOf } from "@bela/engine"
+import { cardPoints, cardRank, cardSuit, makeCard, nextSeat, partnerOf, teamOf } from "@bela/engine"
 import type { BidChoice, Bot } from "./index"
 import {
     aceOverCheapWinner,
@@ -645,8 +645,17 @@ function chooseCard(view: PlayerView, legal: Card[], _rng: () => number): Card {
     const guarded = stigljaDefenceDiscard(view, legal)
     if (guarded !== null) return guarded
 
+    // "The last card of a dead suit stays home" is a TEMPO idea worth a few
+    // points at most (it makes somebody ruff later). It must never be paid for
+    // with an ace: reported 2026-09-21, two cards left, one of them the lone 7
+    // of a dead suit — protected, so the OTHER card, an ace worth eleven, was
+    // thrown on the opponents' trick. When the protection would cost ten
+    // points or more, the cheapest card overall goes instead.
     const throwable = legal.filter((card) => !isLastOfADeadSuit(view, card))
-    const pool = throwable.length > 0 ? throwable : legal
+    const cheapestOverall = cheapestDiscard(view.hand, legal, trump)
+    const cheapestProtected = throwable.length > 0 ? cheapestDiscard(view.hand, throwable, trump) : cheapestOverall
+    const protectionCost = cardPoints(cheapestProtected, trump) - cardPoints(cheapestOverall, trump)
+    const pool = throwable.length > 0 && protectionCost < 10 ? throwable : legal
     return cheapestDiscard(view.hand, pool, trump)
 }
 

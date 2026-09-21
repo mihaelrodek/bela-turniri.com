@@ -17,6 +17,7 @@ import GameSettingsSheet from "../components/GameSettingsSheet"
 import RoomListItem from "../components/RoomListItem"
 import { preloadDeck } from "../cards/madjarice/preload"
 import { useGamePrefs } from "../hooks/useGamePrefs"
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import { formatCountdown, useHoldCountdown } from "../hooks/useHoldCountdown"
 import { useGameSocket } from "../hooks/useGameSocket"
 import { useSlowConnection } from "../hooks/useSlowConnection"
@@ -176,6 +177,36 @@ export default function GameLobbyPage() {
         socket.clearError()
     }, [socket, t])
 
+    /* WHICH ROOMS ARE NEW. The first list the server sends is the state of the
+       world, not news, so nothing in it animates; a room id that shows up in a
+       LATER list is a room somebody just opened, and its card slides in
+       (`RoomListItem` `entering`). Tracked on the unfiltered list, so typing in
+       the search box never makes old rooms "arrive". */
+    const knownRoomIds = useRef<Set<string> | null>(null)
+    const [enteringIds, setEnteringIds] = useState<ReadonlySet<string>>(() => new Set())
+    useEffect(() => {
+        const ids = socket.rooms.map((r) => r.id)
+        if (knownRoomIds.current === null) {
+            // Wait for a real first list: an empty one before the socket
+            // answers must not turn the whole lobby into "new rooms".
+            if (socket.status !== "open") return
+            knownRoomIds.current = new Set(ids)
+            return
+        }
+        const known = knownRoomIds.current
+        const fresh = ids.filter((id) => !known.has(id))
+        knownRoomIds.current = new Set(ids)
+        // From nothing to a full list is the first load arriving late, not
+        // eleven rooms opening at once.
+        if (fresh.length === 0 || (known.size === 0 && fresh.length > 1)) return
+        setEnteringIds(new Set(fresh))
+        const timer = window.setTimeout(() => setEnteringIds(new Set()), 700)
+        return () => window.clearTimeout(timer)
+    }, [socket.rooms, socket.status])
+
+    const systemReducedMotion = usePrefersReducedMotion()
+    const reducedMotion = systemReducedMotion || gamePrefs.reduceMotion
+
     const rooms = useMemo(() => {
         const q = search.trim().toLowerCase()
         if (!q) return socket.rooms
@@ -212,7 +243,11 @@ export default function GameLobbyPage() {
             showError(t("game.lobby.fullBlocked"))
             return
         }
-        if (room.private && !mine) {
+        // A running private game that its host opened to spectators can be
+        // watched without the code — the server lets that through, and only
+        // the waiting room asks for it (owner, 2026-09-21).
+        const watchable = room.status === "PLAYING" && room.allowSpectators
+        if (room.private && !mine && !watchable) {
             setPrivateRoom(room)
             setJoinOpen(true)
             return
@@ -338,6 +373,8 @@ export default function GameLobbyPage() {
                             <RoomListItem
                                 key={room.id}
                                 room={room}
+                                entering={enteringIds.has(room.id)}
+                                reducedMotion={reducedMotion}
                                 mine={active?.roomId === room.id}
                                 /* Our own room is always open to us; any other
                                    one is closed while we hold a seat. */

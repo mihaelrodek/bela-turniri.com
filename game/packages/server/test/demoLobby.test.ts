@@ -330,14 +330,8 @@ describe("a real person in a demo room", () => {
         expect(handle.start()).toBe(false)
     })
 
-    it("gets a person, never a visible bot, when they press 'Dodaj bota'", async () => {
-        const asked: Seat[] = []
-        const handle = demoRoom({
-            onBotRequested: (seat) => {
-                asked.push(seat)
-                return identity(7)
-            },
-        }, 2)
+    it("adds a real, removable BOT on 'Dodaj bota' — and sweeps it out when the visitor leaves", async () => {
+        const handle = demoRoom({}, 2)
         const c = await client("Dino")
         c.send({ t: "room.join", roomId: handle.id })
         const joined = await c.nextOfType("room.joined")
@@ -347,23 +341,27 @@ describe("a real person in a demo room", () => {
 
         c.send({ t: "room.addBot", seat: free })
         const state = await c.next((m) => m.t === "room.state" && m.room.seats[free].occupant !== null)
-        expect(asked).toEqual([free])
-        expect(state.t === "room.state" && state.room.seats[free].occupant).toMatchObject({ kind: "PLAYER" })
-        expect(JSON.stringify(state)).not.toContain("BOT")
+        expect(state.t === "room.state" && state.room.seats[free].occupant).toMatchObject({ kind: "BOT" })
+        // The director must treat that chair as taken and not his.
+        expect(handle.seatMap()[free]).toBe("HUMAN")
 
-        // A director with nobody to send refuses like a taken seat: the one
-        // existing error whose meaning survives what the user sees next.
-        const silent = server.lobby.createDemoRoom(OPTIONS, identity(8), { onBotRequested: () => null })!
-        const c2 = await client("Eva")
-        c2.send({ t: "room.join", roomId: silent.id })
-        await c2.nextOfType("room.joined")
-        c2.send({ t: "room.addBot", seat: 3 })
-        expect((await c2.nextOfType("error")).code).toBe("SEAT_TAKEN")
+        // …and it can be removed again, like any bot.
+        c.send({ t: "room.removeBot", seat: free })
+        await c.next((m) => m.t === "room.state" && m.room.seats[free].occupant === null)
+
+        // A bot left behind does not stay in the scenery once he is gone.
+        c.send({ t: "room.addBot", seat: free })
+        await c.next((m) => m.t === "room.state" && m.room.seats[free].occupant !== null)
+        c.send({ t: "room.leave" })
+        await c.nextOfType("room.left")
+        expect(handle.seatMap()[free]).toBeNull()
 
         // "Makni bota" on a fake person is truthfully "there is no bot there".
-        c.send({ t: "room.removeBot", seat: free })
-        const err = await c.nextOfType("error")
-        expect(err.code).toBe("BAD_REQUEST")
+        const c2 = await client("Eva")
+        c2.send({ t: "room.join", roomId: handle.id })
+        await c2.nextOfType("room.joined")
+        c2.send({ t: "room.removeBot", seat: 0 })
+        expect((await c2.nextOfType("error")).code).toBe("BAD_REQUEST")
     })
 
     it("is replaced by another person — never by 'Bot X' — when their hold expires mid-game", async () => {

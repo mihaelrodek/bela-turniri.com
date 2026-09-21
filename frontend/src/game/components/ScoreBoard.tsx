@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Box, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react"
 import { FiChevronDown, FiChevronUp } from "react-icons/fi"
 import type { PlayerView, RoomState, Seat } from "@bela/protocol"
@@ -69,6 +69,7 @@ export default function ScoreBoard({
     actions,
     noDeclarations = false,
     allowBela = true,
+    onBackgroundClick,
 }: {
     view: PlayerView
     seats: RoomState["seats"]
@@ -80,9 +81,38 @@ export default function ScoreBoard({
      *  colour you cannot mistake for decoration. */
     noDeclarations?: boolean
     allowBela?: boolean
+    /** A tap on the score panel ANYWHERE that is not itself a control (the
+     *  history chevron, the settings gear, "Štihovi", "Zvanja" all are) —
+     *  the page uses it to open the declarations (2026-09-21, user request).
+     *  Undefined while there is nothing to open. */
+    onBackgroundClick?: () => void
 }) {
     const { t } = useTranslation()
     const [open, setOpen] = useState(false)
+    const panelRef = useRef<HTMLDivElement | null>(null)
+    const toggleRef = useRef<HTMLButtonElement | null>(null)
+
+    // The history is a popover, so it behaves like one (2026-09-21, "gumb za
+    // povijest ne radi dobro"): a tap anywhere else, or Escape, closes it. It
+    // used to stay open until the chevron was found again — over the table,
+    // on a phone, where the chevron is the smallest thing on the screen.
+    useEffect(() => {
+        if (!open) return
+        const onPointerDown = (event: PointerEvent) => {
+            const target = event.target as Node | null
+            if (target && (panelRef.current?.contains(target) || toggleRef.current?.contains(target))) return
+            setOpen(false)
+        }
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") setOpen(false)
+        }
+        document.addEventListener("pointerdown", onPointerDown, true)
+        document.addEventListener("keydown", onKeyDown)
+        return () => {
+            document.removeEventListener("pointerdown", onPointerDown, true)
+            document.removeEventListener("keydown", onKeyDown)
+        }
+    }, [open])
 
     const spectator = view.seat === null
     const myTeam: Team = spectator ? "A" : teamOf(view.seat as Seat)
@@ -125,6 +155,17 @@ export default function ScoreBoard({
             borderBottomWidth="1px"
             position="relative"
             zIndex={10}
+            // The whole panel is one big button for "Zvanja" (see the prop):
+            // a tap on a control, or inside the history popover, is left to
+            // that control; everything else — the numbers, the trump, the
+            // empty gaps — opens the declarations.
+            onClick={onBackgroundClick ? (event) => {
+                const target = event.target as HTMLElement | null
+                if (target?.closest("button, a, input, [role='dialog']")) return
+                onBackgroundClick()
+            } : undefined}
+            cursor={onBackgroundClick ? "pointer" : undefined}
+            userSelect={onBackgroundClick ? "none" : undefined}
             px="3"
             // Trimmed on a phone (2026-09-20): the panel was ~135 px of a
             // 796 px column, and every pixel it gives back is a pixel of
@@ -148,15 +189,22 @@ export default function ScoreBoard({
                 the table below (tuned to that height) does not shift. */}
             {hasHistory && (
                 <IconButton
+                    ref={toggleRef}
                     position="absolute"
                     insetStart="0"
                     top="0"
                     size="xs"
-                    minW="32px"
-                    minH="32px"
+                    minW="36px"
+                    minH="36px"
+                    rounded="full"
                     variant="ghost"
                     color={INK_MUTED}
-                    _hover={{ bg: "bg.muted" }}
+                    // Hover only where there IS a hover: on a touch screen a
+                    // plain `_hover` stays lit after the tap, which is the
+                    // pale square the button turned into.
+                    bg={open ? "bg.muted" : "transparent"}
+                    _hover={{ "@media (hover: hover)": { bg: "bg.muted" } }}
+                    _active={{ bg: "bg.muted" }}
                     aria-label={t("game.score.historyTitle")}
                     title={t("game.score.historyTitle")}
                     aria-expanded={open}
@@ -225,6 +273,9 @@ export default function ScoreBoard({
                 more type and breathing room to match. */}
             {open && hasHistory && (
                 <Box
+                    ref={panelRef}
+                    role="dialog"
+                    aria-label={t("game.score.historyTitle")}
                     position="absolute"
                     top="calc(100% - 6px)"
                     left="0"
@@ -240,6 +291,16 @@ export default function ScoreBoard({
                     maxH="220px"
                     overflowY="auto"
                 >
+                    {/* Two unlabeled columns of numbers were guesswork: which
+                        one is mine? The header names them, in the same words
+                        the score row above uses. */}
+                    <HStack gap="2" justify="space-between" pb="1" fontSize="2xs" fontWeight="bold" textTransform="uppercase" letterSpacing="wider" color={INK_MUTED}>
+                        <Text>{t("game.score.historyTitle")}</Text>
+                        <HStack gap="2" flexShrink={0}>
+                            <Text minW="34px" textAlign="end">{usLabel}</Text>
+                            <Text minW="34px" textAlign="end">{themLabel}</Text>
+                        </HStack>
+                    </HStack>
                     {view.history.map((deal) => (
                         <HStack
                             key={deal.dealNo}
@@ -255,7 +316,7 @@ export default function ScoreBoard({
                                 <Text color={INK_MUTED} lineClamp={1}>
                                     {seatName(seats, deal.caller, t("game.seat.empty"))}
                                 </Text>
-                                <Text color={deal.passed ? "brand.200" : "red.300"} fontWeight="bold">
+                                <Text color={deal.passed ? "brand.fg" : "fg.error"} fontWeight="bold">
                                     {deal.passed ? t("game.deal.passed") : t("game.deal.fell")}
                                 </Text>
                             </HStack>

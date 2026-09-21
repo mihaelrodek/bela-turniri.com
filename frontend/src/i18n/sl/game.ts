@@ -18,7 +18,10 @@ export const game: GameDict = {
     "guest.avatarHint": "Izberi lik, ki te predstavlja za mizo.",
     "guest.play": "Igraj kot gost",
     "guest.statsHint": "Prijavi se za shranjevanje statistike v vseh napravah.",
-    "guest.login": "Prijava",
+    "guest.chooseHint": "Kako želiš igrati?",
+    "guest.loginOrRegister": "Prijavi se ali ustvari račun",
+    "guest.playAsGuest": "Igraj kot gost",
+    "guest.back": "Nazaj",
     "guest.loginInline": "Prijavi se",
     "guest.statsHintSuffix": "za shranjevanje statistike v vseh napravah.",
     "guest.nameOffensive": "To ime ni dovoljeno. Izberi drugo.",
@@ -246,7 +249,7 @@ export const game: GameDict = {
     "table.turnYourCall": "Kliči adut",
     "table.phaseBidding": "Klicanje aduta",
     "table.waiting": "Počakaj…",
-    "table.spectating": "Gledaš igro",
+    "table.spectatingIntro": "Gledaš igro",
     "table.spectatorCount": "Gledalci: {count}",
 
     // Hitri odzivi za mizo (protokol `chat.react`).

@@ -863,3 +863,19 @@ preostalu boju pa sječe; to je cijena koja je manja od sigurnog gubitka asa.
 
 Stoji iznad `defensiveLead`, `singletonLead` i `worthSpending` — svi bi otvorili
 nešto drugo, a jedan od njih je vjerojatno i napravio prijavljenu grešku.
+
+### 15.19 „Zadnja karta mrtve boje" ne vrijedi asa (`chooseCard`, prijava 2026-09-21)
+
+Ostale su dvije karte: as kare i sedmica boje u kojoj nitko drugi nema ništa.
+Protivnik vodi adut, a bot nema aduta pa smije baciti bilo što. Pravilo
+„zadnja karta mrtve boje ostaje doma" (`isLastOfADeadSuit`, §2) štitilo je
+sedmicu — pa je jedina „dopuštena" odbačena karta bio **as**, jedanaest bodova,
+na štih koji uzimaju protivnici. Igrač je pritom proglasio pedeset u kari i bilo
+je jasno da će ga upravo taj as kasnije dobiti.
+
+To pravilo je tempo (netko će jednom morati sjeći), vrijedi nekoliko bodova, a ne
+smije se plaćati asom: kad bi zaštita koštala **deset bodova ili više** više od
+najjeftinije karte uopće, ide najjeftinija — sedmica.
+
+Nije riješeno: kako je as uopće ostao neigran do sedmog štiha (prethodni štih se
+iz slike ne može rekonstruirati). Ako se ponovi, treba točan tijek partije.

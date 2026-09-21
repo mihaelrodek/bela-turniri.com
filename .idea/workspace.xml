@@ -4,41 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.env.prod.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.prod.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.prod.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.prod.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/ACCOUNT-DELETION.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/ACCOUNT-DELETION.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/BELA-GAMES-NATIVE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/BELA-GAMES-NATIVE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/STORE-SUBMISSION.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/STORE-SUBMISSION.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/capacitor.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/capacitor.config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/public/manifest.games.webmanifest" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/manifest.games.webmanifest" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/public/sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/sw.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/scripts/create-games-native.sh" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/scripts/create-games-native.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/FirstRunInstallPrompt.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/FirstRunInstallPrompt.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/hooks/useDocumentHead.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/hooks/useDocumentHead.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/platform/NativeShell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/platform/NativeShell.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/site.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/site.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/vite.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/vite.config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/BOT.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/BOT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/DESIGN.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/DESIGN.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/evaluate.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/evaluate.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/test/evaluate.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/test/evaluate.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/analyticsReporter.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/analyticsReporter.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/gameRoom.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/gameRoom.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/lobby.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/lobby.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/room.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/room.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/server.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/server.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/statsReporter.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/statsReporter.ts" afterDir="false" />
-    </list>
+    <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -62,23 +28,23 @@
 }</component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.7274077562605306" />
-      <entry key="MS500" value="4.232621164996077" />
-      <entry key="S2" value="6.289478695648108" />
-      <entry key="S5" value="7.650518114366303" />
-      <entry key="S10" value="8.569061655836352" />
-      <entry key="S30" value="9.448290378912086" />
-      <entry key="S60" value="9.713404573382846" />
-      <entry key="M2" value="9.853899127289626" />
-      <entry key="M5" value="9.94113748460296" />
-      <entry key="M10" value="10.11582389460949" />
-      <entry key="M15" value="11.288896913121242" />
-      <entry key="M30" value="23.429120224029706" />
-      <entry key="H1" value="56.63319444449306" />
-      <entry key="H2" value="100.0496382430566" />
-      <entry key="H4" value="155.88845966321784" />
-      <entry key="D1" value="540.2014762524598" />
-      <entry key="W1" value="980.6103757651631" />
+      <entry key="MS100" value="2.0830359153604396" />
+      <entry key="MS500" value="5.314501962711651" />
+      <entry key="S2" value="14.468555045919695" />
+      <entry key="S5" value="27.870923405957644" />
+      <entry key="S10" value="39.02180281775117" />
+      <entry key="S30" value="50.96723192467224" />
+      <entry key="S60" value="55.72660416145144" />
+      <entry key="M2" value="64.45037395684884" />
+      <entry key="M5" value="85.33034648862024" />
+      <entry key="M10" value="100.57492733753182" />
+      <entry key="M15" value="108.06882975630866" />
+      <entry key="M30" value="125.88486845939403" />
+      <entry key="H1" value="161.3312057449758" />
+      <entry key="H2" value="207.08333552969378" />
+      <entry key="H4" value="264.9236718224894" />
+      <entry key="D1" value="651.6950913223203" />
+      <entry key="W1" value="1093.9776789932714" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -88,35 +54,35 @@
       <entry key="S10" value="0.0" />
       <entry key="S30" value="0.0" />
       <entry key="S60" value="0.0" />
-      <entry key="M2" value="2.077165077651689E-196" />
-      <entry key="M5" value="8.083264088744671E-79" />
-      <entry key="M10" value="1.27146704754485E-39" />
-      <entry key="M15" value="1.478697518369868E-26" />
-      <entry key="M30" value="1.7197063947865804E-13" />
-      <entry key="H1" value="5.864649477722702E-7" />
-      <entry key="H2" value="0.0010830188238355003" />
-      <entry key="H4" value="0.04654070896532335" />
-      <entry key="D1" value="1.0686377081551093" />
-      <entry key="W1" value="1.8287079488837314" />
+      <entry key="M2" value="9.022311302912367E-198" />
+      <entry key="M5" value="2.305289573549848E-79" />
+      <entry key="M10" value="6.790073387337272E-40" />
+      <entry key="M15" value="9.733273269949203E-27" />
+      <entry key="M30" value="1.395224495954442E-13" />
+      <entry key="H1" value="5.282468952754182E-7" />
+      <entry key="H2" value="0.00102785878406272" />
+      <entry key="H4" value="0.045340021110890166" />
+      <entry key="D1" value="1.063992619073672" />
+      <entry key="W1" value="1.8275702683317436" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.6770454143589066" />
-      <entry key="MS500" value="4.201675283379435" />
-      <entry key="S2" value="6.277809464056412" />
-      <entry key="S5" value="7.644978784161086" />
-      <entry key="S10" value="8.566015879540096" />
-      <entry key="S30" value="9.44718878857854" />
-      <entry key="S60" value="9.712840867042484" />
-      <entry key="M2" value="9.853613860626865" />
-      <entry key="M5" value="9.941022522344454" />
-      <entry key="M10" value="10.115762495809927" />
-      <entry key="M15" value="11.288835834974964" />
-      <entry key="M30" value="23.428995902471915" />
-      <entry key="H1" value="56.63302146332053" />
-      <entry key="H2" value="100.05056945672052" />
-      <entry key="H4" value="155.93488767037164" />
-      <entry key="D1" value="541.2700500333171" />
-      <entry key="W1" value="982.4390676941733" />
+      <entry key="MS100" value="2.0336143628045367" />
+      <entry key="MS500" value="5.281415822723914" />
+      <entry key="S2" value="14.443780533237963" />
+      <entry key="S5" value="27.85086117695687" />
+      <entry key="S10" value="39.00744103143283" />
+      <entry key="S30" value="50.96087772857747" />
+      <entry key="S60" value="55.72311737000974" />
+      <entry key="M2" value="64.44835885854872" />
+      <entry key="M5" value="85.32928477546675" />
+      <entry key="M10" value="100.57430210413047" />
+      <entry key="M15" value="108.06837218957119" />
+      <entry key="M30" value="125.88454613248118" />
+      <entry key="H1" value="161.33093567702173" />
+      <entry key="H2" value="207.08416125913718" />
+      <entry key="H4" value="264.96887278391654" />
+      <entry key="D1" value="652.7590153809106" />
+      <entry key="W1" value="1095.8052325492895" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{

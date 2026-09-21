@@ -1007,3 +1007,25 @@ describe("heuristicBot — BOT.md §13, the reported table rules", () => {
         expect(heuristicBot.chooseCard(v, ["JHERC", "AHERC"], noRng)).toBe("JHERC")
     })
 })
+
+describe("heuristicBot — the last card of a dead suit is not worth an ace (BOT.md §15.19)", () => {
+    it("throws the lone 7 of a dead suit rather than the ace on the opponents' trump trick", () => {
+        // Reported 2026-09-21. Trump TREF. KARA still has cards outside (the
+        // ace is not the last of it); PIK has none outstanding, so the 7 is
+        // "the last card of a dead suit" and used to be protected — leaving
+        // the ace as the only discard.
+        const pikGone: Card[] = ["8PIK", "9PIK", "10PIK", "JPIK", "QPIK", "KPIK", "APIK"] // + my 7PIK = the whole suit
+        const hand: Card[] = ["AKARA", "7PIK"]
+        const v = view({
+            seat: 3,
+            hand,
+            handSizes: { 0: 2, 1: 2, 2: 2, 3: 2 },
+            bidding: { turn: 1, passes: [], trump: "TREF", caller: 0 },
+            played: pikGone,
+            // An opponent (seat 2) leads a trump; the bot, void of trump, plays
+            // second and may discard anything.
+            trick: { leader: 2, turn: 3, cards: [{ seat: 2, card: "8TREF" }] },
+        })
+        expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("7PIK")
+    })
+})

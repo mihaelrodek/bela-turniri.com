@@ -59,12 +59,10 @@ export interface DemoRoomEvents {
     /** A real person's seat is free again (left, or their hold expired). */
     onHumanGone?(seat: Seat): void
     /**
-     * A real person pressed "Dodaj bota" on a free seat of this room. The
-     * client offers that button to every member, and a visible "Bot Ana" next
-     * to three fake people would give the whole room away — so the mechanics
-     * ask for a PERSON instead and seat whoever comes back. Return null (or
-     * leave this unset) and the request is refused like a taken seat.
-     * Synchronous on purpose: the seat must be filled in the same tick.
+     * NO LONGER CALLED by the mechanics (owner, 2026-09-21): "Dodaj bota" adds
+     * a real, visible, removable bot in a demo room like anywhere else, and the
+     * seat shows up as "HUMAN" (= not yours) in `seatMap()`. Kept optional so
+     * the director's implementation and its tests need not change.
      */
     onBotRequested?(seat: Seat): DemoIdentity | null
     onGameOver?(winner: "A" | "B" | null): void
