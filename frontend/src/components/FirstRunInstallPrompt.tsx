@@ -13,7 +13,7 @@ import { FiDownload, FiX } from "react-icons/fi"
 import { useInstallPrompt } from "../hooks/useInstallPrompt"
 import { useTranslation } from "../i18n"
 import { isNative } from "../platform"
-import { siteName } from "../site"
+import { siteName, brand } from "../site"
 import IosInstallSteps from "./IosInstallSteps"
 
 /**
@@ -122,7 +122,7 @@ export default function FirstRunInstallPrompt() {
                             <VStack align="stretch" gap="4">
                                 <HStack gap="3" align="center">
                                     <Image
-                                        src="/bela-turniri-symbol.svg"
+                                        src={brand.symbolSvg}
                                         alt=""
                                         h="56px"
                                         w="auto"

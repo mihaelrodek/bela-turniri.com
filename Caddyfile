@@ -835,6 +835,11 @@ bela.games {
         rewrite /robots.txt /robots.games.txt
         rewrite /sitemap.xml /sitemap.games.xml
         rewrite /manifest.webmanifest /manifest.games.webmanifest
+        # Crawlers and browsers fetch these two by their fixed names, before
+        # (or instead of) reading the HTML — they must be the games brand's,
+        # not the tournaments logo (public/games/).
+        rewrite /favicon.ico /games/favicon.ico
+        rewrite /apple-touch-icon.png /games/apple-touch-icon.png
         rewrite @shell /index.games.html
         try_files {path} /index.games.html
         file_server

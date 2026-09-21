@@ -11,7 +11,7 @@ import { FiDownload } from "react-icons/fi"
 import { useInstallPrompt, type InstallPromptState } from "../hooks/useInstallPrompt"
 import { useTranslation } from "../i18n"
 import { isNative } from "../platform"
-import { siteName } from "../site"
+import { siteName, brand } from "../site"
 import IosInstallSteps from "./IosInstallSteps"
 
 /**
@@ -132,7 +132,7 @@ export function InstallAppButton({
                             <Dialog.Header>
                                 <HStack gap="2" align="center">
                                     <Image
-                                        src="/bela-turniri-symbol.svg"
+                                        src={brand.symbolSvg}
                                         alt=""
                                         h="28px"
                                         w="auto"

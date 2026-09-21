@@ -257,6 +257,12 @@ services:
       GAME_CORS_ORIGINS: ${CORS_ORIGINS}
       # Development: allow anonymous connections for testing (prod: unset)
       GAME_DEV_ALLOW_ANON: ${GAME_DEV_ALLOW_ANON:-}
+      # PRE-LAUNCH ONLY — must be unset before real launch and before any store
+      # submission; see game/DEMO-LOBBY.md
+      GAME_DEMO_LOBBY: ${GAME_DEMO_LOBBY:-}
+      GAME_DEMO_ROOMS: ${GAME_DEMO_ROOMS:-}
+      GAME_DEMO_PLAYING: ${GAME_DEMO_PLAYING:-}
+      GAME_DEMO_WATCHABLE: ${GAME_DEMO_WATCHABLE:-}
       # Where to report a finished game (game/README.md §8) — `backend` is
       # this compose network's internal DNS name, matching every other
       # service-to-service URL in this file.

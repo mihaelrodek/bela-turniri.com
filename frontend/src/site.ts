@@ -66,8 +66,24 @@ function gamesOrigin(): string {
     return isGamesHost(host) ? `https://${apexOf(host)}` : GAMES_ORIGIN
 }
 
-/** Brand name for titles and share text — the domain itself on a games twin. */
-export const siteName: string = isGamesSite ? publicOrigin.replace("https://", "") : "Bela Turniri"
+/** ONE brand for both games domains (bela.games and belot.games are twins,
+ *  not two products). Keep in step with GAMES_NAME in vite.config.ts, which
+ *  writes the same name into the games HTML shell. */
+export const GAMES_BRAND_NAME = "Bela Online"
+
+/** Brand name for titles, share text, notifications. */
+export const siteName: string = isGamesSite ? GAMES_BRAND_NAME : "Bela Turniri"
+
+/**
+ * The logo/icon files of THIS product. The games site has its own set in
+ * `public/games/` — replace those files to rebrand it, nothing else changes.
+ * (`vite.config.ts` points the games HTML shell and `manifest.games.webmanifest`
+ * at the same files, and Caddy serves them as /favicon.ico and
+ * /apple-touch-icon.png on the games hosts.)
+ */
+export const brand = isGamesSite
+    ? { symbolSvg: "/games/symbol.svg", symbolPng: "/games/symbol.png" }
+    : { symbolSvg: "/bela-turniri-symbol.svg", symbolPng: "/bela-turniri-symbol.png" }
 
 /** Where "/" and "back to start" lead. */
 export const homePath: string = isGamesSite ? "/igra" : "/turniri"

@@ -15,6 +15,9 @@
 import { createHash, randomUUID } from "node:crypto"
 import type { GameState, Seat, Team } from "@bela/engine"
 import { loadConfig } from "./config.js"
+// The only runtime import from `demo/`: two constants and a pure predicate, no
+// side effects and nothing to initialise, so the flag-off server is unchanged.
+import { isDemoUid } from "./demo/types.js"
 import { log } from "./log.js"
 import type { Room, SeatSlot } from "./room.js"
 
@@ -109,7 +112,11 @@ export function reportGameAbandonment(runId: string, uid: string): void {
 }
 
 async function doReportAbandonment(runId: string, uid: string): Promise<void> {
-    if (!uid || uid.startsWith("guest:") || uid.startsWith("dev:")) return
+    // A fake person has no account to hold karma and must never be named to
+    // the backend. They cannot reach here by design (a DEMO seat is not a
+    // `PLAYER`, and only a `PLAYER` is ever reported), so this is the belt to
+    // that braces — cheap, and it is the one place a leak would be permanent.
+    if (!uid || uid.startsWith("guest:") || uid.startsWith("dev:") || isDemoUid(uid)) return
     const cfg = loadConfig(process.env)
     if (!cfg.gameResultsToken) {
         log.warn("reliability.report.noToken", { msg: "GAME_RESULTS_TOKEN nije postavljen — karma se ne može spremiti." })

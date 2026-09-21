@@ -212,7 +212,9 @@ const MAIN_OG_CARD = "https://bela-turniri.com/bela-turniri-og-card.png"
  *  which name to rank. Keep this in step with GAMES_ORIGIN in
  *  frontend/src/site.ts. */
 const GAMES_ORIGIN = "https://bela.games"
-const GAMES_TITLE = "bela.games — igraj belu online i vodi zapisnik"
+/** Keep in step with GAMES_BRAND_NAME in frontend/src/site.ts. */
+const GAMES_NAME = "Bela Online"
+const GAMES_TITLE = `${GAMES_NAME} — igraj belu i vodi zapisnik`
 const GAMES_DESCRIPTION = "Igraj belu online protiv prijatelja ili botova i vodi zapisnik partije u bloku. Besplatno, bez instalacije, u pregledniku i na mobitelu."
 
 function gamesShell(): Plugin {
@@ -242,7 +244,14 @@ function gamesShell(): Plugin {
         // Same picture, served from this domain: the file is in public/ and
         // therefore exists on both hosts, and an og:image on the same origin
         // as og:url is what every unfurler expects.
-        out = swap(out, MAIN_OG_CARD, `${GAMES_ORIGIN}/bela-turniri-og-card.png`, 3, "the OG card URL")
+        out = swap(out, MAIN_OG_CARD, `${GAMES_ORIGIN}/games/og-card.png`, 3, "the OG card URL")
+
+        // The games brand has its own logo files in public/games/ — replace
+        // those files to rebrand, this transform only points at them.
+        out = swap(out, `<link rel="icon" href="/favicon.ico" sizes="any" />`, `<link rel="icon" href="/games/favicon.ico" sizes="any" />`, 1, "the favicon.ico link")
+        out = swap(out, `<link rel="icon" type="image/svg+xml" href="/bela-turniri-symbol.svg" />`, `<link rel="icon" type="image/svg+xml" href="/games/symbol.svg" />`, 1, "the svg icon link")
+        out = swap(out, `<link rel="apple-touch-icon" href="/apple-touch-icon.png" />`, `<link rel="apple-touch-icon" href="/games/apple-touch-icon.png" />`, 1, "the apple-touch-icon link")
+        out = swap(out, `<img class="boot-logo" src="/bela-turniri-symbol.svg"`, `<img class="boot-logo" src="/games/symbol.svg"`, 1, "the boot-screen logo")
 
         out = swap(
             out,
@@ -254,21 +263,21 @@ function gamesShell(): Plugin {
         out = swap(
             out,
             `<meta property="og:site_name" content="Bela Turniri" />`,
-            `<meta property="og:site_name" content="bela.games" />`,
+            `<meta property="og:site_name" content="${GAMES_NAME}" />`,
             1,
             "og:site_name",
         )
         out = swap(
             out,
             `<meta name="application-name" content="Bela Turniri" />`,
-            `<meta name="application-name" content="bela.games" />`,
+            `<meta name="application-name" content="${GAMES_NAME}" />`,
             1,
             "application-name",
         )
         out = swap(
             out,
             `<meta name="apple-mobile-web-app-title" content="Bela Turniri" />`,
-            `<meta name="apple-mobile-web-app-title" content="bela.games" />`,
+            `<meta name="apple-mobile-web-app-title" content="${GAMES_NAME}" />`,
             1,
             "apple-mobile-web-app-title",
         )
@@ -313,16 +322,16 @@ function gamesShell(): Plugin {
         out = out.replace(ldBlocks[0], ld({
             "@context": "https://schema.org",
             "@type": "WebSite",
-            name: "bela.games",
+            name: GAMES_NAME,
             url: `${GAMES_ORIGIN}/`,
             inLanguage: "hr",
         }))
         out = out.replace(ldBlocks[1], ld({
             "@context": "https://schema.org",
             "@type": "Organization",
-            name: "bela.games",
+            name: GAMES_NAME,
             url: `${GAMES_ORIGIN}/`,
-            logo: `${GAMES_ORIGIN}/bela-turniri-symbol.png`,
+            logo: `${GAMES_ORIGIN}/games/symbol.png`,
             sameAs: [],
         }))
 

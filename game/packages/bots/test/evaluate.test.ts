@@ -33,6 +33,7 @@ import {
     stigljaHandOver,
     plainBeforeLastTrump,
     continueAceSuit,
+    aceAfterMyWin,
     stigljaStopSignal,
     callerLeadsToPartnersNine,
     declaredNineThrough,
@@ -3264,5 +3265,67 @@ describe("continueAceSuit — no hopping from ace to ace (BOT.md §15.17)", () =
         expect(continueAceSuit(v, hand)).toBeNull()
         const none: Card[] = ["ATREF", "8TREF", "7KARA"]
         expect(continueAceSuit(after(none), none)).toBeNull()
+    })
+})
+
+describe("aceAfterMyWin — the ace goes right after my own 10 wins (BOT.md §15.18)", () => {
+    // Seat 3 (opponent) opened KARA, I (seat 0) took it with the 10, my partner
+    // (seat 2) threw a card away — he has no KARA and, having discarded, no trump.
+    const round: Card[] = ["7KARA", "10KARA", "8KARA", "7PIK"]
+    const after = (hand: Card[], over: Omit<Partial<PlayerView>, "seat" | "hand"> = {}): PlayerView =>
+        view({
+            seat: 0,
+            hand,
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 3 },
+            played: round,
+            trickHistory: [
+                {
+                    no: 1,
+                    leader: 3,
+                    winner: 0,
+                    plays: [
+                        { seat: 3, card: "7KARA" },
+                        { seat: 0, card: "10KARA" },
+                        { seat: 1, card: "8KARA" },
+                        { seat: 2, card: "7PIK" },
+                    ],
+                    cards: round,
+                },
+            ],
+            tricksWon: { A: 1, B: 0 },
+            ...over,
+        })
+
+    it("leads the ace rather than a small card from somewhere else", () => {
+        const hand: Card[] = ["AKARA", "8PIK", "9TREF", "KTREF"]
+        expect(aceAfterMyWin(after(hand), hand)).toBe("AKARA")
+    })
+
+    it("stays silent once fewer than three cards of the suit are out", () => {
+        const hand: Card[] = ["AKARA", "8PIK", "9TREF"]
+        // JKARA, QKARA, KKARA also gone: only 9KARA is still outside.
+        const gone = after(hand, { played: [...round, "JKARA", "QKARA", "KKARA"] })
+        expect(aceAfterMyWin(gone, hand)).toBeNull()
+    })
+
+    it("stays silent when an opponent had to discard on the suit, or ruffed it", () => {
+        const hand: Card[] = ["AKARA", "8PIK", "9TREF"]
+        const voidOpp = after(hand, {
+            trickHistory: [
+                {
+                    no: 1,
+                    leader: 3,
+                    winner: 0,
+                    plays: [
+                        { seat: 3, card: "7KARA" },
+                        { seat: 0, card: "10KARA" },
+                        { seat: 1, card: "8PIK" },
+                        { seat: 2, card: "7PIK" },
+                    ],
+                    cards: ["7KARA", "10KARA", "8PIK", "7PIK"],
+                },
+            ],
+        })
+        expect(aceAfterMyWin(voidOpp, hand)).toBeNull()
     })
 })

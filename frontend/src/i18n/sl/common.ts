@@ -54,7 +54,7 @@ export const common: CommonDict = {
     "language.label": "Jezik",
 
     // --- Navigation ----------------------------------------------------------
-    "nav.brandAriaLabel": "Bela Turniri — domača stran",
+    "nav.brandAriaLabel": "{site} — domača stran",
     "nav.brandName": "Bela Turniri",
     "nav.turniri": "Turnirji",
     "nav.kalendar": "Koledar",
@@ -300,6 +300,6 @@ export const common: CommonDict = {
     "account.deleted": "Ta račun je izbrisan.",
 
     // --- Native push (platform/NativeShell.tsx) -----------------------------
-    "push.fallbackTitle": "Bela Turniri",
+    "push.fallbackTitle": "{site}",
     "push.channelName": "Obvestila",
 }

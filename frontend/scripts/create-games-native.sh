@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # create-games-native.sh — build the ios-games/ and android-games/ native
-# projects for the SECOND app (games.bela.app, "Bela Games", bela.games).
+# projects for the SECOND app (games.bela.app, "Bela Online", bela.games).
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # Why a copy and not `cap add`
@@ -65,7 +65,7 @@ NEW_ID="games.bela.app"
 OLD_DIR="com/belaturniri/app"
 NEW_DIR="games/bela/app"
 OLD_NAME="Bela Turniri"
-NEW_NAME="Bela Games"
+NEW_NAME="Bela Online"
 OLD_HOST="bela-turniri.com"
 # The games product is served on TWO equal apex domains (src/site.ts
 # GAMES_DOMAINS). Neither redirects to the other, so the ONE app has to claim

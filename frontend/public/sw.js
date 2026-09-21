@@ -722,6 +722,13 @@ async function trimCache(cache, limit) {
 // an existing open tab on the target URL if one exists, otherwise we open
 // a new tab. This is the standard PWA re-engagement pattern.
 
+// The games domains have their own name and logo (public/games/). A worker's
+// origin decides which product a push belongs to, so the default title and
+// icon are picked from the host it runs on.
+const GAMES_HOST = /(^|\.)(bela|belot)\.games$/.test(self.location.hostname);
+const BRAND_NAME = GAMES_HOST ? "Bela Online" : "Bela turniri";
+const BRAND_ICON = GAMES_HOST ? "/games/symbol.png" : "/bela-turniri-symbol.png";
+
 self.addEventListener("push", (event) => {
     if (!event.data) return;
     let data = {};
@@ -730,13 +737,13 @@ self.addEventListener("push", (event) => {
     } catch {
         // Backend always sends JSON, but fall back to plain text just in
         // case a debug curl came through.
-        data = { title: "Bela turniri", body: event.data.text() };
+        data = { title: BRAND_NAME, body: event.data.text() };
     }
-    const title = data.title || "Bela turniri";
+    const title = data.title || BRAND_NAME;
     const options = {
         body: data.body || "",
-        icon: data.icon || "/bela-turniri-symbol.png",
-        badge: "/bela-turniri-symbol.png",
+        icon: data.icon || BRAND_ICON,
+        badge: BRAND_ICON,
         // `tag` groups notifications so a new one with the same tag replaces
         // the previous (avoids stacking 5 "approved" toasts if the organizer
         // batch-approves a queue). Most flows leave it undefined.

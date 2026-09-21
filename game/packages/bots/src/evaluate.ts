@@ -1246,6 +1246,65 @@ export function isThinLead(view: PlayerView, card: Card): boolean {
 }
 
 /**
+ * THE ACE AFTER MY OWN WIN (BOT.md §15.18, owner's report 2026-09-21).
+ * The opponents opened a plain suit, I took the trick with the 10 — the ace
+ * stayed home — and now I am on lead. This is the safest moment the ace will
+ * ever have: both opponents have just FOLLOWED the suit (so neither was void a
+ * round ago), my partner either followed or threw a card away instead of
+ * ruffing (which proves he has no trump to waste on my ace), and three or more
+ * cards of the suit are still out among them. Leading a small card from
+ * somewhere else instead "saves" the ace for a round in which it is more
+ * likely to be ruffed, or never gets led at all and has to be thrown on the
+ * last trick for nothing — the reported case.
+ *
+ * Only after the FIRST round of that suit (exactly four of its cards played,
+ * one of them mine), so it is a decision about a fresh suit and not a way of
+ * pulling an ace into a suit that has already been played to death. Silent
+ * when my partner would be FORCED to ruff it (he is void and still holds
+ * trumps), and when fewer than three cards of the suit are out.
+ */
+export function aceAfterMyWin(view: PlayerView, legal: readonly Card[]): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null) return null
+
+    const tricks = reviewableTricks(view)
+    const last = tricks[tricks.length - 1]
+    if (last === undefined || last.winner !== seat) return null
+    const opener = last.plays[0]
+    if (opener === undefined) return null
+    const suit = cardSuit(opener.card)
+    if (suit === trump) return null
+
+    const ace = makeCard("A", suit)
+    if (!legal.includes(ace)) return null
+
+    // Every OPPONENT followed suit — nobody was void a round ago.
+    const followed = last.plays
+        .filter((play) => teamOf(play.seat) !== teamOf(seat))
+        .every((play) => cardSuit(play.card) === suit)
+    if (!followed) return null
+    // Nobody ruffed it (I won it, but with the 10, not with a trump).
+    if (last.plays.some((play) => cardSuit(play.card) === trump)) return null
+
+    // A fresh suit: this was its first round — every card of it that has been
+    // played so far fell in THIS trick. (Not "four of them": in the reported
+    // deal the partner had none and threw a card away, so only three fell.)
+    const inThisTrick = last.plays.filter((play) => cardSuit(play.card) === suit).length
+    if (view.played.filter((card) => cardSuit(card) === suit).length !== inThisTrick) return null
+    if (outstandingInSuit(view, suit) < 3) return null
+
+    const partner = partnerOf(seat)
+    const partnerMustRuff =
+        seatShownVoidIn(view, partner, suit) &&
+        !seatShownVoidInTrump(view, partner) &&
+        outstandingInSuit(view, trump) > 0
+    if (partnerMustRuff) return null
+
+    return ace
+}
+
+/**
  * NO "ŠARANJE" (BOT.md §15.17). I opened the last trick with a plain ace and
  * took it; everybody followed. The next card comes from the SAME suit — not a
  * second ace from somewhere else, which opens a new suit for the opponents and

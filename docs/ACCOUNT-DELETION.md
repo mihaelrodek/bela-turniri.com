@@ -6,7 +6,7 @@ Ovaj dokument opisuje kako brisanje korisničkog računa danas stvarno radi — 
 gumba u aplikaciji do zadnjeg retka u bazi — te što treba upisati u Appleov
 "App Privacy" i Googleov "Data safety" obrazac. Vrijedi za sve tri ulazne
 točke (`bela-turniri.com`, `bela.games`, `belot.games`) i za native aplikaciju
-"Bela Games", jer je backend, Firebase projekt i baza jedan te isti.
+"Bela Online", jer je backend, Firebase projekt i baza jedan te isti.
 
 ---
 

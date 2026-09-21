@@ -1,3 +1,4 @@
+import { isGamesSite, siteName } from "../site"
 import { useEffect } from "react"
 import { t } from "../i18n"
 
@@ -92,7 +93,7 @@ export type DocumentHead = {
 // suffixes) for no real SEO win — JS-aware crawlers still pick up
 // per-page <meta> + og:title below, which is what actually drives search
 // snippets and WhatsApp/Slack link previews.
-const STATIC_TITLE = "Bela turniri"
+const STATIC_TITLE = isGamesSite ? siteName : "Bela turniri"
 
 export function useDocumentHead(head: DocumentHead) {
     useEffect(() => {

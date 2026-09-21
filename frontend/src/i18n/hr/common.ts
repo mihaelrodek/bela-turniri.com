@@ -61,7 +61,7 @@ export const common = {
     "language.label": "Jezik",
 
     // --- Navigation (components/NavBar.tsx, components/MobileTabBar.tsx) ---
-    "nav.brandAriaLabel": "Bela Turniri — naslovnica",
+    "nav.brandAriaLabel": "{site} — naslovnica",
     "nav.brandName": "Bela Turniri",
     "nav.turniri": "Turniri",
     "nav.kalendar": "Kalendar",
@@ -322,7 +322,7 @@ export const common = {
     // --- Native push (platform/NativeShell.tsx) -----------------------------
     // Fallback title for a foreground FCM notification with no title of its
     // own — mirrors the same fallback public/sw.js uses for Web Push.
-    "push.fallbackTitle": "Bela Turniri",
+    "push.fallbackTitle": "{site}",
     // Android notification channel name (NativeShell's createChannel call);
     // shown to the user in the OS notification settings for this app.
     "push.channelName": "Obavijesti",

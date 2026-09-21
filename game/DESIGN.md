@@ -1007,3 +1007,23 @@ da suigrač može odbacivanjem pokazati gdje preuzima, i staje čim suigrač
 odbaci iz svih boja koje bi botu trebale; suigrač čuva boju za preuzeti cijelu
 i ostale baca od veće prema manjoj; u obrani bot ne skida čuvara sa svog
 jedinog stopera. Testovi su napisani u `evaluate.test.ts`, nisu pokrenuti.
+
+### Vlastiti izgled za bela.games: logo, naziv, favicon (2026-09-21)
+
+Jedna aplikacija, dva brenda. Sve što je vezano uz izgled brenda stoji na
+**jednom** mjestu, pa je promjena zamjena datoteka, ne izmjena koda:
+
+| Što | Gdje |
+|---|---|
+| Naziv | `GAMES_BRAND_NAME` u `frontend/src/site.ts` **i** `GAMES_NAME` u `vite.config.ts` (isti tekst) |
+| Logo, ikone, favicon, OG kartica | `frontend/public/games/`: `symbol.svg`, `symbol.png` (kvadrat), `favicon.ico`, `apple-touch-icon.png` (180×180), `icon-192.png`, `icon-512.png`, `icon-512-maskable.png`, `og-card.png` (1200×630) |
+| Zaglavlje, pokretanje, instalacija | `brand.symbolSvg` iz `site.ts` |
+| HTML ljuska (`index.games.html`), manifest | `vite.config.ts` (`gamesShell`), `manifest.games.webmanifest` |
+| `/favicon.ico`, `/apple-touch-icon.png` | Caddy ih na domenama igre preusmjerava u `/games/…` |
+| Obavijesti (naslov, ikona) | `sw.js` bira po hostu; nativno `push.fallbackTitle` s `{site}` |
+| Naslov kartice preglednika | `useDocumentHead` — na domeni igre `siteName` (prije je bio uvijek „Bela turniri") |
+
+Trenutne datoteke u `public/games/` su kopije logotipa turnira kao rezervno
+rješenje dok se ne dostavi novi.
+
+Naziv brenda domena igre je **Bela Online** (odluka vlasnika 2026-09-21); isti naziv nosi i mobilna aplikacija (`appName`).

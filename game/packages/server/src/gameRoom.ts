@@ -38,6 +38,10 @@ import type { Timings } from "./config.js"
 import { codeFromEngine, ProtocolError } from "./errors.js"
 import { chooseBid, chooseCard, makeBot, thinkDelay } from "./bots.js"
 import type { Bot } from "./bots.js"
+// Two numbers from the demo CONTRACT, never from `demo/identities.ts`: this
+// module runs in every server and must not pull the name corpus into memory on
+// one started without the flag.
+import { DEMO_TEMPO_CEILING_MS, DEMO_TEMPO_HEADROOM_MS } from "./demo/types.js"
 import { newSeed } from "./ids.js"
 import { randomUUID } from "node:crypto"
 import { reportGameAbandoned, reportGameCompleted, reportGameStarted } from "./analyticsReporter.js"
@@ -298,8 +302,31 @@ export class GameRoom {
      */
     private isBotControlled(seat: Seat): boolean {
         const slot = this.room.slotAt(seat)
+        // An empty seat is played by the bot, and in a demo room that is a real
+        // state: a human's hold expired and the chair waits, empty rather than
+        // "Bot Ana", for the director to seat somebody (`room.vacatedSlot`).
         if (!slot) return true
-        return slot.kind === "BOT"
+        // A fake person's CARDS are the bot's — only their clock is their own
+        // (`delayFor`). DEMO-LOBBY.md §2.1.
+        return slot.kind === "BOT" || slot.kind === "DEMO"
+    }
+
+    /**
+     * How long the seat "thinks" before the server plays for it.
+     *
+     * A bot gets the room's configured band. A fake person gets their own
+     * tempo: mostly quick, `slowChance` of the time slow — four seats with the
+     * same rhythm is a tell (DEMO-LOBBY.md §3). Capped below the turn deadline
+     * so the move always lands well before the ring the client is drawing for
+     * that seat would run out (see `schedule`).
+     */
+    private delayFor(seat: Seat): number {
+        const slot = this.room.slotAt(seat)
+        if (slot?.kind !== "DEMO") return thinkDelay(this.t.botThinkMinMs, this.t.botThinkMaxMs)
+        const tempo = slot.identity.tempo
+        const band = Math.random() < tempo.slowChance ? tempo.slowMs : tempo.fastMs
+        const drawn = thinkDelay(band[0], band[1])
+        return Math.max(0, Math.min(drawn, DEMO_TEMPO_CEILING_MS, this.t.turnTimeoutMs - DEMO_TEMPO_HEADROOM_MS))
     }
 
     private clearTimers(): void {
@@ -342,7 +369,7 @@ export class GameRoom {
             reportGameCompleted(this.analyticsRunId, this.room, st, this.startedAt, this.autoPlayedActions)
             reportGameResult(this.room, st, this.analyticsRunId)
             this.room.liveActivity?.endAll(this.room, this.liveSnapshot())
-            this.room.onGameOver()
+            this.room.onGameOver(st.winner)
             return
         }
 
@@ -376,9 +403,18 @@ export class GameRoom {
         this.scheduledAsBot = asBot
 
         if (asBot) {
-            const delay = thinkDelay(this.t.botThinkMinMs, this.t.botThinkMaxMs)
-            this.turnDeadline = Date.now() + delay
-            this.turnDurationMs = delay
+            const delay = this.delayFor(seat)
+            // WHAT THE TABLE SEES vs. WHEN THE CARD FALLS. The client draws a
+            // turn ring from these two fields for every `kind: "PLAYER"` seat
+            // and suppresses it only for a bot — so a fake person, who IS a
+            // player on the wire, must carry the ordinary human deadline or the
+            // table would show a 2-second ring draining on every one of their
+            // moves. The internal timer below is the tempo one; nothing else
+            // reads `turnDeadline` to decide behaviour (the turn-timeout
+            // auto-play is `turnTimer`, which this branch never arms).
+            const human = this.room.slotAt(seat)?.kind === "DEMO"
+            this.turnDeadline = Date.now() + (human ? this.t.turnTimeoutMs : delay)
+            this.turnDurationMs = human ? this.t.turnTimeoutMs : delay
             this.botTimer = unref(
                 setTimeout(() => {
                     this.botTimer = null

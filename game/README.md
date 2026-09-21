@@ -857,7 +857,22 @@ sam iz socketa; server pokriva ostalo, preko backenda
   igrati istog trenutka kad bi nekome puknula veza.
 - Botovi igraju s mirnijim kašnjenjem (1300–2300 ms) da se svako zvanje i odigrana
   karta mogu jasno pratiti, a tempo i dalje ostane prirodan.
-- Env: `GAME_PORT=8285`, `FIREBASE_PROJECT_ID`, `GAME_DEV_ALLOW_ANON`, `GAME_CORS_ORIGINS`.
+- Env:
+
+  | Varijabla | Zadano | Značenje |
+  |---|---|---|
+  | `GAME_PORT` | `8285` | Port poslužitelja (mora se poklapati s `EXPOSE` u Dockerfileu). |
+  | `GAME_HOST` | `0.0.0.0` | Sučelje na koje se veže. |
+  | `FIREBASE_PROJECT_ID` | — | Provjera Firebase ID tokena (isto kao backend). |
+  | `GAME_DEV_ALLOW_ANON` | isključeno | `1` → `hello { devName }` bez tokena (samo razvoj). |
+  | `GAME_CORS_ORIGINS` | bez provjere | Popis dopuštenih `Origin` vrijednosti na WS rukovanju. |
+  | `GAME_LOG_LEVEL` | `info` | `error` / `warn` / `info` / `debug`. |
+  | `BACKEND_INTERNAL_URL` | `http://localhost:8085/api` | Baza za server-to-server pozive (§8.4). |
+  | `GAME_RESULTS_TOKEN` | — | `X-Internal-Token`; bez njega se statistika ne šalje. |
+  | `GAME_DEMO_LOBBY` | isključeno | **SAMO PRED LANSIRANJE.** `1` → lobby se puni lažnim ljudima (`game/DEMO-LOBBY.md`). Mora biti ugašeno prije lansiranja i prije svake predaje u trgovinu. Pri pokretanju ide glasan `WARN`. |
+  | `GAME_DEMO_ROOMS` | `8-12` | Raspon ukupnog broja demo soba. |
+  | `GAME_DEMO_PLAYING` | `5-6` | Koliko ih je u igri. |
+  | `GAME_DEMO_WATCHABLE` | `2` | Koliko tih dopušta gledatelje. |
 - Dockerfile (multi-stage, node:22-alpine), `docker-compose.prod.yaml` servis `game`,
   Caddy: `handle /ws/game* { reverse_proxy game:8285 }` **prije** generičkog `/ws/*`.
 

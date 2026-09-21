@@ -10,7 +10,7 @@ import {
 } from "react-icons/fi"
 import { useAuth } from "../auth/authContextValue"
 import { useColorMode } from "../color-mode-hooks"
-import { homePath, isGamesSite, siteName } from "../site"
+import { homePath, isGamesSite, siteName, brand } from "../site"
 import { updateColorMode } from "../api/userMe"
 import { useInstallPrompt, type InstallPromptState } from "../hooks/useInstallPrompt"
 import { useInvalidateMyProfile, useMyProfile } from "../hooks/useMyProfile"
@@ -729,8 +729,8 @@ function GamesMobileBar({ tourAnchor }: { tourAnchor?: string }) {
     const { t } = useTranslation()
     return (
         <Flex display={{ base: "flex", md: "none" }} h={BAR_H} align="center" position="relative">
-            <RouterLink to={homePath} aria-label={t("common.nav.brandAriaLabel")} style={{ display: "inline-flex" }}>
-                <Image src="/bela-turniri-symbol.svg" alt="" h="30px" w="auto" draggable={false} />
+            <RouterLink to={homePath} aria-label={t("common.nav.brandAriaLabel", { site: siteName })} style={{ display: "inline-flex" }}>
+                <Image src={brand.symbolSvg} alt="" h="30px" w="auto" draggable={false} />
             </RouterLink>
             {/* Centred on the BAR, not on the space left between the two
                 side items, which have different widths. */}
@@ -855,10 +855,10 @@ export default function NavBar() {
                         >
                             <RouterLink
                                 to={homePath}
-                                aria-label={t("common.nav.brandAriaLabel")}
+                                aria-label={t("common.nav.brandAriaLabel", { site: siteName })}
                             >
                                 <Image
-                                    src="/bela-turniri-symbol.svg"
+                                    src={brand.symbolSvg}
                                     alt=""
                                     h={{ base: "28px", md: "32px" }}
                                     w="auto"
@@ -939,10 +939,10 @@ export default function NavBar() {
                         >
                             <RouterLink
                                 to={homePath}
-                                aria-label={t("common.nav.brandAriaLabel")}
+                                aria-label={t("common.nav.brandAriaLabel", { site: siteName })}
                             >
                                 <Image
-                                    src="/bela-turniri-symbol.svg"
+                                    src={brand.symbolSvg}
                                     alt=""
                                     h="28px"
                                     w="auto"

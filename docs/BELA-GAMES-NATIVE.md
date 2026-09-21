@@ -8,7 +8,7 @@ i karte.
 |---|---|---|
 | domene | bela-turniri.com | **bela.games** + **belot.games** |
 | appId / bundle id / applicationId | `com.belaturniri.app` | **`games.bela.app`** |
-| ime na ekranu | Bela Turniri | **Bela Games** |
+| ime na ekranu | Bela Turniri | **Bela Online** |
 | native projekt | `frontend/ios`, `frontend/android` | **`frontend/ios-games`, `frontend/android-games`** |
 | Vite mode | `native` (`.env.native`) | **`native-games` (`.env.native-games`)** |
 | build | `npm run build:native` | **`npm run build:native:games`** |
@@ -31,13 +31,13 @@ je isključivo u tome **što se prikazuje** (`frontend/src/site.ts`).
 > podijeljen s belot.games kaže belot.games. Nativna ljuska nema hostname
 > (`capacitor://localhost`) pa uvijek koristi primarnu.
 
-> **Zašto ime "Bela Games", a ne "bela.games"?**
+> **Zašto ime "Bela Online", a ne "bela.games"?**
 > Brend u aplikaciji i na webu ostaje `bela.games` (`siteName` u `site.ts`).
 > Ali ispod ikone na početnom zaslonu i u tražilici trgovina, goli domenski
-> naziv s točkom loše izgleda i loše se pretražuje. `Bela Games` ima 10 znakova
+> naziv s točkom loše izgleda i loše se pretražuje. `Bela Online` ima 11 znakova
 > (iOS/Android ne režu ništa do ~12), a limit imena u App Store Connectu i na
 > Google Playu je 30 znakova — dakle ima mjesta i za podnaslov tipa
-> `Bela Games — bela online`. Ako ipak želiš doslovno `bela.games`, to je jedna
+> `Bela Online — igraj belu`. Ako ipak želiš doslovno `bela.games`, to je jedna
 > linija u `frontend/capacitor.config.ts` (`APPS.games.appName`) plus ista
 > promjena u `Info.plist` / `strings.xml`.
 
@@ -86,13 +86,13 @@ su isti.
 1. Firebase Console → postojeći projekt → **Project settings → Your apps**.
 2. **Add app → iOS**
    - Bundle ID: `games.bela.app`
-   - Nadimak: `Bela Games (iOS)`
+   - Nadimak: `Bela Online (iOS)`
    - Preuzmi **`GoogleService-Info.plist`** →
      `frontend/ios-games/App/App/GoogleService-Info.plist`
      (dodaj ga u Xcode targetu App, "Copy items if needed", target membership ✓).
 3. **Add app → Android**
    - Package name: `games.bela.app`
-   - Nadimak: `Bela Games (Android)`
+   - Nadimak: `Bela Online (Android)`
    - **SHA-1 i SHA-256** — obavezno za Google prijavu:
      - debug: `keytool -list -v -alias androiddebugkey -keystore ~/.android/debug.keystore -storepass android -keypass android`
      - release: SHA-256 uzmi iz **Play Console → Release → Setup → App signing
@@ -133,7 +133,7 @@ aplikacije (2× iOS, 2× Android) unutar jednog projekta.
 *developer.apple.com → Certificates, Identifiers & Profiles → Identifiers → +*
 
 - Tip: **App IDs → App**
-- Description: `Bela Games`
+- Description: `Bela Online`
 - Bundle ID: **Explicit** → `games.bela.app`
 - Capabilities (mora biti uključeno **sve troje**, inače potpisivanje pukne jer
   ih `App.entitlements` traži):
@@ -174,7 +174,7 @@ Apple po **App ID** generira **različit `sub`** (Apple korisnički ID) za istog
 korisnika. Ako `games.bela.app` **ne grupiraš** s `com.belaturniri.app`:
 
 > Korisnik koji se u Bela Turniri aplikaciji prijavio preko Applea, pa instalira
-> Bela Games i opet se prijavi preko Applea, dobit će **drugi Apple `sub`**.
+> Bela Online i opet se prijavi preko Applea, dobit će **drugi Apple `sub`**.
 > Firebase iz tog `sub`-a radi **novi identitet**, dakle **novi Firebase UID** →
 > novi profil, novi `UserProfile` red, nula odigranih partija, drugi slug.
 > To izgleda kao izgubljen račun i nema čistog načina da se naknadno spoji.
@@ -199,7 +199,7 @@ korisnika. Ako `games.bela.app` **ne grupiraš** s `com.belaturniri.app`:
 ### 2.4 App Store Connect
 
 - **My Apps → + → New App**
-- Platform iOS, Name: `Bela Games`, Primary Language: hrvatski,
+- Platform iOS, Name: `Bela Online`, Primary Language: hrvatski,
   Bundle ID: `games.bela.app`, SKU: npr. `bela-games-ios`.
 - Primary Category: **Games → Card**.
   (Postojeća aplikacija je *Sports* / *Utilities* — različite kategorije su
@@ -299,7 +299,7 @@ Otvaranje projekata:
 ```bash
 npx cap open ios                       # Bela Turniri
 npx cap open android
-npm run cap:games:open:ios             # Bela Games
+npm run cap:games:open:ios             # Bela Online
 npm run cap:games:open:android
 ```
 
@@ -322,7 +322,7 @@ Distribute App → App Store Connect.
 
 ## 5. Google Play
 
-1. Play Console → **Create app**: naziv `Bela Games`, kategorija
+1. Play Console → **Create app**: naziv `Bela Online`, kategorija
    **Games → Card**, besplatno.
 2. Prvi upload AAB-a → Play uključuje **Play App Signing**.
 3. **Release → Setup → App signing** → kopiraj **SHA-256** *App signing key
@@ -401,12 +401,12 @@ vidi već iz store stranice:
 
 - **Različit primarni sadržaj.** Bela Turniri je alat za *organizaciju turnira
   uživo* (prijave parova, ždrijeb rundi, rezultati, obračun pića, kalendar i
-  karta turnira po Hrvatskoj). Bela Games je *online kartaška igra protiv
+  karta turnira po Hrvatskoj). Bela Online je *online kartaška igra protiv
   ljudi i botova*. Zajednički su im samo prijava i pravila bele — kao što
   fizička kartaška igra i softver za vođenje lige nisu ista stvar.
 - **Različita kategorija** u trgovini: Games → Card vs. Sports/Utilities.
 - **Različit screenshot set i opis** — nijedan screenshot ne smije biti isti.
-  Bela Games: lobi, stol, karte u ruci, statistika. Bela Turniri: lista
+  Bela Online: lobi, stol, karte u ruci, statistika. Bela Turniri: lista
   turnira, karta, ždrijeb, blok.
 - **Bez unakrsnog reklamiranja i bez mrtvih ruta.** U games buildu uopće nema
   ekrana za turnire (`src/site.ts`), pa recenzent ne može naletjeti na "isto
@@ -422,7 +422,7 @@ vidi već iz store stranice:
   promjena.
 
 Bilješke o recenziji drži u `docs/store/review-notes.md` (dodaj zaseban odjeljak
-za Bela Games s demo računom i uputom kako doći do partije u jednom potezu —
+za Bela Online s demo računom i uputom kako doći do partije u jednom potezu —
 recenzent koji ne uspije naći protivnika u lobiju odbija aplikaciju kao
 "nefunkcionalnu"; osiguraj da igra protiv botova kreće odmah).
 
@@ -478,7 +478,7 @@ Odgovori dosljedno na sva tri formulara:
       `https://bela-turniri.com/turniri/<slug>` otvara **preglednik**
 - [ ] Regresija: aplikacija Bela Turniri i dalje otvara
       `https://bela-turniri.com/turniri/<slug>` **u sebi**, ne u pregledniku
-- [ ] Push test: notifikacija stiže i na Bela Games uređaj, tap otvara pravu rutu
+- [ ] Push test: notifikacija stiže i na Bela Online uređaj, tap otvara pravu rutu
 - [ ] Prijava istim Apple/Google računom u obje aplikacije daje **isti profil**
 - [ ] Store: različita kategorija, različiti screenshotovi, različit opis (§7.1)
 - [ ] Dobna oznaka ispunjena kao u §7.2
@@ -911,7 +911,7 @@ manifestu to kaže doslovno).
 - [ ] APNs .p8 ključ povezan s novom iOS aplikacijom
 - [ ] Apple provider keys za Sign in with Apple (ako nije već postavljeno)
 - [ ] Xcode: Team odabran i potpisivanje konfigurirano za App i BelaActivity target
-- [ ] App Store Connect: nova aplikacija `Bela Games` + App Privacy popunjena
+- [ ] App Store Connect: nova aplikacija `Bela Online` + App Privacy popunjena
 
 ### ⚠️ Samo vlasnik — Google Play i ključi
 
@@ -936,7 +936,7 @@ manifestu to kaže doslovno).
 
 - [ ] Deep link test na uređaju: `https://bela.games/igra/...` i `https://belot.games/igra/...` otvaraju aplikaciju
 - [ ] Push test: notifikacija stignu na oba brendinga i tap otvara pravu rutu
-- [ ] Prijava s Google/Apple u Bela Games vraća isti profil kao u Bela Turniri
+- [ ] Prijava s Google/Apple u Bela Online vraća isti profil kao u Bela Turniri
 - [ ] Live Activity vidljiv na zaključanom zaslonu kada partija traje
 - [ ] Android back dugme traži potvrdu na game tablici
 - [ ] Account deletion radi iz profila i putem javne stranice

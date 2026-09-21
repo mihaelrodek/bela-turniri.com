@@ -29,6 +29,7 @@ import { cardRank, cardSuit, makeCard, nextSeat, partnerOf, teamOf } from "@bela
 import type { BidChoice, Bot } from "./index"
 import {
     aceOverCheapWinner,
+    aceAfterMyWin,
     aceToCash,
     belaLead,
     declarationRead,
@@ -403,6 +404,13 @@ function chooseLead(view: PlayerView, legal: readonly Card[], trump: Suit): Card
     // winning a trick in HIS suit (BOT.md §15.13).
     const handOver = stigljaHandOver(view, legal)
     if (handOver !== null) return handOver
+
+    // The ace I kept behind my own 10 goes NOW, while the suit is fresh and
+    // nobody has shown a void — not after a quiet small lead from another
+    // suit, which would leave it to be thrown away on the last trick
+    // (BOT.md §15.18).
+    const aceNow = aceAfterMyWin(view, legal)
+    if (aceNow !== null) return aceNow
 
     const capture = defensiveTrumpCapture(view, legal)
     if (capture !== null) return capture

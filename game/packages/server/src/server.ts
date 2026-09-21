@@ -21,6 +21,8 @@ import type { ProfileLookup } from "./profiles.js"
 import type { Authenticator } from "./auth.js"
 import { loadConfig, resolveTimings } from "./config.js"
 import type { Config, EnvLike, RateLimits, Timings } from "./config.js"
+import type { DemoDirectorHandle, StartDemoDirector } from "./demo/directorApi.js"
+import type { DemoDirectorConfig } from "./demo/types.js"
 import { createLiveActivityNotifier, LiveActivityHub } from "./liveActivity.js"
 import type { LiveActivityNotifier } from "./liveActivity.js"
 import { Lobby } from "./lobby.js"
@@ -69,6 +71,54 @@ function resolveRates(overrides: Partial<RateLimits> = {}): RateLimits {
     return {
         messagesPerSecond: LIMITS.messagesPerSecond,
         ...overrides,
+    }
+}
+
+/**
+ * Where `director.ts` lives, as a STRING the bundler and the type checker both
+ * have to leave alone: the module is written (and, before launch, deleted)
+ * independently of this file, so `await import(DIRECTOR_MODULE)` must compile
+ * whether or not it is on disk today. The cast below is the only place its
+ * shape is asserted, and a miss is an ordinary startup error, never a crash.
+ */
+const DIRECTOR_MODULE = "./demo/director.js"
+
+/**
+ * Load and start the demo director. Returns null — and the server runs on as
+ * an ordinary, empty-lobby server — if anything at all goes wrong.
+ */
+async function startDemoLobby(lobby: Lobby, config: DemoDirectorConfig): Promise<DemoDirectorHandle | null> {
+    log.warn("demo.lobby.enabled", {
+        msg: "DEMO LOBBY ENABLED — fake players are visible to everyone; disable before launch and before any store submission",
+    })
+    try {
+        const mod = (await import(DIRECTOR_MODULE)) as { startDemoDirector?: StartDemoDirector }
+        const start = mod.startDemoDirector
+        if (typeof start !== "function") {
+            log.error("demo.director.missing", { module: DIRECTOR_MODULE })
+            return null
+        }
+        return start({
+            lobby,
+            config,
+            clock: {
+                now: () => Date.now(),
+                setTimeout: (fn: () => void, ms: number) => {
+                    const timer = setTimeout(fn, ms)
+                    // Same courtesy every other timer in this process extends:
+                    // a pending demo tick must not keep the process alive.
+                    if (typeof timer.unref === "function") timer.unref()
+                    return timer
+                },
+                clearTimeout: (handle: unknown) => {
+                    clearTimeout(handle as ReturnType<typeof setTimeout>)
+                },
+            },
+            rng: () => Math.random(),
+        })
+    } catch (err) {
+        log.error("demo.director.loadFailed", { err })
+        return null
     }
 }
 
@@ -160,10 +210,17 @@ export async function createServer(options: ServerOptions = {}): Promise<GameSer
         return cfg.port
     }
 
+    // After `listen`, so a director that starts opening rooms finds a server
+    // that can already serve them.
+    const demoDirector = cfg.demo ? await startDemoLobby(lobby, cfg.demo) : null
+
     let closed = false
     const close = async (): Promise<void> => {
         if (closed) return
         closed = true
+        // Before the lobby: the director must stop pointing at rooms that are
+        // about to be disposed.
+        demoDirector?.stop()
         hub.close()
         lobby.dispose()
         liveActivity.dispose()

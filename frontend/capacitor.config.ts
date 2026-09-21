@@ -50,11 +50,10 @@ const APPS: Record<AppKey, { appId: string; appName: string; iosPath: string; an
         // android-games applicationId + namespace + the Java package dir, the
         // Firebase Console apps, the Apple App ID, and ops/well-known-games/.
         appId: "games.bela.app",
-        // Home-screen / launcher label. Kept short (10 chars) so neither iOS
-        // nor Android truncates it. The BRAND in the UI is still "bela.games"
-        // (src/site.ts `siteName`); this is only what the OS prints under the
-        // icon, and a bare domain reads badly there and in store search.
-        appName: "Bela Games",
+        // Home-screen / launcher label. Kept short (11 chars) so neither iOS
+        // nor Android truncates it. The BRAND in the UI is "Bela Online"
+        // (src/site.ts `siteName`); this is what the OS prints under the icon.
+        appName: "Bela Online",
         iosPath: "ios-games",
         androidPath: "android-games"
     }

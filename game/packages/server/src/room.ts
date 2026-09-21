@@ -20,6 +20,7 @@ import type {
     ActiveSeatInfo,
     AvatarPreset,
     GameEndRule,
+    Reaction,
     RoomOccupant,
     RoomState,
     RoomStatus,
@@ -32,7 +33,10 @@ import type {
     UserInfo,
     WinRateRequirement,
 } from "@bela/protocol"
-import { DEFAULT_GAME_END_RULE, DEFAULT_TRICK_REVIEW, isQuickGame } from "@bela/protocol"
+import { DEFAULT_GAME_END_RULE, DEFAULT_TRICK_REVIEW, isQuickGame, LIMITS, REACTIONS } from "@bela/protocol"
+// TYPE-ONLY on purpose: with `GAME_DEMO_LOBBY` unset nothing under `demo/` is
+// loaded at all, and a type import is erased by the compiler (DEMO-LOBBY.md).
+import type { DemoIdentity, DemoRoomEvents, DemoRoomHandle, DemoRoomOptions } from "./demo/types.js"
 import type { Timings } from "./config.js"
 import { ProtocolError } from "./errors.js"
 import { botAvatar, botName } from "./bots.js"
@@ -42,11 +46,54 @@ import type { LiveActivityHub } from "./liveActivity.js"
 import { log } from "./log.js"
 import type { Connection } from "./ws.js"
 
-/** Internal seat slot — same as the protocol `SeatInfo["occupant"]` plus the uid. */
+/**
+ * Internal seat slot — same as the protocol `SeatInfo["occupant"]` plus the uid,
+ * plus one state the wire does not have.
+ *
+ * `DEMO` is a fake person from the pre-launch demo lobby (DEMO-LOBBY.md). It
+ * SERIALISES as a seated, connected, ready `PLAYER` and is indistinguishable
+ * from one in every message that leaves this process, but internally it is
+ * neither a player nor a bot:
+ *
+ *   • plays like a BOT     — `isBotControlled`, no ack vote, no turn deadline
+ *   • counts like a PERSON — wherever a room would be dissolved or deleted for
+ *     having too few humans (`otherHumanCount`, `removeBotOnlyLobby`, `isEmpty`)
+ *   • counts as NEITHER    — stats, karma, abandonment, Live Activity, analytics
+ *
+ * A `DEMO` slot can only ever exist in a room created by `Lobby.createDemoRoom`
+ * (`Room.demo !== null`); no ordinary room has a code path that produces one.
+ */
 export type SeatSlot =
     | { kind: "PLAYER"; uid: string; user: UserInfo; ready: boolean; connected: boolean }
     | { kind: "BOT"; name: string; avatarPreset?: AvatarPreset }
+    | { kind: "DEMO"; identity: DemoIdentity }
     | null
+
+/** What a demo room carries beyond an ordinary one: the director's callbacks. */
+export interface DemoRoomContext {
+    readonly events: DemoRoomEvents
+}
+
+/**
+ * The `UserInfo` a fake person wears on the wire.
+ *
+ * Built fresh on every serialisation rather than copied into the seat, so the
+ * record the director books after a finished game (`identity.gameStats`,
+ * `identity.karma` are mutable by contract) shows up on the next frame instead
+ * of at the next time they sit down. `guest` is ABSENT — a signed-in Google
+ * user's `UserInfo` has no such field (`auth.ts` sets it only for guests), and
+ * a "gost" badge on half the lobby would give the whole thing away.
+ */
+export function demoUserInfo(identity: DemoIdentity): UserInfo {
+    return {
+        uid: identity.uid,
+        name: identity.name,
+        avatarUrl: null,
+        avatarPreset: identity.avatarPreset,
+        gameStats: identity.gameStats,
+        karma: identity.karma,
+    }
+}
 
 /** What a room needs from the registry that owns it. */
 export interface RoomHost {
@@ -159,6 +206,8 @@ export interface RoomInit {
     timings: Timings
     /** Lock-screen fan-out (README §3 "Live Activity"); absent = off. */
     liveActivity?: LiveActivityHub | null
+    /** Present ONLY for a room built by `Lobby.createDemoRoom` (DEMO-LOBBY.md). */
+    demo?: DemoRoomContext | null
 }
 
 export class Room {
@@ -186,12 +235,20 @@ export class Room {
     readonly conns: Set<Connection>
     game: GameRoom | null
     readonly liveActivity: LiveActivityHub | null
+    /** Non-null = a demo room (DEMO-LOBBY.md). Null for every ordinary room,
+     *  and the single gate on everything `DEMO` in this file. */
+    readonly demo: DemoRoomContext | null
 
     private readonly lobby: RoomHost
     private deleteTimer: ReturnType<typeof setTimeout> | null
     /** uid → the seat hold running while a seated player is away. */
     private readonly holds: Map<string, SeatHold & { timer: ReturnType<typeof setTimeout> }>
     private disposed: boolean
+    /** Last reaction per DEMO seat — a fake person obeys the same cooldown a
+     *  real one does (`Conn.takeReaction`), which is per sender, not per room. */
+    private readonly demoReactionAt: Map<Seat, number>
+    /** A demo room's game has ended and nobody has started another. */
+    private demoFinished: boolean
 
     constructor(init: RoomInit) {
         this.id = init.id
@@ -217,6 +274,30 @@ export class Room {
         this.deleteTimer = null
         this.holds = new Map()
         this.disposed = false
+        this.demo = init.demo ?? null
+        this.demoReactionAt = new Map()
+        this.demoFinished = false
+    }
+
+    /**
+     * The status the DIRECTOR sees. Same as `this.status`, with one addition
+     * the wire deliberately does not have: a demo room whose game has ended
+     * reports "FINISHED" until somebody starts another.
+     *
+     * The room itself goes straight back to "LOBBY" on game over (`onGameOver`)
+     * and must keep doing so — that is what tells every client the table is
+     * open again. But "the game ended and nobody has cleared the table yet" is
+     * exactly the state the director winds down (walk people out one by one,
+     * then `close`), and without this it would have nothing to poll: `onGameOver`
+     * is an event, and an event missed is a room that stands there forever.
+     */
+    demoStatus(): RoomStatus {
+        if (this.status === "LOBBY" && this.demoFinished) return "FINISHED"
+        return this.status
+    }
+
+    isDisposed(): boolean {
+        return this.disposed
     }
 
     /* ───────────────────────── queries ───────────────────────── */
@@ -312,7 +393,22 @@ export class Room {
         return this.nextSeatForNewcomer() !== null || this.allowSpectators
     }
 
+    /**
+     * Seats a PERSON sits on, as the lobby counts people (`RoomSummary.humans`).
+     *
+     * A fake person is one of them: the whole point of the demo lobby is that
+     * a row saying "4 igrača" and four faces above it agree. Callers that need
+     * "a real account is sitting here" ask `realHumanSeats()` instead.
+     */
     humanSeats(): Seat[] {
+        return SEATS.filter((s) => {
+            const kind = this.seats[s]?.kind
+            return kind === "PLAYER" || kind === "DEMO"
+        })
+    }
+
+    /** Seats held by a REAL signed-in/guest account. Never a fake person. */
+    realHumanSeats(): Seat[] {
         return SEATS.filter((s) => this.seats[s]?.kind === "PLAYER")
     }
 
@@ -323,9 +419,30 @@ export class Room {
         })
     }
 
-    /** Other human-owned seats, including a temporarily disconnected player
-     * whose reconnect hold is still active. */
+    /** Fake people currently seated here; 0 in every ordinary room. */
+    private demoSeatCount(): number {
+        return SEATS.filter((s) => this.seats[s]?.kind === "DEMO").length
+    }
+
+    /**
+     * Other seats occupied by someone the table would miss — including a
+     * temporarily disconnected player whose reconnect hold is still active,
+     * and (demo rooms only) a fake person. This feeds SUSTAINABILITY decisions
+     * ("is there still a game here?"), never consequence ones: karma and
+     * abandonment read `otherRealHumanCount`, which fake people never inflate.
+     */
     private otherHumanCount(uid: string): number {
+        let count = 0
+        for (const seat of SEATS) {
+            const slot = this.seats[seat]
+            if (slot?.kind === "DEMO") count++
+            else if (slot?.kind === "PLAYER" && slot.uid !== uid) count++
+        }
+        return count
+    }
+
+    /** Real accounts other than `uid` at this table — the karma-relevant count. */
+    private otherRealHumanCount(uid: string): number {
         let count = 0
         for (const seat of SEATS) {
             const slot = this.seats[seat]
@@ -334,8 +451,15 @@ export class Room {
         return count
     }
 
+    /**
+     * Nobody is here any more, so the room may be deleted on a TTL.
+     *
+     * A seated fake person counts as somebody: a demo room routinely has zero
+     * connections (nobody real is watching it) and must still survive, exactly
+     * as a room full of real people whose sockets all blinked would.
+     */
     isEmpty(): boolean {
-        return this.conns.size === 0
+        return this.conns.size === 0 && this.demoSeatCount() === 0
     }
 
     /* ───────────────────────── serialisation ───────────────────────── */
@@ -345,6 +469,20 @@ export class Room {
         if (!slot) return { seat, occupant: null }
         if (slot.kind === "BOT") {
             return { seat, occupant: { kind: "BOT", name: slot.name, ...(slot.avatarPreset ? { avatarPreset: slot.avatarPreset } : {}) } }
+        }
+        // A fake person is a seated, connected, ready player and nothing else:
+        // no hold, no `guest`, no marker of any kind (DEMO-LOBBY.md §3).
+        if (slot.kind === "DEMO") {
+            return {
+                seat,
+                occupant: {
+                    kind: "PLAYER",
+                    user: demoUserInfo(slot.identity),
+                    ready: true,
+                    connected: true,
+                    holdUntil: null,
+                },
+            }
         }
         return {
             seat,
@@ -363,6 +501,9 @@ export class Room {
         const slot = this.seats[seat]
         if (!slot) return null
         if (slot.kind === "BOT") return { kind: "BOT", name: slot.name, ...(slot.avatarPreset ? { avatarPreset: slot.avatarPreset } : {}) }
+        if (slot.kind === "DEMO") {
+            return { kind: "PLAYER", name: slot.identity.name, connected: true, avatarPreset: slot.identity.avatarPreset }
+        }
         return {
             kind: "PLAYER",
             name: slot.user.name,
@@ -531,6 +672,10 @@ export class Room {
         }
         this.lobby.changed()
         this.game?.onPresenceChanged()
+        // LAST, once the seat array, the holds and the lobby all agree: the
+        // director may call straight back into this room from the callback.
+        const nowSeated = this.seatOfUid(user.uid)
+        if (nowSeated !== null) this.fireDemo((e) => e.onHumanSeated?.(nowSeated))
         return reconnected
     }
 
@@ -538,11 +683,18 @@ export class Room {
     onDisconnect(conn: Connection): void {
         if (!this.conns.delete(conn)) return
         const user = conn.user
+        const seatBefore = user ? this.seatOfUid(user.uid) : null
         conn.roomId = null
         if (user && !this.hasConnFor(user.uid)) this.holdOrRelease(user.uid, "disconnect")
         // A dropped socket does not cost you the host badge — the hold expiring
         // (or an explicit leave from the lobby seat) does.
-        this.afterMembershipChange(null)
+        this.afterMembershipChange(null, this.freedSeat(seatBefore))
+    }
+
+    /** `seat` if it was a real person's and is now free — nothing otherwise. */
+    private freedSeat(seat: Seat | null): Seat | null {
+        if (seat === null) return null
+        return this.seats[seat] === null ? seat : null
     }
 
     /**
@@ -570,7 +722,7 @@ export class Room {
             this.holdOrRelease(user.uid, "left")
         }
         conn.send({ t: "room.left" })
-        this.afterMembershipChange(user?.uid ?? null)
+        this.afterMembershipChange(user?.uid ?? null, this.freedSeat(leavingSeat))
     }
 
     /** Close a running room that can no longer sustain a human-vs-human game. */
@@ -595,7 +747,8 @@ export class Room {
      */
     abandonSeat(uid: string): void {
         this.cancelHold(uid)
-        if (this.seatOfUid(uid) === null) return
+        const seat = this.seatOfUid(uid)
+        if (seat === null) return
         this.reportConfirmedAbandonment(uid)
         this.endLiveActivity(uid)
         this.releaseSeat(uid)
@@ -605,24 +758,31 @@ export class Room {
         this.broadcastState()
         this.lobby.changed()
         this.game?.onPresenceChanged()
+        this.fireDemo((e) => e.onHumanGone?.(seat))
     }
 
-    private afterMembershipChange(leavingUid: string | null): void {
+    private afterMembershipChange(leavingUid: string | null, freedSeat: Seat | null = null): void {
         if (leavingUid !== null && this.isHost(leavingUid)) this.transferHost(leavingUid)
         if (this.removeBotOnlyLobby()) return
         this.broadcastState()
         this.lobby.changed()
         this.game?.onPresenceChanged()
         this.scheduleDeleteIfEmpty()
+        if (freedSeat !== null) this.fireDemo((e) => e.onHumanGone?.(freedSeat))
     }
 
     /**
      * A lobby belongs to its human members, never to its bots. Once its last
      * human member has gone, remove it right away; a player who stood up is
      * still a human spectator and must keep the lobby alive.
+     *
+     * A fake person is a member in this sense: a demo waiting room normally has
+     * nobody connected at all and must not evaporate the moment the one real
+     * visitor walks out again.
      */
     private removeBotOnlyLobby(): boolean {
         if (this.status !== "LOBBY" || this.conns.size > 0) return false
+        if (this.demoSeatCount() > 0) return false
         log.info("room.deleted", { room: this.id, status: this.status, reason: "no-human-members" })
         this.lobby.remove(this.id)
         return true
@@ -646,8 +806,24 @@ export class Room {
     private releaseSeat(uid: string): void {
         const seat = this.seatOfUid(uid)
         if (seat === null) return
-        if (this.status === "PLAYING") this.seats[seat] = this.makeBotSlot(seat)
-        else this.seats[seat] = null
+        this.seats[seat] = this.vacatedSlot(seat)
+    }
+
+    /**
+     * What goes into a seat whose person is gone for good.
+     *
+     * Normally: a visible bot mid-game, an empty chair in the lobby. In a DEMO
+     * room the chair is left EMPTY even mid-game — "Bot Ana" appearing where a
+     * real player just sat is the single most obvious tell in DEMO-LOBBY.md §3,
+     * and an empty seat is already bot-driven (`isBotControlled` returns true
+     * for a null slot), so the table keeps playing while the director is told
+     * (`onHumanGone`) and puts a new fake person there with `replace`. There is
+     * therefore no frame in which the wire says `kind: "BOT"` for that seat:
+     * it goes straight from PLAYER to null to PLAYER.
+     */
+    private vacatedSlot(seat: Seat): SeatSlot {
+        if (this.status !== "PLAYING") return null
+        return this.demo ? null : this.makeBotSlot(seat)
     }
 
     private cancelHold(uid: string): void {
@@ -668,8 +844,10 @@ export class Room {
             if (!slot || slot.kind !== "PLAYER" || slot.uid !== uid) return
             // A disconnected solo/two-person table may wait out its reconnect
             // grace, but it must not turn into a one-person or bot-only game
-            // when that grace expires.
-            if (this.status === "PLAYING" && this.otherHumanCount(uid) < 2) {
+            // when that grace expires. A demo room is never dissolved this way:
+            // its life belongs to the director, which is told below and winds
+            // the room down itself (`close`).
+            if (this.status === "PLAYING" && !this.demo && this.otherHumanCount(uid) < 2) {
                 this.reportConfirmedAbandonment(uid)
                 this.dissolveAfterPlayersLeft()
                 return
@@ -678,12 +856,13 @@ export class Room {
             // for good; in the lobby the seat simply opens up again.
             this.endLiveActivity(uid)
             this.reportConfirmedAbandonment(uid)
-            this.seats[seat] = this.status === "PLAYING" ? this.makeBotSlot(seat) : null
+            this.seats[seat] = this.vacatedSlot(seat)
             if (this.isHost(uid)) this.transferHost(uid)
             log.info("seat.holdExpired", { room: this.id, seat, uid, reason })
             this.broadcastState()
             this.lobby.changed()
             this.game?.onPresenceChanged()
+            this.fireDemo((e) => e.onHumanGone?.(seat))
         }, this.timings.reconnectGraceMs)
         if (typeof timer.unref === "function") timer.unref()
         this.holds.set(uid, { seat, reason, until, timer })
@@ -694,8 +873,11 @@ export class Room {
     private reportConfirmedAbandonment(uid: string): void {
         // A solo practice table is not a reliability signal. At least one
         // other human must have been left waiting when the player gave up the
-        // seat; bot-only games remain consequence-free.
-        if (this.status === "PLAYING" && this.game && this.otherHumanCount(uid) > 0) {
+        // seat; bot-only games remain consequence-free. FAKE people are not a
+        // reliability signal either (DEMO-LOBBY.md §2.3: "Bez kazne za karmu"),
+        // hence the REAL count here where the dissolve rule above uses the
+        // sustainability one.
+        if (this.status === "PLAYING" && this.game && this.otherRealHumanCount(uid) > 0) {
             reportGameAbandonment(this.game.runId, uid)
         }
     }
@@ -707,6 +889,22 @@ export class Room {
     }
 
     private transferHost(leavingUid: string): void {
+        // In a demo room the host is always a fake person, and stays one: the
+        // client's "Pokreni igru" is gated on `hostUid === me.uid`
+        // (GameRoomPage), so handing the badge to a real visitor would ask them
+        // to start a game the director is about to start itself. With no fake
+        // person left to hold it the badge simply stays where it is — nobody
+        // owns it, which is exactly the state a wound-down demo room is in.
+        if (this.demo) {
+            for (const s of SEATS) {
+                const slot = this.seats[s]
+                if (slot?.kind === "DEMO" && slot.identity.uid !== leavingUid) {
+                    this.hostUid = slot.identity.uid
+                    return
+                }
+            }
+            return
+        }
         for (const s of SEATS) {
             const slot = this.seats[s]
             if (slot?.kind === "PLAYER" && slot.uid !== leavingUid) {
@@ -780,12 +978,29 @@ export class Room {
         if (this.removeBotOnlyLobby()) return
         this.broadcastState()
         this.lobby.changed()
+        this.fireDemo((e) => e.onHumanGone?.(seat))
     }
 
     addBot(conn: Connection, seat: Seat): void {
         this.requireUser(conn)
         this.requireLobby()
         if (this.seats[seat]) throw new ProtocolError("SEAT_TAKEN")
+        // "+ Dodaj bota" is offered to every member, not just the host, so a
+        // real visitor to a demo room can press it — and "Bot Ana" sitting
+        // between three fake people is the tell DEMO-LOBBY.md §3 warns about.
+        // Ask the director for a PERSON instead. It answers synchronously
+        // because the seat has to be filled in this same tick, and a refusal
+        // is SEAT_TAKEN: the one existing error whose meaning ("that chair is
+        // spoken for") survives what the user sees next, which is somebody
+        // arriving in it.
+        if (this.demo) {
+            const identity = this.demo.events.onBotRequested?.(seat) ?? null
+            if (identity === null) throw new ProtocolError("SEAT_TAKEN")
+            this.seats[seat] = { kind: "DEMO", identity }
+            this.broadcastState()
+            this.lobby.changed()
+            return
+        }
         this.seats[seat] = this.makeBotSlot(seat)
         this.broadcastState()
         this.lobby.changed()
@@ -811,6 +1026,7 @@ export class Room {
         const slot = this.seats[seat]
         if (slot && slot.kind === "PLAYER") slot.ready = ready
         this.broadcastState()
+        this.fireDemo((e) => e.onHumanReady?.(seat, ready))
     }
 
     /**
@@ -937,6 +1153,12 @@ export class Room {
                 "Za početak igre moraju biti popunjena sva četiri mjesta.",
             )
         }
+        this.launch()
+    }
+
+    /** Everything `room.start` does once its checks have passed. Shared with
+     *  the demo director's `start()`, which has different checks and no caller. */
+    private launch(): void {
         if (!this.allowSpectators) {
             for (const member of [...this.conns]) {
                 const uid = member.user?.uid
@@ -950,6 +1172,7 @@ export class Room {
         this.cancelDeleteTimer()
         this.game?.dispose()
         this.status = "PLAYING"
+        this.demoFinished = false
         this.game = new GameRoom(this, this.timings)
         this.liveActivity?.beginGame(this)
         log.info("room.start", { room: this.id, target: this.targetScore })
@@ -959,16 +1182,24 @@ export class Room {
     }
 
     /** Called by the GameRoom when the engine reaches GAME_OVER. */
-    onGameOver(): void {
+    onGameOver(winner: "A" | "B" | null = null): void {
         if (this.status !== "PLAYING") return
         this.status = "LOBBY"
+        // Whoever started the game — the director or a real person pressing
+        // "Pokreni igru" — this is the one path out of PLAYING, so both the
+        // event and the pollable state below are fired for both.
+        this.demoFinished = true
         for (const slot of this.seats) {
             if (slot?.kind === "PLAYER") slot.ready = false
         }
         log.info("room.finished", { room: this.id })
         this.broadcastState()
         this.lobby.changed()
+        // A demo room is never empty while fake people sit in it (`isEmpty`),
+        // so this is a no-op there: the finished table stays up for the
+        // director to wind down at a human pace.
         this.scheduleDeleteIfEmpty()
+        this.fireDemo((e) => e.onGameOver?.(winner))
     }
 
     /* ───────────────────────── deletion ───────────────────────── */
@@ -998,6 +1229,194 @@ export class Room {
         this.deleteTimer = timer
     }
 
+    /* ───────────────────────── demo lobby (DEMO-LOBBY.md) ─────────────────────────
+       Everything below is dead code in an ordinary room: every method starts
+       at `this.demo`, which only `Lobby.createDemoRoom` ever sets. */
+
+    /**
+     * Tell the director something happened. SYNCHRONOUS and always the LAST
+     * statement of whatever changed the room, so the callback may call straight
+     * back into this room (`replace`, `leave`, `close`) without finding it
+     * half-updated. A throwing director is its own problem, never the table's.
+     */
+    private fireDemo(emit: (events: DemoRoomEvents) => void): void {
+        const ctx = this.demo
+        if (!ctx || this.disposed) return
+        try {
+            emit(ctx.events)
+        } catch (err) {
+            log.error("demo.event.failed", { room: this.id, err })
+        }
+    }
+
+    /** The room's live settings, as the director's `DemoRoomOptions`. */
+    demoOptions(): Readonly<DemoRoomOptions> {
+        return {
+            targetScore: this.targetScore,
+            gameEndRule: this.gameEndRule,
+            allowSpectators: this.allowSpectators,
+            private: this.private,
+            noDeclarations: this.noDeclarations,
+        }
+    }
+
+    /**
+     * Per-seat: the fake person on it, "HUMAN" for anything the director must
+     * not touch, null for a free chair.
+     *
+     * A BOT slot reports "HUMAN" too. It can only get there one way — a real
+     * visitor pressed "Dodaj bota" and the director declined to supply a person
+     * — and "not yours" is the only thing the director needs to know about it.
+     */
+    demoSeatMap(): ReadonlyArray<DemoIdentity | "HUMAN" | null> {
+        return SEATS.map((seat) => {
+            const slot = this.seats[seat]
+            if (!slot) return null
+            if (slot.kind === "DEMO") return slot.identity
+            return "HUMAN" as const
+        })
+    }
+
+    /** Real accounts seated here (including one on a reconnect hold). */
+    demoHumanCount(): number {
+        return this.realHumanSeats().length
+    }
+
+    /** Distinct real people in the room without a seat. */
+    demoSpectatorCount(): number {
+        const seen = new Set<string>()
+        for (const c of this.conns) {
+            const u = c.user
+            if (!u || seen.has(u.uid)) continue
+            if (this.seatOfUid(u.uid) !== null) continue
+            seen.add(u.uid)
+        }
+        return seen.size
+    }
+
+    /** A fake person takes a free LOBBY seat. */
+    demoSit(identity: DemoIdentity, seat: Seat): boolean {
+        if (this.disposed || !this.demo) return false
+        if (this.status !== "LOBBY") return false
+        if (this.seats[seat] !== null) return false
+        // The same face at two seats of one table is a tell of its own; the
+        // director owns "not in two ROOMS at once", this owns "not twice here".
+        if (this.demoSeatOf(identity.uid) !== null) return false
+        this.seats[seat] = { kind: "DEMO", identity }
+        this.cancelDeleteTimer()
+        this.broadcastState()
+        this.lobby.changed()
+        return true
+    }
+
+    /** A fake person gives up a LOBBY seat. Mid-game the director uses `replace`. */
+    demoLeave(seat: Seat): boolean {
+        if (this.disposed || !this.demo) return false
+        if (this.status !== "LOBBY") return false
+        const slot = this.seats[seat]
+        if (!slot || slot.kind !== "DEMO") return false
+        this.seats[seat] = null
+        this.demoReactionAt.delete(seat)
+        if (this.isHost(slot.identity.uid)) this.transferHost(slot.identity.uid)
+        this.broadcastState()
+        this.lobby.changed()
+        return true
+    }
+
+    /**
+     * A fake person takes over a seat nobody real owns — the mid-game answer to
+     * a hold that expired (`vacatedSlot` left the chair empty and told the
+     * director). Refused for a seat a real person still holds, at any status.
+     */
+    demoReplace(identity: DemoIdentity, seat: Seat): boolean {
+        if (this.disposed || !this.demo) return false
+        const slot = this.seats[seat]
+        if (slot?.kind === "PLAYER") return false
+        if (this.demoSeatOf(identity.uid) !== null) return false
+        this.seats[seat] = { kind: "DEMO", identity }
+        this.demoReactionAt.delete(seat)
+        this.broadcastState()
+        this.lobby.changed()
+        // The seat's controller changed while the engine is mid-deal: whoever
+        // is on the clock may now be bot-driven (or stop being).
+        this.game?.onPresenceChanged()
+        return true
+    }
+
+    /**
+     * Start a demo table. Unlike `start(conn)` there is no caller and there may
+     * be no real person at all — but every real person who IS seated must have
+     * pressed "Spreman", exactly as they would have to for a human host.
+     */
+    demoStart(): boolean {
+        if (this.disposed || !this.demo) return false
+        if (this.status !== "LOBBY") return false
+        if (this.seats.some((slot) => slot === null)) return false
+        for (const seat of SEATS) {
+            const slot = this.seats[seat]
+            if (slot?.kind === "PLAYER" && !slot.ready) return false
+        }
+        this.launch()
+        return true
+    }
+
+    /** A fixed emoji from a fake person, under the real cooldown. */
+    demoReact(seat: Seat, reaction: string): boolean {
+        if (this.disposed || !this.demo) return false
+        const slot = this.seats[seat]
+        if (!slot || slot.kind !== "DEMO") return false
+        if (!(REACTIONS as readonly string[]).includes(reaction)) return false
+        const now = Date.now()
+        const last = this.demoReactionAt.get(seat)
+        if (last !== undefined && now - last < LIMITS.reactionCooldownMs) return false
+        this.demoReactionAt.set(seat, now)
+        this.broadcast({
+            t: "chat.reaction",
+            from: demoUserInfo(slot.identity),
+            seat,
+            reaction: reaction as Reaction,
+            at: now,
+        })
+        return true
+    }
+
+    /** Points in the running game, or null when no game is running. */
+    demoScore(): { A: number; B: number } | null {
+        if (!this.game) return null
+        return { A: this.game.state.score.A, B: this.game.state.score.B }
+    }
+
+    /** The seat a fake person with this uid sits on, if any. */
+    private demoSeatOf(uid: string): Seat | null {
+        for (const seat of SEATS) {
+            const slot = this.seats[seat]
+            if (slot?.kind === "DEMO" && slot.identity.uid === uid) return seat
+        }
+        return null
+    }
+
+    /**
+     * Wind the room down: the fake people "leave", anyone real gets the
+     * ordinary `room.left` they would get from a dissolved room, and the lobby
+     * drops it (which disposes it and fires `onDisposed`).
+     */
+    demoClose(): void {
+        if (this.disposed || !this.demo) return
+        for (const seat of SEATS) {
+            if (this.seats[seat]?.kind === "DEMO") this.seats[seat] = null
+        }
+        this.game?.abandon("DEMO_CLOSED")
+        const remaining = [...this.conns]
+        this.conns.clear()
+        for (const member of remaining) {
+            member.roomId = null
+            member.send({ t: "room.left" })
+            member.send({ t: "game.active", seat: null })
+        }
+        log.info("demo.room.closed", { room: this.id })
+        this.lobby.remove(this.id)
+    }
+
     dispose(): void {
         this.disposed = true
         this.cancelDeleteTimer()
@@ -1011,5 +1430,83 @@ export class Room {
         this.liveActivity?.forgetRoom(this.id)
         this.game?.dispose()
         this.game = null
+        // Not through `fireDemo`: this is the one event whose whole point is
+        // that the room is already gone, so the disposed guard cannot apply.
+        const ctx = this.demo
+        if (ctx) {
+            try {
+                ctx.events.onDisposed?.()
+            } catch (err) {
+                log.error("demo.event.failed", { room: this.id, err })
+            }
+        }
+    }
+}
+
+/**
+ * The director's handle on one demo room (`DemoRoomHandle`).
+ *
+ * A thin adapter rather than `Room implements DemoRoomHandle`, because the two
+ * disagree about one name: the interface wants `status()` as a method and the
+ * room has had `status` as a field since day one. Every call is synchronous and
+ * every one of them is a no-op returning false once the room is disposed.
+ */
+export class DemoRoom implements DemoRoomHandle {
+    private readonly room: Room
+
+    constructor(room: Room) {
+        this.room = room
+    }
+
+    get id(): string {
+        return this.room.id
+    }
+
+    get options(): Readonly<DemoRoomOptions> {
+        return this.room.demoOptions()
+    }
+
+    status(): RoomStatus {
+        return this.room.demoStatus()
+    }
+
+    seatMap(): ReadonlyArray<DemoIdentity | "HUMAN" | null> {
+        return this.room.demoSeatMap()
+    }
+
+    humanCount(): number {
+        return this.room.demoHumanCount()
+    }
+
+    spectatorCount(): number {
+        return this.room.demoSpectatorCount()
+    }
+
+    sit(identity: DemoIdentity, seat: Seat): boolean {
+        return this.room.demoSit(identity, seat)
+    }
+
+    leave(seat: Seat): boolean {
+        return this.room.demoLeave(seat)
+    }
+
+    replace(seat: Seat, identity: DemoIdentity): boolean {
+        return this.room.demoReplace(identity, seat)
+    }
+
+    start(): boolean {
+        return this.room.demoStart()
+    }
+
+    react(seat: Seat, reaction: string): boolean {
+        return this.room.demoReact(seat, reaction)
+    }
+
+    close(): void {
+        this.room.demoClose()
+    }
+
+    score(): { A: number; B: number } | null {
+        return this.room.demoScore()
     }
 }

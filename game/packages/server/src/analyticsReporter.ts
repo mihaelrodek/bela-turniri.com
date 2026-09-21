@@ -45,6 +45,27 @@ function dealPayload(state: GameState, deal: DealScore) {
     }
 }
 
+/**
+ * A demo room is invisible to the admin analytics — ALWAYS, including the rare
+ * game a real visitor played in one (DEMO-LOBBY.md §3, "demo sobe u admin
+ * analitici").
+ *
+ * The all-or-nothing choice is deliberate. These events are aggregates: seat
+ * kinds, durations, autoplay rates, call positions per deal. A room where three
+ * of the four "players" are fabricated poisons every one of those averages
+ * whether or not a real person sat in the fourth chair, and a half-reported
+ * lifecycle (a GAME_COMPLETED with no ROOM_CREATED) is worse than none at all.
+ * The real person's own record is a separate question and is answered by
+ * `statsReporter`, which counts a table of fake people exactly as a table of
+ * bots: §8.1's "both teams need a human" rule fails, so nothing is reported —
+ * the same outcome the player would get practising against bots.
+ */
+function isDemoRoom(room: Room): boolean {
+    // `Boolean`, not `!== null`: the reporter tests hand this module hand-built
+    // room-shaped objects that have no `demo` field at all.
+    return Boolean(room.demo)
+}
+
 function emit(body: AnalyticsEventBody): void {
     void (async () => {
         const cfg = loadConfig(process.env)
@@ -67,6 +88,7 @@ function emit(body: AnalyticsEventBody): void {
 }
 
 export function reportRoomCreated(room: Room): void {
+    if (isDemoRoom(room)) return
     emit({
         eventId: randomUUID(),
         runId: null,
@@ -77,6 +99,7 @@ export function reportRoomCreated(room: Room): void {
 }
 
 export function reportGameStarted(runId: string, room: Room, startedAt: number): void {
+    if (isDemoRoom(room)) return
     emit({
         eventId: `${runId}:started`, runId, type: "GAME_STARTED",
         occurredAt: new Date(startedAt).toISOString(),
@@ -91,6 +114,7 @@ export function reportGameCompleted(
     startedAt: number,
     autoPlayedActions: number,
 ): void {
+    if (isDemoRoom(room)) return
     emit({
         eventId: `${runId}:completed`, runId, type: "GAME_COMPLETED",
         occurredAt: new Date().toISOString(),
@@ -115,6 +139,7 @@ export function reportGameAbandoned(
     autoPlayedActions: number,
     reason: string,
 ): void {
+    if (isDemoRoom(room)) return
     emit({
         eventId: `${runId}:abandoned`, runId, type: "GAME_ABANDONED",
         occurredAt: new Date().toISOString(),

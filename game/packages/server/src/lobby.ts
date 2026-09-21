@@ -14,10 +14,12 @@ import { newRoomCode, newRoomId } from "./ids.js"
 import type { LiveActivityHub } from "./liveActivity.js"
 import { log } from "./log.js"
 import { randomRoomName } from "./roomNames.js"
-import { Room } from "./room.js"
+import { DemoRoom, demoUserInfo, Room } from "./room.js"
 import type { RoomHost } from "./room.js"
 import type { Connection } from "./ws.js"
 import { reportRoomCreated } from "./analyticsReporter.js"
+// Type-only: nothing under `demo/` loads with the flag off (DEMO-LOBBY.md).
+import type { DemoIdentity, DemoLobbyApi, DemoRoomEvents, DemoRoomHandle, DemoRoomOptions } from "./demo/types.js"
 
 export interface CreateRoomInput {
     gameEndRule?: GameEndRule
@@ -37,7 +39,7 @@ const MAX_CODE_ATTEMPTS = 50
 
 const MAX_ROOMS = 500
 
-export class Lobby implements RoomHost {
+export class Lobby implements RoomHost, DemoLobbyApi {
     private readonly rooms: Map<string, Room>
     private readonly subscribers: Set<Connection>
     private readonly timings: Timings
@@ -116,9 +118,21 @@ export class Lobby implements RoomHost {
         }
     }
 
-    /** Lookup by the 4-digit join code (`room.joinByCode`); same room whichever way you found it. */
+    /**
+     * Lookup by the 4-digit join code (`room.joinByCode`); same room whichever
+     * way you found it.
+     *
+     * A PRIVATE DEMO ROOM IS NOT FINDABLE. Its code is never handed to anyone,
+     * so the only way to arrive with it is to have guessed four digits — and
+     * the least surprising answer to a guess is the one every other wrong guess
+     * gets: ROOM_NOT_FOUND. Anything else (letting them in, or a distinct
+     * error) would either seat a real person among scenery or tell them their
+     * guess was right. Entering by ROOM ID needs no special case: the room is
+     * private, so `assertCanJoin` demands the code it will never match.
+     */
     findByCode(code: string): Room {
         for (const room of this.rooms.values()) {
+            if (room.demo) continue
             if (room.private && room.code === code) return room
         }
         throw new ProtocolError("ROOM_NOT_FOUND")
@@ -175,6 +189,61 @@ export class Lobby implements RoomHost {
         reportRoomCreated(room)
         this.changed()
         return room
+    }
+
+    /* ───────────────────────── demo lobby (DEMO-LOBBY.md) ───────────────────────── */
+
+    /**
+     * Open a room with no connection behind it: the host is a fake person,
+     * already sitting on seat 0.
+     *
+     * Deliberately NOT `create()`: there is no `Connection` to attach, no
+     * `reportRoomCreated` (a demo room must not appear in the admin analytics),
+     * and the host badge goes to a uid no socket will ever present. Everything
+     * else — the id, the code allocation, the `MAX_ROOMS` ceiling, the lobby
+     * fan-out — is the same, because from the lobby's side this is an ordinary
+     * room that happens to be full of people who are not real.
+     */
+    createDemoRoom(options: DemoRoomOptions, host: DemoIdentity, events: DemoRoomEvents): DemoRoomHandle | null {
+        if (this.disposed) return null
+        if (this.rooms.size >= MAX_ROOMS) return null
+        const room = new Room({
+            id: newRoomId(),
+            code: this.allocateCode(),
+            name: randomRoomName(),
+            host: demoUserInfo(host),
+            targetScore: options.targetScore,
+            gameEndRule: options.gameEndRule,
+            private: options.private,
+            allowSpectators: options.allowSpectators,
+            noDeclarations: options.noDeclarations,
+            lobby: this,
+            timings: this.timings,
+            liveActivity: this.liveActivity,
+            demo: { events },
+        })
+        this.rooms.set(room.id, room)
+        if (!room.demoSit(host, 0)) {
+            // Unreachable (a brand-new room's seat 0 is free), but a half-built
+            // demo room must never be left in the lobby.
+            this.rooms.delete(room.id)
+            room.dispose()
+            return null
+        }
+        log.info("demo.room.created", { room: room.id, private: options.private, target: options.targetScore })
+        this.changed()
+        return new DemoRoom(room)
+    }
+
+    /** Rooms real people opened — activity the director yields to. */
+    realRoomCount(): number {
+        let count = 0
+        for (const room of this.rooms.values()) if (!room.demo) count++
+        return count
+    }
+
+    totalRoomCount(): number {
+        return this.rooms.size
     }
 
     remove(roomId: string): void {

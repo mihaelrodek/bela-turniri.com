@@ -6,7 +6,7 @@ import { nativeApp, nativeMessaging, nativeSplashScreen, nativeStatusBar } from 
 import { applyFoldState, Foldable } from "./foldable"
 import { hydrateGuestFromNative } from "../game/hooks/guestIdentity"
 import { requestTableExit } from "../game/gameExitGuard"
-import { isFullSiteOnlyPath, isGamesHost, isGamesSite, mainSiteUrl, MAIN_ORIGIN } from "../site"
+import { isFullSiteOnlyPath, isGamesHost, isGamesSite, mainSiteUrl, MAIN_ORIGIN, siteName } from "../site"
 import { t } from "../i18n"
 import { toaster } from "../toaster"
 
@@ -354,7 +354,7 @@ export default function NativeShell() {
                 const { title, body } = event.notification
                 toaster.create({
                     type: "info",
-                    title: title || t("common.push.fallbackTitle"),
+                    title: title || t("common.push.fallbackTitle", { site: siteName }),
                     description: body,
                     duration: 6000,
                 })

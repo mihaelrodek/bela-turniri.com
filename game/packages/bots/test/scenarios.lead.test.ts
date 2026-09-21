@@ -403,7 +403,12 @@ describe("heuristicBot.chooseCard — cashing a plain ace once the opponents pro
         // trump would make HIM burn a trump on my own winning card. This
         // veto also covers `aceToCash`'s narrower "opponents already have no
         // trump" case, since neither can be true here (trump untouched).
-        const priorPik: Card[] = ["7PIK", "7KARA", "8PIK", "9PIK"] // partner (2) discards KARA — void in PIK; I win with 9PIK
+        // He RUFFED the first PIK round: void in PIK and a trump holder. (A
+        // DISCARD there would prove the opposite — §1.5 forces a ruff from
+        // anyone who holds a trump — and then the ace is safe from him and
+        // `aceAfterMyWin`, §15.18, leads it. This fixture said "discards" until
+        // 2026-09-21 and asserted a veto the rules do not support.)
+        const priorPik: Card[] = ["7PIK", "7HERC", "8PIK", "9PIK"] // partner (2) ruffs and takes it
         const hand: Card[] = ["APIK", "7TREF", "8TREF"]
         const v = view({
             seat: 0,
@@ -411,7 +416,7 @@ describe("heuristicBot.chooseCard — cashing a plain ace once the opponents pro
             handSizes: { 0: 3, 1: 3, 2: 3, 3: 3 },
             bidding: { turn: 1, passes: [], trump: "HERC", caller: 1 },
             played: priorPik,
-            trickHistory: [wonTrick(1, priorPik, 0)],
+            trickHistory: [wonTrick(1, priorPik, 2)],
             trick: { leader: 0, turn: 0, cards: [] },
         })
         expect(heuristicBot.chooseCard(v, hand, noRng)).not.toBe("APIK")

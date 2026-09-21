@@ -840,3 +840,26 @@ desetka, a as je još vani (7-dečko-10: otvoriš sedmicom, as nosi štih, deset
 netko presiječe u sljedećem krugu). Ostavljena na miru, desetka ide na tuđeg
 asa ili dočeka svoju priliku. Kad je as već pao, desetka je najjača i boja je
 opet obična.
+
+### 15.18 As odmah nakon mog vlastitog štiha (`aceAfterMyWin`, prijava 2026-09-21)
+
+Protivnik otvori kartu, bot je uzme **desetkom** (as ostaje doma), suigrač
+odbaci jer nema te boje ni aduta, a bot je sada na redu — i otvori **malu kartu
+iz druge boje**. As je tada bio najsigurniji što će ikad biti; odgođen, netko ga
+presiječe ili ga bot nikad ne otvori i baci ga na zadnjem štihu ni za što.
+
+Razlog nije bio jedan izričit „ne": `chooseLead` asove drži izvan „tihog
+otvaranja" (`kept`), a `shouldSpendAce` ih pušta samo u prvom krugu boje, dok
+protivnici nemaju aduta, ili s dvije karte. Nakon prvog kruga svi su uvjeti
+otpali, pa je as čekao.
+
+Sada as ide **odmah**, ako vrijedi sve od navedenog: uzeo sam upravo taj štih;
+oba protivnika su pratila boju (nitko nije bio prazan prije kruga); nitko nije
+sjekao; ovo je bio **prvi krug** te boje; vani su **barem tri** njezine karte;
+suigrač nije prisiljen sjeći moj as (prazan je u boji, a još ima aduta).
+Suigračevo odbacivanje umjesto sječenja dokazuje da nema aduta — pravila igre
+ga ne bi pustila odbaciti. Ostaje rizik ≈ 25 % da jedan protivnik drži svu
+preostalu boju pa sječe; to je cijena koja je manja od sigurnog gubitka asa.
+
+Stoji iznad `defensiveLead`, `singletonLead` i `worthSpending` — svi bi otvorili
+nešto drugo, a jedan od njih je vjerojatno i napravio prijavljenu grešku.
