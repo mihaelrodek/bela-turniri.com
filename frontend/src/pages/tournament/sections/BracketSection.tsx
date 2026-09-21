@@ -906,6 +906,7 @@ export default function BracketSection(props: BracketSectionProps) {
                             bg="bg.panel"
                         >
                             <Dialog.Title
+                                fontFamily="heading"
                                 fontSize={{ base: "sm", md: "md" }}
                                 fontWeight="bold"
                                 minW="0"

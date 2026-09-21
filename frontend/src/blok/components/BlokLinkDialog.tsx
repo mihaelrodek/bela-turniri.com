@@ -472,7 +472,7 @@ function TournamentStep({
         <VStack gap="2" align="stretch">
             {load.items.map((tournament) => (
                 <PickRow key={tournament.uuid} onClick={() => onPick(tournament)}>
-                    <Text fontWeight="semibold" fontSize="sm" color="fg.ink" truncate>
+                    <Text fontFamily="heading" fontWeight="semibold" fontSize="sm" color="fg.ink" truncate>
                         {tournament.name}
                     </Text>
                     <Text fontSize="xs" color="fg.muted" truncate>
@@ -518,7 +518,7 @@ function TableStep({
                         <Text fontWeight="semibold" fontSize="sm" color="fg.ink">
                             {tableLabel(target.tableNo)}
                         </Text>
-                        <Badge size="sm" variant="subtle" colorPalette="brand">
+                        <Badge size="sm" variant="subtle" colorPalette="brand" fontFamily="mono" fontVariantNumeric="tabular-nums">
                             {t("blok.link.round", { n: target.roundNumber })}
                         </Badge>
                     </HStack>

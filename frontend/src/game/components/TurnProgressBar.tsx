@@ -43,7 +43,7 @@ export default function TurnProgressBar({
             >
                 <Box
                     h="100%"
-                    bg={countdown.urgent ? "red.500" : TEAM.us}
+                    bg={countdown.urgent ? "danger" : TEAM.us}
                     style={{ width: active ? `${percent}%` : "0%" }}
                     transition={reducedMotion ? "none" : "width 250ms linear, background-color 150ms ease"}
                 />

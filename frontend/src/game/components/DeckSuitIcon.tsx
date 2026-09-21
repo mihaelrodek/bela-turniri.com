@@ -82,7 +82,7 @@ export default function DeckSuitIcon({
                 justifyContent="center"
                 lineHeight="1"
                 fontSize={box}
-                color={SUIT_IS_RED[suit] ? CARD_INK.red : CARD_INK.ink}
+                color={SUIT_IS_RED[suit] ? "suit.heartText" : CARD_INK.ink}
             >
                 {SUIT_SYMBOL[suit]}
             </Box>

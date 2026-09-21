@@ -72,12 +72,18 @@ export default function ReactionsBar({
        strip sits under the hand and is the last thing on the screen; in a
        browser tab, where the URL bar and the toolbar are also on screen, its
        old 40 px row was height the trick needed more. It stays a comfortable
-       target: the buttons are round, spaced, and hit nothing if missed. */
+       target: the buttons are round, spaced, and hit nothing if missed.
+
+       On a phone the strip spans the whole row (2026-09-21, user request):
+       the seven buttons share the width (`flex: 1 1 0`, capped at 56 px) and
+       become pills instead of a small cluster in the middle. From `sm` up
+       they are the fixed 44 px circles they always were. */
     return (
         <Flex
             justify="center"
             align="center"
-            gap={{ base: "1", sm: "1.5" }}
+            gap={{ base: "1.5", sm: "1.5" }}
+            w={{ base: "full", sm: "auto" }}
             px="2"
             aria-label={t("game.table.reactions")}
             role="group"
@@ -85,7 +91,10 @@ export default function ReactionsBar({
             <chakra.button
                 type="button"
                 {...GLASS}
-                w={{ base: "34px", sm: "44px" }}
+                w={{ base: "auto", sm: "44px" }}
+                flex={{ base: "1 1 0", sm: "none" }}
+                minW="34px"
+                maxW={{ base: "56px", sm: "44px" }}
                 h={{ base: "34px", sm: "44px" }}
                 rounded="full"
                 display="flex"
@@ -111,7 +120,10 @@ export default function ReactionsBar({
                     type="button"
                     key={reaction}
                     {...GLASS}
-                    w={{ base: "34px", sm: "44px" }}
+                    w={{ base: "auto", sm: "44px" }}
+                    flex={{ base: "1 1 0", sm: "none" }}
+                    minW="34px"
+                    maxW={{ base: "56px", sm: "44px" }}
                     h={{ base: "34px", sm: "44px" }}
                     rounded="full"
                     display="flex"

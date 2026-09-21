@@ -55,17 +55,19 @@ type Translate = (key: string, params?: Record<string, string | number>) => stri
 type Bucket = "thisWeek" | "nextWeek" | "beyond"
 
 // Three-tier urgency by start date (week starts Monday):
-//   - thisWeek  → green  — happening within the current week.
-//   - nextWeek  → yellow — after this week, up to next Sunday.
-//   - beyond    → red    — further out than that (or no date yet).
+//   - thisWeek  → ok   — happening within the current week.
+//   - nextWeek  → gold — after this week, up to next Sunday.
+//   - beyond    → red  — further out than that (or no date yet).
 // Literal hexes on purpose: these colour Leaflet DivIcon markup and inline
 // popup styles, which live OUTSIDE the Chakra style engine and so cannot
 // resolve a semantic token. They also sit on map tiles, not on app surfaces,
-// so they must not follow the light/dark flip.
+// so they must not follow the light/dark flip. Values are the THEME.md LIGHT
+// `--ok` / `--gold` / `--red` (2026-09-21 rollout), which is what stays legible
+// on the light tiles and on the inverted dark ones.
 const PIN_COLORS: Record<Bucket, string> = {
-    thisWeek: "#22C55E",  // green-500
-    nextWeek: "#EAB308",  // yellow-500
-    beyond: "#EF4444",    // red-500
+    thisWeek: "#1F6F63",  // THEME --ok
+    nextWeek: "#B88A24",  // THEME --gold
+    beyond: "#B8423C",    // THEME --red
 }
 
 /**
@@ -102,8 +104,8 @@ function makePinIcon(color: string, isUser = false): L.DivIcon {
     const html = isUser
         ? `<div style="
               width: 18px; height: 18px; border-radius: 50%;
-              background: #227342; border: 3px solid white;
-              box-shadow: 0 0 0 2px rgba(34,115,66,0.4), 0 1px 4px rgba(0,0,0,0.4);">
+              background: var(--chakra-colors-brand-solid); border: 3px solid white;
+              box-shadow: 0 0 0 2px color-mix(in srgb, var(--chakra-colors-brand-solid) 40%, transparent), 0 1px 4px rgba(0,0,0,0.4);">
            </div>`
         : `<svg width="28" height="38" viewBox="0 0 28 38" xmlns="http://www.w3.org/2000/svg">
              <path d="M14 0C6.27 0 0 6.27 0 14c0 9.5 13 22.5 13.5 23a1 1 0 0 0 1 0C15 36.5 28 23.5 28 14c0-7.73-6.27-14-14-14z"
@@ -361,7 +363,7 @@ function TournamentListItem({
         >
             <Box w="10px" h="10px" rounded="full" bg={color} flexShrink="0" />
             <Box flex="1" minW="0">
-                <Text fontSize="sm" fontWeight="semibold" truncate>
+                <Text fontFamily="heading" fontSize="sm" fontWeight="semibold" truncate>
                     {t.name}
                 </Text>
                 {t.location && (
@@ -689,6 +691,8 @@ export default function MapPage() {
                             fontSize="xs"
                             fontWeight="semibold"
                             color="blue.fg"
+                            fontFamily="mono"
+                            fontVariantNumeric="tabular-nums"
                             flexShrink="0"
                             minW={{ base: "34px", md: "44px" }}
                             textAlign="right"
@@ -964,7 +968,7 @@ export default function MapPage() {
                                 >
                                     <Popup minWidth={220} maxWidth={280}>
                                         <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 4 }}>
-                                            <strong style={{ fontSize: 14, lineHeight: 1.3 }}>{t.name}</strong>
+                                            <strong style={{ fontSize: 14, lineHeight: 1.3, fontFamily: "var(--chakra-fonts-heading)" }}>{t.name}</strong>
                                             <span
                                                 style={{
                                                     display: "inline-block",
@@ -975,7 +979,7 @@ export default function MapPage() {
                                                     fontWeight: 600,
                                                     textTransform: "uppercase",
                                                     letterSpacing: 0.5,
-                                                    color: "white",
+                                                    color: "#FFFCF7", // THEME --on-brand
                                                     background: PIN_COLORS[bucket],
                                                 }}
                                             >
@@ -983,7 +987,7 @@ export default function MapPage() {
                                             </span>
                                             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
                                                 <FiCalendar size={12} />
-                                                <span>{formatDateShort(t.startAt)} • {formatTime(t.startAt, "")}</span>
+                                                <span style={{ fontFamily: "var(--chakra-fonts-mono)", fontVariantNumeric: "tabular-nums" }}>{formatDateShort(t.startAt)} • {formatTime(t.startAt, "")}</span>
                                             </div>
                                             {t.location && (
                                                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
@@ -997,7 +1001,7 @@ export default function MapPage() {
                                             {!t.location && distanceKm != null && (
                                                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
                                                     <FiMapPin size={12} />
-                                                    <span>{formatDistanceKm(distanceKm)}</span>
+                                                    <span style={{ fontFamily: "var(--chakra-fonts-mono)", fontVariantNumeric: "tabular-nums" }}>{formatDistanceKm(distanceKm)}</span>
                                                 </div>
                                             )}
                                             {/* Pricing summary — kotizacija (entry fee)
@@ -1018,9 +1022,9 @@ export default function MapPage() {
                                                     <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
                                                         <FiDollarSign size={12} />
                                                         <span>
-                                                            {entry && <>{tt("pages.map.popup.entryPriceLabel")} <strong>{entry}</strong></>}
+                                                            {entry && <>{tt("pages.map.popup.entryPriceLabel")} <strong style={{ fontFamily: "var(--chakra-fonts-mono)", fontVariantNumeric: "tabular-nums" }}>{entry}</strong></>}
                                                             {entry && rep && " • "}
-                                                            {rep && <>{tt("pages.map.popup.repassagePriceLabel")} <strong>{rep}</strong></>}
+                                                            {rep && <>{tt("pages.map.popup.repassagePriceLabel")} <strong style={{ fontFamily: "var(--chakra-fonts-mono)", fontVariantNumeric: "tabular-nums" }}>{rep}</strong></>}
                                                         </span>
                                                     </div>
                                                 )
@@ -1032,8 +1036,8 @@ export default function MapPage() {
                                                     marginTop: 4,
                                                     padding: "6px 10px",
                                                     borderRadius: 6,
-                                                    background: "#227342",
-                                                    color: "white",
+                                                    background: "var(--chakra-colors-brand-solid)",
+                                                    color: "var(--chakra-colors-brand-contrast)",
                                                     textAlign: "center",
                                                     textDecoration: "none",
                                                     fontSize: 13,
@@ -1066,10 +1070,13 @@ export default function MapPage() {
                                 center={userPos}
                                 radius={radiusKm * 1000}
                                 pathOptions={{
-                                    color: "#2f8f52",
+                                    // Leaflet writes these as SVG attributes, where
+                                    // var() is not dependable, so they stay literal:
+                                    // THEME --brand-solid (dark) and (light).
+                                    color: "#2F8F52",
                                     weight: 2,
                                     opacity: 0.7,
-                                    fillColor: "#227342",
+                                    fillColor: "#2E6343",
                                     fillOpacity: 0.08,
                                 }}
                             />

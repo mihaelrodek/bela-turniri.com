@@ -89,7 +89,7 @@ export default function ActiveRoomWidget() {
                 maxW="min(240px, calc(100vw - 96px))"
                 rounded="full"
                 borderWidth="1px"
-                borderColor={playing ? "orange.400" : "brand.400"}
+                borderColor={playing ? "live" : "brand.400"}
                 bg="bg.opaque"
                 backdropFilter="none"
                 shadow="0 6px 18px rgba(0, 0, 0, 0.28)"
@@ -107,7 +107,7 @@ export default function ActiveRoomWidget() {
             >
                 <HStack justify="space-between" gap="1" ps="3" pe="1" py="1">
                 <HStack gap="2" minW="0">
-                    <Box boxSize="8px" rounded="full" bg={playing ? "green.400" : "orange.400"} flexShrink={0} />
+                    <Box boxSize="8px" rounded="full" bg={playing ? "ok" : "live"} flexShrink={0} />
                     <Text fontSize="xs" fontWeight="bold" color="fg.ink" lineClamp={1}>{room.name}</Text>
                 </HStack>
                 <HStack flexShrink={0}>

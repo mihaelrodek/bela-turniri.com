@@ -169,7 +169,14 @@ export function CounterChip({
             <Box flexShrink={0} display="flex" aria-hidden>
                 {icon}
             </Box>
-            <Text fontSize={dense ? "xs" : "sm"} fontWeight="bold" lineHeight="1.2" flexShrink={0}>
+            <Text
+                fontSize={dense ? "xs" : "sm"}
+                fontWeight="bold"
+                fontFamily="mono"
+                fontVariantNumeric="tabular-nums"
+                lineHeight="1.2"
+                flexShrink={0}
+            >
                 {value}
             </Text>
             <Text fontSize="xs" lineHeight="1.2" truncate>
@@ -391,7 +398,7 @@ export default function PairsSection(props: PairsSectionProps) {
                     selected ? "blue.solid"
                         : rank === "first" ? "yellow.solid"
                         : rank === "second" ? "border.emphasized"
-                        : rank === "third" ? "orange.solid"
+                        : rank === "third" ? "tan"
                         : isPending ? "yellow.solid"
                         : "border.subtle"
                 }
@@ -401,7 +408,7 @@ export default function PairsSection(props: PairsSectionProps) {
                 bg={
                     selected ? "blue.subtle"
                         : rank === "first" ? "yellow.subtle"
-                        : rank === "third" ? "orange.subtle"
+                        : rank === "third" ? "tan.subtle"
                         : isPending ? "yellow.subtle"
                         : eliminated ? "bg.subtle"
                         : "bg.panel"
@@ -422,7 +429,7 @@ export default function PairsSection(props: PairsSectionProps) {
                         </Box>
                     )}
                     {rank === "third" && (
-                        <Box color="orange.fg" flexShrink={0} title={tr("tournament.place.third")}>
+                        <Box color="tan" flexShrink={0} title={tr("tournament.place.third")}>
                             <FaMedal size={18} />
                         </Box>
                     )}
@@ -784,10 +791,16 @@ export default function PairsSection(props: PairsSectionProps) {
                         <HStack justify="space-between" align="center" mb={pairRequestsCollapsed ? "0" : "3"}>
                             <HStack gap="2" align="center">
                                 <Box color="blue.fg"><FiUserPlus /></Box>
-                                <Text fontWeight="semibold" fontSize="sm">
+                                <Text fontFamily="heading" fontWeight="semibold" fontSize="sm" letterSpacing="-0.015em">
                                     {tr("tournament.pairRequests.title")}
                                 </Text>
-                                <Badge variant="solid" colorPalette="blue" size="sm">
+                                <Badge
+                                    variant="solid"
+                                    colorPalette="blue"
+                                    size="sm"
+                                    fontFamily="mono"
+                                    fontVariantNumeric="tabular-nums"
+                                >
                                     {openRequests.length}
                                 </Badge>
                             </HStack>
@@ -1011,7 +1024,7 @@ function PairDetailPanel({
                         </Box>
                     )}
                     {rank === "third" && (
-                        <Box color="orange.fg" flexShrink={0} title={tr("tournament.place.third")}>
+                        <Box color="tan" flexShrink={0} title={tr("tournament.place.third")}>
                             <FaMedal size={20} />
                         </Box>
                     )}
@@ -1029,7 +1042,13 @@ function PairDetailPanel({
                                 aria-label={tr("tournament.pairs.nameLabel")}
                             />
                         ) : (
-                            <Text fontWeight="semibold" lineHeight="short" wordBreak="break-word">
+                            <Text
+                                fontFamily="heading"
+                                fontWeight="semibold"
+                                letterSpacing="-0.015em"
+                                lineHeight="short"
+                                wordBreak="break-word"
+                            >
                                 {pair.name?.trim() ? pair.name : tr("tournament.pairs.noName")}
                             </Text>
                         )}

@@ -9,10 +9,11 @@
  *
  * Everything below re-skins BOTH the trigger input and the calendar / time
  * popup through Chakra CSS variables, so one set of rules tracks light and
- * dark automatically and inherits the brand blue and the theme's radius
+ * dark automatically and inherits the brand green and the theme's radius
  * scale. There is no colour literal in this file: every value is a
- * `--chakra-*` var, which is also why the radii track `src/system.ts` — bump
- * the scale there and the popup follows.
+ * `--chakra-*` var (THEME.md's Pergament / Sumrak palette, resolved by
+ * `src/system.ts`), which is also why the radii track it — bump the scale
+ * there and the popup follows.
  *
  * Specificity note: several react-datepicker defaults ship with `!important`
  * (notably the selected time item), so the matching overrides here need it
@@ -240,7 +241,7 @@
 }
 
 /* Selection. `brand.solid` / `brand.contrast` are the same pair the primary
-   buttons use, so a chosen day and a primary button are the same blue. */
+   buttons use, so a chosen day and a primary button are the same green. */
 .react-datepicker__day--selected,
 .react-datepicker__day--in-selecting-range,
 .react-datepicker__day--in-range,
@@ -261,8 +262,18 @@
 .react-datepicker__day--keyboard-selected:hover,
 .react-datepicker__month-text--selected:hover,
 .react-datepicker__year-text--selected:hover {
-    background: var(--chakra-colors-brand-600);
+    background: var(--chakra-colors-brand-700);
     color: var(--chakra-colors-brand-contrast);
+}
+
+/* Dark: the solid is brand.500 under dark text, so "one step stronger" goes
+   lighter (400), not darker — a darker fill would sink the dark text into it. */
+.dark .react-datepicker__day--selected:hover,
+.dark .react-datepicker__day--in-range:hover,
+.dark .react-datepicker__day--keyboard-selected:hover,
+.dark .react-datepicker__month-text--selected:hover,
+.dark .react-datepicker__year-text--selected:hover {
+    background: var(--chakra-colors-brand-400);
 }
 
 /* Focus ring for keyboard users — the library removes the outline itself. */
@@ -341,7 +352,15 @@
     .react-datepicker__time-box
     ul.react-datepicker__time-list
     li.react-datepicker__time-list-item--selected:hover {
-    background: var(--chakra-colors-brand-600) !important;
+    background: var(--chakra-colors-brand-700) !important;
+}
+
+.dark .react-datepicker__time-container
+    .react-datepicker__time
+    .react-datepicker__time-box
+    ul.react-datepicker__time-list
+    li.react-datepicker__time-list-item--selected:hover {
+    background: var(--chakra-colors-brand-400) !important;
 }
 
 /* Slim, themed scrollbar instead of the chunky default one. */

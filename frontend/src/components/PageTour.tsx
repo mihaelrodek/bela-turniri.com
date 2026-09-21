@@ -218,7 +218,7 @@ export default function PageTour({
                     arrowColor: "var(--chakra-colors-bg-panel)",
                     backgroundColor: "var(--chakra-colors-bg-panel)",
                     textColor: "var(--chakra-colors-fg-ink)",
-                    overlayColor: "rgba(0, 0, 0, 0.55)",
+                    overlayColor: "rgba(42, 33, 26, 0.55)",
                 },
                 tooltipContainer: {
                     textAlign: "left",

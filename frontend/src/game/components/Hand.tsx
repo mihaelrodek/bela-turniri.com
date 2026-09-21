@@ -332,7 +332,7 @@ export default function Hand({
                                     h="100%"
                                     rounded={CARD_METRICS[cardSize].radius}
                                     borderWidth="1.5px"
-                                    borderColor="rgba(127, 127, 127, 0.55)"
+                                    borderColor="border.emphasized"
                                     bg="transparent"
                                     aria-hidden="true"
                                 />

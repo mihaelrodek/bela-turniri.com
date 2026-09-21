@@ -860,7 +860,7 @@ export default function GameRoomPage() {
                         <>
                             <Spinner />
                             <Text color="fg.muted">{t("game.room.joining")}</Text>
-                            {slowConnection && <Text fontSize="sm" color="orange.600">{t("game.connection.slow")}</Text>}
+                            {slowConnection && <Text fontSize="sm" color="live">{t("game.connection.slow")}</Text>}
                         </>
                     ) : null}
                 </Flex>

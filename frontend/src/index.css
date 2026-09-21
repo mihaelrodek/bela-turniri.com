@@ -1,1 +1,104 @@
-/* DEAD FILE — empty Vite template leftover. Safe to delete. Not imported anywhere. */
+/*
+ * THEME.md tokens as plain CSS variables, for any styling that is not Chakra
+ * (raw .css files, inline <style>, third-party overrides). Chakra components
+ * use the same values through `src/system.ts` — change a value in BOTH places.
+ *
+ * Imported once from `main.tsx`. The app switches theme with `class="dark"`
+ * on <html> (next-themes); `[data-theme="dark"]` is the THEME.md spelling and
+ * is kept alongside it so either hook works.
+ *
+ * Names and values are THEME.md verbatim, except `--font-*`: the self-hosted
+ * @fontsource-variable packages register "… Variable" family names, so those
+ * lead each stack and the plain Google names follow as a second choice.
+ */
+
+:root {
+    /* Light — "Pergament" */
+    --canvas: #F7F2E9;        /* pozadina stranice */
+    --panel: #FDFBF7;         /* kartice, paneli */
+    --opaque: #FFFEFB;        /* modali, popover */
+    --glass: rgba(253, 251, 247, .8); /* sticky header / bottom bar */
+    --fill-subtle: #FAF6EE;   /* input, blagi fill */
+    --fill-muted: #F2ECE1;    /* segmented track, hover */
+    --bd-subtle: #EFE8DB;     /* separatori */
+    --bd: #E4DACA;            /* obrubi kartica, inputa */
+    --bd-strong: #C9BBA2;     /* fokus obrub, istaknuto */
+    --ink: #2A211A;           /* primarni tekst */
+    --soft: #4E4238;          /* sekundarni tekst */
+    --muted: #6E6152;         /* tercijarni */
+    --faint: #8D7F6E;         /* captions, placeholderi */
+    --brand: #2E6343;         /* brand zelena */
+    --brand-fg: #265238;      /* brand tekst na svijetlom */
+    --brand-subtle: #DDE9DC;  /* brand pozadina (chip, badge) */
+    --brand-solid: #2E6343;   /* primarni gumb */
+    --on-brand: #FFFCF7;      /* tekst na brand gumbu */
+    --tan: #A9713C;           /* sekundarni akcent (tim ONI) */
+    --tan-subtle: #F2E3CE;
+    --live: #C4661C;          /* status: igra se */
+    --live-subtle: #F7E3CE;
+    --ok: #1F6F63;            /* status: plaćeno / uspjeh */
+    --ok-subtle: #DCEDE8;
+    --gold: #B88A24;          /* zvanja, dealer chip */
+    --red: #B8423C;           /* greška, srce */
+    --sh-card: 0 1px 2px rgba(60, 42, 20, .07), 0 1px 3px rgba(60, 42, 20, .06);
+    --sh-raised: 0 6px 18px rgba(60, 42, 20, .10);
+    /* stol za kartanje */
+    --felt: #EFE7D8;
+    --felt2: #E7DCC7;
+    --cardface: #FFFDF8;
+    --cardline: #E0D6C4;
+    --art-opacity: .10;       /* pozadinska ilustracija karata */
+
+    /* Boje znakova karata (iste u obje teme) */
+    --suit-heart: #E24B4A;
+    --suit-bell: #F2C14E;
+    --suit-leaf: #4DA66A;
+    --suit-acorn: #B8823F;
+    --suit-heart-text: #B8423C;
+    --suit-bell-text: #9A7B1E;
+    --suit-leaf-text: #3F8A5B;
+    --suit-acorn-text: #8C6027;
+
+    /* Tipografija (self-hosted variable fonts, see main.tsx) */
+    --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", system-ui, sans-serif;
+    --font-ui: "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+}
+
+.dark,
+[data-theme="dark"] {
+    /* Dark — produkcijske (neutralne) vrijednosti; nova "Sumrak" tema je odbačena 2026-09-21 (previše napadne boje) */
+    --canvas: #1c1d20;
+    --panel: #1e1e22;
+    --opaque: #1e1e22;
+    --glass: rgba(30, 30, 34, .78);
+    --fill-subtle: #2d2d31;
+    --fill-muted: #45454b;
+    --bd-subtle: #2d2d31;
+    --bd: #2d2d31;
+    --bd-strong: #58585f;
+    --ink: #fafafa;
+    --soft: #d4d4d8;
+    --muted: #a1a1aa;
+    --faint: #91919a;
+    --brand: #7fc496;
+    --brand-fg: #7fc496;
+    --brand-subtle: #0a3d1c;
+    --brand-solid: #2F8F52;
+    --on-brand: #0E1F16;
+    --tan: #c4a98c;
+    --tan-subtle: #2b2723;
+    --live: #fdba74;
+    --live-subtle: #3b1106;
+    --ok: #5eead4;
+    --ok-subtle: #032726;
+    --gold: #fde047;
+    --red: #fca5a5;
+    --sh-card: 0 1px 2px rgba(0, 0, 0, .35);
+    --sh-raised: 0 8px 22px rgba(0, 0, 0, .40);
+    --felt: #14191A;
+    --felt2: #101415;
+    --cardface: #F6F0E4;
+    --cardline: #D9CEBB;
+    --art-opacity: .07;
+}

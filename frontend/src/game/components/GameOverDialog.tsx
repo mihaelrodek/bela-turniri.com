@@ -115,7 +115,7 @@ export default function GameOverDialog({
 function Side({ label, value, won }: { label: string; value: number; won: boolean }) {
     return (
         <VStack gap="0" minW="72px">
-            <Text fontSize="2xs" color="fg.muted" textTransform="uppercase" letterSpacing="widest">
+            <Text fontSize="2xs" fontFamily="mono" color="fg.muted" textTransform="uppercase" letterSpacing="widest">
                 {label}
             </Text>
             <Text

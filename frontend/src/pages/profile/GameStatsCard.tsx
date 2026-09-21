@@ -238,7 +238,7 @@ function StatTile({
             <Text fontSize="xs" color="fg.muted" textTransform="uppercase" fontWeight="semibold">
                 {label}
             </Text>
-            <Text fontSize="lg" fontWeight="bold" color={accent ? `${accent}.fg` : "fg.emphasis"}>
+            <Text fontSize="lg" fontWeight="bold" color={accent ? `${accent}.fg` : "fg.emphasis"} fontFamily="mono" fontVariantNumeric="tabular-nums">
                 {value}
             </Text>
         </VStack>

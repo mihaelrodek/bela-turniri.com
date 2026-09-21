@@ -11,14 +11,14 @@ import { dialogAnatomy, menuAnatomy, popoverAnatomy } from "@chakra-ui/react/ana
 const NO_BACKDROP_FILTER =
     "@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px)))"
 
-/** Glass for floating material — the shared body of the `dialog`, `menu` and
- *  `popover` slot-recipe overrides below.
+/** Glass for floating material — the shared body of the `dialog` slot-recipe
+ *  override below.
  *
  *  No `WebkitBackdropFilter` here, unlike `layerStyles.glass.*`: a slot
  *  recipe's styles are typed as `SystemStyleObject`, which only admits
  *  properties Chakra generates, and vendor prefixes aren't among them.
  *  Browsers that support only the prefixed property (iOS Safari before 18)
- *  therefore take the `@supports not` branch and get the opaque `bg.panel` —
+ *  therefore take the `@supports not` branch and get the opaque `bg.opaque` —
  *  a solid dialog at full contrast, which is the correct degradation anyway. */
 const GLASS_CONTENT: SystemStyleObject = {
     bg: "bg.glassPanel",
@@ -29,173 +29,272 @@ const GLASS_CONTENT: SystemStyleObject = {
 /** Opaque floating material for menus and popovers (2026-09-10).
  *
  *  They used to share GLASS_CONTENT, and on iOS Safari that produced an
- *  unreadable menu: the avatar/burger menu rendered as a 72 % tint with NO
- *  blur over the tournament posters behind it. Safari drops `backdrop-filter`
- *  on a popper-positioned layer while it is transformed/animated (Chakra's
+ *  unreadable menu: the avatar/burger menu rendered as a tint with NO blur
+ *  over the tournament posters behind it. Safari drops `backdrop-filter` on a
+ *  popper-positioned layer while it is transformed/animated (Chakra's
  *  Menu/Popover positioner + enter animation), and the `@supports` fallback
  *  never fires because the property IS supported — it just isn't applied. A
  *  dialog is different: its content sits on a fixed full-screen backdrop, no
  *  popper transform, and the blur holds, so dialogs keep the glass. */
 const SOLID_CONTENT: SystemStyleObject = {
-    // NOT `bg.panel`: that token is itself 61 % translucent (cards are meant
-    // to show the canvas through), which is exactly what a menu must not do.
+    // `bg.opaque` (THEME --opaque: modals, popovers), one step above the
+    // panel, so a menu reads as floating over the cards behind it.
     bg: "bg.opaque",
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   bela-turniri.com design system.
+   bela-turniri.com design system — THEME.md ("Pergament" light, "Sumrak"
+   dark) mapped onto Chakra v3. THEME.md is the single source of truth for
+   every colour and font below; the same values exist as plain CSS variables
+   (`--canvas`, `--brand`, `--sh-card` …) in `src/index.css` for non-Chakra
+   styles. The app switches theme with `class="dark"` on <html>.
 
    Built as `createSystem(defaultConfig, config)` — a MERGE on top of Chakra's
-   own preset, not a replacement. Every default token (`gray.500`, `blue.fg`,
-   `bg.subtle`, `fg.muted`, `border.emphasized`, the whole `colorPalette`
-   machinery …) stays valid; this file only ADDS names and tightens the dark
-   half of a few existing ones.
+   own preset, not a replacement. Every default token name (`gray.500`,
+   `blue.fg`, `bg.subtle`, `fg.muted`, `border.emphasized`, the whole
+   `colorPalette` machinery …) stays valid; this file re-values them.
 
-   What it adds
-   ────────────
-   • `brand.50…950` — the app's primary green, a card-table felt derived from
-     the logo: `brand.800` is #0a4f20 and `brand.950` is #052b12, the two exact
-     greens `public/bela-turniri-logo.svg` paints its suits and wordmark with.
-     Addressable by name, so a future rebrand is one ramp, not 130 call sites.
-   • `colorPalette="brand"` semantics (solid / contrast / fg / muted / subtle /
-     emphasized / focusRing) shaped exactly like Chakra's own ramp semantics,
-     plus the same semantics for `blue` (an alias of brand — see "One green")
-     and `green` (re-pointed to teal so success survives a green brand).
-   • Surface + text + border ladders with explicit `_light`/`_dark` twins:
-     `bg.canvas`, `bg.panel`, `bg.subtle`, `bg.muted`, `bg.emphasized`,
-     `fg.ink`, `fg.soft`, `fg.muted`, `fg.subtle`, `border`, `border.subtle`,
-     `border.emphasized`, `border.strong`.
-   • `textStyles` (title / heading / body / caption / mono) and a small
-     elevation scale (`shadows.card` / `raised` / `overlay` / `sticky`).
-   • A `radii` scale + the `l1`/`l2`/`l3` semantic radii Chakra's own recipes
-     read, so corners are a THEME decision (see "Corners" below).
-   • Translucent `bg.glass*` surfaces and the `glass.bar` / `glass.panel`
-     layer styles that pair them with a backdrop blur (see "Gloss" below).
+   What lives here
+   ───────────────
+   • Surface / text / border ladders (`bg.*`, `fg.*`, `border*`) that resolve
+     to the THEME neutrals in each mode.
+   • `brand.50…950` — the felt green, anchored on the THEME brand values —
+     plus `colorPalette` semantics for `brand`, `blue`, `gray` and the four
+     palettes re-pointed at THEME semantics: `orange` → live, `green` → ok,
+     `yellow` → gold, `red` → red, `purple` → tan (admin styling).
+   • Named THEME colours: `tan`, `live`, `ok`, `gold`, `danger`, the card-table
+     `felt`/`felt2`/`cardface`/`cardline` and the four `suit.*` colours.
+   • Fonts (`heading` / `body` / `mono`, self-hosted variable fonts imported
+     in main.tsx), `textStyles`, elevation shadows, the `l1`/`l2`/`l3` radii
+     and the glass layer styles.
 
-   ── One green ─────────────────────────────────────────────────────────────
-   The app is a BELOT app; its identity colour is the felt of a card table,
-   taken straight off the logo (#0a4f20 / #052b12) rather than invented. It
-   used to be blue — an earlier pass had already collapsed two competing blues
-   (#3182ce and Chakra's stock #3b82f6) into a single `brand` ramp; this pass
-   moves that one ramp from blue to green, which is why there is not a single
-   call-site edit here.
-
-   That only works because the name "blue" is still, deliberately, an ALIAS.
+   ── Why blue is an alias ───────────────────────────────────────────────────
    130-odd call sites say `colorPalette="blue"` or reference `blue.fg` /
-   `blue.subtle` / `blue.solid` directly, and rewriting them (only to re-open
-   the same drift the next time someone types "blue") buys nothing. Chakra's
-   stock `blue` ramp and its semantics are therefore RE-POINTED at the brand
-   ramp below, step for step: `colorPalette="blue"` and `colorPalette="brand"`
-   are the same colour by construction. It reads oddly in a call site and is
-   the reason the whole rebrand is two token blocks — a `blue.*` reference is
-   worth renaming when you are already editing that line, never on its own.
+   `blue.subtle` / `blue.solid` directly. Chakra's stock `blue` ramp and its
+   semantics are therefore kept as an ALIAS of the brand ramp, step for step:
+   `colorPalette="blue"` and `colorPalette="brand"` are the same colour by
+   construction, and a rebrand is one ramp instead of 130 edits. Rename a
+   `blue.*` reference when you are already editing that line, never on its
+   own. `theme-color` (index.html, color-mode.tsx, the manifests) and the
+   map-pin SVGs are OUTSIDE this file and must be moved by hand.
 
-   `*.solid` — the fill under white button text — is brand.600 (#227342), not
-   brand.500. #2f8f52 measures 4.06:1 against white, which fails WCAG AA for
-   normal-size text; #227342 measures 5.83:1 and is still unmistakably the same
-   felt green. brand.500 is instead the FOCUS RING, where the bar is 3:1 and it
-   clears it against both canvases (4.06:1 on white, 4.65:1 on gray.950) — a
-   ring drawn in the darker 600 would disappear into the dark theme.
+   ── Brand solid vs THEME `--brand` ─────────────────────────────────────────
+   THEME has one `--brand-solid` (primary button fill) and one `--brand`
+   (progress fill, accents). They are the same colour in light (#2E6343, ramp
+   step 600) and differ in dark: solid #2F8F52 (500) carries the `on-brand`
+   text, `--brand` #79C08F (400) is the vivid accent. `brand.solid` is the
+   former, `brand.DEFAULT` the latter.
 
-   The ramp is anchored on the logo at the dark end (800 = #0a4f20, 950 =
-   #052b12) and lightened through it, so the pale steps stay in the same
-   yellow-leaning green rather than drifting to mint. `theme-color` in
-   index.html and the map-pin SVGs are OUTSIDE this file and must be moved by
-   hand — a green app with a blue browser bar is the exact drift this section
-   exists to prevent.
-
-   ── Green brand vs green "success" ─────────────────────────────────────────
-   41 call sites paint success/paid/synced with Chakra's stock `green`
-   (SyncIndicator, the paid badges, the map's "this week" pins). Against a
-   green BRAND those stop being two colours: measured CIEDE2000 between the
-   two ramps is 4.2 at the subtle-chip step and 5.1 at the light `fg` step —
-   under the ~10 where two fills read as different colours at all. A paid chip
-   and a brand chip side by side would have been the same pale mint rectangle.
-
-   So the `green` SEMANTICS (not the numeric ramp — nothing references
-   `green.500` and friends) are re-pointed at Chakra's `teal` steps: ΔE 12.1
-   at the light `fg` step, 15.1 at the dark chip, 18.4 at `solid`. Success is
-   now a cool blue-green against the warm felt, distinguishable at a glance
-   and still obviously "positive". Call sites keep saying `green`; only what
-   the name resolves to moved. `teal` itself is untouched and now aliases the
-   same colour, which is harmless.
+   ── Palettes that follow THEME semantics ───────────────────────────────────
+   `orange`, `green`, `yellow`, `red` and `purple` keep their names but their SEMANTICS
+   (solid / fg / subtle / muted / emphasized / contrast / focusRing) point at
+   THEME's live / ok / gold / red / tan, so `colorPalette="orange"` on a badge is
+   "Igra se" without a call-site edit. Only the semantics move; the numeric
+   Chakra ramps (`orange.500` …) are stock and should be migrated to the
+   named tokens (`live`, `ok`, `gold`, `danger`) when touched. THEME ships
+   subtles for live / ok / tan only: the gold and red subtles are mixed from
+   the colour into the panel/canvas, and every `muted` / `emphasized` is the
+   subtle mixed 22 % / 42 % toward the solid colour (see `PALETTE`).
 
    ── Corners ───────────────────────────────────────────────────────────────
    Chakra v3's component recipes do not read `radii.md` directly; they read the
-   SEMANTIC radii `l1`/`l2`/`l3`, which by default alias xs/sm/md (2/4/6px).
-   Redefining those three plus the raw scale rounds every Button, Input, Card,
-   Dialog, Menu, Popover, Select, Tag and Tabs trigger in the app at once —
-   which is why there is not one `rounded="xl"` added at a call site here. The
-   196 `rounded=` props that already exist ride the same scale up.
+   SEMANTIC radii `l1`/`l2`/`l3`. Redefining those three plus the raw scale
+   rounds every Button, Input, Card, Dialog, Menu, Popover, Select, Tag and
+   Tabs trigger at once, so no call site adds `rounded`.
 
    ── Gloss ─────────────────────────────────────────────────────────────────
-   The brief was "~90% opacity for a glossy effect". Literal `opacity` on an
-   element ALSO fades its text and lets whatever is behind it bleed through, so
-   the effect is built the way the platform actually does it: a translucent
-   background token plus `backdrop-filter: blur()`, with the content on top at
-   full opacity. It is applied only to MATERIAL surfaces — things that float
-   over other content and therefore have something worth blurring: the sticky
-   header, the mobile tab bar, dialogs, menus and popovers. It is deliberately
-   NOT applied to cards, list rows or panels in the page flow: those tile and
-   overlap, so translucency there reads as a rendering bug, and there is
-   nothing behind them but the canvas anyway.
-
+   Literal `opacity` on an element also fades its text, so "glass" is a
+   translucent background token plus `backdrop-filter: blur()`, content on top
+   at full opacity. It is applied only to MATERIAL surfaces that float over
+   other content: the sticky header, the mobile tab bar, dialogs (menus and
+   popovers are opaque, see SOLID_CONTENT). Cards and list rows in the page
+   flow are opaque `bg.panel` — translucency there reads as a rendering bug.
    Both layer styles carry an `@supports not` fallback to the opaque
-   `bg.panel`, so a browser without `backdrop-filter` gets a solid surface at
-   full contrast rather than a washed-out one.
+   `bg.panel`, so a browser without `backdrop-filter` gets a solid surface.
 
    ── Why `_light` is spelled out next to `base` ─────────────────────────────
    Chakra's own defaults key their light value under `_light`, not `base`.
    `createSystem` DEEP-MERGES the two `value` objects, so overriding a token
-   Chakra already defines (bg.panel, fg.muted, border.*, …) leaves Chakra's
-   `_light` in place next to our `base`, and the emitted CSS puts them on
-   different selectors:
+   Chakra already defines (bg.panel, fg.muted, border.*, gray.*, …) leaves
+   Chakra's `_light` in place next to our `base`, and the emitted CSS puts them
+   on different selectors:
 
        base    -> &:where(html, .chakra-theme)
        _light  -> :root &, .light &            ← higher specificity
 
-   …so a `base`-only override silently loses in light mode. Tokens we own
-   outright (bg.canvas, fg.ink, brand.*) have no `_light` sibling to fight and
-   work with `base` alone — they still get one for symmetry.
+   …so a `base`-only override silently loses in light mode. Every token below
+   therefore goes through `pair()`, which writes `base` and `_light` alike.
 
-   ── Light mode is almost unchanged ─────────────────────────────────────────
-   Every light value below resolves to what Chakra already emitted, with two
-   deliberate exceptions: `fg.subtle` is gray.500 (Chakra: gray.400 — under
-   4.5:1 on white, so captions failed contrast) and `border.subtle` is gray.100
-   (Chakra: gray.50 — invisible on a white card).
-
-   The dark half is lifted one step off pure black (canvas gray.950, panels
-   gray.900, borders gray.800) because Chakra's defaults paint the body black
-   and the panels gray.950 — a 2% difference that made every card edge
-   disappear. Lifting the panels forces the whole surface-fill ladder up with
-   them, so `bg.subtle`/`bg.muted`/`bg.emphasized` are re-pinned to
-   gray.800/700/600: leaving Chakra's 950/900/800 would have made `subtle`
-   invisible on a panel and collided `muted` with `emphasized`.
-
+   ── Recipes layer ──────────────────────────────────────────────────────────
+   Chakra emits slot recipes into a CSS layer that wins over `globalCss`
+   (`@layer base`), which is why the dialog glass lives in `slotRecipes`.
    Keyframes, if any are ever needed, belong in `src/index.css` — Chakra v3's
    `globalCss` type rejects raw `@keyframes` blocks.
    ────────────────────────────────────────────────────────────────────── */
 
+/** A colour that differs by mode. `base` and `_light` carry the same value on
+ *  purpose — see "Why `_light` is spelled out" above. */
+const pair = (light: string, dark: string) => ({
+    value: { base: light, _light: light, _dark: dark },
+})
+
+/** The felt-green ramp. Anchored on THEME: 100 = light brand-subtle, 300 =
+ *  dark brand-fg, 400 = dark `--brand`, 500 = dark brand-solid, 600 = light
+ *  brand / brand-solid, 700 = light brand-fg, 800 = dark brand-subtle,
+ *  950 = dark on-brand. 50 / 200 / 900 are interpolated in the same hue. */
+const BRAND_RAMP = {
+    50: { value: "#F0F6EF" },
+    100: { value: "#DDE9DC" },
+    200: { value: "#B6D8BF" },
+    300: { value: "#8ACFA0" },
+    400: { value: "#79C08F" },
+    500: { value: "#2F8F52" },
+    600: { value: "#2E6343" },
+    700: { value: "#265238" },
+    800: { value: "#264233" },
+    900: { value: "#182B21" },
+    950: { value: "#0E1F16" },
+}
+
+/** Warm neutral ramp so raw `gray.*` reads warm. 50–300 are THEME's light
+ *  fills/borders, 500 / 600 / 700 / 800 its faint / muted / soft / ink. It is
+ *  a single mode-independent ramp (like every Chakra numeric ramp); the mode
+ *  awareness lives in the `bg.*` / `fg.*` / `border*` / `gray.*` semantics. */
+const GRAY_RAMP = {
+    50: { value: "#FAF6EE" },
+    100: { value: "#F2ECE1" },
+    200: { value: "#E4DACA" },
+    300: { value: "#C9BBA2" },
+    400: { value: "#ACA08A" },
+    500: { value: "#8D7F6E" },
+    600: { value: "#6E6152" },
+    700: { value: "#4E4238" },
+    800: { value: "#2A211A" },
+    900: { value: "#1D1712" },
+    950: { value: "#120E0A" },
+}
+
+/** THEME statuses as semantic-palette objects (`colorPalette` shape). Where
+ *  THEME has no value the choice is noted inline; `solid` is the THEME colour
+ *  itself, `contrast` the best of cream / dark text on it. */
+const statusPalette = (p: {
+    solid: [string, string]
+    contrast: [string, string]
+    fg: [string, string]
+    subtle: [string, string]
+    muted: [string, string]
+    emphasized: [string, string]
+    focusRing: [string, string]
+}) => ({
+    solid: pair(...p.solid),
+    contrast: pair(...p.contrast),
+    fg: pair(...p.fg),
+    subtle: pair(...p.subtle),
+    muted: pair(...p.muted),
+    emphasized: pair(...p.emphasized),
+    focusRing: pair(...p.focusRing),
+})
+
+/** Palettes built from THEME statuses. `muted` = subtle mixed 22 % toward the
+ *  solid colour, `emphasized` = 42 % (light mixed over the light subtle, dark
+ *  over the dark subtle). */
+const PALETTE = {
+    // live / orange — THEME live + live-subtle. Cream on #C4661C is 3.9:1
+    // (ink is 3.96:1): a THEME value, flagged, not corrected.
+    live: statusPalette({
+        solid: ["#C4661C", "{colors.orange.500}"],
+        contrast: ["#FFFCF7", "#000000"],
+        fg: ["#C4661C", "{colors.orange.300}"],
+        subtle: ["#F7E3CE", "{colors.orange.900}"],
+        muted: ["#ECC8A7", "{colors.orange.800}"],
+        emphasized: ["#E2AF83", "{colors.orange.700}"],
+        focusRing: ["#C4661C", "{colors.orange.500}"],
+    }),
+    // ok / green — THEME ok + ok-subtle.
+    ok: statusPalette({
+        solid: ["#1F6F63", "{colors.teal.600}"],
+        contrast: ["#FFFCF7", "#000000"],
+        fg: ["#1F6F63", "{colors.teal.300}"],
+        subtle: ["#DCEDE8", "{colors.teal.900}"],
+        muted: ["#B2D1CB", "{colors.teal.800}"],
+        emphasized: ["#8DB8B0", "{colors.teal.700}"],
+        focusRing: ["#1F6F63", "{colors.teal.500}"],
+    }),
+    // tan (team ONI, secondary accent; also standing in for `purple`, see the
+    // semantics below) — THEME tan + tan-subtle. `fg` is THEME tan itself
+    // (3.97:1 on the light panel — flagged, THEME's value). `solid` is the
+    // one deliberate departure: tan mixed 10 % toward ink (#9C6939), because
+    // cream on THEME's #A9713C is only 4.01:1 and a filled button / badge must
+    // carry AA text (cream on #9C6939 = 4.57:1). Dark solid is THEME tan with
+    // canvas-coloured text (6.44:1).
+    tan: statusPalette({
+        solid: ["#9C6939", "#a98a6d"],
+        contrast: ["#FFFCF7", "#000000"],
+        fg: ["#A9713C", "#c4a98c"],
+        subtle: ["#F2E3CE", "#2b2723"],
+        muted: ["#E2CAAE", "#3f362d"],
+        emphasized: ["#D3B391", "#54463a"],
+        focusRing: ["#A9713C", "#c4a98c"],
+    }),
+    // gold / yellow — THEME gold; subtle is NOT in THEME: light = gold 16 %
+    // into the panel (#FDFBF7), dark = gold 18 % into the canvas (#171B1D).
+    // Cream on light gold is 3.06:1, so the light contrast is ink (5.03:1).
+    gold: statusPalette({
+        solid: ["#B88A24", "{colors.yellow.300}"],
+        contrast: ["#2A211A", "#000000"],
+        fg: ["#B88A24", "{colors.yellow.300}"],
+        subtle: ["#F2E9D5", "{colors.yellow.900}"],
+        muted: ["#E5D4AE", "{colors.yellow.800}"],
+        emphasized: ["#DAC18B", "{colors.yellow.700}"],
+        focusRing: ["#B88A24", "{colors.yellow.500}"],
+    }),
+    // red — THEME red; subtle derived like gold's (16 % / 18 %). Dark solid
+    // is the salmon #E27A70 with canvas-coloured text (5.09:1).
+    red: statusPalette({
+        solid: ["#B8423C", "{colors.red.600}"],
+        contrast: ["#FFFCF7", "#ffffff"],
+        fg: ["#B8423C", "{colors.red.300}"],
+        subtle: ["#F2DDD9", "{colors.red.900}"],
+        muted: ["#E5BBB6", "{colors.red.800}"],
+        emphasized: ["#DA9C97", "{colors.red.700}"],
+        focusRing: ["#B8423C", "{colors.red.500}"],
+    }),
+}
+
+/** Brand semantics — `brand` and `blue` are identical (see "Why blue is an
+ *  alias"). Every value resolves to a THEME value in its mode. */
+const brandSemantics = {
+    // THEME --brand: light = solid (600), dark = the vivid #79C08F (400).
+    DEFAULT: pair("{colors.brand.600}", "#7fc496"),
+    // --on-brand: #FFFCF7 light / #0E1F16 dark.
+    contrast: pair("#FFFCF7", "#ffffff"),
+    fg: pair("{colors.brand.700}", "#7fc496"),
+    subtle: pair("{colors.brand.100}", "#0a3d1c"),
+    // Ladder subtle → muted → emphasized, one ramp step each.
+    muted: pair("{colors.brand.200}", "#0a4f20"),
+    emphasized: pair("{colors.brand.300}", "#1a5d36"),
+    solid: pair("{colors.brand.600}", "#227342"),
+    // The ring is the vivid brand: 6.6:1 on the light panel, 5.9:1 on dark.
+    focusRing: pair("{colors.brand.600}", "#2f8f52"),
+}
+
+/* DARK MODE (2026-09-21): the THEME.md "Sumrak" dark palette was tried in three
+   strengths and rejected as too loud; every `_dark` value below is the earlier
+   production one (neutral zinc surfaces, Chakra 300–900 status steps, the old
+   brand greens), except `tan`, which is a muted taupe. Light is THEME.md. */
 const config = defineConfig({
     globalCss: {
         /* ── App-wide background colour ───────────────────────────────────
-           The faint four-suit card art that used to live here as a
-           `background-image` on `body` (with `background-attachment: fixed`
-           to keep it off the scroll) moved to `components/AppBackground.tsx`
-           — a real `position: fixed` element, mounted once at the root in
-           main.tsx. Reason: iOS Safari does not honour
-           `background-attachment: fixed` on the document's scrolling
-           element, silently treating it as `scroll`, which made the image
-           centre within `body`'s full (per-tab-varying) content height
-           instead of the viewport, and scroll away with the page instead of
-           staying put — both bugs were reported live. See that file's own
-           comment for the full explanation. `body` keeps only the base
-           colour here; its own background propagates to the canvas layer
-           (CSS spec), which is why `AppBackground` needs no colour of its
-           own to sit correctly between it and the app's content. */
+           The faint four-suit card art lives in `components/AppBackground.tsx`
+           (a real `position: fixed` element — iOS Safari ignores
+           `background-attachment: fixed` on the document scroller). `body`
+           keeps only the base colour and the body font here; its own
+           background propagates to the canvas layer (CSS spec), which is why
+           `AppBackground` needs no colour of its own. */
         "html, body": {
             backgroundColor: "bg.canvas",
             color: "fg.ink",
+            fontFamily: "body",
         },
         "::selection": {
             bg: "brand.subtle",
@@ -204,56 +303,32 @@ const config = defineConfig({
 
         /* ── Leaflet in dark mode ──────────────────────────────────────────
            The basemap tiles are a fixed light raster from CARTO, so on the
-           dark theme the map was a bright rectangle punched into a dark page
-           — the exact opposite of the point of a dark theme. Filtering the
-           tile PANE rather than each tile avoids seams between tiles, and
-           markers and popups live in sibling panes so they keep their real
-           colours.
+           dark theme the map would be a bright rectangle in a dark page.
+           Filtering the tile PANE (not each tile) avoids seams, and markers
+           and popups live in sibling panes so they keep their real colours.
 
-           This used to be a sepia/hue-rotate/saturate recolour with
-           `brightness(1.32)` — which, on a light basemap, made it BRIGHTER,
-           not darker; it only ever changed the tint, never the tone (request
-           2026-09-08: "treba biti tamnija nijansa"). A first fix used
-           `invert(0.85) hue-rotate(180deg)` (the standard "flip a light map
-           dark" trick), which works once the basemap actually loads — but
-           this app's CARTO tile source currently 403s without an API key
-           (a separate, known issue) and serves a near-white/grey placeholder
-           instead. `hue-rotate` has nothing to rotate on a desaturated
-           pixel, so that attempt read as plain dark GREY, not any
-           particular colour — confirmed live. Request 2026-09-08 (second
-           round): make it blue instead ("hladno plava").
+           Two steps that don't fight each other:
+             1. `brightness()`/`contrast()` on the pane — tone only, never hue,
+                so it darkens a placeholder tile and a real one identically.
+                0.2 lands white ≈ #333: dark, not full black.
+             2. A `::after` pseudo INSIDE the tile pane (confined to tiles)
+                blended with `mix-blend-mode: color`, which takes hue and
+                saturation from its own background and lightness from what is
+                behind it — so it imposes the tint even on a desaturated
+                pixel (a `hue-rotate` has nothing to rotate there) while each
+                tile keeps its own tone. The tint is the "Sumrak" canvas hue
+                (~180°, teal) so the map sits with the dark palette.
+           The pane's filter runs on the composited result of both steps, so
+           the tint is darkened along with the tiles.
 
-           Split into two steps that don't fight each other:
-             1. `brightness()`/`contrast()` on the pane itself — tone only,
-                never hue, so it darkens the placeholder AND any real tile
-                identically without caring what colour (or lack of one) is
-                underneath. 0.18 lands white ≈ #2e2e2e: dark, not full black.
-             2. A `::after` pseudo INSIDE the tile pane (so it is confined to
-                tiles — markers/popups are sibling panes, untouched) blended
-                with `mix-blend-mode: color`. That mode takes the hue+
-                saturation from ITS OWN background and the LIGHTNESS from
-                whatever is behind it — which is exactly what a hue-rotate
-                can't do to a grey pixel: it imposes real colour even where
-                there is none to begin with, while still tracking each
-                tile's own tone (so roads/water/land keep reading as
-                different shades of the same blue, not one flat rectangle).
-             The pane's own filter runs on the composited result of both
-             steps, so the ::after's colour rides along and gets the same
-             darkening — no separate brightness tuning needed for it.
-
-           next-themes puts `class="dark"` on <html>, so all of this is
-           dark-only.
-
-           `.bela-basemap-raster` narrows it further, to the RASTER path only.
-           The whole treatment exists to fake a dark map out of light raster
-           tiles; with VITE_MAP_PROVIDER=openfreemap the basemap is a MapLibre
-           GL canvas rendering a genuinely dark vector style, and darkening
-           THAT would double-darken it into mud. `components/MapBaseLayer.tsx`
-           puts the class on the Leaflet container only when it renders a
-           `<TileLayer>`. It has to be a CONTAINER class, not the narrower
-           `.leaflet-tile-pane img`, because the `::after` tint below lives on
-           the pane itself — and the GL canvas sits in that same pane, so an
-           `img`-scoped selector would still blend blue over it. */
+           `.dark` is `class="dark"` on <html>, so all of this is dark-only.
+           `.bela-basemap-raster` narrows it to the RASTER path: with
+           VITE_MAP_PROVIDER=openfreemap the basemap is a MapLibre GL canvas
+           drawing a genuinely dark vector style, and darkening THAT would
+           double-darken it. `components/MapBaseLayer.tsx` puts the class on
+           the Leaflet container only when it renders a `<TileLayer>`; it has
+           to be a container class because the `::after` lives on the pane the
+           GL canvas also sits in. */
         ".dark .bela-basemap-raster .leaflet-tile-pane": {
             filter: "brightness(0.2) contrast(1.05)",
         },
@@ -273,8 +348,7 @@ const config = defineConfig({
            (`.leaflet-div-icon` in leaflet.css) — styling meant for its old
            text-label icons. Our pins are inline SVGs that bring their own
            artwork, so that box is pure leftover: invisible on light tiles,
-           but on the dark map it reads as a pale plaque floating behind the
-           pin (reported 2026-09-11).
+           but on the dark map it reads as a pale plaque behind the pin.
 
            `!important` for the same reason as the rules below: Chakra emits
            globalCss into `@layer base`, and unlayered author styles
@@ -286,14 +360,10 @@ const config = defineConfig({
         },
 
         /* Leaflet's own chrome — zoom buttons, popup bubble, attribution bar —
-           ships hardcoded white, which left three bright holes in the dark map,
-           and the popup's Chakra content (fg.ink, light in dark mode) rendered
-           white on white.
-
-           `!important` is load-bearing, not decoration: Chakra emits globalCss
-           inside `@layer base` while leaflet.css is unlayered, and unlayered
-           author styles beat layered ones however specific the layered selector
-           is. Marking these important reverses that precedence. */
+           ships hardcoded white, which left bright holes in the dark map, and
+           the popup's Chakra content (fg.ink, light in dark mode) rendered
+           white on white. `!important` is load-bearing (same layer reason as
+           above). */
         ".dark .leaflet-bar a": {
             background: "var(--chakra-colors-bg-panel) !important",
             color: "var(--chakra-colors-fg-ink) !important",
@@ -314,6 +384,9 @@ const config = defineConfig({
         ".dark .leaflet-popup-close-button": {
             color: "var(--chakra-colors-fg-muted) !important",
         },
+        // THEME dark --glass (rgba(30, 36, 38, .78)) is the same family; the
+        // attribution bar sits on the raster, so it is tinted from the canvas
+        // (#171B1D) at the same alpha the old bar had.
         ".dark .leaflet-control-attribution": {
             background: "rgba(9, 9, 11, 0.78) !important",
             color: "var(--chakra-colors-fg-muted) !important",
@@ -325,54 +398,38 @@ const config = defineConfig({
     theme: {
         tokens: {
             colors: {
-                /* The card-table felt. 800 (#0a4f20) and 950 (#052b12) are
-                   lifted verbatim off `public/bela-turniri-logo.svg`; the rest
-                   of the ramp is that hue carried up to a usable set of tints,
-                   kept yellow-leaning at the top so `brand.100` reads as felt
-                   gone pale rather than as mint. Each step earns its place:
-                   600 is the AA-safe solid, 500 the focus ring, 300 the dark
-                   theme's text colour, 700 the light theme's. See "One green"
-                   at the top of the file for the measurements. */
-                brand: {
-                    50: { value: "#edf7f0" },
-                    100: { value: "#d5ecdc" },
-                    200: { value: "#aedbbc" },
-                    300: { value: "#7fc496" },
-                    400: { value: "#4faa6f" },
-                    500: { value: "#2f8f52" },
-                    600: { value: "#227342" },
-                    700: { value: "#1a5d36" },
-                    800: { value: "#0a4f20" },
-                    900: { value: "#0a3d1c" },
-                    950: { value: "#052b12" },
-                },
-                /* Re-points Chakra's stock blue at the brand ramp so the app
-                   has exactly one primary colour — see "One green" above. The
-                   name is now a pure legacy alias: it says "blue" and paints
-                   felt green, which is the price of not touching 130 call
-                   sites. Kept as a FULL ramp, not just the semantics, because
-                   `blue.500` and friends are referenced directly in a handful
-                   of places and a half-aliased ramp would leave those blue. */
-                blue: {
-                    50: { value: "#edf7f0" },
-                    100: { value: "#d5ecdc" },
-                    200: { value: "#aedbbc" },
-                    300: { value: "#7fc496" },
-                    400: { value: "#4faa6f" },
-                    500: { value: "#2f8f52" },
-                    600: { value: "#227342" },
-                    700: { value: "#1a5d36" },
-                    800: { value: "#0a4f20" },
-                    900: { value: "#0a3d1c" },
-                    950: { value: "#052b12" },
+                /* The felt green — see BRAND_RAMP for what each step is. */
+                brand: BRAND_RAMP,
+                /* Legacy alias of the brand ramp — see "Why blue is an alias".
+                   Kept as a FULL ramp, not just the semantics, because
+                   `blue.500` and friends are referenced directly in places. */
+                blue: BRAND_RAMP,
+                /* Warm neutrals — raw `gray.*` reads warm. */
+                gray: GRAY_RAMP,
+                /* Suit FILL colours and their label-text twins: identical in
+                   both themes (THEME "Boje znakova karata"). Usable as
+                   `bg="suit.heart"`, `color="suit.heartText"`. */
+                suit: {
+                    heart: { value: "#E24B4A" },
+                    bell: { value: "#F2C14E" },
+                    leaf: { value: "#4DA66A" },
+                    acorn: { value: "#B8823F" },
+                    heartText: { value: "#B8423C" },
+                    bellText: { value: "#9A7B1E" },
+                    leafText: { value: "#3F8A5B" },
+                    acornText: { value: "#8C6027" },
                 },
             },
-            /* Chakra's stock scale tops out at 6px for a card and 4px for a
-               button, which is what made the app read as "default Chakra".
-               Everything below is roughly double, matched to the sibling app
-               so the two feel like one family. The names are unchanged, so the
-               existing `rounded="md"` / `rounded="xl"` props keep working and
-               simply land on rounder values. */
+            /* THEME typography (self-hosted @fontsource-variable, imported in
+               main.tsx — the family names are the ones those packages
+               register). Fallback stacks are THEME's --font-* stacks. */
+            fonts: {
+                heading: { value: "\"Bricolage Grotesque Variable\", system-ui, sans-serif" },
+                body: {
+                    value: "\"Instrument Sans Variable\", system-ui, -apple-system, \"Segoe UI\", sans-serif",
+                },
+                mono: { value: "\"JetBrains Mono Variable\", ui-monospace, monospace" },
+            },
             radii: {
                 none: { value: "0" },
                 "2xs": { value: "3px" },
@@ -387,372 +444,322 @@ const config = defineConfig({
                 full: { value: "9999px" },
             },
         },
+        /* THEME "Ljestvica". Sizes / line-heights are the existing ones for
+           the styles that already existed (nothing but `mono` is referenced
+           via `textStyle` today); the new styles carry THEME's own. */
         textStyles: {
-            /* Page-level h1 — the tournament name, a profile's display name. */
-            title: {
+            /* THEME `display` — screen title, hero. */
+            display: {
                 value: {
+                    fontFamily: "heading",
                     fontWeight: "bold",
-                    fontSize: { base: "2xl", md: "3xl" },
-                    lineHeight: "1.15",
-                    letterSpacing: "-0.02em",
+                    fontSize: "40px",
+                    lineHeight: "1.1",
+                    letterSpacing: "-0.03em",
                 },
             },
-            /* Section headings inside a page ("Runde", "Cjenik", "Parovi"). */
+            /* THEME `title` — page-level h1 (tournament name, a profile's
+               display name). */
+            title: {
+                value: {
+                    fontFamily: "heading",
+                    fontWeight: "semibold",
+                    fontSize: { base: "2xl", md: "3xl" },
+                    lineHeight: "1.15",
+                    letterSpacing: "-0.025em",
+                },
+            },
+            /* THEME `heading` — section / card headings ("Runde", "Cjenik"). */
             heading: {
                 value: {
+                    fontFamily: "heading",
                     fontWeight: "semibold",
                     fontSize: "md",
                     lineHeight: "1.3",
-                    letterSpacing: "-0.01em",
+                    letterSpacing: "-0.015em",
                 },
             },
-            /* Default running text. */
+            /* THEME `body` — default running text. */
             body: {
                 value: {
+                    fontFamily: "body",
                     fontWeight: "normal",
                     fontSize: "sm",
                     lineHeight: "1.55",
+                    letterSpacing: "0",
                 },
             },
-            /* Muted metadata under a value — dates, hints, helper text. */
+            /* THEME `label` — form labels, meta lines. */
+            label: {
+                value: {
+                    fontFamily: "body",
+                    fontWeight: "medium",
+                    fontSize: "13.5px",
+                    lineHeight: "1.4",
+                    letterSpacing: "0",
+                },
+            },
+            /* THEME `caption` — section overlines. THEME sets it UPPERCASE. */
             caption: {
                 value: {
-                    fontWeight: "medium",
+                    fontFamily: "body",
+                    fontWeight: "semibold",
                     fontSize: "xs",
                     lineHeight: "1.4",
-                    letterSpacing: "0.01em",
+                    letterSpacing: "0.09em",
+                    textTransform: "uppercase",
                 },
             },
-            /* Scores, prices and any digits that must line up in a column. */
+            /* THEME `numeric` — big scores and prices. */
+            numeric: {
+                value: {
+                    fontFamily: "mono",
+                    fontWeight: "bold",
+                    fontSize: "26px",
+                    lineHeight: "1",
+                    fontVariantNumeric: "tabular-nums",
+                    letterSpacing: "-0.02em",
+                },
+            },
+            /* THEME `numeric-sm` — occupancy, small figures. */
+            numericSm: {
+                value: {
+                    fontFamily: "mono",
+                    fontWeight: "semibold",
+                    fontSize: "13px",
+                    lineHeight: "1.4",
+                    fontVariantNumeric: "tabular-nums",
+                    letterSpacing: "0",
+                },
+            },
+            /* THEME `mono-label` — MI / ONI, round tags. THEME sets it
+               UPPERCASE. */
+            monoLabel: {
+                value: {
+                    fontFamily: "mono",
+                    fontWeight: "semibold",
+                    fontSize: "11.5px",
+                    lineHeight: "1",
+                    fontVariantNumeric: "tabular-nums",
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                },
+            },
+            /* Scores, prices and any digits that must line up in a column —
+               the size-flexible sibling of `numericSm` (same weight and
+               tracking, size comes from the call site). */
             mono: {
                 value: {
                     fontFamily: "mono",
                     fontWeight: "semibold",
                     fontSize: "sm",
                     fontVariantNumeric: "tabular-nums",
-                    letterSpacing: "-0.01em",
+                    letterSpacing: "0",
                 },
             },
         },
         semanticTokens: {
             colors: {
                 bg: {
-                    /* The unqualified `bg`. Chakra's dark value is pure BLACK,
-                       which is darker than this app's canvas (gray.950) and
-                       two steps below its panels (gray.900) — so every control
-                       that fills from it rendered as a hole punched in the
-                       card it sat on. That is not a niche token: Chakra's own
-                       checkmark, radiomark, native-select, segment-group,
-                       tabs, code-block and qr-code recipes all paint from it,
-                       and eight call sites in this app say `bg="bg"` directly
-                       (the autocomplete dropdown, the map picker's floating
-                       label, the avatar preview…).
-
-                       Pinned to the panel colour, which is what all of those
-                       actually want: a control surface sitting ON a card.
-                       The page background is `bg.canvas`, below. */
-                    DEFAULT: {
-                        value: { base: "{colors.white}", _light: "{colors.white}", _dark: "{colors.gray.900}" },
-                    },
-                    /* The page itself, behind every panel. New token — Chakra
-                       paints the body from `bg`, which we leave alone so any
-                       component still reading it is unaffected.
-
-                       Light was stock white until 2026-09-06: a page of pure
-                       white cards on a pure white floor read as "no theme at
-                       all" rather than as this app's identity. #dae7de is
-                       the brand hue (~140°) carried up to an ~88% lightness
-                       greige — a first pass at #f0f5f1 read as too close to
-                       `gray.50` and was pushed darker on request. Still
-                       distinct enough from `gray.50` (#fafafa, the neutral
-                       ladder below) that a translucent `bg.panel` card
-                       visibly lifts off the canvas (composited panel ≈
-                       #f1f6f2, 1.17:1 over this canvas), and pale enough
-                       that `fg.ink` (black) still clears 16.4:1 — AA/AAA are
-                       unaffected. `bg.subtle/muted/emphasized` stay plain
-                       gray on purpose: they are recessed fills INSIDE a
-                       panel, not a second canvas, so nothing here needed to
-                       move to keep the ladder legible.
-
-                       Dark was Chakra's stock gray.950 (#111111) until
-                       2026-09-08, then lifted in two small steps to #161719
-                       on request ("malo svjetlije") — still clearly darker
-                       than the gray.900 (#18181b) panels sitting on it (the
-                       whole point of a canvas/panel pair), just not flat
-                       black. White text keeps strong contrast — no
-                       practical difference, AA/AAA unaffected. */
-                    canvas: {
-                        value: { base: "#dae7de", _light: "#dae7de", _dark: "#161719" },
-                    },
-                    /* Cards, dialogs, the navbar — one step above the canvas.
-                       Translucent (61%) — actually past `glass`'s own 72% at
-                       this point, on purpose: 85% barely showed the page
-                       background through a normal (unblurred) card, so this
-                       was pushed further than the "chrome that floats over
-                       content and leans on blur" tier below was ever meant
-                       to go, until it read clearly on an ordinary card. */
-                    /* Fully OPAQUE panel colour — the same white / gray.900
-                       as `bg.panel` minus the 61 % alpha. For floating material
-                       that must hide what is under it: menus, popovers, and
-                       the no-backdrop-filter fallback of dialogs. `bg.panel`
-                       was used there until 2026-09-10 and the avatar menu
-                       showed the tournament posters straight through it. */
-                    opaque: {
-                        value: { base: "{colors.white}", _light: "{colors.white}", _dark: "{colors.gray.900}" },
-                    },
-                    panel: {
-                        value: {
-                            base: "rgba(255, 255, 255, 0.61)",
-                            _light: "rgba(255, 255, 255, 0.61)",
-                            _dark: "rgba(24, 24, 27, 0.61)",
-                        },
-                    },
-                    /* Quiet fills: table stripes, inactive chips, code blocks.
-                       Dark is gray.800, NOT gray.900 — a stripe painted the
-                       same colour as the panel it sits on is no stripe.
-
-                       Deliberately NEUTRAL, not felt-tinted. A faint green wash
-                       here (#f6faf7, ΔE 2.8 off gray.50) was tried and dropped:
-                       this token is the app's "no state" fill — code blocks,
-                       inactive chips, disabled rows — and any green on it reads
-                       as a success state next to the teal `green.subtle` chips
-                       it sits beside. Tinting only the light half would also
-                       have made the two themes disagree, since the dark ladder
-                       has to stay a neutral gray to keep four surfaces apart.
-                       Selected/active rows carry the brand through
-                       `brand.subtle`, which is the token that should. */
-                    subtle: {
-                        value: { base: "{colors.gray.50}", _light: "{colors.gray.50}", _dark: "{colors.gray.800}" },
-                    },
-                    /* Hover/pressed fills, one step louder than `subtle`. */
-                    muted: {
-                        value: { base: "{colors.gray.100}", _light: "{colors.gray.100}", _dark: "{colors.gray.700}" },
-                    },
-                    /* Loudest surface fill — selected rows, active chips.
-                       Chakra's dark default is gray.800, which our `subtle`
-                       now occupies, so the whole dark ladder is shifted one
-                       step up to keep all four surfaces distinguishable:
-                       canvas 950 → panel 900 → subtle 800 → muted 700 →
-                       emphasized 600. Light is left exactly as Chakra has it. */
-                    emphasized: {
-                        value: { base: "{colors.gray.200}", _light: "{colors.gray.200}", _dark: "{colors.gray.600}" },
-                    },
+                    /* The unqualified `bg` — what Chakra's own checkmark,
+                       radiomark, native-select, segment-group, tabs,
+                       code-block and qr-code recipes paint from, and what
+                       `bg="bg"` call sites mean: a control surface sitting ON
+                       a card. Pinned to THEME `--panel`; the page background
+                       is `bg.canvas`. */
+                    DEFAULT: pair("#FDFBF7", "#1e1e22"),
+                    /* THEME --canvas: the page behind every panel. */
+                    canvas: pair("#F7F2E9", "#1c1d20"),
+                    /* THEME --panel: cards, dialogs' fallback, the navbar.
+                       OPAQUE (it was 61 % translucent before THEME). */
+                    panel: pair("#FDFBF7", "rgba(30, 30, 34, 0.61)"),
+                    /* THEME --opaque: modals, menus, popovers — one step above
+                       the panel. */
+                    opaque: pair("#FFFEFB", "#1e1e22"),
+                    /* THEME --fill-subtle: inputs, table stripes, inactive
+                       chips. Deliberately neutral, not felt-tinted: it is the
+                       app's "no state" fill. */
+                    subtle: pair("#FAF6EE", "#2d2d31"),
+                    /* THEME --fill-muted: segmented track, hover. */
+                    muted: pair("#F2ECE1", "#45454b"),
+                    /* One step louder than `muted` — selected rows, active
+                       chips. THEME has no fourth fill, so this is `--bd`
+                       (light #E4DACA, dark #2C3434): the next rung of the
+                       same ladder. */
+                    emphasized: pair("#E4DACA", "#58585f"),
                     /* ── Glass surfaces ──────────────────────────────────────
-                       Translucent twins of `bg.panel`, for material that
-                       floats over page content. Never used on their own: they
-                       only make sense paired with the backdrop blur in the
-                       `glass.*` layer styles below, which also carry the
-                       opaque fallback. Values are the RGB of white / gray.900
-                       so the tint stays in the same family as `bg.panel`. */
-                    glass: {
-                        value: {
-                            base: "rgba(255, 255, 255, 0.72)",
-                            _light: "rgba(255, 255, 255, 0.72)",
-                            _dark: "rgba(24, 24, 27, 0.72)",
-                        },
-                    },
-                    /* Denser than `glass` because a dialog carries dense body
-                       text over an arbitrary, possibly busy page. */
-                    glassPanel: {
-                        value: {
-                            base: "rgba(255, 255, 255, 0.88)",
-                            _light: "rgba(255, 255, 255, 0.88)",
-                            _dark: "rgba(24, 24, 27, 0.90)",
-                        },
-                    },
+                       `glass` is THEME --glass (sticky header / bottom bar);
+                       `glassPanel` is denser (dialogs carry dense body text
+                       over a busy page). Both use the panel's RGB. Only ever
+                       paired with the backdrop blur in `layerStyles.glass.*`,
+                       which also carries the opaque fallback. */
+                    glass: pair("rgba(253, 251, 247, 0.8)", "rgba(30, 30, 34, 0.72)"),
+                    glassPanel: pair("rgba(253, 251, 247, 0.9)", "rgba(30, 30, 34, 0.9)"),
+                    /* Chakra's alert / field-error surfaces, re-pointed at
+                       the THEME palettes they mean. */
+                    error: pair("#F2DDD9", "{colors.red.900}"),
+                    warning: pair("#F7E3CE", "{colors.orange.900}"),
+                    success: pair("#DCEDE8", "{colors.teal.900}"),
+                    info: pair("#DDE9DC", "#0a3d1c"),
                 },
                 fg: {
-                    /* Primary text. Matches Chakra's `fg` exactly — it exists as
-                       a named token so call sites read as intent, not default. */
-                    ink: {
-                        value: { base: "{colors.black}", _light: "{colors.black}", _dark: "{colors.gray.50}" },
-                    },
-                    /* Secondary text that must still be comfortably readable —
-                       one notch quieter than `ink`, louder than `muted`. */
-                    soft: {
-                        value: { base: "{colors.gray.700}", _light: "{colors.gray.700}", _dark: "{colors.gray.300}" },
-                    },
-                    muted: {
-                        value: { base: "{colors.gray.600}", _light: "{colors.gray.600}", _dark: "{colors.gray.400}" },
-                    },
-                    /* Light is gray.500 (Chakra ships gray.400, which is under
-                       4.5:1 on white). Dark used the SAME gray.500, which is
-                       the mirror-image of the same bug: measured against
-                       bg.panel it is 3.67:1, and against bg.subtle worse.
-                       That is not a decorative tier — `fg.subtle` paints the
-                       INACTIVE LABELS in the mobile tab bar, the "optional"
-                       markers on the create wizard and the review card's
-                       placeholder headings, all of which are real text.
-
-                       #91919a sits between gray.500 and gray.400: 5.50:1 on
-                       bg.panel and 4.74:1 on bg.subtle, while staying visibly
-                       quieter than `fg.muted` (gray.400) so the four-step text
-                       ladder survives. A literal rather than a ramp step
-                       because Chakra's zinc jumps straight from 113 to 161
-                       and the passing value is in between. */
-                    subtle: {
-                        value: { base: "{colors.gray.500}", _light: "{colors.gray.500}", _dark: "#91919a" },
-                    },
+                    /* Chakra's unqualified `fg` (input text, menu items …) =
+                       THEME --ink. */
+                    DEFAULT: pair("#2A211A", "#fafafa"),
+                    /* THEME --ink: primary text. */
+                    ink: pair("#2A211A", "#fafafa"),
+                    /* THEME --soft: secondary text. */
+                    soft: pair("#4E4238", "#d4d4d8"),
+                    /* THEME --muted: tertiary text. */
+                    muted: pair("#6E6152", "#a1a1aa"),
+                    /* THEME --faint: captions, placeholders. Measured against
+                       --panel it is 3.77:1 light / 3.35:1 dark — under 4.5:1
+                       for normal text. That is THEME's value and is kept;
+                       treat it as decorative / large text. */
+                    subtle: pair("#8D7F6E", "#91919a"),
+                    error: pair("#B8423C", "{colors.red.300}"),
+                    warning: pair("#C4661C", "{colors.orange.300}"),
+                    success: pair("#1F6F63", "{colors.teal.300}"),
+                    info: pair("#265238", "#7fc496"),
                 },
                 border: {
-                    DEFAULT: {
-                        value: { base: "{colors.gray.200}", _light: "{colors.gray.200}", _dark: "{colors.gray.800}" },
-                    },
-                    /* Chakra's dark `border.subtle` is gray.950 — invisible on a
-                       gray.900 panel. Pinned to gray.800 so hairlines survive. */
-                    subtle: {
-                        value: { base: "{colors.gray.100}", _light: "{colors.gray.100}", _dark: "{colors.gray.800}" },
-                    },
-                    emphasized: {
-                        value: { base: "{colors.gray.300}", _light: "{colors.gray.300}", _dark: "{colors.gray.700}" },
-                    },
-                    /* Loudest divider — focused fields, the active tab underline. */
-                    strong: {
-                        value: { base: "{colors.gray.400}", _light: "{colors.gray.400}", _dark: "{colors.gray.600}" },
-                    },
-                    /* Hairline for a glass surface. A solid `border` token on a
-                       translucent bar reads as a hard line floating in front of
-                       the blur; a translucent one sits in it. */
-                    glass: {
-                        value: {
-                            base: "rgba(0, 0, 0, 0.08)",
-                            _light: "rgba(0, 0, 0, 0.08)",
-                            _dark: "rgba(255, 255, 255, 0.10)",
-                        },
-                    },
+                    /* THEME --bd: card and input borders. */
+                    DEFAULT: pair("#E4DACA", "#2d2d31"),
+                    /* THEME --bd-subtle: separators, hairlines. */
+                    subtle: pair("#EFE8DB", "#2d2d31"),
+                    /* THEME has one step above --bd (--bd-strong), so
+                       `emphasized` and `strong` are the same value. */
+                    emphasized: pair("#C9BBA2", "#45454b"),
+                    /* THEME --bd-strong: focused fields, the active tab
+                       underline. */
+                    strong: pair("#C9BBA2", "#58585f"),
+                    /* Hairline for a glass surface. A solid `border` token on
+                       a translucent bar reads as a hard line floating in
+                       front of the blur; a translucent one sits in it. Tinted
+                       with THEME's shadow brown (light) / ink cream (dark). */
+                    glass: pair("rgba(60, 42, 20, 0.08)", "rgba(255, 255, 255, 0.10)"),
+                    error: pair("#B8423C", "{colors.red.300}"),
                 },
+
+                /* ── Named THEME colours ─────────────────────────────────────
+                   `color="tan"`, `bg="live.subtle"`, `borderColor="ok"` … */
+                /* Secondary accent (team ONI). */
+                tan: {
+                    DEFAULT: pair("#A9713C", "#c4a98c"),
+                    /* subtle / solid / contrast / fg / muted / emphasized /
+                       focusRing: the full palette, so `colorPalette="tan"`
+                       works — see PALETTE. */
+                    ...PALETTE.tan,
+                },
+                /* Status: igra se. */
+                live: {
+                    DEFAULT: pair("#C4661C", "{colors.orange.300}"),
+                    subtle: pair("#F7E3CE", "{colors.orange.900}"),
+                },
+                /* Status: plaćeno / uspjeh. */
+                ok: {
+                    DEFAULT: pair("#1F6F63", "{colors.teal.300}"),
+                    subtle: pair("#DCEDE8", "{colors.teal.900}"),
+                },
+                /* Zvanja, dealer chip. `subtle` is derived (not in THEME). */
+                gold: {
+                    DEFAULT: pair("#B88A24", "{colors.yellow.300}"),
+                    subtle: pair("#F2E9D5", "{colors.yellow.900}"),
+                },
+                /* Error, destructive, heart. Same colour as `red.fg`. */
+                danger: pair("#B8423C", "{colors.red.300}"),
+                /* Card-table surface: radial-gradient(120% 90% at 50% 38%,
+                   {felt}, {felt2}). */
+                felt: pair("#EFE7D8", "#14191A"),
+                felt2: pair("#E7DCC7", "#101415"),
+                /* Card face and edge — cream in BOTH themes. */
+                cardface: pair("#FFFDF8", "#F6F0E4"),
+                cardline: pair("#E0D6C4", "#D9CEBB"),
+
                 /* ── The default focus ring ──────────────────────────────────
-                   Chakra's `focusVisibleRing` reads `colors.colorPalette.
-                   focusRing`, and the ROOT `colorPalette` is `gray` (set in
-                   Chakra's own globalCss), not blue/brand — so every control
-                   that doesn't carry an explicit `colorPalette` prop focused
-                   in gray.400. That is most Inputs, Textareas and Selects in
-                   the app: the keyboard-focus affordance, the one piece of
-                   chrome that should say "this app" loudest, was the only
-                   interactive colour that never became the brand.
-
-                   Overriding `gray.focusRing` rather than the root
-                   `colorPalette` is deliberate: pointing the root at `brand`
-                   would turn every unstyled Button, Badge and Tabs trigger
-                   green too, which is a call-site decision, not a theme one.
-                   Nothing but the ring reads this token, so the blast radius
-                   is exactly the ring. brand.500 clears the 3:1 non-text bar
-                   on both canvases (4.06:1 on white, 4.65:1 on gray.950). */
+                   Chakra's `focusVisibleRing` reads `colorPalette.focusRing`
+                   and the ROOT `colorPalette` is `gray`, so every control
+                   without an explicit palette would focus in gray. Overriding
+                   `gray.focusRing` (rather than pointing the root at brand,
+                   which would turn every unstyled Button green) makes the
+                   ring the brand colour with a blast radius of exactly the
+                   ring. The rest of `gray` is the warm neutral palette. */
                 gray: {
-                    focusRing: { value: { base: "{colors.brand.500}", _light: "{colors.brand.500}", _dark: "{colors.brand.500}" } },
+                    /* Solid fill: ink on cream (light), cream on canvas (dark). */
+                    solid: pair("#2A211A", "#ffffff"),
+                    contrast: pair("#FFFCF7", "#000000"),
+                    fg: pair("#2A211A", "#e4e4e7"),
+                    /* THEME fills, one rung each: light 100 / 200 / 300; dark
+                       fill-subtle / fill-muted / bd. */
+                    subtle: pair("#F2ECE1", "#1e1e22"),
+                    muted: pair("#E4DACA", "#2d2d31"),
+                    emphasized: pair("#C9BBA2", "#45454b"),
+                    focusRing: pair("{colors.brand.600}", "#2f8f52"),
                 },
-                /* Makes `colorPalette="brand"` fully wired. Shaped exactly like
-                   Chakra's own ramp semantics so swapping a `colorPalette` from
-                   "blue" to "brand" is visually a no-op today and a single edit
-                   here on the day the brand hue changes.
-
-                   Every pairing below was measured against the real surfaces
-                   (light canvas #fff, dark canvas gray.950, and the TRANSLUCENT
-                   bg.panel composited over each — dark panel resolves to about
-                   #151517, not gray.900). Text tiers clear 4.5:1 and the ring
-                   clears 3:1 in both modes. The one pairing that does not is
-                   `fg` on `emphasized` (3.84:1) — that is Chakra's hover step
-                   for the subtle variant, the old blue ramp measured 3.49:1 in
-                   exactly the same place, and pulling the ramp apart far enough
-                   to fix it would cost the felt hue. Left at parity, knowingly. */
-                brand: {
-                    contrast: { value: { base: "white", _light: "white", _dark: "white" } },
-                    fg: { value: { base: "{colors.brand.700}", _light: "{colors.brand.700}", _dark: "{colors.brand.300}" } },
-                    subtle: { value: { base: "{colors.brand.100}", _light: "{colors.brand.100}", _dark: "{colors.brand.900}" } },
-                    muted: { value: { base: "{colors.brand.200}", _light: "{colors.brand.200}", _dark: "{colors.brand.800}" } },
-                    emphasized: { value: { base: "{colors.brand.300}", _light: "{colors.brand.300}", _dark: "{colors.brand.700}" } },
-                    /* brand.600, not brand.500 — this is the fill under white
-                       button text and #2f8f52 measures only 4.06:1 there, where
-                       #227342 measures 5.83:1. See "One green" at the top. */
-                    solid: { value: { base: "{colors.brand.600}", _light: "{colors.brand.600}", _dark: "{colors.brand.600}" } },
-                    /* brand.500 — 4.06:1 on white and 4.65:1 on the dark canvas,
-                       so one ring value clears the 3:1 bar in both themes. */
-                    focusRing: { value: { base: "{colors.brand.500}", _light: "{colors.brand.500}", _dark: "{colors.brand.500}" } },
-                },
-                /* `colorPalette="blue"` is the same colour as `colorPalette=
-                   "brand"` by construction — call sites are split between the
-                   two names and they must not be two different colours. */
-                blue: {
-                    contrast: { value: { base: "white", _light: "white", _dark: "white" } },
-                    fg: { value: { base: "{colors.brand.700}", _light: "{colors.brand.700}", _dark: "{colors.brand.300}" } },
-                    subtle: { value: { base: "{colors.brand.100}", _light: "{colors.brand.100}", _dark: "{colors.brand.900}" } },
-                    muted: { value: { base: "{colors.brand.200}", _light: "{colors.brand.200}", _dark: "{colors.brand.800}" } },
-                    emphasized: { value: { base: "{colors.brand.300}", _light: "{colors.brand.300}", _dark: "{colors.brand.700}" } },
-                    solid: { value: { base: "{colors.brand.600}", _light: "{colors.brand.600}", _dark: "{colors.brand.600}" } },
-                    focusRing: { value: { base: "{colors.brand.500}", _light: "{colors.brand.500}", _dark: "{colors.brand.500}" } },
-                },
-                /* Success / paid / synced. Re-pointed at `teal` so it survives
-                   a green brand — see "Green brand vs green success" at the top
-                   of the file. Only the SEMANTICS move: the numeric `green.*`
-                   ramp is left stock, because nothing in the app references it
-                   and a chart or an illustration may still want literal green.
-
-                   `solid` splits by mode instead of taking one step, which is
-                   the only place this ramp departs from the brand's shape.
-                   teal.700 carries white text at 7.73:1 but sits at 2.36:1
-                   against the dark panel — a legible badge on an invisible
-                   pill — while teal.600 has the fill contrast (4.87:1) and
-                   fails white text at 3.74:1. So the dark solid is teal.600
-                   with BLACK text (5.33:1), which is what Chakra itself does
-                   for its lighter palettes, and the light solid stays white on
-                   teal.700. Both halves clear AA on both axes. Chakra's own
-                   green.solid, for the record, was green.600 under white text
-                   at 3.30:1 — this replaces a real AA failure. */
-                green: {
-                    contrast: { value: { base: "white", _light: "white", _dark: "black" } },
-                    fg: { value: { base: "{colors.teal.700}", _light: "{colors.teal.700}", _dark: "{colors.teal.300}" } },
-                    subtle: { value: { base: "{colors.teal.100}", _light: "{colors.teal.100}", _dark: "{colors.teal.900}" } },
-                    muted: { value: { base: "{colors.teal.200}", _light: "{colors.teal.200}", _dark: "{colors.teal.800}" } },
-                    emphasized: { value: { base: "{colors.teal.300}", _light: "{colors.teal.300}", _dark: "{colors.teal.700}" } },
-                    solid: { value: { base: "{colors.teal.700}", _light: "{colors.teal.700}", _dark: "{colors.teal.600}" } },
-                    focusRing: { value: { base: "{colors.teal.600}", _light: "{colors.teal.600}", _dark: "{colors.teal.500}" } },
-                },
+                /* `colorPalette="brand"` fully wired, shaped like Chakra's own
+                   ramp semantics. Every value resolves to THEME:
+                   light solid #2E6343 / fg #265238 / subtle #DDE9DC / on-brand
+                   #FFFCF7; dark solid #2F8F52 / fg #8ACFA0 / subtle #264233 /
+                   on-brand #0E1F16 (4.22:1 on the solid — see the report:
+                   AA for large / bold text only). */
+                brand: brandSemantics,
+                /* Identical to brand — see "Why blue is an alias". */
+                blue: brandSemantics,
+                /* Re-pointed at THEME statuses — see "Palettes that follow
+                   THEME semantics". */
+                orange: PALETTE.live,
+                green: PALETTE.ok,
+                yellow: PALETTE.gold,
+                red: PALETTE.red,
+                /* `purple` is used only for admin styling (public profile,
+                   tournament details / dialogs); it follows `tan` so nothing
+                   renders in Chakra's stock violet. */
+                purple: PALETTE.tan,
             },
             radii: {
                 /* Chakra's component recipes read these three, NOT the raw
                    scale: l1 → checkmarks and swatches, l2 → Button / Input /
                    Tag / Tabs triggers / menu items, l3 → Card / Dialog / Menu
                    / Popover / Select content. Defaults are xs/sm/md (2/4/6px);
-                   pointing them one rung higher is what actually rounds the
-                   app, and it happens without a single call-site edit. */
+                   pointing them one rung higher rounds the app without a
+                   single call-site edit. */
                 l1: { value: "{radii.xs}" },
                 l2: { value: "{radii.md}" },
                 l3: { value: "{radii.xl}" },
             },
             shadows: {
                 /* Additive names only — Chakra's xs/sm/md/lg/xl/2xl are left
-                   untouched so nothing that already uses them shifts. The
-                   light-mode tint is brand.950 (rgba(5, 43, 18, …)) rather than
-                   neutral black, so a card's shadow sits in the same family as
-                   the felt; at 6–16% alpha it reads as depth, not as colour.
-                   Dark values drop the tint for plain black, which is the only
-                   thing that reads as depth on a near-black canvas. */
+                   untouched. `card` and `raised` are THEME --sh-card /
+                   --sh-raised verbatim (warm brown tint in light, plain black
+                   in dark, the only thing that reads as depth on a dark
+                   canvas). `overlay` / `sticky` keep their earlier offsets and
+                   blur with the same tint. */
                 card: {
                     value: {
-                        base: "0 1px 2px rgba(5, 43, 18, 0.06), 0 1px 3px rgba(5, 43, 18, 0.08)",
-                        _light: "0 1px 2px rgba(5, 43, 18, 0.06), 0 1px 3px rgba(5, 43, 18, 0.08)",
-                        _dark: "0 1px 2px rgba(0, 0, 0, 0.5)",
+                        base: "0 1px 2px rgba(60, 42, 20, 0.07), 0 1px 3px rgba(60, 42, 20, 0.06)",
+                        _light: "0 1px 2px rgba(60, 42, 20, 0.07), 0 1px 3px rgba(60, 42, 20, 0.06)",
+                        _dark: "0 1px 2px rgba(0, 0, 0, 0.35)",
                     },
                 },
                 raised: {
                     value: {
-                        base: "0 4px 12px rgba(5, 43, 18, 0.08)",
-                        _light: "0 4px 12px rgba(5, 43, 18, 0.08)",
-                        _dark: "0 4px 12px rgba(0, 0, 0, 0.55)",
+                        base: "0 6px 18px rgba(60, 42, 20, 0.10)",
+                        _light: "0 6px 18px rgba(60, 42, 20, 0.10)",
+                        _dark: "0 8px 22px rgba(0, 0, 0, 0.40)",
                     },
                 },
                 overlay: {
                     value: {
-                        base: "0 12px 32px rgba(5, 43, 18, 0.16)",
-                        _light: "0 12px 32px rgba(5, 43, 18, 0.16)",
+                        base: "0 12px 32px rgba(60, 42, 20, 0.16)",
+                        _light: "0 12px 32px rgba(60, 42, 20, 0.16)",
                         _dark: "0 12px 32px rgba(0, 0, 0, 0.65)",
                     },
                 },
                 /* Bottom tab bar / sticky action rows — the shadow points up. */
                 sticky: {
                     value: {
-                        base: "0 -4px 20px rgba(5, 43, 18, 0.06)",
-                        _light: "0 -4px 20px rgba(5, 43, 18, 0.06)",
+                        base: "0 -4px 20px rgba(60, 42, 20, 0.06)",
+                        _light: "0 -4px 20px rgba(60, 42, 20, 0.06)",
                         _dark: "0 -4px 20px rgba(0, 0, 0, 0.5)",
                     },
                 },
@@ -792,12 +799,12 @@ const config = defineConfig({
            variant, size and part we don't mention is untouched.
 
            This is how dialogs get the glass treatment (menus / popovers the
-           opaque one — see SOLID_CONTENT)
-           without a `layerStyle` prop on each of the ~25 `Dialog.Content` call
-           sites. It has to happen at the recipe layer rather than in
-           `globalCss`, because Chakra emits recipes into a CSS layer that wins
-           over `base` — a global rule setting `background` would simply lose to
-           the recipe's own `bg: bg.panel`.
+           opaque one — see SOLID_CONTENT) without a `layerStyle` prop on each
+           of the ~25 `Dialog.Content` call sites. It has to happen at the
+           recipe layer rather than in `globalCss`, because Chakra emits
+           recipes into a CSS layer that wins over `base` — a global rule
+           setting `background` would simply lose to the recipe's own
+           `bg: bg.panel`.
 
            `slots` is required by the type and is re-stated from the SAME
            anatomy Chakra's own recipe uses. That matters: the config merge

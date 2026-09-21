@@ -68,9 +68,9 @@
          before JS runs. Once ColorModeProvider mounts it appends a second,
          dynamic `theme-color` meta (src/color-mode.tsx, `ThemeColorSync`) that
          tracks the saved live mode. Browsers use the last matching tag in
-         document order, so that one takes over after mount. White matches
+         document order, so that one takes over after mount. #F7F2E9 (THEME.md canvas) matches
          manifest.webmanifest's background_color. -->
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#F7F2E9" />
 
     <!-- ── Colour mode, before the first paint ───────────────────────────
          ColorModeProvider (next-themes, attribute="class", storageKey
@@ -83,7 +83,7 @@
 
          `enableSystem` is false in color-mode.tsx (light is the default when
          nothing is stored), so `prefers-color-scheme` gets no vote here
-         either. #161719 is the `bg.canvas` dark token / THEME_COLOR_DARK. -->
+         either. #1c1d20 is the `bg.canvas` dark token / THEME_COLOR_DARK. -->
     <script>
       (function () {
           try {
@@ -91,7 +91,7 @@
               document.documentElement.classList.add("dark")
               document.documentElement.style.colorScheme = "dark"
               var meta = document.querySelector('meta[name="theme-color"]')
-              if (meta) meta.setAttribute("content", "#161719")
+              if (meta) meta.setAttribute("content", "#1c1d20")
           } catch (e) {
               /* private mode / site data blocked — stay on the light default */
           }
@@ -312,9 +312,9 @@
          frame between.
 
          Colours are hand-copied src/system.ts tokens (this has to be inline,
-         parsed before the theme bundle exists): bg.canvas #dae7de/#161719,
-         bg.panel rgba(255,255,255,.61)/rgba(24,24,27,.61), border.subtle
-         #f4f4f5/#27272a, border.glass rgba(0,0,0,.08)/rgba(255,255,255,.10).
+         parsed before the theme bundle exists): bg.canvas #F7F2E9/#1c1d20,
+         bg.panel #FDFBF7/rgba(30,30,34,.61), border.subtle #EFE8DB/#2d2d31,
+         border.glass rgba(60,42,20,.08)/rgba(242,234,220,.10).
          The dark half keys off `:root.dark`, already applied by the script
          above.
 
@@ -396,13 +396,13 @@
          surface the moment its stylesheet lands, and body's opaque box covers
          the viewport anyway. Painting the root here just means the pre-JS
          frames are already the right colour instead of white. */
-      html { background-color: #dae7de; }
-      html.dark { background-color: #161719; }
+      html { background-color: #F7F2E9; }
+      html.dark { background-color: #1c1d20; }
 
-      .boot { --boot-line: rgba(0, 0, 0, 0.08); --boot-sk: rgba(0, 0, 0, 0.07);
-              --boot-panel: rgba(255, 255, 255, 0.61); --boot-border: #f4f4f5; }
+      .boot { --boot-line: rgba(60, 42, 20, 0.08); --boot-sk: rgba(60, 42, 20, 0.07);
+              --boot-panel: #FDFBF7; --boot-border: #EFE8DB; }
       :root.dark .boot { --boot-line: rgba(255, 255, 255, 0.10); --boot-sk: rgba(255, 255, 255, 0.08);
-              --boot-panel: rgba(24, 24, 27, 0.61); --boot-border: #27272a; }
+              --boot-panel: rgba(30, 30, 34, 0.61); --boot-border: #2d2d31; }
 
       /* `var(--safe-top)`, not a bare `env()`: the boot shell is the FIRST
          thing an Android WebView < 140 paints, and there `env()` resolves to

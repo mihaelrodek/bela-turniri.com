@@ -55,7 +55,7 @@ export default function ReconnectBanner({
             aria-atomic="true"
             rounded="l2"
             borderWidth="1px"
-            borderColor={rejoining ? "orange.400" : "brand.300"}
+            borderColor={rejoining ? "live" : "brand.300"}
             bg="bg.panel"
             px="3"
             py="2"
@@ -63,7 +63,7 @@ export default function ReconnectBanner({
         >
             <HStack gap="2.5" align="center">
                 {rejoining
-                    ? <Spinner size="xs" color="orange.400" borderWidth="2px" />
+                    ? <Spinner size="xs" color="live" borderWidth="2px" />
                     : <FiCheckCircle color="var(--chakra-colors-brand-500)" aria-hidden="true" />}
                 <Box minW="0">
                     <Text fontSize="sm" fontWeight="semibold" lineClamp={1}>

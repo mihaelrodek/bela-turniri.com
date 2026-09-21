@@ -370,6 +370,8 @@ function MatchRow({
             h={h}
             textAlign="center"
             fontWeight="bold"
+            fontFamily="mono"
+            fontVariantNumeric="tabular-nums"
             value={value}
             onChange={(e) => onScoreChange(roundId, m.id, which, e.target.value)}
             onKeyDown={(e) => {

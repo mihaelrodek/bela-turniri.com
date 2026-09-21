@@ -161,23 +161,24 @@ function PairChip({
         >
             <HStack gap="1.5">
                 <Text fontWeight="medium">{pair.name}</Text>
-                <Text fontSize="xs" opacity={0.85}>
+                <Text fontSize="xs" opacity={0.85} fontFamily="mono" fontVariantNumeric="tabular-nums">
                     · {pair.tournamentCount}
                 </Text>
-                {/* When active the chip is a SOLID blue button whose background is
-                    the same in both themes, so the on-solid colours below are
-                    deliberately fixed steps rather than semantic tokens. */}
+                {/* When active the chip is a SOLID brand button, so the icons
+                    read in `brand.contrast` (gold does not clear contrast on
+                    the felt fill — THEME rollout 2026-09-21); inactive, the
+                    trophy is `gold` and the share mark `brand.fg`. */}
                 {pair.wins > 0 && (
-                    <HStack gap="0.5" color={active ? "yellow.200" : "yellow.fg"}>
+                    <HStack gap="0.5" color={active ? "brand.contrast" : "gold"}>
                         <FaTrophy size={10} />
-                        <Text fontSize="xs">{pair.wins}</Text>
+                        <Text fontSize="xs" fontFamily="mono" fontVariantNumeric="tabular-nums">{pair.wins}</Text>
                     </HStack>
                 )}
                 {pair.partnerSlug && (
                     // Tiny "shared" indicator — the actual partner link
                     // renders below the chip strip so it stays accessible
                     // (no nested clickable inside the button).
-                    <Box color={active ? "blue.100" : "blue.fg"} title={t("profile.pair.sharedTitle")}>
+                    <Box color={active ? "brand.contrast" : "brand.fg"} title={t("profile.pair.sharedTitle")}>
                         <FiShare2 size={11} />
                     </Box>
                 )}

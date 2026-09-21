@@ -94,7 +94,8 @@ function FooterCell({
                 lineHeight="1.15"
                 color={palette ? "colorPalette.fg" : "fg.ink"}
                 textAlign="center"
-                css={{ fontVariantNumeric: "tabular-nums" }}
+                fontFamily="mono"
+                fontVariantNumeric="tabular-nums"
             >
                 {value}
             </Text>

@@ -20,6 +20,8 @@ import type {
     DemoRoomEvents,
     DemoRoomHandle,
     DemoRoomOptions,
+    RealRoomEvents,
+    RealRoomHandle,
 } from "../src/demo/types.js"
 
 /* ─────────────────────────── seeded rng ──────────────────────────────── */
@@ -102,6 +104,21 @@ interface FakeRoom extends DemoRoomHandle {
     startCalls: number
 }
 
+/**
+ * A room a REAL person opened, as the director sees it (`RealRoomHandle`).
+ * Only `sitGuest`/`removeGuest` change it — everything the real host does
+ * (start, lock, leave) the test does by hand, exactly as a person would.
+ */
+interface FakeRealRoom extends RealRoomHandle {
+    seats: (DemoIdentity | "HUMAN" | null)[]
+    state: "LOBBY" | "PLAYING" | "FINISHED"
+    locked: boolean
+    gone: boolean
+    sits: { uid: string; at: number }[]
+    removals: { uid: string; at: number }[]
+    reactions: number
+}
+
 interface FakeLobby extends DemoLobbyApi {
     rooms: FakeRoom[]
     live(): FakeRoom[]
@@ -111,6 +128,75 @@ interface FakeLobby extends DemoLobbyApi {
     finishGame(room: FakeRoom, winner: "A" | "B" | null): void
     seatHuman(room: FakeRoom, seat: Seat): void
     humanLeaves(room: FakeRoom, seat: Seat): void
+    /* ── rooms real people opened ── */
+    realList: FakeRealRoom[]
+    watch: RealRoomEvents | null
+    openRealRoom(humans?: number): FakeRealRoom
+    closeRealRoom(room: FakeRealRoom): void
+    /** A real person arrives on a free seat, as `Room.attach` would. */
+    realHumanArrives(room: FakeRealRoom): void
+    lockRealRoom(room: FakeRealRoom): void
+    startRealGame(room: FakeRealRoom): void
+    finishRealGame(room: FakeRealRoom): void
+}
+
+const FILL_ORDER: readonly Seat[] = [0, 2, 1, 3]
+
+function makeRealRoom(lobby: FakeLobby, clock: ManualClock, id: string, humans: number): FakeRealRoom {
+    const seats: (DemoIdentity | "HUMAN" | null)[] = [null, null, null, null]
+    for (let i = 0; i < Math.max(1, humans); i++) {
+        const seat = FILL_ORDER[i]
+        if (seat !== undefined) seats[seat] = "HUMAN"
+    }
+    const seatOf = (identity: DemoIdentity): Seat | undefined =>
+        ([0, 1, 2, 3] as Seat[]).find((s) => {
+            const occupant = room.seats[s]
+            return occupant != null && occupant !== "HUMAN" && occupant.uid === identity.uid
+        })
+    const room: FakeRealRoom = {
+        id,
+        createdAt: clock.now(),
+        seats,
+        state: "LOBBY",
+        locked: false,
+        gone: false,
+        sits: [],
+        removals: [],
+        reactions: 0,
+        isPublic: () => !room.gone && !room.locked,
+        status: () => room.state,
+        freeSeats: () => (room.gone ? [] : FILL_ORDER.filter((s) => room.seats[s] == null)),
+        humanCount: () => (room.gone ? 0 : room.seats.filter((s) => s === "HUMAN").length),
+        guests: () =>
+            room.gone ? [] : (room.seats.filter((s) => s != null && s !== "HUMAN") as DemoIdentity[]),
+        sitGuest(identity: DemoIdentity, seat?: Seat): boolean {
+            // Mirrors `Room.guestSit`: public, in the lobby, somebody real
+            // inside, a free chair, and the room's own fill order.
+            if (room.gone || room.locked || room.state !== "LOBBY") return false
+            if (room.humanCount() === 0) return false
+            const target = seat ?? room.freeSeats()[0]
+            if (target === undefined || room.seats[target] != null) return false
+            room.seats[target] = identity
+            room.sits.push({ uid: identity.uid, at: clock.now() })
+            lobby.structural.push({ at: clock.now(), roomId: id, kind: "sit" })
+            return true
+        },
+        removeGuest(identity: DemoIdentity): boolean {
+            if (room.gone || room.state !== "LOBBY") return false
+            const seat = seatOf(identity)
+            if (seat === undefined) return false
+            room.seats[seat] = null
+            room.removals.push({ uid: identity.uid, at: clock.now() })
+            lobby.structural.push({ at: clock.now(), roomId: id, kind: "leave" })
+            return true
+        },
+        react(identity: DemoIdentity): boolean {
+            if (room.gone || seatOf(identity) === undefined) return false
+            room.reactions += 1
+            return true
+        },
+    }
+    return room
 }
 
 interface FakeLobbyOptions {
@@ -121,13 +207,53 @@ interface FakeLobbyOptions {
 
 function fakeLobby(clock: ManualClock, rng: () => number, opts: FakeLobbyOptions = {}): FakeLobby {
     let nextId = 0
+    let nextRealId = 0
     const lobby: FakeLobby = {
         rooms: [],
         structural: [],
         realRooms: 0,
+        realList: [],
+        watch: null,
         live: () => lobby.rooms.filter((r) => !r.disposed),
-        realRoomCount: () => lobby.realRooms,
-        totalRoomCount: () => lobby.live().length + lobby.realRooms,
+        // Rooms with guests in them ARE real rooms and are counted as such —
+        // the demo totals never include them.
+        realRoomCount: () => lobby.realRooms + lobby.realList.filter((r) => !r.gone).length,
+        totalRoomCount: () => lobby.live().length + lobby.realRoomCount(),
+        watchRealRooms(events: RealRoomEvents): void {
+            lobby.watch = events
+        },
+        realWaitingRooms: () =>
+            lobby.realList.filter(
+                (r) => !r.gone && !r.locked && r.state === "LOBBY" && r.humanCount() > 0 && r.freeSeats().length > 0,
+            ),
+        openRealRoom(humans = 1): FakeRealRoom {
+            const room = makeRealRoom(lobby, clock, `real-room-${++nextRealId}`, humans)
+            lobby.realList.push(room)
+            lobby.watch?.onRoomOpened?.(room)
+            return room
+        },
+        closeRealRoom(room: FakeRealRoom): void {
+            room.gone = true
+            lobby.watch?.onRoomClosed?.(room.id)
+        },
+        realHumanArrives(room: FakeRealRoom): void {
+            const seat = room.freeSeats()[0]
+            if (seat === undefined) return
+            room.seats[seat] = "HUMAN"
+            lobby.watch?.onRoomChanged?.(room, "human")
+        },
+        lockRealRoom(room: FakeRealRoom): void {
+            room.locked = true
+            lobby.watch?.onRoomChanged?.(room, "options")
+        },
+        startRealGame(room: FakeRealRoom): void {
+            room.state = "PLAYING"
+            lobby.watch?.onRoomChanged?.(room, "status")
+        },
+        finishRealGame(room: FakeRealRoom): void {
+            room.state = "LOBBY"
+            lobby.watch?.onRoomChanged?.(room, "status")
+        },
         createDemoRoom(options: DemoRoomOptions, host: DemoIdentity, events: DemoRoomEvents): DemoRoomHandle | null {
             const id = `demo-room-${++nextId}`
             const room: FakeRoom = {
@@ -692,6 +818,260 @@ describe("demo director — shutdown and defence", () => {
                 expect(room.seats.filter((s) => s != null).length).toBeLessThan(4)
             }
         }
+        director.stop()
+    })
+})
+
+/* ───────── the three-seat deadline (owner, 2026-09-21) ───────── */
+
+describe("demo director — waiting rooms resolve instead of loitering", () => {
+    /** Longest unbroken stretch, in simulated ms, any all-fake waiting room
+     *  spent at exactly three seated. Sampled every 5 s over 30 minutes. */
+    function longestThreeSeatStreak(seed: number): number {
+        const { clock, lobby, director } = bootDirector(seed, { autoFinishMs: 4 * 60_000 })
+        clock.advance(30_000)
+        const since = new Map<string, number>()
+        let worst = 0
+        for (let i = 0; i < 360; i++) {
+            clock.advance(5_000)
+            const now = clock.now()
+            const seen = new Set<string>()
+            for (const room of lobby.live()) {
+                const seated = room.seats.filter((s) => s != null).length
+                const hasHuman = room.seats.some((s) => s === "HUMAN")
+                if (room.state !== "LOBBY" || seated !== 3 || hasHuman) continue
+                seen.add(room.id)
+                const start = since.get(room.id) ?? now
+                since.set(room.id, start)
+                worst = Math.max(worst, now - start)
+            }
+            for (const id of [...since.keys()]) if (!seen.has(id)) since.delete(id)
+        }
+        director.stop()
+        return worst
+    }
+
+    it("never leaves a room without a real person sitting at three seated for minutes", () => {
+        for (const seed of [3101, 3102, 3103]) {
+            expect(longestThreeSeatStreak(seed)).toBeLessThanOrEqual(90_000)
+        }
+    })
+
+    it("keeps the playing count inside the band although starts are now time-driven", () => {
+        const { clock, lobby, director } = bootDirector(3200, { autoFinishMs: 4 * 60_000 })
+        clock.advance(60_000)
+        for (let i = 0; i < 120; i++) {
+            clock.advance(30_000)
+            const live = lobby.live().length
+            expect(live).toBeGreaterThanOrEqual(CONFIG.totalRooms[0] - 1)
+            expect(live).toBeLessThanOrEqual(CONFIG.totalRooms[1])
+            const p = playing(lobby).length
+            expect(p).toBeGreaterThanOrEqual(CONFIG.playingRooms[0] - 1)
+            expect(p).toBeLessThanOrEqual(CONFIG.playingRooms[1] + 1)
+        }
+        director.stop()
+    })
+
+    it("still never changes two rooms in the same instant", () => {
+        const { clock, lobby, director } = bootDirector(3300, { autoFinishMs: 3 * 60_000 })
+        // A real room being serviced at the same time is the worst case for
+        // the mutex: two different populations, one clock.
+        lobby.openRealRoom(1)
+        clock.advance(60 * 60_000)
+        const byInstant = new Map<number, Set<string>>()
+        for (const entry of lobby.structural) {
+            const set = byInstant.get(entry.at) ?? new Set<string>()
+            set.add(entry.roomId)
+            byInstant.set(entry.at, set)
+        }
+        for (const [at, ids] of byInstant) {
+            expect(`${at}:${ids.size}`).toBe(`${at}:1`)
+        }
+        director.stop()
+    })
+
+    it("turns the list over: a room that never starts is filled or replaced", () => {
+        const { clock, lobby, director } = bootDirector(3400)
+        clock.advance(30_000)
+        const atBoot = new Set(lobby.live().map((r) => r.id))
+        clock.advance(20 * 60_000)
+        const stillWaiting = lobby.live().filter((r) => r.state === "LOBBY" && atBoot.has(r.id))
+        expect(stillWaiting.length).toBe(0)
+        director.stop()
+    })
+})
+
+/* ───────── guests in rooms real people opened ───────── */
+
+describe("demo director — guests in a real person's room", () => {
+    it("waits out a quiet period before the first guest, then trickles", () => {
+        const { clock, lobby, director } = bootDirector(4100)
+        const room = lobby.openRealRoom(1)
+
+        // Nobody turns up in the first 20 s: people need time to invite a friend.
+        clock.advance(20_000)
+        expect(room.sits.length).toBe(0)
+
+        clock.advance(60_000)
+        expect(room.sits.length).toBeGreaterThanOrEqual(1)
+        // One at a time, never a block of faces in one instant.
+        const instants = room.sits.map((s) => s.at)
+        expect(new Set(instants).size).toBe(instants.length)
+        for (let i = 1; i < instants.length; i++) {
+            expect((instants[i] ?? 0) - (instants[i - 1] ?? 0)).toBeGreaterThanOrEqual(10_000)
+        }
+        director.stop()
+    })
+
+    it("leaves the last chair for the friend a lone real person may be waiting for", () => {
+        const { clock, lobby, director } = bootDirector(4200)
+        const room = lobby.openRealRoom(1)
+
+        clock.advance(115_000)
+        // Three of four at most: the fourth seat stays open for two minutes.
+        expect(room.freeSeats().length).toBeGreaterThanOrEqual(1)
+
+        clock.advance(4 * 60_000)
+        // After that the friend is not coming, and the table fills.
+        expect(room.sits.length).toBe(3)
+        director.stop()
+    })
+
+    it("fills the rest normally once a second real person is there", () => {
+        const { clock, lobby, director } = bootDirector(4300)
+        const room = lobby.openRealRoom(2)
+        clock.advance(150_000)
+        expect(room.freeSeats().length).toBe(0)
+        expect(room.sits.length).toBe(2)
+        director.stop()
+    })
+
+    it("restarts the quiet period when a real person arrives", () => {
+        const { clock, lobby, director } = bootDirector(4400)
+        const room = lobby.openRealRoom(1)
+        clock.advance(80_000)
+        const before = room.sits.length
+        expect(before).toBeGreaterThanOrEqual(1)
+
+        lobby.realHumanArrives(room)
+        // Fifteen seconds is the floor, so nothing may happen inside it.
+        clock.advance(14_000)
+        expect(room.sits.length).toBe(before)
+        clock.advance(90_000)
+        expect(room.sits.length).toBeGreaterThan(before)
+        director.stop()
+    })
+
+    it("gives up on a table that never starts, no sooner than four minutes in", () => {
+        const { clock, lobby, director } = bootDirector(4500)
+        const room = lobby.openRealRoom(1)
+        clock.advance(10 * 60_000)
+
+        expect(room.removals.length).toBeGreaterThan(0)
+        for (const gone of room.removals) {
+            const sat = room.sits.filter((s) => s.uid === gone.uid && s.at < gone.at).pop()
+            expect(sat).toBeDefined()
+            expect(gone.at - (sat?.at ?? 0)).toBeGreaterThanOrEqual(4 * 60_000)
+        }
+        director.stop()
+    })
+
+    it("never lets a guest sit in two rooms at once", () => {
+        const { clock, lobby, director } = bootDirector(4600, { autoFinishMs: 4 * 60_000 })
+        const a = lobby.openRealRoom(1)
+        const b = lobby.openRealRoom(2)
+        for (let i = 0; i < 60; i++) {
+            clock.advance(20_000)
+            const seen = new Set<string>()
+            for (const room of [...lobby.live(), a, b]) {
+                for (const occupant of room.seats) {
+                    if (occupant == null || occupant === "HUMAN") continue
+                    expect(seen.has(occupant.uid)).toBe(false)
+                    seen.add(occupant.uid)
+                }
+            }
+        }
+        director.stop()
+    })
+
+    it("services at most two real rooms and takes no new guests into a locked one", () => {
+        const { clock, lobby, director } = bootDirector(4700)
+        const rooms = [lobby.openRealRoom(1), lobby.openRealRoom(1), lobby.openRealRoom(1), lobby.openRealRoom(1)]
+        clock.advance(5 * 60_000)
+        expect(rooms.filter((r) => r.sits.length > 0).length).toBeLessThanOrEqual(2)
+
+        const locked = lobby.openRealRoom(1)
+        lobby.lockRealRoom(locked)
+        clock.advance(5 * 60_000)
+        expect(locked.sits.length).toBe(0)
+        director.stop()
+    })
+
+    it("yields entirely once the lobby has six real rooms of its own", () => {
+        const { clock, lobby, director } = bootDirector(4800)
+        lobby.realRooms = 6
+        const room = lobby.openRealRoom(1)
+        clock.advance(10 * 60_000)
+        expect(room.sits.length).toBe(0)
+        director.stop()
+    })
+
+    it("releases its people when the real room disappears", () => {
+        const { clock, lobby, pool, director } = bootDirector(4900)
+        const room = lobby.openRealRoom(1)
+        clock.advance(120_000)
+        const seated = room.guests()
+        expect(seated.length).toBeGreaterThan(0)
+        for (const person of seated) expect(pool.isInUse(person)).toBe(true)
+
+        lobby.closeRealRoom(room)
+        clock.advance(20_000)
+        for (const person of seated) expect(pool.isInUse(person)).toBe(false)
+        director.stop()
+    })
+
+    it("walks its guests out one by one after the real game ends", () => {
+        const { clock, lobby, director } = bootDirector(5000)
+        const room = lobby.openRealRoom(2)
+        clock.advance(150_000)
+        expect(room.freeSeats().length).toBe(0)
+        const guests = room.guests().length
+        expect(guests).toBeGreaterThan(0)
+
+        lobby.startRealGame(room)
+        clock.advance(60_000)
+        // Nobody stands up mid-deal.
+        expect(room.guests().length).toBe(guests)
+
+        lobby.finishRealGame(room)
+        clock.advance(2 * 60_000)
+        expect(room.guests().length).toBe(0)
+        const departures = room.removals.map((r) => r.at)
+        expect(new Set(departures).size).toBe(departures.length)
+        director.stop()
+    })
+
+    it("takes every guest back out again when the director stops", () => {
+        const { clock, lobby, pool, director } = bootDirector(5100)
+        const room = lobby.openRealRoom(2)
+        clock.advance(150_000)
+        const seated = room.guests()
+        expect(seated.length).toBeGreaterThan(0)
+
+        director.stop()
+        expect(room.guests().length).toBe(0)
+        for (const person of seated) expect(pool.isInUse(person)).toBe(false)
+    })
+
+    it("does nothing at all when the lobby offers no real-room API", () => {
+        const clock = manualClock()
+        const rng = seeded(5200)
+        const lobby = fakeLobby(clock, rng)
+        // A lobby from before this feature: the optional members are absent.
+        const bare = { ...lobby, watchRealRooms: undefined, realWaitingRooms: undefined } as FakeLobby
+        const director = startDemoDirector({ lobby: bare, config: CONFIG, clock, rng })
+        expect(() => clock.advance(30 * 60_000)).not.toThrow()
+        expect(bare.live().length).toBeGreaterThan(0)
         director.stop()
     })
 })

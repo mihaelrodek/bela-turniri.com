@@ -91,7 +91,7 @@ export default function BelaPrompt({
                     },
                 }}
             >
-                <Text fontSize="md" fontWeight="bold" color={INK} textAlign="center" lineHeight="1.2">
+                <Text fontSize="md" fontFamily="heading" fontWeight="bold" color={INK} textAlign="center" lineHeight="1.2">
                     {t("game.bela.ask")}
                 </Text>
                 <HStack gap="2">

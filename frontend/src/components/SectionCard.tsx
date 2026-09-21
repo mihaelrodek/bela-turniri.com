@@ -38,7 +38,7 @@ export default function SectionCard({
                                     {icon}
                                 </Box>
                             )}
-                            <Card.Title fontSize="md">{title}</Card.Title>
+                            <Card.Title fontSize="md" fontFamily="heading" fontWeight="semibold" letterSpacing="-0.015em">{title}</Card.Title>
                         </HStack>
                         {description && (
                             <Card.Description fontSize="sm" color="fg.muted" mt="1">

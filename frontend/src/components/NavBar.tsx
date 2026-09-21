@@ -867,7 +867,9 @@ export default function NavBar() {
                                 <Box
                                     as="span"
                                     display={{ base: "none", sm: "inline" }}
+                                    fontFamily="heading"
                                     fontWeight="semibold"
+                                    letterSpacing="-0.015em"
                                 >
                                     {siteName}
                                 </Box>
@@ -948,7 +950,7 @@ export default function NavBar() {
                                     w="auto"
                                     draggable={false}
                                 />
-                                <Box as="span" fontWeight="semibold">{siteName}</Box>
+                                <Box as="span" fontFamily="heading" fontWeight="semibold" letterSpacing="-0.015em">{siteName}</Box>
                             </RouterLink>
                         </chakra.a>
                         <Box flex="1" />

@@ -86,6 +86,9 @@ export default function TournamentResultsCard({
                             <Box minW="0">
                                 <Text
                                     fontSize="2xs"
+                                    fontFamily="mono"
+                                    fontWeight="semibold"
+                                    fontVariantNumeric="tabular-nums"
                                     color="fg.muted"
                                     letterSpacing="wide"
                                     textTransform="uppercase"

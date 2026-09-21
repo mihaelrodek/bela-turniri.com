@@ -291,7 +291,7 @@ export default function SharedBlokPage() {
                                 >
                                     {us}
                                 </Text>
-                                <Heading size="3xl" color="colorPalette.fg" css={{ fontVariantNumeric: "tabular-nums" }}>
+                                <Heading size="3xl" color="colorPalette.fg" fontFamily="mono" fontVariantNumeric="tabular-nums">
                                     {data.gamesUs}
                                 </Heading>
                             </VStack>
@@ -310,7 +310,7 @@ export default function SharedBlokPage() {
                                 >
                                     {them}
                                 </Text>
-                                <Heading size="3xl" color="colorPalette.fg" css={{ fontVariantNumeric: "tabular-nums" }}>
+                                <Heading size="3xl" color="colorPalette.fg" fontFamily="mono" fontVariantNumeric="tabular-nums">
                                     {data.gamesThem}
                                 </Heading>
                             </VStack>

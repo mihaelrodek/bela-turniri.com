@@ -110,7 +110,9 @@ function acceptName(candidate: string): string | null {
  */
 function makeNameCandidate(rng: () => number): string | null {
     const roll = rng()
-    if (roll < 0.30) {
+    // Nicknames are what makes a lobby look lived-in (owner, 2026-09-21): a
+    // wall of "First S." reads as a phone book. A good two fifths of the cast.
+    if (roll < 0.42) {
         // Guest nickname, as typed: lower case is what these actually look
         // like in the wild, so only sometimes give it a capital.
         const nick = pick(rng, DEMO_NICKNAMES)
@@ -122,7 +124,7 @@ function makeNameCandidate(rng: () => number): string | null {
     const surname = pick(rng, DEMO_SURNAMES)
     if (first === null || surname === null) return null
 
-    if (roll < 0.55) {
+    if (roll < 0.68) {
         // "Dado K." — the shape a long surname has to take anyway.
         return `${first} ${surname.charAt(0)}.`
     }

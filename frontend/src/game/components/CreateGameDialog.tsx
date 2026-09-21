@@ -37,7 +37,7 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
                 <Dialog.Positioner>
                     <Dialog.Content maxW={{ base: "94%", md: "480px" }} rounded="2xl">
                         <Dialog.Header pb="2" justifyContent="center">
-                            <Dialog.Title fontSize="xl" textAlign="center" w="100%">
+                            <Dialog.Title fontSize="xl" fontFamily="heading" textAlign="center" w="100%">
                                 {t("game.lobby.newGame")}
                             </Dialog.Title>
                         </Dialog.Header>
@@ -54,6 +54,7 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
                                                no label can touch a border. */
                                             <Button key={target} flex="1" h="12" px="1"
                                                 fontSize={target === 163 ? "sm" : "lg"} colorPalette="brand"
+                                                fontFamily={target === 163 ? undefined : "mono"} fontVariantNumeric="tabular-nums"
                                                 variant={targetScore === target ? "solid" : "outline"}
                                                 aria-pressed={targetScore === target} disabled={busy} onClick={() => setTarget(target)}>
                                                 {target === 163 ? t("game.create.quick.name") : target}

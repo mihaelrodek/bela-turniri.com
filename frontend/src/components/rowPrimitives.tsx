@@ -73,6 +73,8 @@ export function DateTile({
             <Text
                 fontSize={{ base: "lg", md: "xl" }}
                 fontWeight="bold"
+                fontFamily="mono"
+                fontVariantNumeric="tabular-nums"
                 lineHeight="1.1"
                 color={accent ? "brand.fg" : "fg.ink"}
             >
@@ -95,10 +97,14 @@ export function Meta({
     icon,
     children,
     tone = "muted",
+    numeric = false,
 }: {
     icon?: ReactNode
     children: ReactNode
     tone?: "muted" | "near"
+    /** Set the value in the numeric (mono, tabular) face — times, distances,
+     *  occupancy, prices. Text values (a place name) leave it off. */
+    numeric?: boolean
 }) {
     return (
         <HStack
@@ -108,7 +114,13 @@ export function Meta({
             minW="0"
         >
             {icon}
-            <Text truncate>{children}</Text>
+            <Text
+                truncate
+                fontFamily={numeric ? "mono" : undefined}
+                fontVariantNumeric={numeric ? "tabular-nums" : undefined}
+            >
+                {children}
+            </Text>
         </HStack>
     )
 }

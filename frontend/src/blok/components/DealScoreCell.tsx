@@ -40,10 +40,11 @@ export default function DealScoreCell({
     const declaration = declarations > 0 ? (
         <Text
             fontSize="2xs"
-            color="fg.subtle"
+            color="gold"
             lineHeight="1"
             whiteSpace="nowrap"
-            css={{ fontVariantNumeric: "tabular-nums" }}
+            fontFamily="mono"
+            fontVariantNumeric="tabular-nums"
         >
             +{declarations}
         </Text>
@@ -102,7 +103,8 @@ export default function DealScoreCell({
                        fixed gutters alone did not fix. */
                     minW={compact ? "2rem" : "2.75rem"}
                     textAlign="center"
-                    css={{ fontVariantNumeric: "tabular-nums" }}
+                    fontFamily="mono"
+                    fontVariantNumeric="tabular-nums"
                 >
                     {points}
                 </Text>
@@ -113,7 +115,8 @@ export default function DealScoreCell({
                 color="fg.muted"
                 lineHeight="1.15"
                 textAlign="center"
-                css={{ fontVariantNumeric: "tabular-nums" }}
+                fontFamily="mono"
+                fontVariantNumeric="tabular-nums"
             >
                 Σ {runningTotal}
             </Text>

@@ -94,6 +94,7 @@ export default function FullscreenRoundBoard({
                     fontSize={scoreSize}
                     fontWeight="bold"
                     lineHeight="1"
+                    fontFamily="mono"
                     fontVariantNumeric="tabular-nums"
                     color={isWinner ? "green.fg" : "fg.soft"}
                 >
@@ -188,6 +189,7 @@ export default function FullscreenRoundBoard({
                                         fontSize={`${z.tableNo}px`}
                                         fontWeight="bold"
                                         lineHeight="1.1"
+                                        fontFamily="mono"
                                         fontVariantNumeric="tabular-nums"
                                     >
                                         {m.tableNo}

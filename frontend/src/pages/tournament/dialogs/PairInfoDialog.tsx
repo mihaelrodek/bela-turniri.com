@@ -107,15 +107,15 @@ export default function PairInfoDialog({
                                 <HStack gap="6" mb="4" wrap="wrap">
                                     <Box>
                                         <Text fontSize="xs" color="fg.muted">{tr("tournament.history.played")}</Text>
-                                        <Text fontSize="xl" fontWeight="semibold">{finishedPlayed.length}</Text>
+                                        <Text fontSize="xl" fontWeight="semibold" fontFamily="mono" fontVariantNumeric="tabular-nums">{finishedPlayed.length}</Text>
                                     </Box>
                                     <Box>
                                         <Text fontSize="xs" color="fg.muted">{tr("tournament.history.wins")}</Text>
-                                        <Text fontSize="xl" fontWeight="semibold" color="green.fg">{wins}</Text>
+                                        <Text fontSize="xl" fontWeight="semibold" color="green.fg" fontFamily="mono" fontVariantNumeric="tabular-nums">{wins}</Text>
                                     </Box>
                                     <Box>
                                         <Text fontSize="xs" color="fg.muted">{tr("tournament.history.losses")}</Text>
-                                        <Text fontSize="xl" fontWeight="semibold" color="red.fg">{losses}</Text>
+                                        <Text fontSize="xl" fontWeight="semibold" color="red.fg" fontFamily="mono" fontVariantNumeric="tabular-nums">{losses}</Text>
                                     </Box>
                                     {pair.extraLife && (
                                         <Box>
@@ -162,7 +162,7 @@ export default function PairInfoDialog({
                                             >
                                                 <HStack justify="space-between" gap="2" wrap="wrap">
                                                     <HStack gap="2" minW="0" flex="1">
-                                                        <Badge variant="solid" colorPalette="gray" size="sm" flexShrink={0}>
+                                                        <Badge variant="solid" colorPalette="gray" size="sm" flexShrink={0} fontFamily="mono" fontVariantNumeric="tabular-nums">
                                                             {tr("tournament.history.roundShort", { n: x.round })}
                                                         </Badge>
                                                         <Text fontSize="xs" color="fg.muted" flexShrink={0}>
@@ -180,7 +180,7 @@ export default function PairInfoDialog({
                                                     </HStack>
                                                     <HStack gap="2" flexShrink={0}>
                                                         {!x.isBye && x.isFinished && (
-                                                            <Text fontWeight="semibold" fontSize="sm">
+                                                            <Text fontWeight="semibold" fontSize="sm" fontFamily="mono" fontVariantNumeric="tabular-nums">
                                                                 {x.myScore ?? "—"} : {x.oppScore ?? "—"}
                                                             </Text>
                                                         )}

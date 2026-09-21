@@ -48,6 +48,23 @@ Redatelj ne stvara „sobe koje igraju" i „sobe koje čekaju" — stvara sobe,
 dio soba stvara odmah u igri i **premota** nekoliko dijeljenja unaprijed, da
 lobby ne krene s osam partija na 0:0.
 
+**Rok na tri sjedeća** (2026-09-21). Soba koja dođe do **tri** dobije rok od
+20–70 s. Na roku se, kroz isti `structural()` mutex, dogodi točno jedno:
+**dođe četvrti** i partija krene nakon uobičajene kratke stanke (dopušteno i
+kad to digne broj partija JEDAN iznad trenutnog cilja; tvrda granica je
+`max + 1` pojasa), ili **netko ode** pa soba padne na dva (kasnije može opet
+gore, s NOVIM rokom). Omjer je otprilike 65/35 u korist četvrtog kad ima
+mjesta. Sobe s jednim ili dva sjedeća smiju čekati dulje, ali ne zauvijek:
+soba koja nakon 6–10 min još nije krenula ili se napuni i krene ili se
+zatvori pa je zamijeni nova — popis se mora vidljivo mijenjati.
+
+Kako su početci sad vođeni VREMENOM, prosjek se drži s druge strane: dok je
+partija **više** nego što cilj traži, nitko se ne gura na tri (novi dolasci
+samo dižu sobu s jedan na dva), a gotove partije se brže raziđu.
+
+Soba u kojoj sjedi PRAVI čovjek zadržava svoj ljudski tempo (puni se jedan po
+jedan, 3–12 s) — na nju se ovo ne odnosi.
+
 ### 2.3 Pravi igrač
 
 - Sjeda normalno. Domaćin je lažna osoba, pa **redatelj** pokreće igru.
@@ -55,6 +72,41 @@ lobby ne krene s osam partija na 0:0.
 - Nestane usred igre (istek zadrške): sjedalo preuzima **nova lažna osoba**
   (`replace`), ne „Bot Ana". Bez kazne za karmu (nije bilo drugih ljudi).
 - Rezultat partije protiv lažnih ljudi boduje se **isto kao protiv botova**.
+
+### 2.4 Gosti u pravim sobama
+
+Pravi čovjek otvori **javnu** sobu i čeka — i dosad bi zurio u tri prazne
+stolice. Sad mu, nakon vjerodostojne pauze, dolaze **gosti**: lažne osobe na
+sjedalima u sobi koju je otvorio pravi čovjek.
+
+**Ugovor.** `RealRoomHandle` + `watchRealRooms` / `realWaitingRooms` na
+`DemoLobbyApi` (`demo/types.ts`). Ručka je namjerno sitna: gost može **sjesti,
+ustati i reagirati**, ništa drugo. Ne pokreće, ne zatvara, ne mijenja postavke
+i nikad nije domaćin. `realWaitingRooms()` vraća prazno dok netko ne pozove
+`watchRealRooms` — a to radi samo redatelj, pa je to ujedno i brava zastavice.
+
+**Mehanika** (`room.guestSit` / `guestLeave` / `guestReact`). Gost se na žici
+serijalizira **kao i svaka lažna osoba** (`PLAYER`, `connected`, `ready`),
+sjeda po `SEAT_FILL_ORDER`, karte mu igra bot s njegovim tempom, i ne ulazi ni
+u jednu statistiku (rezultat se boduje kao protiv botova). Razlika prema demo
+sobi je jedna: **gost ne drži sobu na životu.** Kad ode zadnji pravi čovjek iz
+čekaonice, soba nestaje kao i svaka prazna obična soba, a gosti s njom; ako
+usred partije istekne zadrška jedinom pravom igraču, stol se raspusti kao i
+protiv botova (gosti se NE broje kao ljudi u običnoj sobi). Domaćin zadržava
+sve ovlasti: „Pokreni igru" ide normalnim putem (gosti se broje kao zauzeti i
+spremni), „Dodaj bota" i dalje dodaje **vidljivog bota**, a zaključa li sobu,
+gosti ostaju (oni su „ljudi") ali novih više nema.
+
+**Tempo** (`director.ts`). Prvi gost ne prije 25–60 s od otvaranja sobe,
+sljedeći svakih 10–35 s. Dok je u sobi samo JEDAN pravi čovjek i soba je mlađa
+od 2 min, **zadnja stolica se ne dira** — možda čeka prijatelja; poslije toga
+smije i četvrti. S dvoje ili više pravih ljudi popunjava se normalno. Svaki
+dolazak ili odlazak pravog čovjeka vraća „tišinu" na ≥ 15 s. Gost koji
+4–6 min čeka partiju koja ne kreće odustane i ode (kasnije može doći drugi), a
+nakon partije se gosti raziđu jedan po jedan kroz 10–60 s. Najviše **dvije**
+prave sobe istovremeno, i ništa od svega ovoga ako u lobbyju ima ≥ 6 pravih
+soba. Sobe s gostima su PRAVE sobe i ne ulaze ni u jedan demo zbroj —
+`demo.status` ih prijavljuje zasebno (`guestRooms`, `guestsSeated`).
 
 ## 3. Vjerodostojnost — što ne smije procuriti
 

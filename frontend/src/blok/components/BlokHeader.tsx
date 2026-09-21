@@ -118,7 +118,8 @@ function SideTotal({
                     // must never do.
                     mb="1"
                     color="colorPalette.fg"
-                    css={{ fontVariantNumeric: "tabular-nums" }}
+                    fontFamily="mono"
+                    fontVariantNumeric="tabular-nums"
                 >
                     <Box as="span" aria-hidden="true">
                         {wins}
@@ -146,7 +147,8 @@ function SideTotal({
                 lineHeight="1"
                 letterSpacing="-0.02em"
                 color="colorPalette.fg"
-                css={{ fontVariantNumeric: "tabular-nums" }}
+                fontFamily="mono"
+                fontVariantNumeric="tabular-nums"
             >
                 {total}
             </Text>
@@ -392,7 +394,7 @@ export default function BlokHeader({
                     // dobivene igre" is long enough to run under them.
                     px="9"
                     mb={{ base: "2", md: "3" }}
-                    css={{ fontVariantNumeric: "tabular-nums" }}
+                    fontVariantNumeric="tabular-nums"
                 >
                     {/* Rendered as parts rather than one joined string, because
                         the rule is now ALWAYS in here and on a 320 px phone

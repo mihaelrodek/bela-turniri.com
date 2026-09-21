@@ -107,7 +107,7 @@ export default function PlayerAvatar({
                     right="0"
                     boxSize={dotSize}
                     rounded="full"
-                    bg="green.solid"
+                    bg="ok"
                     borderWidth="2px"
                     borderColor="bg.panel"
                 />

@@ -542,6 +542,16 @@ export const game = {
        nikad vidljivi tekst.
        DODANO NA KRAJ — ne premještaj i ne briši ključeve iznad. */
     "score.progress": "Ukupno {total} od {target}",
+
+    /* ─── Filtri u predvorju (2026-09-21, korisnikov zahtjev) ─────────────
+       Traka pretrage dijeli redak s čipovima: "Ima mjesta" (samo sobe koje
+       čekaju igrače i imaju slobodno sjedalo) i ciljni broj bodova. Sam broj
+       (501/701/1001) nije riječ pa se ne prevodi — prevodi se samo ono što
+       pročita čitač ekrana.
+       DODANO NA KRAJ — ne premještaj i ne briši ključeve iznad. */
+    "lobby.filter.hasSeats": "Ima mjesta",
+    "lobby.filter.targetAria": "Prikaži samo igre do {target} bodova",
+    "lobby.filter.public": "Javne",
 }
 
 /** Ugovor koji svaki drugi jezik mora zadovoljiti za `game`. */

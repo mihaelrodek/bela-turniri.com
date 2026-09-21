@@ -719,9 +719,11 @@ export default function FindPairPage() {
                                     ml="1"
                                     px="1.5"
                                     rounded="full"
-                                    bg="whiteAlpha.400"
+                                    bg="brand.contrast/25"
                                     fontSize="2xs"
                                     fontWeight="bold"
+                                    fontFamily="mono"
+                                    fontVariantNumeric="tabular-nums"
                                 >
                                     {activeFilterCount}
                                 </Box>

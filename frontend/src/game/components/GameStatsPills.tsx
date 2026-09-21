@@ -30,7 +30,7 @@ function StatChip({ record }: { record: GameStatRecord }) {
 export function SeatStatPill({ stats }: { stats: PlayerGameStats }) {
     return (
         <Box px="2" py="0.5" rounded="full" bg="bg.panel" color="fg.muted" borderWidth="1px" borderColor="border.emphasized"
-            fontSize="2xs" lineHeight="shorter" fontVariantNumeric="tabular-nums" whiteSpace="nowrap" flexShrink={0}>
+            fontSize="2xs" fontFamily="mono" lineHeight="shorter" fontVariantNumeric="tabular-nums" whiteSpace="nowrap" flexShrink={0}>
             <StatChip record={overallRecord(stats)} />
         </Box>
     )
@@ -55,10 +55,10 @@ export function SeatKarmaPill({ karma }: { karma: number | null | undefined }) {
     return (
         <Popover.Root positioning={{ placement: "bottom" }} lazyMount unmountOnExit>
             <Popover.Trigger asChild>
-                <chakra.button type="button" px="2" py="0.5" rounded="full" bg={low ? "orange.subtle" : "bg.panel"}
-                    color={low ? "orange.fg" : "fg.muted"} borderWidth="1px"
-                    borderColor={low ? "orange.emphasized" : "border.emphasized"}
-                    fontSize="2xs" lineHeight="shorter" fontVariantNumeric="tabular-nums" whiteSpace="nowrap" flexShrink={0}
+                <chakra.button type="button" px="2" py="0.5" rounded="full" bg={low ? "live.subtle" : "bg.panel"}
+                    color={low ? "live" : "fg.muted"} borderWidth="1px"
+                    borderColor={low ? "live" : "border.emphasized"}
+                    fontSize="2xs" fontFamily="mono" lineHeight="shorter" fontVariantNumeric="tabular-nums" whiteSpace="nowrap" flexShrink={0}
                     cursor="pointer" aria-label={t("game.room.karma", { value, max: KARMA_MAX })}
                     onClick={(e: MouseEvent) => e.stopPropagation()}>
                     <HStack gap="1" align="center">
@@ -95,7 +95,7 @@ function StatTile({ label, record, w }: { label: string; record: GameStatRecord;
     return (
         <VStack gap="0" px="1" py="1" rounded="lg" bg="bg.subtle" borderWidth="1px" borderColor="border.subtle" minW="0" w={w} flexShrink={0}>
             <Text fontSize="2xs" color="fg.muted" fontWeight="semibold" lineHeight="shorter" truncate w="full" textAlign="center">{label}</Text>
-            <Text fontSize="2xs" fontWeight="semibold" lineHeight="shorter" fontVariantNumeric="tabular-nums" truncate w="full" textAlign="center">
+            <Text fontSize="2xs" fontFamily="mono" fontWeight="semibold" lineHeight="shorter" fontVariantNumeric="tabular-nums" truncate w="full" textAlign="center">
                 <StatChip record={record} />
             </Text>
         </VStack>
@@ -110,48 +110,52 @@ function discLabel(t: (key: string) => string, target: StatTargetScore): string 
     return target === "163" ? t("game.stats.quickLabel") : target
 }
 
-/** The signed-in player's own record: overall total plus one tile per
- *  discipline (163/501/701/1001), same numbers and rounding RoomPanel's seat
- *  pill uses. Renders nothing for a guest or anyone with no persisted record
- *  yet (`gameStats` absent) — a row of "0–0 · 0%" tiles would just be noise
- *  for a player who has never finished a game; the guest hint line right
- *  below already tells them how to start one.
+/** The signed-in player's own record: displays a single clickable "Ukupno"
+ *  overall tile that opens a popover with the full breakdown (overall plus
+ *  one tile per discipline: 163/501/701/1001). Renders nothing for a guest or
+ *  anyone with no persisted record yet (`gameStats` absent or zero finished
+ *  games) — the guest hint line right below already tells them how to start
+ *  one (2026-09-21, owner request: five "0–0 · 0%" tiles were noise; only
+ *  Ukupno shown, rest on click).
  *
- *  Two variants, one component, so a guest/no-stats render (`null`) and the
- *  5-tile content stay in exactly one place (2026-09-20, user request: put
- *  the tiles in the header row on md+ where there is room beside the
- *  avatar/name, keep the phone layout as its own row underneath):
- *   - `"grid"` (default): a 5-column grid that fills its container, up to
- *     340/420px — the phone header's own row.
- *   - `"row"`: five fixed-width (~112px) tiles side by side, meant to sit
- *     inline between the profile name and the settings gear on md+. The
- *     caller is responsible for hiding whichever variant does not apply at
- *     the current breakpoint (see `GameLobbyPage`), so exactly one renders
- *     at a time — never both, and never a layout shift when `stats` is
- *     absent, since both instances return `null` identically. */
-export function MyGameStatsPills({ stats, variant = "grid" }: {
+ *  Two variants accept the same props but render identically: both display one
+ *  tile; the variant exists only so the component signature stays compatible:
+ *   - `"grid"` (default): 112px fixed width for consistency
+ *   - `"row"`: 112px fixed width for consistency. The caller may hide/show
+ *     variants at different breakpoints (see `GameLobbyPage`), so both return
+ *     `null` identically when `stats` is absent or games is zero. */
+export function MyGameStatsPills({ stats }: {
     stats: PlayerGameStats | null | undefined
+    /** Kept so existing callers compile; both variants are the one tile now. */
     variant?: "grid" | "row"
 }) {
     const { t } = useTranslation()
     if (!stats) return null
+    const overall = overallRecord(stats)
+    if (overall.games === 0) return null
     const overallLabel = t("game.room.statsTitle")
-    if (variant === "row") {
-        return (
-            <HStack gap="1.5" flexShrink={0}>
-                <StatTile label={overallLabel} record={overallRecord(stats)} w="112px" />
-                {STAT_TARGET_SCORES.map((target) => (
-                    <StatTile key={target} label={discLabel(t, target)} record={targetRecord(stats, target)} w="112px" />
-                ))}
-            </HStack>
-        )
-    }
     return (
-        <SimpleGrid columns={STAT_TARGET_SCORES.length + 1} gap="1.5" w="full" maxW={{ base: "340px", md: "420px" }}>
-            <StatTile label={overallLabel} record={overallRecord(stats)} />
-            {STAT_TARGET_SCORES.map((target) => (
-                <StatTile key={target} label={discLabel(t, target)} record={targetRecord(stats, target)} />
-            ))}
-        </SimpleGrid>
+        <Popover.Root positioning={{ placement: "bottom" }} lazyMount unmountOnExit>
+            <Popover.Trigger asChild>
+                <chakra.button type="button" w="112px" cursor="pointer" aria-label={overallLabel} aria-haspopup="dialog">
+                    <StatTile label={overallLabel} record={overall} w="112px" />
+                </chakra.button>
+            </Popover.Trigger>
+            <Portal>
+                <Popover.Positioner>
+                    <Popover.Content>
+                        <Popover.Arrow><Popover.ArrowTip /></Popover.Arrow>
+                        <Popover.Body p="3">
+                            <SimpleGrid columns={3} gap="1.5" w="full">
+                                <StatTile label={overallLabel} record={overall} />
+                                {STAT_TARGET_SCORES.map((target) => (
+                                    <StatTile key={target} label={discLabel(t, target)} record={targetRecord(stats, target)} />
+                                ))}
+                            </SimpleGrid>
+                        </Popover.Body>
+                    </Popover.Content>
+                </Popover.Positioner>
+            </Portal>
+        </Popover.Root>
     )
 }

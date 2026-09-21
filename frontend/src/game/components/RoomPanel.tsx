@@ -139,7 +139,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 <Flex mt="1.5">
                     {room.private ? (
                         <Button size="xs" h="26px" minH="0" px="2" rounded="full" variant="subtle" colorPalette="brand"
-                            fontVariantNumeric="tabular-nums" flexShrink={0} onClick={copyCode}>
+                            fontFamily="mono" fontVariantNumeric="tabular-nums" flexShrink={0} onClick={copyCode}>
                             <FiCopy /> {t("game.room.codeLabel", { code: room.code })}
                         </Button>
                     ) : (
@@ -206,7 +206,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                                             {/* Bots already say "Bot" in their name (e.g. "Bot Mate") — a
                                                 repeated subtitle just burns a line; only players need a
                                                 connection/ready subtitle. */}
-                                            {occupant?.kind === "PLAYER" && <Text fontSize="xs" color={!occupant.connected ? "fg.muted" : occupant.ready ? "brand.500" : "red.500"}>
+                                            {occupant?.kind === "PLAYER" && <Text fontSize="xs" color={!occupant.connected ? "fg.muted" : occupant.ready ? "brand.500" : "danger"}>
                                                 {occupant.connected ? (occupant.ready ? t("game.room.ready") : t("game.room.waitingReady")) : t("game.seat.disconnected")}
                                             </Text>}
                                         </VStack>

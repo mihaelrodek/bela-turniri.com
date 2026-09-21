@@ -1339,6 +1339,59 @@ export function continueAceSuit(view: PlayerView, legal: readonly Card[]): Card 
 }
 
 /**
+ * A plain card that is a CERTAIN trick, to be cashed the moment I am on lead
+ * (BOT.md §15.20, reported 2026-09-21: a bot holding four hearts, every
+ * trump already gone, led hearts twice and then a card of another suit —
+ * the rest of the hearts were never played and fell away with the deal).
+ *
+ * Certain means two things together, and both have to be PROVEN:
+ *   - the opponents cannot ruff: `trumpOutlook.opponentMax === 0` — no trump
+ *     left at all, or every opponent has shown void in it;
+ *   - nothing still in play beats the card in its own suit
+ *     (`isMasterCard`). With a suit that is exhausted everywhere else this is
+ *     true of EVERY card I hold in it, which is exactly the "run the suit"
+ *     case — the second and third heart are masters as soon as the first has
+ *     gone.
+ * Such a lead takes the trick whoever follows, so there is nothing to
+ * manoeuvre for: each turn it is put off is a turn the lead can be lost
+ * with the winner still in hand.
+ *
+ * The suit with the MOST sure tricks goes first, its strongest master
+ * leading (the points fall into the trick either way; the order only decides
+ * what an opponent's discard can dodge). The trump suit is never touched here
+ * — trumps have their own rules (§14, §15.16) — and neither is a suit I hold
+ * no master of. Returns null when nothing qualifies.
+ */
+export function sureWinnerToCash(view: PlayerView, legal: readonly Card[]): Card | null {
+    const trump = view.bidding.trump
+    if (trump === null) return null
+    if (trumpOutlook(view).opponentMax > 0) return null
+
+    // A SOLO ace stays where §5.3 keeps it (`aceToCash`): cashing it tells the
+    // partner nothing he can use and talks him into holding a 10 in a suit
+    // that can never be opened for him again.
+    const masters = legal.filter(
+        (card) =>
+            cardSuit(card) !== trump &&
+            isMasterCard(view, card) &&
+            !(cardRank(card) === "A" && myLength(view, cardSuit(card)) === 1),
+    )
+    if (masters.length === 0) return null
+
+    const count = (suit: Suit): number => masters.filter((card) => cardSuit(card) === suit).length
+    const suits = [...new Set(masters.map((card) => cardSuit(card)))]
+    let best = suits[0] as Suit
+    for (const suit of suits) {
+        if (count(suit) > count(best)) best = suit
+        else if (count(suit) === count(best) && myLength(view, suit) > myLength(view, best)) best = suit
+    }
+    return strongestCard(
+        masters.filter((card) => cardSuit(card) === best),
+        trump,
+    )
+}
+
+/**
  * The plain ace to cash right now (BOT.md §5.3): once the opponents provably
  * hold no trump, an ace is a certain trick and cashing it also tells the
  * partner to hold on to his backed 10. A SOLO ace is deliberately excluded —

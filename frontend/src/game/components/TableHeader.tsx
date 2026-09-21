@@ -40,7 +40,7 @@ export default function TableHeader({
             minW="0"
         >
             <HStack gap="1" minW="0" justify="center">
-                <Text fontSize="xs" fontWeight="semibold" color={INK} lineClamp={1} minW="0" textAlign="center">
+                <Text fontSize="xs" fontFamily="mono" fontVariantNumeric="tabular-nums" fontWeight="semibold" color={INK} lineClamp={1} minW="0" textAlign="center">
                     {/* The quick game has no end rule to show — its name says it all. */}
                     {targetScore === 163
                         ? t("game.create.quick.name").toUpperCase()
@@ -153,11 +153,12 @@ function DeclarationBadge({
             align="center"
             justify="center"
             rounded="full"
-            bg={side === "us" ? "brand.300" : "yellow.400"}
+            bg={side === "us" ? "brand.300" : "tan"}
             color="brand.950"
             borderWidth="2px"
             borderColor="bg.opaque"
             fontSize="9px"
+            fontFamily="mono"
             fontWeight="bold"
             fontVariantNumeric="tabular-nums"
             lineHeight="1"
@@ -253,6 +254,7 @@ function PillButton({
                     borderWidth="2px"
                     borderColor="brand.950"
                     fontSize="9px"
+                    fontFamily="mono"
                     fontWeight="bold"
                     fontVariantNumeric="tabular-nums"
                     lineHeight="1"
@@ -288,10 +290,10 @@ export function StatusChip({
             py="0.5"
             rounded="full"
             flexShrink={0}
-            bg={tone === "warn" ? "orange.400" : "bg.opaque"}
+            bg={tone === "warn" ? "live" : "bg.opaque"}
             color={tone === "warn" ? "brand.950" : INK_MUTED}
             borderWidth="1px"
-            borderColor={tone === "warn" ? "orange.400" : "bg.muted"}
+            borderColor={tone === "warn" ? "live" : "bg.muted"}
             fontSize="9px"
             fontWeight="bold"
             textTransform="uppercase"

@@ -62,6 +62,13 @@ export default function AppBackground() {
             backgroundSize={{ base: "95%", md: "70%", lg: "55%" }}
             backgroundPosition="center"
             backgroundRepeat="no-repeat"
+            // THEME.md --art-opacity: .10 light / .07 dark. `bg-cards-faded.png`
+            // ALREADY has the light value baked into its alpha channel (max
+            // alpha 25/255 = .098), so light is left at 1 — multiplying by .10
+            // again would make the art ~1 % and effectively invisible. Dark
+            // scales that baked .098 by .7 to land on .07. This is the layer's
+            // own opacity (decorative, no text), not text dimming.
+            opacity={{ base: 1, _dark: 0.7 }}
         />
     )
 }

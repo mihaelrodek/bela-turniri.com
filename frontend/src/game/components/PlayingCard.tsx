@@ -136,8 +136,9 @@ export default function PlayingCard({
             // …and no white frame behind it (2026-09-20, user request): the
             // image carries the whole card, so a background would show as a
             // border and fill in the transparent corners.
-            bg={hungarian ? "transparent" : CARD_INK.faceFrench}
-            color={SUIT_IS_RED[suit] ? CARD_INK.red : CARD_INK.ink}
+            bg={hungarian ? "transparent" : "cardface"}
+            color={SUIT_IS_RED[suit] ? "suit.heartText" : CARD_INK.ink}
+            borderColor="cardline"
             borderWidth="0"
             boxShadow="none"
             opacity={dimmed ? 0.42 : 1}
@@ -270,7 +271,8 @@ export function CardBack({ size = "md", deck = DEFAULT_DECK }: { size?: CardSize
             h={hungarian ? MADJARICA_HEIGHT[size] : metrics.h}
             flexShrink={0}
             rounded={hungarian ? MADJARICA_RADIUS[size] : metrics.radius}
-            bg={CARD_INK.face}
+            bg="cardface"
+            borderColor="cardline"
             borderWidth="0"
             boxShadow="none"
             filter={hungarian ? CARD_SHADOW : undefined}

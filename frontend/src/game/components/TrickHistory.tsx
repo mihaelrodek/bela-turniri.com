@@ -101,7 +101,7 @@ export default function TrickHistory({
                 >
                     <FiX />
                 </IconButton>
-                <Text fontSize="sm" fontWeight="bold" textAlign="center" color={INK} letterSpacing="wide">
+                <Text fontSize="sm" fontFamily="heading" fontWeight="bold" textAlign="center" color={INK} letterSpacing="wide">
                     {t("game.tricks.title")}
                 </Text>
 
@@ -121,7 +121,7 @@ export default function TrickHistory({
                             bg="bg.subtle"
                         >
                             <HStack justify="space-between" gap="2">
-                                <Text fontSize="xs" fontWeight="bold" color={INK}>
+                                <Text fontSize="xs" fontFamily="mono" fontVariantNumeric="tabular-nums" fontWeight="bold" color={INK}>
                                     {t("game.tricks.trickNo", { n: trick.no })}
                                 </Text>
                                 <Text fontSize="9px" color={INK_MUTED} lineClamp={1}>

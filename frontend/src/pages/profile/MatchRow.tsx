@@ -25,7 +25,7 @@ export function MatchRow({ m }: { m: PairMatchHistory["matches"][number] }) {
             py="1.5"
             fontSize="sm"
         >
-            <Badge variant="outline" colorPalette="blue" size="sm">
+            <Badge variant="outline" colorPalette="blue" size="sm" fontFamily="mono" fontVariantNumeric="tabular-nums">
                 {t("profile.match.round", { n: m.roundNumber ?? "?" })}
             </Badge>
             {m.tableNo != null && (
@@ -35,7 +35,7 @@ export function MatchRow({ m }: { m: PairMatchHistory["matches"][number] }) {
                 {t("profile.vs")} <chakra.b>{m.opponentName ?? (m.isBye ? "—" : "?")}</chakra.b>
             </Text>
             {(m.ourScore != null || m.opponentScore != null) && (
-                <Text fontFamily="mono" fontWeight="semibold">
+                <Text fontFamily="mono" fontVariantNumeric="tabular-nums" fontWeight="semibold">
                     {m.ourScore ?? 0} : {m.opponentScore ?? 0}
                 </Text>
             )}

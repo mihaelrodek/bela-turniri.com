@@ -117,7 +117,7 @@ export default function TournamentReviewCard({
                 )}
 
                 <Box flex="1" minW="0" px={{ base: "4", md: "5" }} py="4">
-                    <Text fontSize="lg" fontWeight="bold" lineHeight="1.2" truncate>
+                    <Text fontFamily="heading" fontSize="lg" fontWeight="semibold" lineHeight="1.2" letterSpacing="-0.015em" truncate>
                         {heading.trim() || <chakra.span color="fg.subtle">{headingFallback}</chakra.span>}
                     </Text>
                     <Text fontSize="sm" color="fg.muted" mt="1">

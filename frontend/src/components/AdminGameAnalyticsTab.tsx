@@ -13,7 +13,7 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
     return (
         <Box bg="bg.subtle" rounded="lg" px="3" py="2.5" minW="0">
             <Text fontSize="xs" color="fg.muted" fontWeight="semibold">{label}</Text>
-            <Text fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold" lineHeight="short">{value}</Text>
+            <Text fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold" lineHeight="short" fontFamily="mono" fontVariantNumeric="tabular-nums">{value}</Text>
             {hint && <Text fontSize="xs" color="fg.muted">{hint}</Text>}
         </Box>
     )
@@ -37,7 +37,7 @@ export default function AdminGameAnalyticsTab() {
     const query = useQuery({ queryKey: qk.adminGameAnalytics, queryFn: adminGetGameAnalytics })
 
     if (query.isLoading) return <HStack justify="center" py="12"><Spinner /><Text>{t("admin.analytics.loading")}</Text></HStack>
-    if (!query.data) return <Text color="red.400">{t("admin.analytics.error")}</Text>
+    if (!query.data) return <Text color="danger">{t("admin.analytics.error")}</Text>
     const data = query.data
 
     return (
@@ -52,16 +52,16 @@ export default function AdminGameAnalyticsTab() {
                 </Grid>
 
                 <Grid templateColumns={{ base: "1fr", lg: "repeat(2, minmax(0, 1fr))" }} gap="4">
-                    <Box><Text fontWeight="bold" mb="2">{t("admin.analytics.targets")}</Text><Rows>
+                    <Box><Text fontWeight="bold" mb="2" fontFamily="heading" letterSpacing="-0.015em">{t("admin.analytics.targets")}</Text><Rows>
                         {data.byTarget.map((row) => <Row key={row.label} title={row.label} detail={t("admin.analytics.targetRow", row)} />)}
                     </Rows></Box>
-                    <Box><Text fontWeight="bold" mb="2">{t("admin.analytics.trumps")}</Text><Rows>
+                    <Box><Text fontWeight="bold" mb="2" fontFamily="heading" letterSpacing="-0.015em">{t("admin.analytics.trumps")}</Text><Rows>
                         {data.trumps.map((row) => <Row key={row.suit} title={({ HERC: "♥ Herc", KARA: "♦ Kara", PIK: "♠ Pik", TREF: "♣ Tref" } as Record<string, string>)[row.suit] ?? row.suit} detail={t("admin.analytics.trumpRow", { calls: row.calls, share: pct(row.share), success: pct(row.successRate), falls: row.falls })} />)}
                     </Rows></Box>
-                    <Box><Text fontWeight="bold" mb="2">{t("admin.analytics.positions")}</Text><Rows>
+                    <Box><Text fontWeight="bold" mb="2" fontFamily="heading" letterSpacing="-0.015em">{t("admin.analytics.positions")}</Text><Rows>
                         {data.callPositions.map((row) => <Row key={row.position} title={t("admin.analytics.position", { position: row.position })} detail={t("admin.analytics.positionRow", { calls: row.calls, success: pct(row.successRate), falls: row.falls })} />)}
                     </Rows></Box>
-                    <Box><Text fontWeight="bold" mb="2">{t("admin.analytics.details")}</Text>
+                    <Box><Text fontWeight="bold" mb="2" fontFamily="heading" letterSpacing="-0.015em">{t("admin.analytics.details")}</Text>
                         <Grid templateColumns="repeat(2, minmax(0, 1fr))" gap="2">
                             <Stat label={t("admin.analytics.deals")} value={data.details.deals} />
                             <Stat label={t("admin.analytics.avgDeals")} value={oneDecimal(data.details.averageDealsPerCompletedGame)} />
@@ -76,13 +76,13 @@ export default function AdminGameAnalyticsTab() {
 
                 <Grid templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }} gap="3">
                     <Box borderWidth="1px" borderColor="border.muted" rounded="lg" p="3">
-                        <HStack mb="2"><FiActivity /><Text fontWeight="bold">{t("admin.analytics.tableMix")}</Text></HStack>
+                        <HStack mb="2"><FiActivity /><Text fontWeight="bold" fontFamily="heading" letterSpacing="-0.015em">{t("admin.analytics.tableMix")}</Text></HStack>
                         <Text fontSize="sm">{t("admin.analytics.humans")}: {data.details.humanOnlyGames}</Text>
                         <Text fontSize="sm">{t("admin.analytics.mixed")}: {data.details.mixedGames}</Text>
                         <Text fontSize="sm">{t("admin.analytics.bots")}: {data.details.botOnlyGames}</Text>
                     </Box>
                     <Box borderWidth="1px" borderColor="border.muted" rounded="lg" p="3">
-                        <Text fontWeight="bold" mb="2">{t("admin.analytics.visibility")}</Text>
+                        <Text fontWeight="bold" mb="2" fontFamily="heading" letterSpacing="-0.015em">{t("admin.analytics.visibility")}</Text>
                         <Text fontSize="sm">{t("admin.analytics.public")}: {data.details.publicGames}</Text>
                         <Text fontSize="sm">{t("admin.analytics.private")}: {data.details.privateGames}</Text>
                     </Box>

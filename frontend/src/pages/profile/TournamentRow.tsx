@@ -89,7 +89,7 @@ export const TournamentRow = React.memo(function TournamentRow({
                 <HStack justify="space-between" gap="3" wrap="wrap" mb="1.5">
                     <HStack gap="2" flex="1" minW="0">
                         {open ? <FiChevronDown /> : <FiChevronRight />}
-                        <Text fontWeight="semibold" lineHeight="short">
+                        <Text fontFamily="heading" fontWeight="semibold" lineHeight="short">
                             {row.tournamentName}
                         </Text>
                     </HStack>
@@ -104,7 +104,7 @@ export const TournamentRow = React.memo(function TournamentRow({
                 </HStack>
                 <HStack gap="3" wrap="wrap" fontSize="xs" color="fg.muted" pl="6">
                     {row.tournamentStartAt && (
-                        <HStack gap="1"><FiCalendar /><Text>{formatDate(row.tournamentStartAt)}</Text></HStack>
+                        <HStack gap="1"><FiCalendar /><Text fontFamily="mono" fontVariantNumeric="tabular-nums">{formatDate(row.tournamentStartAt)}</Text></HStack>
                     )}
                     {row.tournamentLocation && (
                         <HStack gap="1"><FiMapPin /><Text>{row.tournamentLocation}</Text></HStack>

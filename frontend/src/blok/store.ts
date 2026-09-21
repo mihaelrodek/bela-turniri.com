@@ -197,8 +197,8 @@ export function emptyGame(setup: BlokGameSetup = {}): BlokGame {
         showDealer: sanitizeShowDealer(setup.showDealer),
         shareEnabled: sanitizeShareEnabled(setup.shareEnabled),
         names: {
-            us: (setup.names?.us ?? "").slice(0, MAX_SIDE_NAME),
-            them: (setup.names?.them ?? "").slice(0, MAX_SIDE_NAME),
+            us: (setup.names?.us ?? "").toLocaleUpperCase("hr").slice(0, MAX_SIDE_NAME),
+            them: (setup.names?.them ?? "").toLocaleUpperCase("hr").slice(0, MAX_SIDE_NAME),
         },
         rounds: [],
     }
@@ -923,8 +923,9 @@ function undoLast(): void {
 function rename(side: BlokSide, name: string): void {
     // A blank name is not a name: it resets the side to its translated default
     // rather than leaving an empty header on screen. The cap is the store's,
-    // not the dialog's — see `MAX_SIDE_NAME`.
-    const trimmed = name.trim().slice(0, MAX_SIDE_NAME)
+    // not the dialog's — see `MAX_SIDE_NAME`. Names are stored in CAPITALS
+    // (2026-09-21), whichever way they arrive.
+    const trimmed = name.trim().toLocaleUpperCase("hr").slice(0, MAX_SIDE_NAME)
     updateCurrent((g) => ({ ...g, names: { ...g.names, [side]: trimmed } }))
 }
 

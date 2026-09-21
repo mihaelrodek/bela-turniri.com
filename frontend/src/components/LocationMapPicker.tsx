@@ -30,12 +30,13 @@ import { reverseGeocode } from "../utils/places"
  * <p>The colours are literal hexes on purpose: this markup is handed to
  * Leaflet, i.e. it never passes through Chakra's style engine, and the pin
  * sits on map tiles rather than an app surface, so it must not follow the
- * light/dark flip.
+ * light/dark flip. The pin fill is THEME.md's `--brand` (light) `#2E6343`
+ * (2026-09-21 rollout; was `#227342`).
  */
 const PICKER_PIN_ICON = L.divIcon({
     html: `<svg width="28" height="38" viewBox="0 0 28 38" xmlns="http://www.w3.org/2000/svg">
              <path d="M14 0C6.27 0 0 6.27 0 14c0 9.5 13 22.5 13.5 23a1 1 0 0 0 1 0C15 36.5 28 23.5 28 14c0-7.73-6.27-14-14-14z"
-                   fill="#227342" stroke="white" stroke-width="2"/>
+                   fill="#2E6343" stroke="white" stroke-width="2"/>
              <circle cx="14" cy="14" r="5" fill="white"/>
            </svg>`,
     className: "location-picker-pin",

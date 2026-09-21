@@ -811,9 +811,11 @@ export default function TournamentsPage() {
                                             ml="1"
                                             px="1.5"
                                             rounded="full"
-                                            bg="whiteAlpha.400"
+                                            bg="brand.contrast/25"
                                             fontSize="2xs"
                                             fontWeight="bold"
+                                            fontFamily="mono"
+                                            fontVariantNumeric="tabular-nums"
                                             flexShrink="0"
                                         >
                                             {activeFilterCount}
@@ -1024,6 +1026,8 @@ export default function TournamentsPage() {
                                             fontSize="xs"
                                             fontWeight="bold"
                                             color="brand.fg"
+                                            fontFamily="mono"
+                                            fontVariantNumeric="tabular-nums"
                                             mb="1.5"
                                             minW="46px"
                                         >

@@ -59,7 +59,7 @@ export function BelaFlash({ seats, seat }: { seats: RoomState["seats"]; seat: Se
                 rounded="l3"
                 px="7"
                 py="4"
-                boxShadow="0 0 40px rgba(127,196,150,0.4)"
+                boxShadow="0 0 40px color-mix(in srgb, var(--chakra-colors-brand-fg) 40%, transparent)"
                 css={{
                     ...GLASS_STRONG.css,
                     animation: "belaFlashIn 220ms cubic-bezier(0.22, 1.2, 0.36, 1)",
@@ -69,7 +69,7 @@ export function BelaFlash({ seats, seat }: { seats: RoomState["seats"]; seat: Se
                     },
                 }}
             >
-                <Text fontSize="3xl" fontWeight="bold" color="brand.fg" lineHeight="1.1">
+                <Text fontSize="3xl" fontFamily="heading" fontWeight="bold" color="brand.fg" lineHeight="1.1">
                     {t("game.bela.title")}
                 </Text>
                 <Text fontSize="sm" color={INK_MUTED}>
@@ -352,7 +352,7 @@ export default function DeclarationsReveal({
                         <FiX />
                     </IconButton>
                 )}
-                <Text fontSize="sm" fontWeight="bold" textAlign="center" color={INK} letterSpacing="wide">
+                <Text fontSize="sm" fontFamily="heading" fontWeight="bold" textAlign="center" color={INK} letterSpacing="wide">
                     {t("game.declarations.title")}
                 </Text>
 
@@ -405,6 +405,7 @@ export default function DeclarationsReveal({
                                     >
                                         <Text
                                             fontSize="2xs"
+                                            fontFamily="mono"
                                             fontWeight="bold"
                                             color={TEAM[side]}
                                             textTransform="uppercase"
@@ -415,6 +416,7 @@ export default function DeclarationsReveal({
                                         <Text
                                             fontSize="xl"
                                             lineHeight="1"
+                                            fontFamily="mono"
                                             fontWeight="black"
                                             color={points[team] > 0 ? INK : INK_MUTED}
                                             fontVariantNumeric="tabular-nums"
@@ -455,8 +457,9 @@ export default function DeclarationsReveal({
                                                 </Text>
                                                 <Text
                                                     fontSize="xs"
+                                                    fontFamily="mono"
                                                     fontWeight="black"
-                                                    color="brand.fg"
+                                                    color="gold"
                                                     fontVariantNumeric="tabular-nums"
                                                     flexShrink={0}
                                                 >
@@ -499,6 +502,7 @@ export default function DeclarationsReveal({
                                                 </Text>
                                                 <Text
                                                     fontSize="2xs"
+                                                    fontFamily="mono"
                                                     fontWeight="bold"
                                                     color={TEAM[belaRow.side]}
                                                     textTransform="uppercase"

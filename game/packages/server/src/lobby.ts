@@ -14,12 +14,20 @@ import { newRoomCode, newRoomId } from "./ids.js"
 import type { LiveActivityHub } from "./liveActivity.js"
 import { log } from "./log.js"
 import { randomRoomName } from "./roomNames.js"
-import { DemoRoom, demoUserInfo, Room } from "./room.js"
+import { DemoRoom, demoUserInfo, RealRoom, Room } from "./room.js"
 import type { RoomHost } from "./room.js"
 import type { Connection } from "./ws.js"
 import { reportRoomCreated } from "./analyticsReporter.js"
 // Type-only: nothing under `demo/` loads with the flag off (DEMO-LOBBY.md).
-import type { DemoIdentity, DemoLobbyApi, DemoRoomEvents, DemoRoomHandle, DemoRoomOptions } from "./demo/types.js"
+import type {
+    DemoIdentity,
+    DemoLobbyApi,
+    DemoRoomEvents,
+    DemoRoomHandle,
+    DemoRoomOptions,
+    RealRoomEvents,
+    RealRoomHandle,
+} from "./demo/types.js"
 
 export interface CreateRoomInput {
     gameEndRule?: GameEndRule
@@ -46,6 +54,13 @@ export class Lobby implements RoomHost, DemoLobbyApi {
     private readonly liveActivity: LiveActivityHub | null
     private debounceTimer: ReturnType<typeof setTimeout> | null
     private disposed: boolean
+    /** Null until the demo director asks to watch (DEMO-LOBBY.md "Gosti u
+     *  pravim sobama"). Null is also the ONLY state an ordinary server is ever
+     *  in, and every guest code path in `room.ts` is downstream of it. */
+    private realWatch: RealRoomEvents | null
+    /** What the watcher last reported per ordinary room, so `changed()` can
+     *  emit a diff instead of the director having to poll everything. */
+    private readonly realSnapshot: Map<string, { humans: number; private: boolean; status: string }>
 
     constructor(timings: Timings, liveActivity: LiveActivityHub | null = null) {
         this.rooms = new Map()
@@ -54,6 +69,8 @@ export class Lobby implements RoomHost, DemoLobbyApi {
         this.liveActivity = liveActivity
         this.debounceTimer = null
         this.disposed = false
+        this.realWatch = null
+        this.realSnapshot = new Map()
     }
 
     size(): number {
@@ -246,6 +263,79 @@ export class Lobby implements RoomHost, DemoLobbyApi {
         return this.rooms.size
     }
 
+    /* ─────────── guests in real rooms (DEMO-LOBBY.md "Gosti u pravim sobama") ───────────
+       The director asks to watch; from then on every `changed()` — and the
+       lobby calls that on essentially every room mutation — produces a diff.
+       Nothing below runs, and `realWaitingRooms()` stays empty, until that one
+       call has been made, which is the flag gate for the whole feature. */
+
+    watchRealRooms(events: RealRoomEvents): void {
+        this.realWatch = events
+        // Seed the snapshot so rooms that already existed are announced once.
+        this.syncRealRooms()
+    }
+
+    /**
+     * Rooms a guest could walk into right now: ordinary, public, still in the
+     * LOBBY, with at least one real person seated and a chair free. The
+     * director applies its own pacing on top; this is only "possible", never
+     * "due".
+     */
+    realWaitingRooms(): readonly RealRoomHandle[] {
+        if (!this.realWatch || this.disposed) return []
+        const out: RealRoomHandle[] = []
+        for (const room of this.rooms.values()) {
+            if (room.demo || room.private) continue
+            if (room.status !== "LOBBY") continue
+            if (room.realHumanSeats().length === 0) continue
+            if (room.nextSeatForNewcomer() === null) continue
+            out.push(new RealRoom(room))
+        }
+        return out
+    }
+
+    /** Diff the ordinary rooms against the last snapshot and fire the events. */
+    private syncRealRooms(): void {
+        const watch = this.realWatch
+        if (!watch) return
+        const seen = new Set<string>()
+        for (const room of this.rooms.values()) {
+            if (room.demo) continue
+            seen.add(room.id)
+            const next = {
+                humans: room.realHumanSeats().length,
+                private: room.private,
+                status: room.status as string,
+            }
+            const prev = this.realSnapshot.get(room.id)
+            this.realSnapshot.set(room.id, next)
+            try {
+                if (!prev) {
+                    watch.onRoomOpened?.(new RealRoom(room))
+                    continue
+                }
+                // One event per beat, humans first: a real person arriving or
+                // leaving is the only change that restarts the quiet period.
+                if (prev.humans !== next.humans) watch.onRoomChanged?.(new RealRoom(room), "human")
+                else if (prev.status !== next.status) watch.onRoomChanged?.(new RealRoom(room), "status")
+                else if (prev.private !== next.private) watch.onRoomChanged?.(new RealRoom(room), "options")
+            } catch (err) {
+                // The demo lobby is scenery; a throwing director never costs a
+                // real room its fan-out.
+                log.warn("demo.realWatch.failed", { room: room.id, err })
+            }
+        }
+        for (const id of [...this.realSnapshot.keys()]) {
+            if (seen.has(id)) continue
+            this.realSnapshot.delete(id)
+            try {
+                watch.onRoomClosed?.(id)
+            } catch (err) {
+                log.warn("demo.realWatch.failed", { room: id, err })
+            }
+        }
+    }
+
     remove(roomId: string): void {
         const room = this.rooms.get(roomId)
         if (!room) return
@@ -285,7 +375,12 @@ export class Lobby implements RoomHost, DemoLobbyApi {
 
     /** Something changed; broadcast once per debounce window. */
     changed(): void {
-        if (this.disposed || this.debounceTimer) return
+        if (this.disposed) return
+        // BEFORE the debounce guard: the fan-out to clients may be coalesced,
+        // but the director must see every real-room transition, and two of them
+        // inside one 50 ms window would otherwise collapse into one.
+        if (this.realWatch) this.syncRealRooms()
+        if (this.debounceTimer) return
         const timer = setTimeout(() => {
             this.debounceTimer = null
             this.flush()
@@ -307,6 +402,8 @@ export class Lobby implements RoomHost, DemoLobbyApi {
 
     dispose(): void {
         this.disposed = true
+        this.realWatch = null
+        this.realSnapshot.clear()
         if (this.debounceTimer) clearTimeout(this.debounceTimer)
         this.debounceTimer = null
         for (const room of this.rooms.values()) room.dispose()

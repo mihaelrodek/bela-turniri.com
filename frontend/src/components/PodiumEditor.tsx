@@ -81,7 +81,9 @@ export default function PodiumEditor({
             <Card.Body p={{ base: "3", md: "4" }}>
                 <Stack gap="3">
                     <Box>
-                        <Text fontSize="sm" fontWeight="semibold">{t("common.podium.title")}</Text>
+                        <Text fontFamily="heading" fontSize="sm" fontWeight="semibold" letterSpacing="-0.015em">
+                            {t("common.podium.title")}
+                        </Text>
                         <Text fontSize="xs" color="fg.muted">
                             {t("common.podium.description")}
                         </Text>
@@ -90,7 +92,7 @@ export default function PodiumEditor({
                     <HStack gap="3" align="end" wrap="wrap">
                         <Box flex="1" minW="200px">
                             <HStack gap="2" mb="1" align="center">
-                                <Box color="gray.fg"><FaMedal size={14} /></Box>
+                                <Box color="fg.muted"><FaMedal size={14} /></Box>
                                 <Text fontSize="xs" fontWeight="medium">{t("common.podium.second")}</Text>
                             </HStack>
                             <NativeSelect.Root size="sm" disabled={saving !== null}>
@@ -110,7 +112,7 @@ export default function PodiumEditor({
                         </Box>
                         <Box flex="1" minW="200px">
                             <HStack gap="2" mb="1" align="center">
-                                <Box color="orange.fg"><FaMedal size={14} /></Box>
+                                <Box color="tan"><FaMedal size={14} /></Box>
                                 <Text fontSize="xs" fontWeight="medium">{t("common.podium.third")}</Text>
                             </HStack>
                             <NativeSelect.Root size="sm" disabled={saving !== null}>

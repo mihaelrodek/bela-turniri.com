@@ -189,6 +189,7 @@ function RoomSettings({ room, onChange }: {
                     {TARGETS.map((target) => (
                         <Button key={target} flex="1" h="10" px="1" colorPalette="brand"
                             fontSize={target === 163 ? "sm" : "md"}
+                            fontFamily={target === 163 ? undefined : "mono"} fontVariantNumeric="tabular-nums"
                             variant={room.targetScore === target ? "solid" : "outline"}
                             aria-pressed={room.targetScore === target}
                             onClick={() => onChange({ targetScore: target })}>
@@ -282,7 +283,7 @@ export default function GameSettingsSheet({ open, onClose, room, isHost = false,
                 <Dialog.Backdrop backdropFilter="blur(6px)" />
                 <Dialog.Positioner>
                     <Dialog.Content maxW={{ base: "94%", md: "480px" }} rounded="2xl">
-                        <Dialog.Header><Dialog.Title fontSize="2xl">{t("game.settings.title")}</Dialog.Title></Dialog.Header>
+                        <Dialog.Header><Dialog.Title fontSize="2xl" fontFamily="heading">{t("game.settings.title")}</Dialog.Title></Dialog.Header>
                         <Dialog.Body>
                             <VStack gap="3" align="stretch">
                                 {canEditRoom ? (

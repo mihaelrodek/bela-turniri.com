@@ -203,7 +203,8 @@ function GameRow({
                                     fontWeight="semibold"
                                     color="fg.ink"
                                     lineHeight="1.15"
-                                    css={{ fontVariantNumeric: "tabular-nums" }}
+                                    fontFamily="mono"
+                                    fontVariantNumeric="tabular-nums"
                                 >
                                     {totals[side]}
                                 </Text>
@@ -212,7 +213,8 @@ function GameRow({
                                     fontWeight="bold"
                                     color={side === "us" ? "brand.fg" : "fg.muted"}
                                     lineHeight="1.2"
-                                    css={{ fontVariantNumeric: "tabular-nums" }}
+                                    fontFamily="mono"
+                                    fontVariantNumeric="tabular-nums"
                                 >
                                     {seriesScore[side]}
                                 </Text>

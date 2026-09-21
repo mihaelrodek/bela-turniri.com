@@ -74,7 +74,8 @@ function SummaryRow({
                 fontSize={emphasize ? "lg" : "md"}
                 fontWeight={emphasize ? "bold" : "medium"}
                 color={emphasize ? "colorPalette.fg" : "fg.ink"}
-                css={{ fontVariantNumeric: "tabular-nums" }}
+                fontFamily="mono"
+                fontVariantNumeric="tabular-nums"
             >
                 {values.us}
             </Text>
@@ -87,7 +88,8 @@ function SummaryRow({
                 fontSize={emphasize ? "lg" : "md"}
                 fontWeight={emphasize ? "bold" : "medium"}
                 color={emphasize ? "colorPalette.fg" : "fg.ink"}
-                css={{ fontVariantNumeric: "tabular-nums" }}
+                fontFamily="mono"
+                fontVariantNumeric="tabular-nums"
             >
                 {values.them}
             </Text>
@@ -245,6 +247,7 @@ export default function BlokSummary({
                     <Icon as={FiAward} boxSize={compact ? "5" : "6"} color="brand.fg" />
                     <Text
                         fontSize={compact ? "md" : { base: "lg", md: "xl" }}
+                        fontFamily="heading"
                         fontWeight="bold"
                         lineHeight="1.2"
                         color="fg.ink"

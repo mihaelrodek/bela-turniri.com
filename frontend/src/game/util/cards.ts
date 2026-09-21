@@ -135,6 +135,10 @@ export function deckHasImages(deck: DeckStyle): boolean {
  * Fixed card ink (game/DESIGN.md §3). A playing card is a physical object —
  * cream face, dark ink, the four suit colours — so these do NOT follow the
  * theme, in either deck. Everything AROUND the card is on the brand palette.
+ * (2026-09-21 THEME.md rollout: the CSS-painted French face and the card back
+ * now use the `cardface` / `cardline` tokens — cream in BOTH themes — and the
+ * French red suits use `suit.heartText`; what stays here is the black ink and
+ * the artwork tones of the Hungarian decks.)
  */
 export const CARD_INK = {
     face: "#f7f1e3",
@@ -151,12 +155,21 @@ export const CARD_INK = {
     gold: "#d9a521",
 } as const
 
-/** Suit colour on the Hungarian deck — four distinct hues, not two. */
+/**
+ * Suit colour on the Hungarian deck — four distinct hues, not two.
+ *
+ * THEME.md (2026-09-21 rollout) "Boje znakova karata": the suit FILLS are the
+ * same in both themes — heart #E24B4A, bell #F2C14E, leaf #4DA66A, acorn
+ * #B8823F — and mirror the `suit.heart` / `suit.bell` / `suit.leaf` /
+ * `suit.acorn` tokens in system.ts. Kept as raw hex on purpose: these are
+ * painted into inline SVG `fill=` attributes and the vector deck's palette,
+ * where a Chakra token name is not a colour.
+ */
 export const SUIT_HU_COLOR: Record<Suit, string> = {
-    HERC: CARD_INK.red,
-    KARA: CARD_INK.gold,
-    PIK: CARD_INK.green,
-    TREF: CARD_INK.brown,
+    HERC: "#E24B4A",
+    KARA: "#F2C14E",
+    PIK: "#4DA66A",
+    TREF: "#B8823F",
 }
 
 /**

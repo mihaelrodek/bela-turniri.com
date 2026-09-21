@@ -22,7 +22,7 @@ import {
 
    Shape, top to bottom:
      · the poster fills the head of the card, with three overlays on it —
-       a white date tile top-left (PON / 03 / KOL), a status pill top-right,
+       a paper-white date tile top-left (PON / 03 / KOL), a status pill top-right,
        a start-time pill bottom-right;
      · the body carries the name and a single location line;
      · then EITHER the capacity bar (upcoming) OR the winner chip (finished);
@@ -34,25 +34,27 @@ import {
    poster is tokens only and flips with the colour mode.
    ────────────────────────────────────────────────────────────────────── */
 
-/** Scrim palette for the poster overlays. Fixed in BOTH themes on purpose:
+/** Scrim palette for the poster overlays. Re-valued 2026-09-21 (THEME.md
+ *  rollout) to the warm THEME neutrals — still literals, still fixed in both
+ *  themes. Fixed in BOTH themes on purpose:
  *  these are painted over an arbitrary photo, where `fg.muted` would go pale
  *  in dark mode and vanish against a white date tile. */
 const SCRIM = {
-    tile: "rgba(255,255,255,0.94)",
-    tileShadow: "0 1px 4px rgba(11,21,34,0.28)",
-    tileMuted: "#5B6B7C",
-    tileInk: "#16212E",
-    pill: "rgba(15,23,32,0.72)",
-    pillFg: "#FFFFFF",
+    tile: "rgba(253,251,247,0.94)", // THEME --panel (light)
+    tileShadow: "0 1px 4px rgba(42,33,26,0.28)", // THEME --ink at low alpha
+    tileMuted: "#6E6152", // THEME --muted (light)
+    tileInk: "#2A211A", // THEME --ink (light)
+    pill: "rgba(42,33,26,0.72)", // THEME --ink (light) as a scrim
+    pillFg: "#FFFCF7", // THEME --on-brand
 } as const
 
 /** Dot colour inside the status pill, per status. Same fixed-literal reason
  *  as SCRIM above — the pill floats over the poster. */
 const STATUS_DOT: Record<StatusKind, string> = {
-    finished: "#94A3B8",
-    full: "#F59E0B",
-    soon: "#22C55E",
-    upcoming: "#7fc496", // brand.300 — a lighter tint than `soon`'s brighter green so the two stay distinguishable now both are green
+    finished: "#A79E90", // THEME --muted (dark)
+    full: "#E58A45", // THEME --live (dark)
+    soon: "#79C08F", // THEME --brand (dark)
+    upcoming: "#DDE9DC", // THEME --brand-subtle (light) — paler than `soon` so the two stay distinguishable now both are green
 }
 
 /** Poster, or a calm initials placeholder when the tournament has none. */
@@ -219,6 +221,8 @@ export default function ListingCard({
                             <Text
                                 fontSize="xl"
                                 fontWeight="bold"
+                                fontFamily="mono"
+                                fontVariantNumeric="tabular-nums"
                                 lineHeight="1.05"
                                 letterSpacing="-0.03em"
                                 color={SCRIM.tileInk}
@@ -269,7 +273,13 @@ export default function ListingCard({
                             css={{ backdropFilter: "blur(6px)" }}
                         >
                             <FiClock size={12} />
-                            <Text fontSize="sm" fontWeight="bold" letterSpacing="-0.02em">
+                            <Text
+                                fontSize="sm"
+                                fontWeight="bold"
+                                fontFamily="mono"
+                                fontVariantNumeric="tabular-nums"
+                                letterSpacing="-0.02em"
+                            >
                                 {parts.time}
                             </Text>
                         </HStack>
@@ -285,10 +295,11 @@ export default function ListingCard({
                         row lines its footer up with its neighbours. */}
                     <Box minW="0">
                         <Text
-                            fontWeight="bold"
+                            fontFamily="heading"
+                            fontWeight="semibold"
                             fontSize={{ base: "15px", md: "md" }}
                             lineHeight="1.3"
-                            letterSpacing="-0.01em"
+                            letterSpacing="-0.015em"
                             css={{
                                 display: "-webkit-box",
                                 WebkitBoxOrient: "vertical",
@@ -325,7 +336,9 @@ export default function ListingCard({
                                     <Box flexShrink="0" display="inline-flex">
                                         <FiNavigation size={12} />
                                     </Box>
-                                    <Text>{formatDistanceKm(item.distanceKm)}</Text>
+                                    <Text fontFamily="mono" fontVariantNumeric="tabular-nums">
+                                        {formatDistanceKm(item.distanceKm)}
+                                    </Text>
                                 </HStack>
                             )}
                         </HStack>
@@ -372,17 +385,17 @@ export default function ListingCard({
                                 <Text fontSize="xs" color="fg.muted" fontWeight="medium">
                                     {t("pages.tournaments.card.fillLabel")}
                                 </Text>
-                                <Text textStyle="mono" fontSize="xs">
+                                <Text textStyle="mono" fontFamily="mono" fontVariantNumeric="tabular-nums" fontSize="xs">
                                     {item.registeredPairs ?? 0}
                                     {typeof item.maxPairs === "number" ? ` / ${item.maxPairs}` : " / ∞"}
                                 </Text>
                             </Flex>
-                            <Box h="6px" bg="bg.subtle" rounded="full" overflow="hidden">
+                            <Box h="6px" bg="bg.muted" rounded="full" overflow="hidden">
                                 <Box
                                     h="100%"
                                     w={`${Math.round(fill * 100)}%`}
                                     rounded="full"
-                                    bg={status.kind === "full" ? "orange.solid" : "brand.solid"}
+                                    bg={status.kind === "full" ? "live" : "brand.solid"}
                                     transition="width .2s ease"
                                 />
                             </Box>
@@ -403,7 +416,14 @@ export default function ListingCard({
                     >
                         {price ? (
                             <HStack gap="1.5" align="baseline" minW="0">
-                                <Text fontSize="lg" fontWeight="bold" color="brand.fg" letterSpacing="-0.02em">
+                                <Text
+                                    fontSize="lg"
+                                    fontWeight="bold"
+                                    fontFamily="mono"
+                                    fontVariantNumeric="tabular-nums"
+                                    color="brand.fg"
+                                    letterSpacing="-0.02em"
+                                >
                                     {price}
                                 </Text>
                                 <Text fontSize="2xs" color="fg.muted" fontWeight="medium">
@@ -420,7 +440,13 @@ export default function ListingCard({
                             <>
                                 <Text as="span" color="fg.subtle" fontSize="sm">/</Text>
                                 <HStack gap="1.5" align="baseline" minW="0">
-                                    <Text fontSize="sm" fontWeight="bold" color="fg.soft">
+                                    <Text
+                                        fontSize="sm"
+                                        fontWeight="bold"
+                                        fontFamily="mono"
+                                        fontVariantNumeric="tabular-nums"
+                                        color="fg.soft"
+                                    >
                                         {repassage}
                                     </Text>
                                     <Text fontSize="2xs" color="fg.muted" fontWeight="medium">

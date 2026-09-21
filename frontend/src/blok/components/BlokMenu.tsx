@@ -250,8 +250,18 @@ export function RenameDialog({
                                             // the real ceiling.
                                             maxLength={MAX_SIDE_NAME}
                                             autoFocus={side === focusSide}
+                                            // Side names are ALL CAPS by default (2026-09-21,
+                                            // user request): uppercased as they are typed, so
+                                            // what is saved is what the header shows.
+                                            // `autoCapitalize` asks a phone keyboard for the
+                                            // same; the transform covers the desktop.
+                                            autoCapitalize="characters"
+                                            textTransform="uppercase"
                                             onChange={(e) =>
-                                                setDraft((d) => ({ ...d, [side]: e.target.value }))
+                                                setDraft((d) => ({
+                                                    ...d,
+                                                    [side]: e.target.value.toLocaleUpperCase("hr"),
+                                                }))
                                             }
                                         />
                                     </Field.Root>
@@ -514,6 +524,8 @@ export function TargetDialog({
                                         size="lg"
                                         variant={target === preset ? "solid" : "outline"}
                                         colorPalette="brand"
+                                        fontFamily="mono"
+                                        fontVariantNumeric="tabular-nums"
                                         // Nothing is pressed when the game is
                                         // playing to a number that is not one
                                         // of the three — a stored 900 must not
@@ -575,6 +587,8 @@ export function TargetDialog({
                                         size="lg"
                                         variant={seriesTarget === preset ? "solid" : "outline"}
                                         colorPalette="brand"
+                                        fontFamily="mono"
+                                        fontVariantNumeric="tabular-nums"
                                         aria-pressed={seriesTarget === preset}
                                         // The face is a bare digit; what it
                                         // MEANS is "the series goes to N won

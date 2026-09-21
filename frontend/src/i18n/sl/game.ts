@@ -499,4 +499,14 @@ export const game: GameDict = {
        nikoli viden tekst.
        DODANO NA KONEC — ne premikaj in ne briši ključev zgoraj. */
     "score.progress": "Skupaj {total} od {target}",
+
+    /* ─── Filtri v predsobi (2026-09-21) ─────────────────────────────────
+       Iskalna vrstica deli vrstico s čipi: „Ima prostor” (samo sobe, ki
+       čakajo igralce in imajo prost sedež) in ciljno število točk. Sama
+       številka (501/701/1001) ni beseda in se ne prevaja — prevede se le
+       to, kar prebere bralnik zaslona.
+       DODANO NA KONEC — ne premikaj in ne briši ključev zgoraj. */
+    "lobby.filter.hasSeats": "Prosti sedeži",
+    "lobby.filter.targetAria": "Pokaži samo igre do {target} točk",
+    "lobby.filter.public": "Javne",
 }

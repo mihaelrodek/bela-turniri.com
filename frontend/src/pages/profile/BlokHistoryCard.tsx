@@ -145,7 +145,7 @@ export function BlokHistoryCard() {
                                         <HStack justify="space-between" align="center" gap="2">
                                             <Box flex="1" minW="0">
                                                 <HStack gap="1.5" color="fg.muted" minW="0">
-                                                    <Text fontSize="2xs" flexShrink={0}>
+                                                    <Text fontSize="2xs" flexShrink={0} fontFamily="mono" fontVariantNumeric="tabular-nums">
                                                         {formatDate(s.finishedAt || s.startedAt)}
                                                     </Text>
                                                     <Text aria-hidden fontSize="2xs">·</Text>
@@ -168,7 +168,8 @@ export function BlokHistoryCard() {
                                                 <Text
                                                     fontWeight="bold"
                                                     fontSize={{ base: "md", md: "lg" }}
-                                                    css={{ fontVariantNumeric: "tabular-nums" }}
+                                                    fontFamily="mono"
+                                                    fontVariantNumeric="tabular-nums"
                                                 >
                                                     {s.gamesUs} : {s.gamesThem}
                                                 </Text>

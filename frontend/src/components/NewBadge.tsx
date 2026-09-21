@@ -3,7 +3,7 @@ import type { BoxProps } from "@chakra-ui/react"
 import { useTranslation } from "../i18n"
 
 /* ──────────────────────────────────────────────────────────────────────────
-   NewBadge — the small orange "NOVO" pill on a navigation destination.
+   NewBadge — the small "live"-orange "NOVO" pill on a navigation destination.
 
    One component for both bars (NavBar, MobileTabBar), so the two cannot drift
    apart again (2026-09-20, user request: "not well arranged, not noticeable,
@@ -28,13 +28,14 @@ export default function NewBadge(props: BoxProps) {
             px="1.5"
             h="14px"
             rounded="full"
-            bg="orange.400"
-            color="gray.950"
+            bg="live"
+            color="brand.contrast"
             borderWidth="1.5px"
             borderColor="bg.canvas"
-            boxShadow="0 1px 4px rgba(234, 88, 12, 0.45)"
+            boxShadow="0 1px 4px rgba(196, 102, 28, 0.45)"
             fontSize="9px"
-            fontWeight="900"
+            fontFamily="mono"
+            fontWeight="700"
             lineHeight="1"
             letterSpacing="0.06em"
             textTransform="uppercase"

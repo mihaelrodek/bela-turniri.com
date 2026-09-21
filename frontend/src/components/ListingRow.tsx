@@ -86,7 +86,9 @@ export default function ListingRow({
                 <VStack align="stretch" gap="1" flex="1" minW="0" justify="center">
                     <HStack gap="2" align="center" minW="0">
                         <Text
+                            fontFamily="heading"
                             fontWeight="semibold"
+                            letterSpacing="-0.015em"
                             fontSize={{ base: "sm", md: "md" }}
                             lineHeight="short"
                             flex="1"
@@ -113,10 +115,10 @@ export default function ListingRow({
                     </HStack>
 
                     <HStack gap="3" rowGap="1" wrap="wrap" fontSize="xs" minW="0">
-                        {parts?.time && <Meta icon={<FiClock size={12} />}>{parts.time}</Meta>}
+                        {parts?.time && <Meta icon={<FiClock size={12} />} numeric>{parts.time}</Meta>}
                         {place && <Meta icon={<FiMapPin size={12} />}>{place}</Meta>}
                         {typeof item.distanceKm === "number" && (
-                            <Meta icon={<FiNavigation size={12} />}>
+                            <Meta icon={<FiNavigation size={12} />} numeric>
                                 {formatDistanceKm(item.distanceKm)}
                             </Meta>
                         )}
@@ -127,7 +129,7 @@ export default function ListingRow({
                             </HStack>
                         )}
                         {!finished && typeof item.registeredPairs === "number" && (
-                            <Meta icon={<FiUsers size={12} />}>
+                            <Meta icon={<FiUsers size={12} />} numeric>
                                 {item.registeredPairs}
                                 {typeof item.maxPairs === "number" ? ` / ${item.maxPairs}` : " / ∞"}
                             </Meta>
@@ -142,7 +144,12 @@ export default function ListingRow({
                             fontWeight="bold"
                             display={{ base: "flex", md: "none" }}
                         >
-                            <Text>{price ?? t("pages.tournaments.card.freeEntry")}</Text>
+                            <Text
+                                fontFamily={price ? "mono" : undefined}
+                                fontVariantNumeric={price ? "tabular-nums" : undefined}
+                            >
+                                {price ?? t("pages.tournaments.card.freeEntry")}
+                            </Text>
                         </HStack>
                     </HStack>
                 </VStack>
@@ -160,7 +167,14 @@ export default function ListingRow({
                     {price ? (
                         <>
                             <HStack gap="1" align="baseline">
-                                <Text fontSize="md" fontWeight="bold" color="brand.fg" letterSpacing="-0.02em">
+                                <Text
+                                    fontSize="md"
+                                    fontWeight="bold"
+                                    fontFamily="mono"
+                                    fontVariantNumeric="tabular-nums"
+                                    color="brand.fg"
+                                    letterSpacing="-0.02em"
+                                >
                                     {price}
                                 </Text>
                                 <Text fontSize="2xs" color="fg.muted" fontWeight="medium">
@@ -172,7 +186,13 @@ export default function ListingRow({
                                 if the repasaž were part of the entry fee. */}
                             {repassage && (
                                 <HStack gap="1" align="baseline">
-                                    <Text fontSize="xs" fontWeight="semibold" color="fg.soft">
+                                    <Text
+                                        fontSize="xs"
+                                        fontWeight="semibold"
+                                        fontFamily="mono"
+                                        fontVariantNumeric="tabular-nums"
+                                        color="fg.soft"
+                                    >
                                         + {repassage}
                                     </Text>
                                     <Text fontSize="2xs" color="fg.muted" fontWeight="medium">

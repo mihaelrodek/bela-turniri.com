@@ -229,6 +229,7 @@ export default function DeclarationChips({
                                 borderColor={count > 0 ? "colorPalette.emphasized" : "border.subtle"}
                                 fontSize="lg"
                                 fontWeight="bold"
+                                fontFamily="mono"
                                 fontVariantNumeric="tabular-nums"
                                 /* Explicitly inert at the cap: whether a
                                    recipe's hover selector excludes `:disabled`
@@ -308,7 +309,7 @@ export default function DeclarationChips({
                                     rounded="full"
                                     borderWidth="1px"
                                     /* Neutral, not red: this sits on a card
-                                       whose own side colour may already BE red
+                                       whose own side colour may already BE tan
                                        (`blokSide.ts`), where a red badge would
                                        disappear. `bg.emphasized` + a border is
                                        legible against both side palettes and

@@ -249,7 +249,7 @@ function gamesShell(): Plugin {
         // The games brand has its own logo files in public/games/ — replace
         // those files to rebrand, this transform only points at them.
         out = swap(out, `<link rel="icon" href="/favicon.ico" sizes="any" />`, `<link rel="icon" href="/games/favicon.ico" sizes="any" />`, 1, "the favicon.ico link")
-        out = swap(out, `<link rel="icon" type="image/svg+xml" href="/bela-turniri-symbol.svg" />`, `<link rel="icon" type="image/svg+xml" href="/games/symbol.svg" />`, 1, "the svg icon link")
+        out = swap(out, `<link rel="icon" type="image/svg+xml" href="/bela-turniri-symbol.svg" />`, `<link rel="icon" type="image/svg+xml" href="/games/favicon.svg" /><link rel="icon" type="image/svg+xml" href="/games/favicon-mini.svg" sizes="16x16" />`, 1, "the svg icon link")
         out = swap(out, `<link rel="apple-touch-icon" href="/apple-touch-icon.png" />`, `<link rel="apple-touch-icon" href="/games/apple-touch-icon.png" />`, 1, "the apple-touch-icon link")
         out = swap(out, `<img class="boot-logo" src="/bela-turniri-symbol.svg"`, `<img class="boot-logo" src="/games/symbol.svg"`, 1, "the boot-screen logo")
 

@@ -56,7 +56,9 @@ const FAN_W = 360
 const FAN_H = 156
 /** Never larger than this, however big the monitor. */
 const MAX_SCALE = 1.7
-const GOLD = "246, 196, 83"
+/** THEME.md bell suit fill (#F2C14E) as an rgb triple — the celebration gold
+ *  mirrors the `suit.bell` token (same in both themes). */
+const GOLD = "242, 193, 78"
 
 /** When the last card has turned and everything goes off at once. */
 const IMPACT_MS = 2250
@@ -614,7 +616,7 @@ export default function BelotShowcase({
                                 fontWeight="bold"
                                 letterSpacing="0.22em"
                                 textTransform="uppercase"
-                                color="yellow.100"
+                                color="gold"
                                 textShadow={`0 2px 14px rgba(${GOLD}, 0.6)`}
                                 // The tracking adds a trailing gap; pull the
                                 // line back so it stays optically centred.
@@ -629,6 +631,7 @@ export default function BelotShowcase({
                         <Box css={{ filter: `drop-shadow(0 4px 26px rgba(${GOLD}, 0.55))` }}>
                         <Text
                             as="div"
+                            fontFamily="heading"
                             fontSize="clamp(48px, 15vmin, 128px)"
                             lineHeight="1"
                             fontWeight="black"
@@ -654,7 +657,7 @@ export default function BelotShowcase({
                                     }}
                                     css={{
                                         backgroundImage:
-                                            "linear-gradient(100deg, #f6c453 0%, #fff6d6 25%, #f6c453 50%, #fff6d6 75%, #f6c453 100%)",
+                                            "linear-gradient(100deg, #F2C14E 0%, #fff6d6 25%, #F2C14E 50%, #fff6d6 75%, #F2C14E 100%)",
                                         backgroundSize: "200% 100%",
                                         backgroundClip: "text",
                                         WebkitBackgroundClip: "text",
@@ -687,7 +690,7 @@ export default function BelotShowcase({
                                 <Box flexShrink={0}>{winner.avatar}</Box>
                                 <Flex direction="column" align="flex-start" minW="0" lineHeight="1.15">
                                     {winner.team && (
-                                        <Text fontSize="2xs" fontWeight="bold" letterSpacing="0.16em" textTransform="uppercase" color="yellow.200">
+                                        <Text fontSize="2xs" fontFamily="mono" fontWeight="bold" letterSpacing="0.16em" textTransform="uppercase" color="gold">
                                             {winner.team}
                                         </Text>
                                     )}
@@ -718,7 +721,7 @@ export default function BelotShowcase({
                             <Text
                                 fontSize={{ base: "sm", md: "md" }}
                                 fontWeight="semibold"
-                                color="yellow.200"
+                                color="gold"
                                 css={{ animation: still ? undefined : `${KF.belotLineIn} 420ms ease-out ${IMPACT_MS + 850}ms both` }}
                             >
                                 {footnote}

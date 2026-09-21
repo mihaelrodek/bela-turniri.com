@@ -185,7 +185,7 @@ export default function ClaimPairPage() {
                             )}
                         </Text>
                         {preview.tournamentStartAt && (
-                            <Text fontSize="xs" color="fg.muted" mt="1">
+                            <Text fontSize="xs" color="fg.muted" mt="1" fontFamily="mono" fontVariantNumeric="tabular-nums">
                                 {formatDateTime(preview.tournamentStartAt)}
                             </Text>
                         )}

@@ -27,7 +27,7 @@ export default function MissedTurnDialog({ open, onClose }: { open: boolean; onC
                         rounded="l3"
                         boxShadow="0 18px 40px rgba(0,0,0,0.55)"
                     >
-                        <Dialog.Header fontSize="lg" fontWeight="bold" color={INK} textAlign="center" px="3" py="2.5">
+                        <Dialog.Header fontSize="lg" fontFamily="heading" fontWeight="bold" color={INK} textAlign="center" px="3" py="2.5">
                             {t("game.missedTurn.title")}
                         </Dialog.Header>
                         <Dialog.Body px="3" pb="3">

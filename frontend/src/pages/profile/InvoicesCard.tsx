@@ -75,10 +75,10 @@ export function InvoicesCard() {
                                 >
                                     <HStack justify="space-between" align="start" gap="2">
                                         <Box flex="1" minW="0">
-                                            <Text fontWeight="medium" truncate>
+                                            <Text fontFamily="heading" fontWeight="medium" truncate>
                                                 {inv.tournamentName}
                                             </Text>
-                                            <Text fontSize="xs" color="fg.muted">
+                                            <Text fontSize="xs" color="fg.muted" fontFamily="mono" fontVariantNumeric="tabular-nums">
                                                 {inv.tournamentStartAt
                                                     ? formatDate(inv.tournamentStartAt)
                                                     : "—"}
@@ -98,7 +98,7 @@ export function InvoicesCard() {
                                             </Text>
                                         </Box>
                                         <VStack align="end" gap="1" flexShrink={0}>
-                                            <Text fontWeight="bold">
+                                            <Text fontWeight="bold" fontFamily="mono" fontVariantNumeric="tabular-nums">
                                                 {formatEur(inv.total)}
                                             </Text>
                                             {inv.paidAt ? (
@@ -139,7 +139,7 @@ export function InvoicesCard() {
                 <Dialog.Positioner>
                     <Dialog.Content maxW="md">
                         <Dialog.Header>
-                            <Text fontWeight="semibold" truncate>
+                            <Text fontFamily="heading" fontWeight="semibold" truncate>
                                 {openInvoice?.tournamentName ?? t("profile.invoices.dialogTitleFallback")}
                             </Text>
                         </Dialog.Header>
@@ -185,7 +185,7 @@ export function InvoicesCard() {
                                                         {d.name}
                                                         {d.quantity > 1 && <> × {d.quantity}</>}
                                                     </Text>
-                                                    <Text fontSize="sm" fontWeight="medium">
+                                                    <Text fontSize="sm" fontWeight="medium" fontFamily="mono" fontVariantNumeric="tabular-nums">
                                                         {formatEur(d.lineTotal)}
                                                     </Text>
                                                 </HStack>
@@ -200,7 +200,7 @@ export function InvoicesCard() {
                                     {/* Total + status badges */}
                                     <HStack justify="space-between" pt="1">
                                         <Text fontWeight="semibold">{t("profile.invoices.total")}</Text>
-                                        <Text fontWeight="bold" fontSize="md">
+                                        <Text fontWeight="bold" fontSize="md" fontFamily="mono" fontVariantNumeric="tabular-nums">
                                             {formatEur(openInvoice.total)}
                                         </Text>
                                     </HStack>

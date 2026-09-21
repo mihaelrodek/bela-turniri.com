@@ -18,7 +18,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { Seat } from "@bela/protocol"
 import { loadConfig, resolveTimings } from "../src/config.js"
 import { Lobby } from "../src/lobby.js"
-import type { DemoIdentity, DemoRoomEvents, DemoRoomHandle, DemoRoomOptions } from "../src/demo/types.js"
+import type { ServerMessage } from "@bela/protocol"
+import type { Connection } from "../src/ws.js"
+import type { DemoIdentity, DemoRoomEvents, DemoRoomHandle, DemoRoomOptions, RealRoomHandle } from "../src/demo/types.js"
 import { reportGameAbandonment, reportGameResult } from "../src/statsReporter.js"
 import { reportGameCompleted, reportGameStarted, reportRoomCreated } from "../src/analyticsReporter.js"
 import type { GameState } from "@bela/engine"
@@ -544,5 +546,178 @@ describe("with GAME_DEMO_LOBBY unset", () => {
         } finally {
             await server.close()
         }
+    })
+})
+
+/* ─────────────── guests in rooms real people opened ───────────────
+   DEMO-LOBBY.md "Gosti u pravim sobama". The whole feature hangs off one
+   call — `Lobby.watchRealRooms` — which only the director makes, so every
+   test here first proves that the door is shut, then opens it. */
+
+describe("guests in an ordinary room", () => {
+    /** The least a `Connection` can be and still pass through `Lobby.create`. */
+    function conn(uid: string, name: string): Connection {
+        const sent: ServerMessage[] = []
+        return {
+            id: uid,
+            user: { uid, name, avatarUrl: null, avatarPreset: "kartar", karma: 10 },
+            roomId: null,
+            lobbySubscribed: false,
+            sent,
+            send: (msg: ServerMessage) => {
+                sent.push(msg)
+            },
+            error: () => undefined,
+            close: () => undefined,
+        } as unknown as Connection & { sent: ServerMessage[] }
+    }
+
+    function publicRoom(lobby: Lobby, c: Connection): Room {
+        return lobby.create(c, { targetScore: 1001, private: false })
+    }
+
+    function watched(lobby: Lobby): { opened: string[]; changed: string[]; closed: string[] } {
+        const seen = { opened: [] as string[], changed: [] as string[], closed: [] as string[] }
+        lobby.watchRealRooms({
+            onRoomOpened: (r) => seen.opened.push(r.id),
+            onRoomChanged: (_r, what) => seen.changed.push(what),
+            onRoomClosed: (id) => seen.closed.push(id),
+        })
+        return seen
+    }
+
+    function handleFor(lobby: Lobby, room: Room): RealRoomHandle {
+        const handle = lobby.realWaitingRooms().find((h) => h.id === room.id)
+        expect(handle).toBeDefined()
+        return handle!
+    }
+
+    it("is exposed only after watchRealRooms — the flag-off lobby offers nothing", () => {
+        const lobby = newLobby()
+        const room = publicRoom(lobby, conn("real:1", "Ivo"))
+        // Nobody asked to watch: no handles, so `guestSit` is unreachable and
+        // the room is exactly the ordinary room it was.
+        expect(lobby.realWaitingRooms()).toEqual([])
+        expect(room.toState().seats.filter((s) => s.occupant !== null).length).toBe(1)
+
+        watched(lobby)
+        expect(lobby.realWaitingRooms().map((h) => h.id)).toEqual([room.id])
+    })
+
+    it("serialises a guest as a seated, connected, ready PLAYER — never a BOT", () => {
+        const lobby = newLobby()
+        const room = publicRoom(lobby, conn("real:1", "Ivo"))
+        watched(lobby)
+        const handle = handleFor(lobby, room)
+        expect(handle.sitGuest(identity(7))).toBe(true)
+
+        const state = room.toState()
+        const seat = state.seats.find((s) => s.occupant?.kind === "PLAYER" && s.occupant.user.uid === "demo:person-7")
+        expect(seat).toBeDefined()
+        const occupant = seat?.occupant
+        if (!occupant || occupant.kind !== "PLAYER") throw new Error("expected a PLAYER")
+        expect(occupant.ready).toBe(true)
+        expect(occupant.connected).toBe(true)
+        expect(occupant.holdUntil).toBeNull()
+        expect(occupant.user.name).toBe("Osoba 7")
+        // And in the public lobby row, where a BOT would be drawn faded out.
+        const summary = room.toSummary()
+        expect(summary.occupants.some((o) => o?.kind === "BOT")).toBe(false)
+        expect(summary.humans).toBe(2)
+        // It took the room's own fill order, so the two of them are partners.
+        expect(room.slotAt(2)?.kind).toBe("DEMO")
+    })
+
+    it("never becomes the host, and never takes a private room", () => {
+        const lobby = newLobby()
+        const host = conn("real:1", "Ivo")
+        const room = publicRoom(lobby, host)
+        watched(lobby)
+        const handle = handleFor(lobby, room)
+        expect(handle.sitGuest(identity(1))).toBe(true)
+        expect(handle.sitGuest(identity(2))).toBe(true)
+        expect(room.hostUid).toBe("real:1")
+
+        // The host locks the room: the guests stay (they are "people"), but
+        // nobody new walks in.
+        room.setPrivate(host, true)
+        expect(room.guestIdentities().length).toBe(2)
+        expect(handle.isPublic()).toBe(false)
+        expect(handle.sitGuest(identity(3))).toBe(false)
+        expect(lobby.realWaitingRooms()).toEqual([])
+        expect(room.hostUid).toBe("real:1")
+    })
+
+    it("counts as occupied and ready for the real host's Pokreni igru", () => {
+        const lobby = newLobby()
+        const host = conn("real:1", "Ivo")
+        const room = publicRoom(lobby, host)
+        watched(lobby)
+        const handle = handleFor(lobby, room)
+        for (const n of [1, 2, 3]) expect(handle.sitGuest(identity(n))).toBe(true)
+        room.setReady(host, true)
+        room.start(host)
+        expect(room.status).toBe("PLAYING")
+        // Mid-deal a guest cannot stand up and walk off with the cards.
+        expect(handle.removeGuest(identity(1))).toBe(false)
+        room.dispose()
+    })
+
+    it("still lets the real host add and remove a visible bot", () => {
+        const lobby = newLobby()
+        const host = conn("real:1", "Ivo")
+        const room = publicRoom(lobby, host)
+        watched(lobby)
+        handleFor(lobby, room).sitGuest(identity(1))
+        const free = room.nextSeatForNewcomer()
+        expect(free).not.toBeNull()
+        room.addBot(host, free!)
+        expect(room.slotAt(free!)?.kind).toBe("BOT")
+        room.removeBot(host, free!)
+        expect(room.slotAt(free!)).toBeNull()
+    })
+
+    it("does not keep the room alive: the last real person leaving removes it", () => {
+        const lobby = newLobby()
+        const host = conn("real:1", "Ivo")
+        const room = publicRoom(lobby, host)
+        const seen = watched(lobby)
+        const handle = handleFor(lobby, room)
+        expect(handle.sitGuest(identity(1))).toBe(true)
+        expect(handle.sitGuest(identity(2))).toBe(true)
+
+        room.leave(host)
+        // Exactly what an ordinary lobby room does when its last human goes.
+        expect(lobby.get(room.id)).toBeUndefined()
+        expect(seen.closed).toContain(room.id)
+        // And the handle is dead, so the director releases its people.
+        expect(handle.guests()).toEqual([])
+        expect(handle.humanCount()).toBe(0)
+        expect(handle.sitGuest(identity(3))).toBe(false)
+    })
+
+    it("refuses a room with nobody real in it", () => {
+        const lobby = newLobby()
+        const host = conn("real:1", "Ivo")
+        const room = publicRoom(lobby, host)
+        watched(lobby)
+        const handle = handleFor(lobby, room)
+        room.leave(host)
+        expect(handle.sitGuest(identity(1))).toBe(false)
+    })
+
+    it("reports a real person coming and going, and the game starting", () => {
+        const lobby = newLobby()
+        const host = conn("real:1", "Ivo")
+        const room = publicRoom(lobby, host)
+        const seen = watched(lobby)
+        expect(seen.opened).toContain(room.id)
+
+        const second = conn("real:2", "Ana")
+        room.attach(second)
+        expect(seen.changed).toContain("human")
+        seen.changed.length = 0
+        room.setPrivate(host, true)
+        expect(seen.changed).toContain("options")
     })
 })

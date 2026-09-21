@@ -146,7 +146,9 @@ export default function CalendarEventRow({
                     <VStack align="stretch" gap="1.5" flex="1" minW="0">
                         <HStack gap="2" align="start">
                             <Text
+                                fontFamily="heading"
                                 fontWeight="semibold"
+                                letterSpacing="-0.015em"
                                 fontSize={{ base: "sm", md: "md" }}
                                 lineHeight="short"
                                 flex="1"
@@ -172,13 +174,13 @@ export default function CalendarEventRow({
 
                         <HStack gap="3" rowGap="1" wrap="wrap" fontSize="xs" minW="0">
                             {item.startAt && (
-                                <Meta icon={<FiClock />}>{formatTime(item.startAt)}</Meta>
+                                <Meta icon={<FiClock />} numeric>{formatTime(item.startAt)}</Meta>
                             )}
                             {item.location && (
                                 <Meta icon={<FiMapPin />}>{item.location}</Meta>
                             )}
                             {typeof item.distanceKm === "number" && (
-                                <Meta icon={<FiNavigation />} tone={near ? "near" : "muted"}>
+                                <Meta icon={<FiNavigation />} tone={near ? "near" : "muted"} numeric>
                                     {near
                                         ? `${formatDistanceKm(item.distanceKm)} · ${t("pages.calendar.nearMe.nearBadge")}`
                                         : formatDistanceKm(item.distanceKm)}
@@ -199,9 +201,9 @@ export default function CalendarEventRow({
                                 minW="0"
                                 display={{ base: "flex", md: "none" }}
                             >
-                                {priceBlock && <Meta>{priceBlock}</Meta>}
+                                {priceBlock && <Meta numeric>{priceBlock}</Meta>}
                                 {typeof item.registeredPairs === "number" && (
-                                    <Meta icon={<FiUsers />}>
+                                    <Meta icon={<FiUsers />} numeric>
                                         {item.registeredPairs}
                                         {typeof item.maxPairs === "number" ? ` / ${item.maxPairs}` : " / ∞"}
                                     </Meta>
@@ -225,10 +227,17 @@ export default function CalendarEventRow({
                             display={{ base: "none", md: "flex" }}
                         >
                             {priceBlock && (
-                                <Text fontWeight="semibold" color="fg.soft">{priceBlock}</Text>
+                                <Text
+                                    fontWeight="semibold"
+                                    fontFamily="mono"
+                                    fontVariantNumeric="tabular-nums"
+                                    color="fg.soft"
+                                >
+                                    {priceBlock}
+                                </Text>
                             )}
                             {typeof item.registeredPairs === "number" && (
-                                <Meta icon={<FiUsers />}>
+                                <Meta icon={<FiUsers />} numeric>
                                     {item.registeredPairs}
                                     {typeof item.maxPairs === "number" ? ` / ${item.maxPairs}` : " / ∞"}
                                 </Meta>

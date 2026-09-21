@@ -53,7 +53,7 @@ export default function TournamentQrCard({
                 </Text>
                 <Box
                     alignSelf="center"
-                    bg="white"
+                    bg="cardface"
                     borderWidth="1px"
                     borderColor="border.subtle"
                     rounded="lg"

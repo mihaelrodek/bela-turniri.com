@@ -851,6 +851,7 @@ function SideCard({
                     fontSize="4xl"
                     lineHeight="1"
                     fontWeight="bold"
+                    fontFamily="mono"
                     fontVariantNumeric="tabular-nums"
                     color={isActive ? "fg.ink" : "fg.muted"}
                 >
@@ -861,6 +862,7 @@ function SideCard({
                         as="span"
                         fontSize="sm"
                         fontWeight="semibold"
+                        fontFamily="mono"
                         fontVariantNumeric="tabular-nums"
                         color="fg.muted"
                     >
@@ -874,6 +876,7 @@ function SideCard({
                     as="span"
                     fontSize="md"
                     fontWeight="bold"
+                    fontFamily="mono"
                     fontVariantNumeric="tabular-nums"
                     color={fell ? "red.fg" : "fg.soft"}
                 >
@@ -893,9 +896,9 @@ function SideCard({
                 {fell && (
                     <Box
                         as="span"
-                        /* A SOLID stamp, not a tinted chip: "them" already
-                           wears red as its side colour (`blokSide.ts`), so a
-                           `red.subtle` badge would vanish into that card. The
+                        /* A SOLID stamp, not a tinted chip: a subtle badge
+                           would vanish into the tinted side card (`blokSide.ts`
+                           — "them" wears tan, 2026-09-21). The
                            `solid`/`contrast` pair is the one Chakra guarantees
                            legible in both themes, and the word "PAD" carries
                            the meaning regardless of the colour. */

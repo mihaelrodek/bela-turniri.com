@@ -7,14 +7,14 @@ import { ThemeProvider, useTheme } from "next-themes"
 // component to export ONLY components, and mixing hooks in here broke fast
 // refresh for ColorModeProvider. Importers: see that file.
 
-/** `bg.canvas` dark value from src/system.ts (#161719, slightly off Chakra's
- *  gray.950 as of 2026-09-08); light is plain white, matching
+/** THEME.md `--canvas`: dark (#1c1d20) and "Pergament" (#F7F2E9), the
+ *  `bg.canvas` values in src/system.ts; the light one also matches
  *  manifest.webmanifest's background_color. Kept here (not imported from
  *  system.ts) because that file is a Chakra system config, not a small
  *  constant module — pulling it in for two hex strings would drag the whole
  *  theme build into this tiny component. */
-const THEME_COLOR_DARK = "#161719"
-const THEME_COLOR_LIGHT = "#ffffff"
+const THEME_COLOR_DARK = "#1c1d20"
+const THEME_COLOR_LIGHT = "#F7F2E9"
 
 /**
  * Keeps the browser's own chrome (Android status bar/task-switcher card,

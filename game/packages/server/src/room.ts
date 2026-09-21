@@ -36,7 +36,7 @@ import type {
 import { DEFAULT_GAME_END_RULE, DEFAULT_TRICK_REVIEW, isQuickGame, LIMITS, REACTIONS } from "@bela/protocol"
 // TYPE-ONLY on purpose: with `GAME_DEMO_LOBBY` unset nothing under `demo/` is
 // loaded at all, and a type import is erased by the compiler (DEMO-LOBBY.md).
-import type { DemoIdentity, DemoRoomEvents, DemoRoomHandle, DemoRoomOptions } from "./demo/types.js"
+import type { DemoIdentity, DemoRoomEvents, DemoRoomHandle, DemoRoomOptions, RealRoomHandle } from "./demo/types.js"
 import type { Timings } from "./config.js"
 import { ProtocolError } from "./errors.js"
 import { botAvatar, botName } from "./bots.js"
@@ -60,8 +60,17 @@ import type { Connection } from "./ws.js"
  *     having too few humans (`otherHumanCount`, `removeBotOnlyLobby`, `isEmpty`)
  *   • counts as NEITHER    — stats, karma, abandonment, Live Activity, analytics
  *
- * A `DEMO` slot can only ever exist in a room created by `Lobby.createDemoRoom`
- * (`Room.demo !== null`); no ordinary room has a code path that produces one.
+ * A `DEMO` slot reaches an ORDINARY room one way only: `guestSit`, which is
+ * reachable solely through the `RealRoomHandle` that `Lobby.realWaitingRooms()`
+ * hands out — and that list is empty until `Lobby.watchRealRooms` has been
+ * called, which only the demo director does. With the flag off no ordinary room
+ * has a code path that produces a `DEMO` slot, so every branch below that tests
+ * for one is unreachable there.
+ *
+ * A GUEST (a `DEMO` slot in an ordinary room) differs from a fake person in a
+ * demo room in exactly one respect: it does NOT keep the room alive. The room
+ * belongs to the real people in it, and when the last of them goes the guests
+ * go with them (`isEmpty`, `removeBotOnlyLobby`, `otherHumanCount`).
  */
 export type SeatSlot =
     | { kind: "PLAYER"; uid: string; user: UserInfo; ready: boolean; connected: boolean }
@@ -450,8 +459,15 @@ export class Room {
         let count = 0
         for (const seat of SEATS) {
             const slot = this.seats[seat]
-            if (slot?.kind === "DEMO") count++
-            else if (slot?.kind === "PLAYER" && slot.uid !== uid) count++
+            // A fake person sustains a DEMO room (there is nobody else to) but
+            // never an ORDINARY one: a table whose only real player's hold ran
+            // out must dissolve exactly as it does against three bots, and
+            // guests are not a reason to keep a real game standing. With two
+            // real people seated this count is 2 from the PLAYER branch alone,
+            // so the two-human case is unaffected either way.
+            if (slot?.kind === "DEMO") {
+                if (this.demo) count++
+            } else if (slot?.kind === "PLAYER" && slot.uid !== uid) count++
         }
         return count
     }
@@ -469,12 +485,15 @@ export class Room {
     /**
      * Nobody is here any more, so the room may be deleted on a TTL.
      *
-     * A seated fake person counts as somebody: a demo room routinely has zero
-     * connections (nobody real is watching it) and must still survive, exactly
-     * as a room full of real people whose sockets all blinked would.
+     * A seated fake person counts as somebody IN A DEMO ROOM: that room
+     * routinely has zero connections (nobody real is watching it) and must
+     * still survive, exactly as a room full of real people whose sockets all
+     * blinked would. A GUEST in an ordinary room does not: it came because a
+     * real person was sitting there, and leaves with them.
      */
     isEmpty(): boolean {
-        return this.conns.size === 0 && this.demoSeatCount() === 0
+        if (this.conns.size > 0) return false
+        return this.demo === null || this.demoSeatCount() === 0
     }
 
     /* ───────────────────────── serialisation ───────────────────────── */
@@ -810,13 +829,15 @@ export class Room {
      * human member has gone, remove it right away; a player who stood up is
      * still a human spectator and must keep the lobby alive.
      *
-     * A fake person is a member in this sense: a demo waiting room normally has
-     * nobody connected at all and must not evaporate the moment the one real
-     * visitor walks out again.
+     * A fake person is a member in this sense in a DEMO room: that waiting room
+     * normally has nobody connected at all and must not evaporate the moment
+     * the one real visitor walks out again. A GUEST in an ordinary room is not:
+     * the room goes, and the guests go with it (the director is told through
+     * `onRoomClosed` and releases them).
      */
     private removeBotOnlyLobby(): boolean {
         if (this.status !== "LOBBY" || this.conns.size > 0) return false
-        if (this.demoSeatCount() > 0) return false
+        if (this.demo && this.demoSeatCount() > 0) return false
         log.info("room.deleted", { room: this.id, status: this.status, reason: "no-human-members" })
         this.lobby.remove(this.id)
         return true
@@ -939,6 +960,9 @@ export class Room {
             }
             return
         }
+        // ORDINARY room: only a real account, never a guest. The `PLAYER` test
+        // is what guarantees it — a `DEMO` slot can never match, so the badge
+        // falls through to another real seat or to a connected spectator.
         for (const s of SEATS) {
             const slot = this.seats[s]
             if (slot?.kind === "PLAYER" && slot.uid !== leavingUid) {
@@ -1387,6 +1411,12 @@ export class Room {
     /** A fixed emoji from a fake person, under the real cooldown. */
     demoReact(seat: Seat, reaction: string): boolean {
         if (this.disposed || !this.demo) return false
+        return this.reactAsFakePerson(seat, reaction)
+    }
+
+    /** The body of `demoReact`, shared with the guest path (`guestReact`): the
+     *  gate differs (demo room vs. a seat a guest holds), the behaviour must not. */
+    private reactAsFakePerson(seat: Seat, reaction: string): boolean {
         const slot = this.seats[seat]
         if (!slot || slot.kind !== "DEMO") return false
         if (!(REACTIONS as readonly string[]).includes(reaction)) return false
@@ -1408,6 +1438,76 @@ export class Room {
     demoScore(): { A: number; B: number } | null {
         if (!this.game) return null
         return { A: this.game.state.score.A, B: this.game.state.score.B }
+    }
+
+    /* ─────────────── guests in ORDINARY rooms (DEMO-LOBBY.md) ───────────────
+       A real person opens a public table and waits; fake people trickle in so
+       the table can actually start. Everything here refuses outright in a demo
+       room (`this.demo` — those use `demoSit`/`demoLeave`) and is unreachable
+       unless `Lobby.watchRealRooms` has been called, which only the director
+       does. The real host keeps every power they had: they press "Pokreni
+       igru", they may add and remove bots, and the room is still theirs. */
+
+    /** Fake people seated in THIS room, in seat order. */
+    guestIdentities(): DemoIdentity[] {
+        const out: DemoIdentity[] = []
+        for (const seat of SEATS) {
+            const slot = this.seats[seat]
+            if (slot?.kind === "DEMO") out.push(slot.identity)
+        }
+        return out
+    }
+
+    /**
+     * A guest takes a chair. `seat` omitted = `nextSeatForNewcomer()`, the same
+     * `SEAT_FILL_ORDER` a real arrival gets, so a table with two people in it
+     * still shows them as partners.
+     *
+     * Refused for: a demo room, a running game, a taken chair, a PRIVATE room
+     * (a locked table is not somewhere a stranger wanders into — the guests
+     * already sitting stay), and a room with nobody REAL in it, which is the
+     * invariant the whole feature rests on: a guest never exists on its own.
+     */
+    guestSit(identity: DemoIdentity, seat?: Seat): boolean {
+        if (this.disposed || this.demo) return false
+        if (this.status !== "LOBBY") return false
+        if (this.private) return false
+        if (this.realHumanSeats().length === 0) return false
+        if (this.demoSeatOf(identity.uid) !== null) return false
+        const target = seat ?? this.nextSeatForNewcomer()
+        if (target === null) return false
+        if (this.seats[target] !== null) return false
+        this.seats[target] = { kind: "DEMO", identity }
+        log.info("guest.seated", { room: this.id, seat: target, uid: identity.uid })
+        this.broadcastState()
+        this.lobby.changed()
+        return true
+    }
+
+    /** A guest stands up (gave up waiting, or the game is over). LOBBY only —
+     *  mid-deal nobody may leave a seat that is holding cards. */
+    guestLeave(identity: DemoIdentity): boolean {
+        if (this.disposed || this.demo) return false
+        if (this.status !== "LOBBY") return false
+        const seat = this.demoSeatOf(identity.uid)
+        if (seat === null) return false
+        this.seats[seat] = null
+        this.demoReactionAt.delete(seat)
+        // No `transferHost`: a guest is never the host of an ordinary room
+        // (`hostUid` only ever holds a real uid there), so there is nothing to
+        // hand on. The room's own emptiness rules still apply.
+        this.broadcastState()
+        this.lobby.changed()
+        this.scheduleDeleteIfEmpty()
+        return true
+    }
+
+    /** A guest's emoji, under the same cooldown a real person has. */
+    guestReact(identity: DemoIdentity, reaction: string): boolean {
+        if (this.disposed || this.demo) return false
+        const seat = this.demoSeatOf(identity.uid)
+        if (seat === null) return false
+        return this.reactAsFakePerson(seat, reaction)
     }
 
     /** The seat a fake person with this uid sits on, if any. */
@@ -1532,5 +1632,67 @@ export class DemoRoom implements DemoRoomHandle {
 
     score(): { A: number; B: number } | null {
         return this.room.demoScore()
+    }
+}
+
+/**
+ * The director's handle on ONE room a real person opened (`RealRoomHandle`).
+ *
+ * Only `Lobby.realWaitingRooms()` / `Lobby.watchRealRooms` ever construct one,
+ * and only after the demo director has asked to watch — so with the flag off
+ * this class is never instantiated and `Room.guestSit` is never called.
+ *
+ * Everything is a dead no-op once the room has left the lobby: the director
+ * polls its handles and a stale one must answer "nothing here" rather than
+ * throw or, worse, seat somebody into a disposed room.
+ */
+export class RealRoom implements RealRoomHandle {
+    private readonly room: Room
+
+    constructor(room: Room) {
+        this.room = room
+    }
+
+    get id(): string {
+        return this.room.id
+    }
+
+    get createdAt(): number {
+        return this.room.createdAt
+    }
+
+    isPublic(): boolean {
+        return !this.room.isDisposed() && !this.room.private
+    }
+
+    status(): RoomStatus {
+        return this.room.status
+    }
+
+    freeSeats(): readonly Seat[] {
+        if (this.room.isDisposed()) return []
+        return SEAT_FILL_ORDER.filter((s) => this.room.slotAt(s) === null)
+    }
+
+    humanCount(): number {
+        if (this.room.isDisposed()) return 0
+        return this.room.realHumanSeats().length
+    }
+
+    guests(): readonly DemoIdentity[] {
+        if (this.room.isDisposed()) return []
+        return this.room.guestIdentities()
+    }
+
+    sitGuest(identity: DemoIdentity, seat?: Seat): boolean {
+        return this.room.guestSit(identity, seat)
+    }
+
+    removeGuest(identity: DemoIdentity): boolean {
+        return this.room.guestLeave(identity)
+    }
+
+    react(identity: DemoIdentity, reaction: string): boolean {
+        return this.room.guestReact(identity, reaction)
     }
 }

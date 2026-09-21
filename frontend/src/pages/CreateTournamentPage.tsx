@@ -914,6 +914,7 @@ export default function CreateTournamentPage() {
                                             flex="1"
                                             size="sm"
                                             colorPalette="brand"
+                                            fontFamily="mono" fontVariantNumeric="tabular-nums"
                                             variant={form.targetScore === score ? "solid" : "outline"}
                                             aria-pressed={form.targetScore === score}
                                             onClick={() => onChange("targetScore", score)}

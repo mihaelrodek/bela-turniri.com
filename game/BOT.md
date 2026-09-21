@@ -879,3 +879,28 @@ najjeftinije karte uopće, ide najjeftinija — sedmica.
 
 Nije riješeno: kako je as uopće ostao neigran do sedmog štiha (prethodni štih se
 iz slike ne može rekonstruirati). Ako se ponovi, treba točan tijek partije.
+
+### 15.20 Sigurne štihove odigraj dok imaš izlaz (`sureWinnerToCash`, prijava 2026-09-21)
+
+Bot je imao četiri herca, svi aduti već pali, hercem je izašao dva puta — i onda
+odigrao kartu **druge boje**. Preostali hercevi nikad nisu odigrani i „propali"
+su s partijom. Nitko drugi u boji nije imao ništa, a nitko nije imao ni aduta da
+siječe: svaki taj herc bio je siguran štih, ali nijedno pravilo nije govorilo
+„uzmi ih dok si na izlazu". Svaka karta odigrana u drugoj boji je izgubljen
+izlaz, a izgubljen izlaz je izgubljen štih.
+
+Pravilo (u `chooseLead`, odmah iza štihaka i „zadnjeg štiha", ispred svega
+ostalog): kad je **dokazano** da protivnici nemaju aduta
+(`trumpOutlook.opponentMax === 0`) i držim običnu kartu koju **ništa u igri ne
+može prebiti** (`isMasterCard`), izlazim njome. Kad je boja iscrpljena drugdje,
+to vrijedi za svaku moju kartu u njoj — drugi i treći herc postaju „gospodari"
+čim je prvi otišao, pa se boja odigra do kraja. Prednost ima boja s najviše
+sigurnih štihova, a u njoj najjača karta prva.
+
+Izuzeci, oba namjerna: adut se ne dira (ima vlastita pravila, §14 i §15.16), a
+**usamljeni as** ostaje gdje ga drži §5.3 (`aceToCash`). Protivnici koji još mogu
+imati adut ne pokreću pravilo — sijeku li, boja nije sigurna.
+
+Testovi: `scenarios.lead.test.ts`, „cash a certain suit while I still have the
+lead". Nisu pokrenuti u trenutku pisanja; mjerenje jakosti bota (`10 000`
+parova) treba ponoviti jer je ovo novo pravilo visoko u redoslijedu.

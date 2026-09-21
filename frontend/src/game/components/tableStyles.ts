@@ -13,9 +13,10 @@ const BLUR_STRONG = {
 export const TEAM = {
     /** My pair — me and the seat opposite me. */
     us: "brand.fg",
-    /** The other pair. A literal, because the brand ramp is one hue and a
-     *  second team needs a second one; this is the bell suit's gold. */
-    them: "#d9a521",
+    /** The other pair. THEME.md (2026-09-21 rollout): team ONI = `tan`, the
+     *  secondary accent, because the brand ramp is one hue and a second team
+     *  needs a second one. */
+    them: "tan",
 } as const
 
 export type TeamSide = keyof typeof TEAM

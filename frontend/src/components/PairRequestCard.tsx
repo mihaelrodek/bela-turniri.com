@@ -84,11 +84,18 @@ function TournamentBlock({
                         accent={!matched}
                     />
                     <VStack align="stretch" gap="0.5" flex="1" minW="0">
-                        <Text fontSize="sm" fontWeight="bold" lineHeight="short" truncate>
+                        <Text
+                            fontFamily="heading"
+                            fontSize="sm"
+                            fontWeight="semibold"
+                            letterSpacing="-0.015em"
+                            lineHeight="short"
+                            truncate
+                        >
                             {r.tournamentName}
                         </Text>
                         <HStack gap="2.5" rowGap="0.5" wrap="wrap" fontSize="xs" minW="0">
-                            {parts?.time && <Meta>{parts.time}</Meta>}
+                            {parts?.time && <Meta numeric>{parts.time}</Meta>}
                             {place && (
                                 <Meta icon={<FiMapPin size={12} />}>
                                     {place}
@@ -159,7 +166,14 @@ export default function PairRequestCard({
             <HStack gap="2.5" align="center" minW="0">
                 <PairAvatar name={r.playerName} matched={matched} />
                 <Box flex="1" minW="0">
-                    <Text fontWeight="bold" fontSize="md" lineHeight="short" truncate>
+                    <Text
+                        fontFamily="heading"
+                        fontWeight="semibold"
+                        fontSize="md"
+                        letterSpacing="-0.015em"
+                        lineHeight="short"
+                        truncate
+                    >
                         {r.playerName}
                     </Text>
                     <Text fontSize="2xs" color="fg.muted" mt="0.5">

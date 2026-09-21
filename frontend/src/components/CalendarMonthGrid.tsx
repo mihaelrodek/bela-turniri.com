@@ -57,14 +57,20 @@ function DayChip({ item, past }: { item: CalendarTournament; past: boolean }) {
             textAlign="left"
             minW="0"
         >
-            <Text fontSize="2xs" fontWeight="bold" lineHeight="1.3">
+            <Text
+                fontSize="2xs"
+                fontWeight="bold"
+                fontFamily="mono"
+                fontVariantNumeric="tabular-nums"
+                lineHeight="1.3"
+            >
                 {formatTime(item.startAt, "")}
             </Text>
             <Text fontSize="2xs" fontWeight="semibold" lineHeight="1.3" truncate>
                 {item.name}
             </Text>
             {item.location && (
-                <Text fontSize="2xs" opacity={0.8} lineHeight="1.3" truncate>
+                <Text fontSize="2xs" color="fg.muted" lineHeight="1.3" truncate>
                     {item.location}
                 </Text>
             )}
@@ -182,6 +188,8 @@ export default function CalendarMonthGrid({
                         >
                             <Text
                                 fontSize="xs"
+                                fontFamily="mono"
+                                fontVariantNumeric="tabular-nums"
                                 fontWeight={isToday ? "bold" : hasItems ? "semibold" : "normal"}
                                 color={isToday ? "brand.fg" : hasItems ? "fg.ink" : "fg.muted"}
                                 px="0.5"

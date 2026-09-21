@@ -303,7 +303,9 @@ export default function RacuniSection({
                                     <Box color="brand.fg" display="flex" alignItems="center">
                                         <FiCreditCard size={15} />
                                     </Box>
-                                    <Text fontWeight="semibold">{t("tournament.waiter.manage.heading")}</Text>
+                                    <Text fontFamily="heading" fontWeight="semibold" letterSpacing="-0.015em">
+                                        {t("tournament.waiter.manage.heading")}
+                                    </Text>
                                 </HStack>
                                 <Text fontSize="sm" color="fg.muted" maxW="lg">
                                     {t("tournament.waiter.manage.description")}
@@ -474,6 +476,8 @@ export default function RacuniSection({
                                     <Text
                                         fontSize="2xs"
                                         fontWeight="semibold"
+                                        fontFamily="mono"
+                                        fontVariantNumeric="tabular-nums"
                                         color="fg.muted"
                                         letterSpacing="wider"
                                         textTransform="uppercase"
@@ -520,7 +524,7 @@ export default function RacuniSection({
                                                             </Text>
                                                         </HStack>
                                                         <HStack gap="2" flexShrink={0}>
-                                                            <Text fontSize="xs" fontWeight="semibold" fontVariantNumeric="tabular-nums" color="fg.muted">
+                                                            <Text fontSize="xs" fontWeight="semibold" fontFamily="mono" fontVariantNumeric="tabular-nums" color="fg.muted">
                                                                 {formatEur(b.total)}
                                                             </Text>
                                                             <FiChevronRight size={13} color="var(--chakra-colors-fg-muted)" />
@@ -571,6 +575,7 @@ export default function RacuniSection({
                                                             <Text
                                                                 fontSize="sm"
                                                                 fontWeight="bold"
+                                                                fontFamily="mono"
                                                                 fontVariantNumeric="tabular-nums"
                                                             >
                                                                 {formatEur(b.total)}

@@ -1,3 +1,15 @@
+// Self-hosted THEME.md fonts (production CSP is `font-src 'self' data:`, and
+// the PWA / native shell must render offline). Bricolage uses the `opsz`
+// build (optical size 12–96 + wght 200–800, same family name as the plain
+// one) because THEME asks for opsz 12..96; each package's default entry
+// carries latin + latin-ext (č ć đ š ž), unicode-range keeps unused subsets
+// from downloading. Registered families: "Bricolage Grotesque Variable",
+// "Instrument Sans Variable", "JetBrains Mono Variable" (see system.ts).
+import "@fontsource-variable/bricolage-grotesque/opsz.css"
+import "@fontsource-variable/instrument-sans"
+import "@fontsource-variable/jetbrains-mono"
+// THEME.md colour / font CSS variables for non-Chakra styles.
+import "./index.css"
 import React from "react"
 import ReactDOM from "react-dom/client"
 import { BrowserRouter } from "react-router-dom"

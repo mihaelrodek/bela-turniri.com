@@ -27,6 +27,23 @@
    A real person suspends all of that for their room: seats fill one at a
    time, nobody fake walks out on them, and the director is what presses
    "start" because the host is a fake person who cannot press anything.
+
+   THE THREE-SEAT DEADLINE (owner, 2026-09-21). Pacing alone produced tables
+   sitting at 3/4 for many minutes, which no real table ever does: a fourth
+   turns up within a minute, or somebody gives up. So a room that reaches THREE
+   draws a deadline of 20–70 s, and at that deadline exactly one of two things
+   happens — the fourth arrives and the game starts, or somebody leaves and the
+   room drops to two (and may climb again later, with a NEW deadline). Starts
+   are therefore TIME-driven rather than quota-driven, and the quota is held
+   from the other side instead: above target, nothing is pushed past two and
+   finished tables wind down fast. A waiting room that has never started after
+   6–10 minutes fills up or is closed, so the list visibly turns over.
+
+   GUESTS IN REAL ROOMS (DEMO-LOBBY.md "Gosti u pravim sobama"). A separate,
+   much smaller loop: fake people trickle into PUBLIC waiting rooms real people
+   opened, through `RealRoomHandle`. Those rooms are REAL rooms and are counted
+   outside every demo total here — the director services at most two of them and
+   gets out of the way entirely once the lobby has real activity of its own.
    ────────────────────────────────────────────────────────────────────── */
 
 import { REACTIONS } from "@bela/protocol"
@@ -35,7 +52,13 @@ import { log } from "../log.js"
 import { createIdentityPool } from "./identities.js"
 import type { DemoIdentityPool, DemoOutcome } from "./identities.js"
 import type { DemoDirectorDeps as WiringDeps, DemoDirectorHandle, StartDemoDirector } from "./directorApi.js"
-import type { DemoIdentity, DemoRoomEvents, DemoRoomHandle, DemoRoomOptions } from "./types.js"
+import type {
+    DemoIdentity,
+    DemoRoomEvents,
+    DemoRoomHandle,
+    DemoRoomOptions,
+    RealRoomHandle,
+} from "./types.js"
 
 /* ───────────────────────────── tuning ────────────────────────────────── */
 
@@ -74,6 +97,23 @@ const HUMAN_REPLACE_MAX_MS = 15_000
 /** Only after this much silence may the room churn around a waiting human. */
 const HUMAN_IDLE_MS = 90_000
 
+/**
+ * A room sitting at THREE seated has this long before it resolves one way or
+ * the other. Upper bound deliberately under the ~90 s a watcher would call
+ * "they are obviously waiting for a real person".
+ */
+const THREE_DEADLINE_MIN_MS = 20_000
+const THREE_DEADLINE_MAX_MS = 70_000
+/** At the deadline: this often the fourth turns up, otherwise somebody leaves. */
+const THREE_FOURTH_CHANCE = 0.65
+
+/** A waiting room that has never started by now fills up or is replaced. */
+const STALE_ROOM_MIN_MS = 6 * 60_000
+const STALE_ROOM_MAX_MS = 10 * 60_000
+/** The rush that empties a stale room's chairs, one person at a time. */
+const RUSH_FILL_MIN_MS = 1_500
+const RUSH_FILL_MAX_MS = 5_000
+
 /** A LOBBY room of four fake people that has not started by now is broken. */
 const START_WATCHDOG_MS = 30_000
 const SWEEP_MIN_MS = 10_000
@@ -88,6 +128,38 @@ const REACTION_PER_PERSON_COOLDOWN_MS = 20_000
  *  population shrinks (one room per structural action) toward the floor. */
 const REAL_ROOMS_YIELD_FROM = 6
 const DEMO_ROOM_FLOOR = 3
+
+/* ── guests in rooms real people opened ───────────────────────────────── */
+
+/** How often the guest loop looks at the real rooms it is servicing. */
+const GUEST_TICK_MIN_MS = 4_000
+const GUEST_TICK_MAX_MS = 9_000
+/** Never more than this many real rooms at once, and none at all once the
+ *  lobby has real activity of its own (`REAL_ROOMS_YIELD_FROM`). */
+const GUEST_ROOMS_MAX = 2
+/** Nobody turns up the second a table opens: people need time to invite
+ *  friends, and a room that fills instantly is the tell §3 warns about. */
+const GUEST_FIRST_MIN_MS = 25_000
+const GUEST_FIRST_MAX_MS = 60_000
+const GUEST_NEXT_MIN_MS = 10_000
+const GUEST_NEXT_MAX_MS = 35_000
+/** A real person arriving or leaving restarts the quiet period. */
+const GUEST_QUIET_MIN_MS = 15_000
+const GUEST_QUIET_MAX_MS = 40_000
+/**
+ * The LAST free chair is left alone while ONE real person sits in a room this
+ * young: they may be waiting for a friend, and filling their table would be
+ * the app taking that decision for them. After it, the fourth may come.
+ */
+const GUEST_LAST_SEAT_HOLD_MS = 120_000
+/** A guest who has waited this long in a table that never starts gives up. */
+const GUEST_GIVE_UP_MIN_MS = 4 * 60_000
+const GUEST_GIVE_UP_MAX_MS = 6 * 60_000
+/** After the game, guests drift off one by one across this window. */
+const GUEST_DEPART_MIN_MS = 10_000
+const GUEST_DEPART_MAX_MS = 60_000
+/** Chance per tick that a guest in a running real game says something. */
+const GUEST_REACTION_CHANCE = 0.06
 
 /** The lobby is believable within this long of a cold start. */
 const BOOT_FIRST_MIN_MS = 300
@@ -132,7 +204,33 @@ interface DirectedRoom {
     /** A human-driven fill chain is already running; do not start a second. */
     humanFillRunning: boolean
     startPending: boolean
+    /** The running three-seat deadline, if the room is sitting at three. */
+    threeTimer: TimerRec | null
+    /** Clock instant after which a room that never started is recycled. */
+    staleAt: number
+    /** A stale room is being filled to four on purpose; the three-seat
+     *  deadline must not fight it by pulling somebody back out. */
+    rushing: boolean
     timers: Set<TimerRec>
+}
+
+/** One real room the guest loop is servicing. */
+interface GuestRoom {
+    readonly id: string
+    handle: RealRoomHandle
+    /** Our mirror, reconciled against `handle.guests()` on every tick. */
+    guests: Map<string, DemoIdentity>
+    /** uid → the instant that guest gives up waiting and leaves. */
+    giveUpAt: Map<string, number>
+    /** uid → when they drift off after the game (set once it is over). */
+    departAt: Map<string, number>
+    /** No guest may arrive before this: the room is young, or a real person
+     *  just came or went. */
+    quietUntil: number
+    /** Earliest arrival for the NEXT guest, once the quiet period is over. */
+    nextGuestAt: number
+    /** The game has run at least once, so departures rather than arrivals. */
+    played: boolean
 }
 
 /* ───────────────────────────── rng helpers ───────────────────────────── */
@@ -204,6 +302,7 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
     }
 
     function clearRoomTimers(room: DirectedRoom): void {
+        room.threeTimer = null
         for (const rec of [...room.timers]) {
             room.timers.delete(rec)
             timers.delete(rec)
@@ -290,6 +389,8 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             room.phase = "playing"
             room.startPending = false
             room.fullSince = null
+            room.rushing = false
+            room.threeTimer = null
             armReactions(room)
         } else if (status === "FINISHED" && room.phase !== "over") {
             onGameOver(room, null)
@@ -414,6 +515,9 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             lastHumanActivityAt: now,
             humanFillRunning: false,
             startPending: false,
+            threeTimer: null,
+            staleAt: now + randInt(rng, STALE_ROOM_MIN_MS, STALE_ROOM_MAX_MS),
+            rushing: false,
             timers: new Set(),
         }
         holder.room = room
@@ -458,6 +562,7 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             armStartBeat(room)
         }
         armWatchdog(room)
+        armThreeDeadline(room)
         return room
     }
 
@@ -486,6 +591,8 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
         if (ok) {
             room.phase = "playing"
             room.fullSince = null
+            room.rushing = false
+            room.threeTimer = null
             armReactions(room)
         }
         return ok
@@ -624,8 +731,10 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             )
             return
         }
-        // Before the deal: the room simply rejoins the normal pacing.
+        // Before the deal: the room simply rejoins the normal pacing — which
+        // now includes the three-seat deadline if that is where it was left.
         room.startPending = false
+        armThreeDeadline(room)
     }
 
     /* ── the human fast path ─────────────────────────────────────────── */
@@ -761,12 +870,135 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
         )
     }
 
+    /* ── the three-seat deadline (owner, 2026-09-21) ─────────────────── */
+
+    function playingCount(): number {
+        return liveRooms().filter(isPlaying).length
+    }
+
+    /** Full, all-fake rooms whose start beat is already ticking. They count
+     *  against the ceiling: two deadlines resolving seconds apart must not both
+     *  believe they are the one table that still fits. */
+    function pendingStartCount(): number {
+        return liveRooms().filter((r) => !isPlaying(r) && r.startPending && r.humanSeats.size === 0).length
+    }
+
+    /**
+     * Is there room for one MORE playing table?
+     *
+     * One above the wandering target is allowed — starts are time-driven now,
+     * so the average is held by holding rooms at two on the other side, not by
+     * refusing the fourth person who is already on their way. The band's own
+     * maximum plus one is the hard ceiling and is never crossed.
+     *
+     * ALWAYS evaluated inside `structural()`, so the answer cannot go stale
+     * between being read and being acted on.
+     */
+    function startHeadroom(): boolean {
+        const ceiling = Math.min(targetPlaying + 1, config.playingRooms[1] + 1)
+        return playingCount() + pendingStartCount() + 1 <= ceiling
+    }
+
+    /**
+     * A room just reached three seated: draw its deadline. Re-armed rather than
+     * refreshed — a room that drops to two and climbs back gets a NEW one, so
+     * the wait never compounds into the "obviously waiting for a human" look.
+     */
+    function armThreeDeadline(room: DirectedRoom): void {
+        if (room.disposed || room.phase !== "filling" || room.rushing) return
+        if (room.threeTimer) return
+        // A real person's table has its own, faster pacing (§2.3) and is never
+        // one of these: nobody fake walks out on a human.
+        if (room.humanSeats.size > 0 || hasHuman(room)) return
+        if (occupiedCount(room) !== 3) return
+        room.threeTimer = schedule(
+            randInt(rng, THREE_DEADLINE_MIN_MS, THREE_DEADLINE_MAX_MS),
+            () => {
+                room.threeTimer = null
+                resolveThree(room)
+            },
+            room,
+        )
+    }
+
+    /** The deadline fired: the fourth arrives, or somebody gives up. */
+    function resolveThree(room: DirectedRoom): void {
+        if (room.disposed) return
+        syncPhase(room)
+        if (room.phase !== "filling" || room.rushing) return
+        if (room.humanSeats.size > 0 || hasHuman(room)) return
+        if (occupiedCount(room) !== 3) {
+            // It moved while the timer was in flight; whatever moved it will
+            // arm a fresh deadline if it is back at three.
+            armThreeDeadline(room)
+            return
+        }
+        // 65/35 toward the fourth arriving — drawn here, but only honoured
+        // inside the mutex below, where the headroom answer is still true.
+        const wantsFourth = rng() < THREE_FOURTH_CHANCE
+        structural(() => {
+            if (room.disposed || room.phase !== "filling") return
+            if (occupiedCount(room) !== 3) return
+            // With no headroom there is only one believable outcome left, and
+            // it is the one that also relieves the pressure: somebody leaves.
+            if (wantsFourth && startHeadroom()) addPerson(room)
+            else removePerson(room)
+        })
+    }
+
+    /**
+     * A waiting room old enough to be suspicious: fill it to four and let it
+     * play, or close it so a fresh one takes its place. Either way the list
+     * turns over, which is the thing a watcher actually notices.
+     */
+    function recycleStale(room: DirectedRoom): void {
+        if (room.disposed || room.phase !== "filling" || room.rushing) return
+        if (room.humanSeats.size > 0 || hasHuman(room)) return
+        structural(() => {
+            if (room.disposed || room.phase !== "filling" || room.rushing) return
+            if (!startHeadroom() || occupiedCount(room) === 0) {
+                closeRoom(room)
+                return
+            }
+            room.rushing = true
+            room.threeTimer = null
+            rushFill(room)
+        })
+    }
+
+    /** The stale room's remaining chairs, one person at a time. */
+    function rushFill(room: DirectedRoom): void {
+        if (room.disposed || room.phase !== "filling" || room.humanSeats.size > 0) return
+        if (occupiedCount(room) >= 4) {
+            armStartBeat(room)
+            return
+        }
+        schedule(
+            randInt(rng, RUSH_FILL_MIN_MS, RUSH_FILL_MAX_MS),
+            () => {
+                if (room.disposed) return
+                syncPhase(room)
+                if (room.phase !== "filling" || room.humanSeats.size > 0) return
+                structural(() => {
+                    addPerson(room)
+                    rushFill(room)
+                })
+            },
+            room,
+        )
+    }
+
     /* ── after the game: linger, then leave one by one ───────────────── */
 
     function armDeparture(room: DirectedRoom): void {
         const human = hasHuman(room)
-        const min = human ? HUMAN_LINGER_MIN_MS : LINGER_MIN_MS
-        const max = human ? HUMAN_LINGER_MAX_MS : LINGER_MAX_MS
+        // The other half of the three-seat deadline's bargain: because starts
+        // are now time-driven and may run one over target, a finished table
+        // that the lobby no longer needs winds down quickly rather than
+        // lingering for the full 40 s.
+        const crowded = !human && playingCount() >= targetPlaying
+        const min = human ? HUMAN_LINGER_MIN_MS : crowded ? 3_000 : LINGER_MIN_MS
+        const max = human ? HUMAN_LINGER_MAX_MS : crowded ? 15_000 : LINGER_MAX_MS
         const seated = fakeSeats(room)
         if (seated.length === 0) {
             finishDeparture(room)
@@ -942,9 +1174,14 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             }
             return
         }
-        // Only up to three, so the room stays a waiting room; the variety of
-        // one, two and three free seats comes from here.
-        const fillable = waiting.filter((r) => occupiedCount(r) < 3)
+        // Up to three, so the room stays a waiting room and the variety of one,
+        // two and three free seats comes from here — EXCEPT while more tables
+        // are playing than the target wants. Then arrivals only ever take a
+        // room from one to two: nothing is pushed to three, because three is
+        // now a countdown to a start (`armThreeDeadline`) and that is exactly
+        // what the lobby has too much of.
+        const cap = playing > targetPlaying ? 2 : 3
+        const fillable = waiting.filter((r) => occupiedCount(r) < cap)
         const room = pickFrom(rng, fillable)
         if (room) {
             structural(() => addPerson(room))
@@ -964,6 +1201,9 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             return
         }
         if (occupiedCount(room) >= 4) armStartBeat(room)
+        // Three seated starts a clock: this room now resolves within a minute
+        // or so instead of sitting there advertising a free chair for ages.
+        else armThreeDeadline(room)
     }
 
     function removePerson(room: DirectedRoom): void {
@@ -1022,6 +1262,17 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
                     continue
                 }
 
+                if (room.phase === "filling" && room.humanSeats.size === 0 && !hasHuman(room)) {
+                    // Backstop for the three-seat deadline: every path that
+                    // reaches three arms one itself, but a room that got there
+                    // some other way (a human left it at three, a handle moved
+                    // under us) must not escape the rule.
+                    armThreeDeadline(room)
+                    // And the room that never started at all: recycled, so the
+                    // list is not the same eight rows it was ten minutes ago.
+                    if (now > room.staleAt) recycleStale(room)
+                }
+
                 // A human parked in a lobby seat: after a minute and a half of
                 // silence the room is allowed a little churn again, rarely.
                 if (
@@ -1036,6 +1287,239 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             }
             sweep()
         })
+    }
+
+    /* ── guests in rooms real people opened ──────────────────────────── */
+
+    const guestRooms = new Map<string, GuestRoom>()
+
+    /** Books a guest back into the pool; always paired with them leaving. */
+    function releaseGuest(gr: GuestRoom, uid: string): void {
+        const identity = gr.guests.get(uid)
+        gr.guests.delete(uid)
+        gr.giveUpAt.delete(uid)
+        gr.departAt.delete(uid)
+        // "left", never won/lost: a guest's record moves only for games the
+        // DIRECTOR ran, and it does not own this room's game.
+        if (identity) pool.release(identity, "left", clock.now())
+    }
+
+    function forgetGuestRoom(id: string): void {
+        const gr = guestRooms.get(id)
+        if (!gr) return
+        guestRooms.delete(id)
+        for (const uid of [...gr.guests.keys()]) releaseGuest(gr, uid)
+    }
+
+    /** A real person came or went: back off before the next guest arrives. */
+    function restartQuietPeriod(gr: GuestRoom): void {
+        gr.quietUntil = Math.max(gr.quietUntil, clock.now() + randInt(rng, GUEST_QUIET_MIN_MS, GUEST_QUIET_MAX_MS))
+    }
+
+    function serviceGuestRoom(gr: GuestRoom, now: number, yielding: boolean): void {
+        const handle = gr.handle
+        let status: "LOBBY" | "PLAYING" | "FINISHED" | null = null
+        let seated: readonly DemoIdentity[] = []
+        let humans = 0
+        try {
+            status = handle.status()
+            seated = handle.guests()
+            humans = handle.humanCount()
+        } catch (err) {
+            log.warn("demo guest handle threw", { roomId: gr.id, err })
+            forgetGuestRoom(gr.id)
+            return
+        }
+
+        // RECONCILE FIRST, always: the room is the truth. A guest whose seat is
+        // gone — the room removed them, the room itself is gone — must be back
+        // in the pool before anything else is decided.
+        const present = new Set(seated.map((i) => i.uid))
+        for (const uid of [...gr.guests.keys()]) {
+            if (!present.has(uid)) releaseGuest(gr, uid)
+        }
+
+        // Nobody real left in it: the room is on its way out (its own emptiness
+        // rules remove it and take the guests with it). Stop servicing it.
+        if (humans === 0) {
+            forgetGuestRoom(gr.id)
+            return
+        }
+
+        if (status === "PLAYING") {
+            gr.played = true
+            if (gr.guests.size > 0 && rng() < GUEST_REACTION_CHANCE) {
+                const candidates = [...gr.guests.values()].filter((i) => {
+                    const last = lastReactionAt.get(i.uid)
+                    return last === undefined || now - last >= REACTION_PER_PERSON_COOLDOWN_MS
+                })
+                const who = pickFrom(rng, candidates)
+                const reaction = pickFrom(rng, REACTIONS)
+                if (who && reaction !== null) {
+                    try {
+                        if (handle.react(who, reaction)) lastReactionAt.set(who.uid, now)
+                    } catch (err) {
+                        log.warn("demo guest react threw", { roomId: gr.id, err })
+                    }
+                }
+            }
+            return
+        }
+        if (status !== "LOBBY") return
+
+        // Yielding to real activity: the guests excuse themselves, one a tick.
+        if (yielding) {
+            const leaving = [...gr.guests.values()][0]
+            if (!leaving) {
+                guestRooms.delete(gr.id)
+                return
+            }
+            structural(() => {
+                if (handle.removeGuest(leaving)) releaseGuest(gr, leaving.uid)
+            })
+            return
+        }
+
+        // ONE structural action per room per tick, like everywhere else here.
+
+        // After the game: they drift off over 10–60 s, not in a block.
+        if (gr.played) {
+            for (const uid of gr.guests.keys()) {
+                if (!gr.departAt.has(uid)) gr.departAt.set(uid, now + randInt(rng, GUEST_DEPART_MIN_MS, GUEST_DEPART_MAX_MS))
+            }
+            for (const [uid, at] of gr.departAt) {
+                if (at > now) continue
+                const identity = gr.guests.get(uid)
+                if (!identity) continue
+                structural(() => {
+                    if (handle.removeGuest(identity)) releaseGuest(gr, uid)
+                })
+                return
+            }
+            return
+        }
+
+        // Waited long enough in a table that never starts: gives up. Somebody
+        // else may turn up later — that is what makes it look like a lobby.
+        for (const [uid, at] of gr.giveUpAt) {
+            if (at > now) continue
+            const identity = gr.guests.get(uid)
+            if (!identity) continue
+            structural(() => {
+                if (handle.removeGuest(identity)) releaseGuest(gr, uid)
+            })
+            // Their chair opening up is itself a change; let the room settle.
+            gr.nextGuestAt = Math.max(gr.nextGuestAt, now + randInt(rng, GUEST_NEXT_MIN_MS, GUEST_NEXT_MAX_MS))
+            return
+        }
+
+        // A locked room takes no NEW guests; the ones sitting in it stay.
+        if (!handle.isPublic()) return
+        if (now < gr.quietUntil || now < gr.nextGuestAt) return
+
+        let free: readonly Seat[] = []
+        try {
+            free = handle.freeSeats()
+        } catch {
+            return
+        }
+        if (free.length === 0) return
+        // LEAVE A CHAIR FOR THE FRIEND. One real person in a young room is
+        // very likely waiting for somebody they invited; taking the last seat
+        // would answer that for them. After two minutes the friend is not
+        // coming, and the fourth guest may sit down.
+        if (free.length === 1 && humans <= 1 && now - handle.createdAt < GUEST_LAST_SEAT_HOLD_MS) return
+
+        const person = pool.acquire(now)
+        if (!person) return
+        // Provisional, so two ticks cannot both decide an arrival is due while
+        // the first one's structural action is still deferred.
+        gr.nextGuestAt = now + GUEST_NEXT_MIN_MS
+        structural(() => {
+            let ok = false
+            try {
+                ok = handle.sitGuest(person)
+            } catch (err) {
+                log.warn("demo guest sit threw", { roomId: gr.id, err })
+            }
+            if (!ok) {
+                pool.release(person, "left", clock.now())
+                return
+            }
+            gr.guests.set(person.uid, person)
+            gr.giveUpAt.set(person.uid, clock.now() + randInt(rng, GUEST_GIVE_UP_MIN_MS, GUEST_GIVE_UP_MAX_MS))
+            gr.nextGuestAt = clock.now() + randInt(rng, GUEST_NEXT_MIN_MS, GUEST_NEXT_MAX_MS)
+        })
+    }
+
+    function guestStep(): void {
+        if (stopped) return
+        const now = clock.now()
+        let realRooms = 0
+        try {
+            realRooms = lobby.realRoomCount()
+        } catch {
+            realRooms = 0
+        }
+        const yielding = realRooms >= REAL_ROOMS_YIELD_FROM
+        for (const gr of [...guestRooms.values()]) guard(() => serviceGuestRoom(gr, now, yielding))
+
+        if (yielding || guestRooms.size >= GUEST_ROOMS_MAX) return
+        let candidates: readonly RealRoomHandle[] = []
+        try {
+            candidates = lobby.realWaitingRooms?.() ?? []
+        } catch (err) {
+            log.warn("demo realWaitingRooms threw", { err })
+            return
+        }
+        for (const handle of candidates) {
+            if (guestRooms.size >= GUEST_ROOMS_MAX) break
+            if (guestRooms.has(handle.id)) continue
+            guestRooms.set(handle.id, {
+                id: handle.id,
+                handle,
+                guests: new Map(),
+                giveUpAt: new Map(),
+                departAt: new Map(),
+                // The quiet period runs from when the REAL person opened the
+                // room, not from when we noticed it.
+                quietUntil: handle.createdAt + randInt(rng, GUEST_FIRST_MIN_MS, GUEST_FIRST_MAX_MS),
+                nextGuestAt: 0,
+                played: handle.status() === "PLAYING",
+            })
+        }
+    }
+
+    function guestLoop(): void {
+        schedule(randInt(rng, GUEST_TICK_MIN_MS, GUEST_TICK_MAX_MS), () => {
+            guestStep()
+            guestLoop()
+        })
+    }
+
+    /** Optional on the API: a lobby without it simply never gets guests. */
+    function watchRealRooms(): void {
+        if (!lobby.watchRealRooms) return
+        try {
+            lobby.watchRealRooms({
+                onRoomOpened: (room) =>
+                    guard(() => {
+                        const gr = guestRooms.get(room.id)
+                        if (gr) gr.handle = room
+                    }),
+                onRoomChanged: (room, what) =>
+                    guard(() => {
+                        const gr = guestRooms.get(room.id)
+                        if (!gr) return
+                        gr.handle = room
+                        if (what === "human") restartQuietPeriod(gr)
+                        if (what === "status" && room.status() === "PLAYING") gr.played = true
+                    }),
+                onRoomClosed: (id) => guard(() => forgetGuestRoom(id)),
+            })
+        } catch (err) {
+            log.warn("demo watchRealRooms failed", { err })
+        }
     }
 
     /* ── boot ────────────────────────────────────────────────────────── */
@@ -1103,6 +1587,11 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
                 roomsWithHumans: withHumans.length,
                 spectators: live.reduce((sum, r) => sum + r.handle.spectatorCount(), 0),
                 realRooms: lobby.realRoomCount(),
+                // Rooms real people opened that fake people are sitting in.
+                // Deliberately NOT part of any total above: they are real
+                // rooms, and the demo population never counts them.
+                guestRooms: guestRooms.size,
+                guestsSeated: [...guestRooms.values()].reduce((sum, gr) => sum + gr.guests.size, 0),
                 castInUse: pool.inUseCount(),
                 cast: pool.size,
                 timers: timers.size,
@@ -1116,12 +1605,27 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
     boot()
     redrawTargets()
     sweep()
+    watchRealRooms()
+    guestLoop()
     schedule(60_000, statusLine)
 
     return {
         stop(): void {
             if (stopped) return
             stopped = true
+            // Guests sit in REAL rooms, which outlive the director: walk them
+            // out before the timers go, or a real table is left with fake
+            // people nobody is driving any more.
+            for (const gr of [...guestRooms.values()]) {
+                for (const identity of [...gr.guests.values()]) {
+                    try {
+                        gr.handle.removeGuest(identity)
+                    } catch {
+                        /* a room that will not answer is one we are leaving anyway */
+                    }
+                }
+                forgetGuestRoom(gr.id)
+            }
             for (const rec of [...timers]) {
                 timers.delete(rec)
                 rec.room?.timers.delete(rec)

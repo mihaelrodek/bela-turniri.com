@@ -45,6 +45,7 @@ const KEY_STYLE = {
     borderColor: "border.subtle",
     fontSize: "2xl",
     fontWeight: "bold",
+    fontFamily: "mono",
     fontVariantNumeric: "tabular-nums",
     _hover: { bg: "bg.muted" },
     _active: { bg: "bg.emphasized" },
@@ -87,6 +88,7 @@ export default function Keypad({
                    size: it must not read as a fourth column of digits, and it
                    must not compete with 0 for the thumb's default target. */
                 fontSize="sm"
+                fontFamily="body"
                 color="fg.muted"
                 onClick={onClear}
             >

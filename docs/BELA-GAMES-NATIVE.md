@@ -266,7 +266,9 @@ na placeholder, i briše eventualno kopirane `GoogleService-Info.plist` /
    novog `GoogleService-Info.plist` preko placeholdera
    `com.googleusercontent.apps.REPLACE_WITH_REVERSED_CLIENT_ID_FOR_games.bela.app`.
    Bez toga Google gumb na iOS-u vodi u slijepu ulicu.
-3. **Ikone i splash su još uvijek Bela Turniri.** Nova grafika za bela.games
+3. **Ikone i splash su još uvijek Bela Turniri** *(2026-09-21: nova grafika je
+   izrađena u `frontend/resources-games/` iz `logo_export_bela_games/`; ostaje samo
+   pokrenuti naredbu ispod, a `icon-only.png` je bez alfa kanala zbog ITMS-90717)*. Nova grafika za bela.games
    ide u `frontend/resources-games/` (`icon-only.png`, `icon-foreground.png`,
    `icon-background.png`, `splash.png`, `splash-dark.png`), pa
    `npx @capacitor/assets generate --assetPath resources-games --ios --iosProject ios-games/App --android --androidProject android-games`

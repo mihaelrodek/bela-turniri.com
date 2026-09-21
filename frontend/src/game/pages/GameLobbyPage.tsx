@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { Badge, Box, Button, Flex, Grid, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Spinner, Text, VStack } from "@chakra-ui/react"
+import { Badge, Box, Button, Flex, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Spinner, Text, VStack, VisuallyHidden, chakra } from "@chakra-ui/react"
 import { FiLogIn, FiLogOut, FiPlus, FiSearch, FiSettings, FiUsers } from "react-icons/fi"
-import type { RoomStatus, RoomSummary } from "@bela/protocol"
+import type { RoomStatus, RoomSummary, TargetScore } from "@bela/protocol"
 import type { CreateGameOptions } from "../components/CreateGameDialog"
 import EmptyState from "../../components/EmptyState"
 import { MOBILE_TABBAR_CLEARANCE } from "../../components/navChrome"
@@ -23,8 +23,8 @@ import { useGameSocket } from "../hooks/useGameSocket"
 import { useSlowConnection } from "../hooks/useSlowConnection"
 
 /* ──────────────────────────────────────────────────────────────────────────
-   GameLobbyPage (/igra) — player settings, a card-table welcome panel,
-   create/join actions and a searchable grid of public rooms.
+   GameLobbyPage (/igra) — one header row (player, stats, create, settings),
+   a search+filter bar and a grid of public rooms.
 
    The room list is pushed, not polled: `lobby.subscribe` and the server
    re-sends `lobby.rooms` on every change (README §3), so a table filling up
@@ -56,7 +56,7 @@ function ActiveGameCard({
         <Box
             rounded="l3"
             borderWidth="1px"
-            borderColor={status === "PLAYING" ? "orange.400" : "brand.400"}
+            borderColor={status === "PLAYING" ? "live" : "brand.400"}
             bg="bg.opaque"
             px="3"
             py="2"
@@ -74,9 +74,9 @@ function ActiveGameCard({
                     <Badge size="sm" variant="subtle" colorPalette={status === "PLAYING" ? "green" : "gray"} flexShrink={0}>
                         {t(`game.active.status.${status}`)}
                     </Badge>
-                    <Text fontWeight="semibold" minW="0" truncate>{roomName}</Text>
+                    <Text fontFamily="heading" fontWeight="semibold" minW="0" truncate>{roomName}</Text>
                     {remaining !== null && remaining > 0 && (
-                        <Badge size="sm" variant="subtle" colorPalette="orange" flexShrink={0}>
+                        <Badge size="sm" variant="subtle" colorPalette="orange" flexShrink={0} fontFamily="mono" fontVariantNumeric="tabular-nums">
                             {t("game.active.holdLeft", { time: formatCountdown(remaining) })}
                         </Badge>
                     )}
@@ -107,6 +107,48 @@ function ActiveGameCard({
     )
 }
 
+/* A lobby filter chip (2026-09-21, user request). A real `<button>` with
+   `aria-pressed` rather than a Chakra `Badge`/`Tag`: these toggle the list,
+   so a screen reader has to be able to say whether they are on. Selected is
+   the brand palette's own subtle pair, unselected an outline on `bg.panel`
+   — the same treatment the search field next to it gets, so the row reads as
+   one control strip. */
+function FilterChip({ label, active, ariaLabel, onClick }: {
+    label: string
+    active: boolean
+    ariaLabel?: string
+    onClick: () => void
+}) {
+    return (
+        <chakra.button
+            type="button"
+            aria-pressed={active}
+            aria-label={ariaLabel}
+            onClick={onClick}
+            px="3"
+            py="1.5"
+            rounded="full"
+            flexShrink={0}
+            whiteSpace="nowrap"
+            fontSize="sm"
+            fontWeight="medium"
+            cursor="pointer"
+            borderWidth="1px"
+            bg={active ? "brand.subtle" : "bg.panel"}
+            color={active ? "brand.fg" : "fg.muted"}
+            borderColor={active ? "brand.emphasized" : "border.emphasized"}
+            _hover={{ borderColor: "brand.emphasized" }}
+        >
+            {label}
+        </chakra.button>
+    )
+}
+
+/** Which target scores get their own filter chip. 163 ("Brza") deliberately
+ *  has none — the owner asked for these three (2026-09-21); a quick game is
+ *  still found with no target filter on. */
+const FILTER_TARGETS: readonly TargetScore[] = [163, 501, 701, 1001]
+
 export default function GameLobbyPage() {
     const { t } = useTranslation()
     const navigate = useNavigate()
@@ -115,6 +157,16 @@ export default function GameLobbyPage() {
 
     const socket = useGameSocket({ lobby: true, mock })
     const [search, setSearch] = useState("")
+    /* Client-side filters over the list the socket already pushed — no new
+       protocol message, so they cost nothing and survive a `lobby.rooms`
+       fan-out. Deliberately NOT persisted: a filter still on from yesterday
+       would look like an empty lobby. */
+    /* One status at a time: "has a seat" and "being played" exclude each
+       other, so two independent toggles could only ever produce an empty
+       list. */
+    const [statusFilter, setStatusFilter] = useState<"open" | "playing" | null>(null)
+    const [publicOnly, setPublicOnly] = useState(false)
+    const [targetFilter, setTargetFilter] = useState<TargetScore | null>(null)
     const [createOpen, setCreateOpen] = useState(false)
     const [joinOpen, setJoinOpen] = useState(false)
     const [privateRoom, setPrivateRoom] = useState<RoomSummary | null>(null)
@@ -207,11 +259,23 @@ export default function GameLobbyPage() {
     const systemReducedMotion = usePrefersReducedMotion()
     const reducedMotion = systemReducedMotion || gamePrefs.reduceMotion
 
+    /* Text and chips combine (AND). "Ima mjesta" is `seatsTaken` against the
+       four seats the summary always carries, narrowed to LOBBY — a PLAYING
+       room with a bot-filled seat is not somewhere you can sit down. Note
+       this is the FILTERED list: `enteringIds` above is tracked on
+       `socket.rooms` on purpose, so filtering never makes an old room
+       "arrive". */
     const rooms = useMemo(() => {
         const q = search.trim().toLowerCase()
-        if (!q) return socket.rooms
-        return socket.rooms.filter((r) => r.name.toLowerCase().includes(q))
-    }, [socket.rooms, search])
+        return socket.rooms.filter((r) => {
+            if (q && !r.name.toLowerCase().includes(q)) return false
+            if (statusFilter === "open" && (r.status !== "LOBBY" || r.seatsTaken >= r.occupants.length)) return false
+            if (statusFilter === "playing" && r.status !== "PLAYING") return false
+            if (publicOnly && r.private) return false
+            if (targetFilter !== null && r.targetScore !== targetFilter) return false
+            return true
+        })
+    }, [socket.rooms, search, statusFilter, publicOnly, targetFilter])
 
     const connected = socket.status === "open"
     const slowConnection = useSlowConnection(socket.status)
@@ -265,49 +329,60 @@ export default function GameLobbyPage() {
     const blocked = active !== null
 
     return (
-        <Box maxW="1040px" mx="auto" pb={{ base: "32", md: "8" }}>
+        <Box maxW="1040px" mx="auto" pb={{ base: `calc(${MOBILE_TABBAR_CLEARANCE} + 96px)`, md: "8" }}>
             <VStack gap="6" align="stretch">
-                {/* Three columns from `md` (name | stats row | gear) instead
-                    of two — plenty of horizontal room there for the four
-                    stat tiles to sit beside the avatar/name instead of
-                    getting their own row (2026-09-20, user request). The
-                    middle cell only ever RENDERS on md+ (`display: none`
-                    below `md`), so at `base` this collapses back to exactly
-                    the two-column row it always was and the phone keeps its
-                    own tile row underneath, unchanged. `MyGameStatsPills`
-                    returns `null` for a guest/no-stats account either way,
-                    so there is never a gap or shift where the tiles would
-                    have been. */}
-                <Grid templateColumns={{ base: "minmax(0, 1fr) auto", md: "minmax(0, 1fr) auto auto" }} alignItems="center" columnGap="3" w="full">
-                    <HStack gap="2" minW="0">
-                        <PlayerAvatar name={socket.me?.name} avatarUrl={socket.me?.avatarUrl} avatarPreset={socket.me?.avatarPreset} size="sm" />
+                {/* ONE header row (2026-09-21, user request). The profile row
+                    and the big "Igre" title used to be two stacked rows that
+                    together ate the top third of a phone screen for a word
+                    nobody needed to read — the page is /igra, the room cards
+                    say what this is. The heading stays as a visually hidden
+                    `<h1>` for the document outline and for SEO.
+
+                    A `Flex` rather than a `Grid`: `MyGameStatsPills` renders
+                    nothing until the player has finished a game, and the
+                    "Nova igra" button is `display: none` below `md` — neither
+                    is a flex item then, so the gap collapses with them and no
+                    empty column is left behind. Rendered ONCE for every
+                    breakpoint; the phone-only tile row underneath is gone. */}
+                <Flex align="center" gap="3" w="full">
+                    <HStack gap="3" minW="0" flex="1">
+                        <PlayerAvatar name={socket.me?.name} avatarUrl={socket.me?.avatarUrl} avatarPreset={socket.me?.avatarPreset} size="lg" />
                         {/* `truncate` (ellipsis, single line) rather than
                             `lineClamp`: a long name must never push the
-                            stats row or the gear out past the viewport. */}
-                        <Text fontWeight="medium" minW="0" truncate>{socket.me?.name ?? "…"}</Text>
+                            stats tile or the gear out past the viewport —
+                            it is the one thing here with no natural width. */}
+                        <Text fontWeight="semibold" fontSize={{ base: "lg", md: "xl" }} minW="0" truncate>{socket.me?.name ?? "…"}</Text>
                         {/* Karma rides beside the name (2026-09-20, user
                             request): alone on its own row under the stat tiles
                             it read as a stray sixth tile. It is a fact about
                             the PLAYER, so it sits with the player. */}
                         <Box flexShrink={0}><SeatKarmaPill karma={socket.me?.karma} /></Box>
                     </HStack>
-                    <Box display={{ base: "none", md: "block" }}>
+                    <VisuallyHidden>
+                        <Heading as="h1">{t("game.lobby.heading")}</Heading>
+                    </VisuallyHidden>
+                    <Box flexShrink={0}>
                         <MyGameStatsPills stats={socket.me?.gameStats} variant="row" />
                     </Box>
-                    <HStack>
-                    <IconButton aria-label={t("game.settings.title")} variant="outline" rounded="full" onClick={() => setSettingsOpen(true)}><FiSettings /></IconButton>
-                    {!connected && (
-                        <Badge size="sm" variant="subtle" colorPalette="orange">
-                            <Spinner size="xs" />
-                            {slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}
-                        </Badge>
-                    )}
+                    <Button
+                        display={{ base: "none", md: "inline-flex" }}
+                        flexShrink={0}
+                        colorPalette="brand"
+                        onClick={() => setCreateOpen(true)}
+                        disabled={!connected || blocked}
+                    >
+                        <FiPlus />{t("game.lobby.newGame")}
+                    </Button>
+                    <HStack gap="2" flexShrink={0}>
+                        <IconButton aria-label={t("game.settings.title")} variant="outline" rounded="full" onClick={() => setSettingsOpen(true)}><FiSettings /></IconButton>
+                        {!connected && (
+                            <Badge size="sm" variant="subtle" colorPalette="orange">
+                                <Spinner size="xs" />
+                                {slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}
+                            </Badge>
+                        )}
                     </HStack>
-                </Grid>
-
-                <Box display={{ base: "block", md: "none" }} w="full" maxW="340px">
-                    <MyGameStatsPills stats={socket.me?.gameStats} />
-                </Box>
+                </Flex>
 
                 {socket.me?.guest && <Text fontSize="sm" color="fg.muted">
                     <Link to="/prijava" style={{ fontWeight: 700, color: "var(--chakra-colors-brand-fg)", textDecoration: "underline", textUnderlineOffset: "3px" }}>
@@ -328,38 +403,81 @@ export default function GameLobbyPage() {
                         onLeave={() => socket.leaveRoom()}
                     />
                 )}
-                <Grid templateColumns="minmax(0, 1fr) auto" alignItems="center" columnGap="2" w="full">
-                    <Heading textStyle="title">{t("game.lobby.heading")}</Heading>
-                    <HStack gap="3">
-                        <Button
-                            display={{ base: "none", md: "inline-flex" }}
-                            colorPalette="brand"
-                            onClick={() => setCreateOpen(true)}
-                            disabled={!connected || blocked}
-                        >
-                            <FiPlus />{t("game.lobby.newGame")}
-                        </Button>
-                        <Badge size="lg" variant="subtle" colorPalette="brand" rounded="full">
-                            {socket.rooms.length}
-                        </Badge>
-                    </HStack>
-                </Grid>
+                {/* Search and filters share one strip (2026-09-21, user
+                    request). The search box no longer runs the full width —
+                    a room name is two words, it never needed 1040px — so the
+                    chips sit beside it on md+. On a phone the box takes the
+                    first line (`flexBasis: 100%` forces the wrap) and the
+                    chips the second, scrolling sideways inside their own
+                    container so a fourth chip can never give the PAGE a
+                    horizontal scrollbar.
 
-                <InputGroup startElement={<FiSearch />}>
-                    <Input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder={t("game.lobby.searchPlaceholder")}
-                        aria-label={t("game.lobby.searchAria")}
-                        /* Spelled out (2026-09-09, reported): the default
-                           border is a hairline that disappears against the
-                           light theme's page, and a search field nobody can
-                           see the edges of reads as a stray caption. */
-                        bg="bg.panel"
-                        borderColor="border.emphasized"
-                        rounded="lg"
-                    />
-                </InputGroup>
+                    The room count badge is gone with it: it counted rooms,
+                    not anything a player decides on, and the list below
+                    already shows how many there are. */}
+                <Flex gap="2" wrap={{ base: "wrap", md: "nowrap" }} align="center" w="full">
+                    <InputGroup
+                        startElement={<FiSearch />}
+                        /* Basis 0 on md+, not `auto` (2026-09-21, reported):
+                           InputGroup is `width: 100%`, so `auto` resolved to
+                           the whole row and pushed the chips to a second
+                           line under a page-wide box. From 0 it only takes
+                           what the chips leave, on the same line. */
+                        w="auto"
+                        flexBasis={{ base: "100%", md: "0" }}
+                        flexGrow="1"
+                        /* No max width (2026-09-21, reported): capped at 320px
+                           the strip ended half way across a desktop page and
+                           left a hole beside the chips. The box now takes
+                           whatever the chips leave. */
+                        minW={{ base: "0", md: "240px" }}
+                    >
+                        <Input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder={t("game.lobby.searchPlaceholder")}
+                            aria-label={t("game.lobby.searchAria")}
+                            /* Spelled out (2026-09-09, reported): the default
+                               border is a hairline that disappears against the
+                               light theme's page, and a search field nobody can
+                               see the edges of reads as a stray caption. */
+                            bg="bg.panel"
+                            borderColor="border.emphasized"
+                            rounded="lg"
+                        />
+                    </InputGroup>
+                    <HStack gap="2" minW="0" flexShrink={0} maxW="full" overflowX="auto" py="1" css={{ scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}>
+                        <FilterChip
+                            label={t("game.lobby.filter.hasSeats")}
+                            active={statusFilter === "open"}
+                            onClick={() => setStatusFilter((cur) => (cur === "open" ? null : "open"))}
+                        />
+                        <FilterChip
+                            label={t("game.lobby.playing")}
+                            active={statusFilter === "playing"}
+                            onClick={() => setStatusFilter((cur) => (cur === "playing" ? null : "playing"))}
+                        />
+                        <FilterChip
+                            label={t("game.lobby.filter.public")}
+                            active={publicOnly}
+                            onClick={() => setPublicOnly((on) => !on)}
+                        />
+                        <Box w="1px" h="5" bg="border.emphasized" flexShrink={0} aria-hidden />
+                        {FILTER_TARGETS.map((target) => (
+                            <FilterChip
+                                key={target}
+                                /* The number itself is the label — a target
+                                   score is not a word to translate. The aria
+                                   label is. */
+                                label={target === 163 ? t("game.stats.quickLabel") : String(target)}
+                                ariaLabel={t("game.lobby.filter.targetAria", { target })}
+                                active={targetFilter === target}
+                                // Click the selected one again to clear it.
+                                onClick={() => setTargetFilter((cur) => (cur === target ? null : target))}
+                            />
+                        ))}
+                    </HStack>
+                </Flex>
 
                 {rooms.length === 0 ? (
                     <EmptyState
@@ -386,28 +504,48 @@ export default function GameLobbyPage() {
                 )}
             </VStack>
 
+            {/* "Nova igra" as a full-width bar on the phone (2026-09-21, user
+                request), where it used to be a centred floating pill. A pill
+                hanging in the middle of a scrolling list looked like a toast
+                that forgot to leave; a bar pinned to the bottom edge reads as
+                the page's one action.
+
+                The strip behind it fades the page's own canvas colour up to
+                transparent, so room cards scrolling underneath pass out of
+                sight instead of clashing with the button. The strip itself is
+                `pointerEvents: none` — only the button takes taps, the list
+                stays scrollable right up to it.
+
+                `fold-center-action` is gone with the pill: that class only
+                re-centres a `left: 50%` element on the front segment of a
+                foldable, and there is no centred element here any more. The
+                page's own `pb` reserves this bar's height plus the tab-bar
+                clearance, so the last card clears it. */}
             <Box
-                className="fold-center-action"
-                display={{ base: "flex", md: "none" }}
+                display={{ base: "block", md: "none" }}
                 position="fixed"
-                left="50%"
-                bottom={`calc(${MOBILE_TABBAR_CLEARANCE} + 24px)`}
-                transform="translateX(-50%)"
+                left="0"
+                right="0"
+                bottom="0"
                 zIndex="910"
-                justifyContent="center"
+                px="4"
+                pt="8"
+                pb={`calc(${MOBILE_TABBAR_CLEARANCE} + 12px)`}
                 pointerEvents="none"
+                backgroundImage="linear-gradient(to bottom, transparent, var(--chakra-colors-bg-canvas) 45%)"
             >
                 <Button
+                    w="full"
                     size="lg"
-                    px="6"
                     rounded="l3"
                     colorPalette="brand"
                     shadow="lg"
+                    justifyContent="space-between"
                     pointerEvents="auto"
                     onClick={() => setCreateOpen(true)}
                     disabled={!connected || blocked}
                 >
-                    <FiPlus />{t("game.lobby.newGame")}
+                    {t("game.lobby.newGame")}<FiPlus />
                 </Button>
             </Box>
 

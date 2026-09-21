@@ -367,6 +367,7 @@ export default function DetailsEditForm({
                                         flex="1"
                                         size="sm"
                                         colorPalette="blue"
+                                        fontFamily="mono" fontVariantNumeric="tabular-nums"
                                         variant={editForm.targetScore === score ? "solid" : "outline"}
                                         aria-pressed={editForm.targetScore === score}
                                         onClick={() => patchEdit("targetScore", score)}

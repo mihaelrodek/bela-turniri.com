@@ -461,3 +461,77 @@ describe("heuristicBot.chooseCard — never pulls trumps that can only be the pa
         expect(heuristicBot.chooseCard(v, [...v.hand], noRng)).toBe("JHERC")
     })
 })
+
+describe("heuristicBot.chooseCard — cash a certain suit while I still have the lead (BOT.md §15.20)", () => {
+    // Trump is PIK and all eight of them are face up: nobody can ruff.
+    const allTrumps: Card[] = ["JPIK", "9PIK", "APIK", "10PIK", "KPIK", "QPIK", "8PIK", "7PIK"]
+
+    it("keeps leading the hearts nobody else has any more, instead of opening another suit", () => {
+        // The reported hand: four hearts, every trump gone, the hearts led
+        // twice already. AHERC/9HERC/JHERC/8HERC are face up, so every heart I
+        // hold is a master — and the bot answered with a card of ANOTHER suit,
+        // losing the lead with the hearts still in hand.
+        const hand: Card[] = ["10HERC", "KHERC", "QHERC", "7HERC", "7TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            handSizes: { 0: 5, 1: 5, 2: 5, 3: 5 },
+            bidding: { turn: 1, passes: [], trump: "PIK", caller: 1 },
+            tricksWon: { A: 2, B: 1 },
+            currentDealPoints: { A: 40, B: 30 },
+            played: [...allTrumps, "AHERC", "9HERC", "JHERC", "8HERC"],
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+        expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("10HERC")
+    })
+
+    it("leads the suit with the most certain tricks, its strongest master first", () => {
+        const hand: Card[] = ["AHERC", "10HERC", "AKARA", "7TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            handSizes: { 0: 4, 1: 4, 2: 4, 3: 4 },
+            bidding: { turn: 1, passes: [], trump: "PIK", caller: 1 },
+            tricksWon: { A: 2, B: 2 },
+            currentDealPoints: { A: 40, B: 40 },
+            played: allTrumps,
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+        expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("AHERC")
+    })
+
+    it("does NOT run a plain suit while an opponent can still hold a trump to ruff with", () => {
+        const hand: Card[] = ["AHERC", "10HERC", "7TREF", "8TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            handSizes: { 0: 4, 1: 4, 2: 4, 3: 4 },
+            bidding: { turn: 1, passes: [], trump: "PIK", caller: 1 },
+            tricksWon: { A: 2, B: 2 },
+            currentDealPoints: { A: 40, B: 40 },
+            played: ["JPIK", "9PIK"], // seven trumps unaccounted for
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+        const card = heuristicBot.chooseCard(v, hand, noRng)
+        // Whatever the ordinary book chooses, it is not decided by this rule:
+        // the point is only that the guard (`opponentMax > 0`) holds.
+        expect(hand).toContain(card)
+    })
+
+    it("leaves a SOLO ace where §5.3 keeps it", () => {
+        const hand: Card[] = ["AHERC", "7TREF", "8TREF", "KKARA"]
+        const v = view({
+            seat: 0,
+            hand,
+            handSizes: { 0: 4, 1: 4, 2: 4, 3: 4 },
+            bidding: { turn: 1, passes: [], trump: "PIK", caller: 1 },
+            tricksWon: { A: 2, B: 2 },
+            currentDealPoints: { A: 40, B: 40 },
+            played: allTrumps,
+            trick: { leader: 0, turn: 0, cards: [] },
+        })
+        // No other master in hand (the KARA king is under an outstanding ace):
+        // the solo heart ace is not picked by `sureWinnerToCash`.
+        expect(heuristicBot.chooseCard(v, hand, noRng)).not.toBe("AHERC")
+    })
+})

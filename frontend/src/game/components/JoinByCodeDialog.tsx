@@ -209,7 +209,7 @@ export default function JoinByCodeDialog({
                     >
                         <Dialog.Header>
                             <HStack justify="space-between" align="flex-start" w="full" gap="3">
-                                <Dialog.Title>{roomName
+                                <Dialog.Title fontFamily="heading">{roomName
                                     ? t("game.lobby.joinByCode.privateTitle", { name: roomName })
                                     : t("game.lobby.joinByCode.title")}</Dialog.Title>
                                 <Dialog.CloseTrigger asChild>
@@ -246,6 +246,7 @@ export default function JoinByCodeDialog({
                                                     borderColor={filled ? "brand.400" : "border.subtle"}
                                                     bg="bg.subtle"
                                                     fontSize="3xl"
+                                                    fontFamily="mono"
                                                     fontWeight="bold"
                                                     color={filled ? "fg.ink" : "fg.subtle"}
                                                     opacity={filled ? 1 : 0.4}
@@ -269,6 +270,7 @@ export default function JoinByCodeDialog({
                                                     minH="14"
                                                     h="14"
                                                     fontSize="2xl"
+                                                    fontFamily="mono"
                                                     fontWeight="bold"
                                                     rounded="l2"
                                                     css={{ touchAction: "manipulation", userSelect: "none", WebkitTouchCallout: "none" }}

@@ -184,10 +184,10 @@ export default function DealSummary({
                                 </HStack>
 
                                 <HStack justify="end" gap="4" pt="1">
-                                    <Text fontSize="2xs" color="fg.muted" minW="42px" textAlign="end">
+                                    <Text fontSize="2xs" fontFamily="mono" color="fg.muted" minW="42px" textAlign="end">
                                         {t("game.score.us")}
                                     </Text>
-                                    <Text fontSize="2xs" color="fg.muted" minW="42px" textAlign="end">
+                                    <Text fontSize="2xs" fontFamily="mono" color="fg.muted" minW="42px" textAlign="end">
                                         {t("game.score.them")}
                                     </Text>
                                 </HStack>

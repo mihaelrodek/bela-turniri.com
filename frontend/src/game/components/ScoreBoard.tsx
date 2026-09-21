@@ -297,8 +297,8 @@ export default function ScoreBoard({
                     <HStack gap="2" justify="space-between" pb="1" fontSize="2xs" fontWeight="bold" textTransform="uppercase" letterSpacing="wider" color={INK_MUTED}>
                         <Text>{t("game.score.historyTitle")}</Text>
                         <HStack gap="2" flexShrink={0}>
-                            <Text minW="34px" textAlign="end">{usLabel}</Text>
-                            <Text minW="34px" textAlign="end">{themLabel}</Text>
+                            <Text minW="34px" textAlign="end" fontFamily="mono">{usLabel}</Text>
+                            <Text minW="34px" textAlign="end" fontFamily="mono">{themLabel}</Text>
                         </HStack>
                     </HStack>
                     {view.history.map((deal) => (
@@ -311,7 +311,7 @@ export default function ScoreBoard({
                             color={INK}
                         >
                             <HStack gap="1.5" minW="0">
-                                <Text color={INK_MUTED} minW="16px">{deal.dealNo}.</Text>
+                                <Text color={INK_MUTED} minW="16px" fontFamily="mono" fontVariantNumeric="tabular-nums">{deal.dealNo}.</Text>
                                 <SuitGlyph suit={deal.trump} size={13} />
                                 <Text color={INK_MUTED} lineClamp={1}>
                                     {seatName(seats, deal.caller, t("game.seat.empty"))}
@@ -320,7 +320,7 @@ export default function ScoreBoard({
                                     {deal.passed ? t("game.deal.passed") : t("game.deal.fell")}
                                 </Text>
                             </HStack>
-                            <HStack gap="2" fontVariantNumeric="tabular-nums" flexShrink={0}>
+                            <HStack gap="2" fontFamily="mono" fontVariantNumeric="tabular-nums" flexShrink={0}>
                                 <Text minW="34px" textAlign="end" fontWeight="bold">
                                     {deal.total[myTeam]}
                                 </Text>
@@ -336,9 +336,10 @@ export default function ScoreBoard({
     )
 }
 
-/** A house rule in force this deal ("Bez zvanja", "Bez bele"). Solid amber on
- *  a green table: it has to be the one thing on the scoreboard that is not
- *  brand-coloured, or it reads as another muted caption and nobody sees it. */
+/** A house rule in force this deal ("Bez zvanja", "Bez bele"). THEME `live`
+ *  orange (was amber; 2026-09-21 rollout) on a green table: it has to be the
+ *  one thing on the scoreboard that is not brand-coloured, or it reads as
+ *  another muted caption and nobody sees it. */
 function RuleChip({ children }: { children: ReactNode }) {
     return (
         <Flex
@@ -346,10 +347,10 @@ function RuleChip({ children }: { children: ReactNode }) {
             px="1.5"
             py="0.5"
             rounded="full"
-            bg="orange.300"
-            color="brand.950"
+            bg="live.subtle"
+            color="live"
             borderWidth="1px"
-            borderColor="orange.200"
+            borderColor="live"
             fontSize="9px"
             fontWeight="bold"
             lineHeight="1.4"
@@ -413,6 +414,7 @@ function TeamCard({
                 color={TEAM[team]}
                 textTransform="uppercase"
                 letterSpacing="widest"
+                fontFamily="mono"
                 fontWeight="bold"
             >
                 {label}
@@ -426,6 +428,7 @@ function TeamCard({
                     <Text
                         fontSize={{ base: "2xl", md: "4xl" }}
                         lineHeight="1.05"
+                        fontFamily="mono"
                         fontWeight="bold"
                         color={INK}
                         fontVariantNumeric="tabular-nums"
@@ -442,6 +445,7 @@ function TeamCard({
                                 ? { right: "calc(100% + 4px)" }
                                 : { left: "calc(100% + 4px)" })}
                             fontSize="xs"
+                            fontFamily="mono"
                             fontWeight="bold"
                             color={TEAM[team]}
                             fontVariantNumeric="tabular-nums"
@@ -463,6 +467,7 @@ function TeamCard({
                 fontSize="2xs"
                 lineHeight="1.2"
                 color={INK_MUTED}
+                fontFamily="mono"
                 fontVariantNumeric="tabular-nums"
             >
                 {total}

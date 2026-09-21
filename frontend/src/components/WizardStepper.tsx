@@ -63,6 +63,8 @@ function StepDot({
             flexShrink={0}
             fontSize="xs"
             fontWeight="bold"
+            fontFamily="mono"
+            fontVariantNumeric="tabular-nums"
             lineHeight="1"
             bg={
                 state === "active"

@@ -73,8 +73,9 @@ const RING = 3
  *
  * The ring is a `conic-gradient` and the spotlight a `radial-gradient`, and a
  * gradient string is handed to the browser verbatim — Chakra never looks
- * inside it for tokens. `TEAM.them` is already a literal and passes straight
- * through; `TEAM.us` is a ramp token and becomes its CSS variable.
+ * inside it for tokens. Both `TEAM.us` (`brand.fg`) and `TEAM.them` (`tan`)
+ * are semantic tokens and become their CSS variable; a literal (`#…`) would
+ * pass straight through.
  */
 function tokenColor(token: string): string {
     return token.startsWith("#") ? token : `var(--chakra-colors-${token.replace(".", "-")})`
@@ -170,9 +171,9 @@ export function SeatAvatar({
     // human seat about to time out is no longer telling you who it plays
     // with. Outside a timed human turn the avatar stays unringed.
     const teamColor = TEAM[team]
-    const liveTint = countdown?.urgent ? "var(--chakra-colors-red-400)" : tokenColor(teamColor)
+    const liveTint = countdown?.urgent ? "var(--chakra-colors-danger)" : tokenColor(teamColor)
     const ring = isTurn && countdown
-        ? `conic-gradient(from 0deg, ${liveTint} ${countdown.fraction * 360}deg, rgba(255,255,255,0.16) 0deg)`
+        ? `conic-gradient(from 0deg, ${liveTint} ${countdown.fraction * 360}deg, var(--chakra-colors-border) 0deg)`
         : "transparent"
 
     const frame = size + RING * 2
@@ -237,10 +238,10 @@ export function SeatAvatar({
             {isDealer && (
                 <Mark
                     at={pinAt(size, "tr", MARK)}
-                    bg="linear-gradient(160deg, #f6dd93 0%, #d9a521 52%, #a97c12 100%)"
-                    color="#4a3406"
+                    bg="linear-gradient(160deg, color-mix(in srgb, var(--chakra-colors-gold) 55%, white) 0%, var(--chakra-colors-gold) 52%, color-mix(in srgb, var(--chakra-colors-gold) 70%, black) 100%)"
+                    color="brand.950"
                     label={t("game.seat.dealer")}
-                    edge="rgba(255, 236, 178, 0.85)"
+                    edge="color-mix(in srgb, var(--chakra-colors-gold) 40%, white)"
                 >
                     <Box as="span" fontSize="11px" fontWeight="bold" lineHeight="1">
                         {t("game.seat.dealerShort")}
@@ -521,7 +522,7 @@ function Chip({ children, tone }: { children: ReactNode; tone: "muted" | "accent
     const palette = {
         muted: { bg: "bg.opaque", color: INK_MUTED, border: "border" },
         accent: { bg: "brand.300", color: "brand.950", border: "brand.100" },
-        danger: { bg: "red.400", color: "white", border: "red.400" },
+        danger: { bg: "danger", color: "brand.contrast", border: "danger" },
     }[tone]
 
     return (

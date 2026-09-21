@@ -395,7 +395,7 @@ export default function CjenikTab({
                         <Box color="brand.fg" display="flex" aria-hidden>
                             <FiCoffee />
                         </Box>
-                        <Text fontWeight="semibold" truncate>
+                        <Text fontFamily="heading" fontWeight="semibold" letterSpacing="-0.015em" truncate>
                             {t("admin.cjenik.heading")}
                         </Text>
                     </HStack>
@@ -426,7 +426,13 @@ export default function CjenikTab({
                             <Text fontSize="sm" minW="0" truncate>
                                 {r.name}
                             </Text>
-                            <Text fontSize="sm" fontWeight="semibold" flexShrink={0}>
+                            <Text
+                                fontSize="sm"
+                                fontWeight="semibold"
+                                fontFamily="mono"
+                                fontVariantNumeric="tabular-nums"
+                                flexShrink={0}
+                            >
                                 {formatEur(r.price)}
                             </Text>
                         </HStack>
@@ -723,7 +729,7 @@ export default function CjenikTab({
                                                 {added && <FiCheck />}
                                                 {fmtL(p.sizeL)}
                                                 {added && price !== "" && (
-                                                    <Box as="span" color="fg.muted">
+                                                    <Box as="span" color="fg.muted" fontFamily="mono" fontVariantNumeric="tabular-nums">
                                                         {formatEur(price)}
                                                     </Box>
                                                 )}
@@ -749,7 +755,9 @@ export default function CjenikTab({
                 <Dialog.Positioner>
                     <Dialog.Content maxW="md">
                         <Dialog.Header>
-                            <Text fontWeight="semibold">{t("admin.dialog.loadTemplate.title")}</Text>
+                            <Text fontFamily="heading" fontWeight="semibold" letterSpacing="-0.015em">
+                                {t("admin.dialog.loadTemplate.title")}
+                            </Text>
                         </Dialog.Header>
                         <Dialog.Body>
                             {templatesLoading ? (
@@ -799,7 +807,9 @@ export default function CjenikTab({
                 <Dialog.Positioner>
                     <Dialog.Content maxW="md">
                         <Dialog.Header>
-                            <Text fontWeight="semibold">{t("admin.dialog.saveAsTemplate.title")}</Text>
+                            <Text fontFamily="heading" fontWeight="semibold" letterSpacing="-0.015em">
+                                {t("admin.dialog.saveAsTemplate.title")}
+                            </Text>
                         </Dialog.Header>
                         <Dialog.Body>
                             <VStack align="stretch" gap="4">

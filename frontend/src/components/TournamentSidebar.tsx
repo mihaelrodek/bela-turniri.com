@@ -65,7 +65,7 @@ type NavProps = {
 
 /**
  * The tournament's lifecycle state as a single pill: DRAFT is neutral,
- * STARTED is brand blue, FINISHED is yellow. Sits directly under the
+ * STARTED is brand green, FINISHED is gold. Sits directly under the
  * tournament name in both shells.
  */
 export function TournamentStatusPill({ status }: { status?: string | null }) {
@@ -205,7 +205,7 @@ export function TournamentSidebar({
                         size="sm"
                         px="1"
                         lineHeight="1.3"
-                        letterSpacing="-0.01em"
+                        letterSpacing="-0.015em"
                         lineClamp={3}
                     >
                         {name}
@@ -286,7 +286,7 @@ export function TournamentMobileBar({
                         as="h1"
                         size={name.length > 34 ? "sm" : "md"}
                         lineHeight="1.25"
-                        letterSpacing="-0.01em"
+                        letterSpacing="-0.015em"
                         lineClamp={2}
                     >
                         {name}

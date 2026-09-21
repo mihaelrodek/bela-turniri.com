@@ -128,9 +128,9 @@ export default function BiddingPanel({
                     rounded="l2"
                     borderWidth="1px"
                     borderStyle="dashed"
-                    borderColor="orange.400"
+                    borderColor="live"
                 >
-                    <Text fontSize="10px" fontWeight="bold" color="orange.300" textAlign="center" maxW="64px" lineHeight="1.2">
+                    <Text fontSize="10px" fontWeight="bold" color="live" textAlign="center" maxW="64px" lineHeight="1.2">
                         {t("game.bidding.mustCall")}
                     </Text>
                 </Flex>

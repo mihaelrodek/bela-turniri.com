@@ -70,6 +70,7 @@ import {
     openingTrumpForCallingPartner,
     partnerSignal,
     partnerTrickIsSafe,
+    sureWinnerToCash,
     onlyPartnerCanHoldTrumps,
     quietLeadCard,
     shouldDrawTrumps,
@@ -343,6 +344,12 @@ function chooseLead(view: PlayerView, legal: readonly Card[], trump: Suit): Card
     // All eight tricks are still ours to take: cash, do not manoeuvre.
     const chase = stigljaLead(view, legal)
     if (chase !== null) return chase
+
+    // Opponents provably out of trump and a plain card nothing can beat: a
+    // certain trick, cashed NOW while I still have the lead — a suit left
+    // "for later" is a suit that falls with the deal (BOT.md §15.20).
+    const sure = sureWinnerToCash(view, legal)
+    if (sure !== null) return sure
 
     // As the caller's partner, on lead with the bela: the king says "bela",
     // the queen says "bela and the nine" (BOT.md §11).
