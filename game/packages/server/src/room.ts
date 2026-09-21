@@ -228,6 +228,8 @@ export class Room {
     readonly id: string
     readonly code: string
     readonly createdAt: number
+    /** When the current game started — the lobby's order for running tables. */
+    private startedAt: number | null = null
     private: boolean
     // Not readonly: the host may still retune these in the LOBBY via
     // `setOptions` (README §3). They are the DEAL's rules, so `requireLobby`
@@ -580,6 +582,7 @@ export class Room {
             ],
             joinable: this.canAdmitNewcomer(),
             createdAt: this.createdAt,
+            startedAt: this.status === "LOBBY" ? null : this.startedAt,
         }
     }
 
@@ -1225,6 +1228,7 @@ export class Room {
         this.cancelDeleteTimer()
         this.game?.dispose()
         this.status = "PLAYING"
+        this.startedAt = Date.now()
         this.demoFinished = false
         this.game = new GameRoom(this, this.timings)
         this.liveActivity?.beginGame(this)

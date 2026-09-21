@@ -251,7 +251,7 @@ function chooseBid(view: PlayerView, legal: LegalBids, _rng: () => number): BidC
     const strength = suitStrength(view.hand, best)
     const minStrength = MIN_TRUMP_STRENGTH + danger * (DANGER_MIN_TRUMP_STRENGTH - MIN_TRUMP_STRENGTH)
     const threshold = bidThreshold(view, best) + danger * DANGER_EXTRA_TRICKS
-    if (strength >= minStrength && handTricks(view.hand, best) >= threshold) return best
+    if (strength >= minStrength && handTricks(view.hand, best) >= threshold && !isBareJackCall(view.hand, best)) return best
 
     // The document's two minimum hands that the yardstick above misses, both
     // only for the seat that OPENS the play and only at an ordinary score
@@ -263,6 +263,28 @@ function chooseBid(view: PlayerView, legal: LegalBids, _rng: () => number): BidC
         if (documented !== null) return documented
     }
     return "PASS"
+}
+
+/**
+ * The jack and ONE small trump with nothing beside them (BOT.md §15.21,
+ * reported 2026-09-21: the bot called on J + K of trump and an empty hand).
+ * Calling on the jack and a king is ordinary — but only with something to go
+ * with it: a plain ace, or length (three trumps). Alone it guarantees exactly
+ * one trick, the jack's, and the seat bonuses in `bidThreshold` (partner
+ * leads, rescue the dealer…) were enough to talk the yardstick into it:
+ * `handTricks` of J + K is 1.0 and the threshold drops to 0.85 and below.
+ *
+ * True when the call would be that hand: at most two trumps, no second top
+ * trump among them (J + 9 is two sure tricks and stays a call), and not one
+ * plain ace. The forced calls — the dealer on mus, and the endgame "must not
+ * pass" — do not come through here; they have no pass to fall back on.
+ */
+function isBareJackCall(hand: readonly Card[], trump: Suit): boolean {
+    const trumps = hand.filter((card) => cardSuit(card) === trump)
+    if (trumps.length > 2) return false
+    const top = trumps.filter((card) => ["J", "9", "A"].includes(cardRank(card)))
+    if (top.length >= 2) return false
+    return !hand.some((card) => cardSuit(card) !== trump && cardRank(card) === "A")
 }
 
 /**

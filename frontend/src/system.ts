@@ -296,6 +296,27 @@ const config = defineConfig({
             color: "fg.ink",
             fontFamily: "body",
         },
+        /* The page never moves sideways and never rubber-bands (2026-09-21,
+           reported from an iPhone: the lobby could be dragged left/right and
+           pulled past its own top and bottom). Two separate causes:
+             - sideways: ONE element wider than the viewport (a lobby card's
+               badge row) made the whole document horizontally scrollable.
+               That element is fixed at its source; `overflow-x: clip` is the
+               net under the next one. `clip`, not `hidden`: it makes no scroll
+               container, so `position: sticky` headers keep working.
+             - past the ends: Safari's elastic overscroll. `overscroll-behavior`
+               switches it off; pull-to-refresh is our own touch handler
+               (`PwaNativeGestures`), not the browser's, so nothing is lost.
+           Inner scrollers (dialogs, the filter chip strip, tables) are
+           untouched — this is the document only. */
+        html: {
+            overflowX: "clip",
+            overscrollBehaviorY: "none",
+        },
+        body: {
+            overflowX: "clip",
+            overscrollBehaviorX: "none",
+        },
         "::selection": {
             bg: "brand.subtle",
             color: "brand.fg",

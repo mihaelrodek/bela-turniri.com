@@ -227,8 +227,8 @@ export default function RoomListItem({
                         chips up top — it used to live in the top row (desktop:
                         left of the chips; phone: top-right) and got cramped
                         whenever the chips wrapped. */}
-                    <HStack justify="space-between" align="center" gap="2">
-                        <HStack gap="3" align="center" aria-label={t("game.lobby.occupantsAria", { names })}>
+                    <HStack justify="space-between" align="center" gap="2" minW="0">
+                        <HStack gap="3" align="center" minW="0" aria-label={t("game.lobby.occupantsAria", { names })}>
                             {PAIRS.map((pair, pairIndex) => (
                                 <HStack
                                     key={pairIndex}
@@ -242,10 +242,29 @@ export default function RoomListItem({
                                     ))}
                                 </HStack>
                             ))}
+                            {/* Just the eye (2026-09-21, user request). The
+                                "Gledatelji omogućeni" label did not fit a phone
+                                card next to four faces and "Igra se": it pushed
+                                the badge past the card's edge, and that overflow
+                                is what let the whole PAGE be dragged sideways.
+                                The words stay as the accessible name + tooltip. */}
                             {room.seatsTaken >= 4 && room.allowSpectators && (
-                                <Badge size="sm" variant="subtle" colorPalette="brand" ml="1">
-                                    <FiEye size={12} /> {t("game.room.spectatorsAllowed")}
-                                </Badge>
+                                <Box
+                                    as="span"
+                                    role="img"
+                                    aria-label={t("game.room.spectatorsAllowed")}
+                                    title={t("game.room.spectatorsAllowed")}
+                                    display="inline-flex"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                    flexShrink={0}
+                                    boxSize="6"
+                                    rounded="full"
+                                    bg="brand.subtle"
+                                    color="brand.fg"
+                                >
+                                    <FiEye size={14} aria-hidden="true" />
+                                </Box>
                             )}
                         </HStack>
                         {room.status === "PLAYING" && (

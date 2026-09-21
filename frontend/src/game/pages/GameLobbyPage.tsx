@@ -13,6 +13,7 @@ import CreateGameDialog from "../components/CreateGameDialog"
 import JoinByCodeDialog from "../components/JoinByCodeDialog"
 import { MyGameStatsPills, SeatKarmaPill } from "../components/GameStatsPills"
 import PlayerAvatar from "../components/PlayerAvatar"
+import ConfirmDialog from "../../components/ConfirmDialog"
 import GameSettingsSheet from "../components/GameSettingsSheet"
 import RoomListItem from "../components/RoomListItem"
 import { preloadDeck } from "../cards/madjarice/preload"
@@ -51,6 +52,9 @@ function ActiveGameCard({
 }) {
     const { t } = useTranslation()
     const remaining = useHoldCountdown(holdUntil)
+    // Walking out of a RUNNING game for good costs karma and cannot be undone,
+    // so the red button only opens a confirmation (2026-09-21, user request).
+    const [confirmLeave, setConfirmLeave] = useState(false)
 
     return (
         <Box
@@ -90,6 +94,11 @@ function ActiveGameCard({
                     >
                         <FiLogIn /> {t("game.active.resume")}
                     </Button>
+                    {status === "PLAYING" && (
+                        <Button size="sm" colorPalette="red" onClick={() => setConfirmLeave(true)}>
+                            <FiLogOut /> {t("game.active.leaveNow")}
+                        </Button>
+                    )}
                     {status !== "PLAYING" && (
                         <IconButton
                             aria-label={t("game.active.leave")}
@@ -103,6 +112,19 @@ function ActiveGameCard({
                     )}
                 </HStack>
             </Flex>
+            <ConfirmDialog
+                open={confirmLeave}
+                destructive
+                title={t("game.active.leaveConfirm.title")}
+                description={t("game.active.leaveConfirm.body")}
+                confirmLabel={t("game.active.leaveConfirm.confirm")}
+                cancelLabel={t("game.active.leaveConfirm.cancel")}
+                onCancel={() => setConfirmLeave(false)}
+                onConfirm={() => {
+                    setConfirmLeave(false)
+                    onLeave()
+                }}
+            />
         </Box>
     )
 }

@@ -42,6 +42,25 @@ export const admin = {
     "analytics.visibility": "Vidljivost soba",
     "analytics.public": "Javne",
     "analytics.private": "Privatne",
+    /* Tko je igrao — čita se iz zabilježenih završenih partija, ne iz
+       analitičkih događaja, pa ima svoj zahtjev i svoje stanje učitavanja. */
+    "analytics.players": "Tko je igrao",
+    "analytics.playersCount.one": "{n} igrač",
+    "analytics.playersCount.two": "{n} igrača",
+    "analytics.playersCount.few": "{n} igrača",
+    "analytics.playersCount.other": "{n} igrača",
+    "analytics.playersLoading": "Učitavanje igrača…",
+    "analytics.playersEmpty": "Još nema zabilježenih završenih partija.",
+    "analytics.playersCapped": "Prikazano prvih {shown} po broju partija.",
+    "analytics.playerGames": "{games} partija",
+    "analytics.playerRecord": "{wins} pobjeda · {losses} poraza",
+    "analytics.playerLast": "zadnja {date}",
+    "analytics.playerAbandons": "{abandons} napuštanja",
+    "analytics.playerKarma": "karma {karma}/{max}",
+    "analytics.anonymous": "Gosti i botovi",
+    "analytics.guestSeats": "Mjesta gostiju: {seats} ({wins} pobjeda)",
+    "analytics.botSeats": "Mjesta botova: {seats}",
+    "analytics.guestsNote": "Gosti se ne spremaju s identitetom pa ih se može samo prebrojati, ne i imenovati.",
     /* ─── CjenikTab ─────────────────────────────────────────── */
     "cjenik.loading": "Učitavanje cjenika…",
     // Visitor-side empty state (someone who cannot edit). Informal second

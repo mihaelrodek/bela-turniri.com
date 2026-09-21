@@ -293,3 +293,38 @@ describe("heuristicBot.chooseBid — partner on mus with one prior pass: the ram
         expect(heuristicBot.chooseBid(v, allSuits, noRng)).toBe("PASS")
     })
 })
+
+describe("heuristicBot.chooseBid — the jack and one small trump is not a call by itself (BOT.md §15.21)", () => {
+    // dealer = 1 → my partner opens: the EASIEST seat (threshold 0.85), which
+    // is exactly where J + K (handTricks 1.0) used to slip through.
+    it("PASSES on J + K of trump with nothing beside them", () => {
+        const hand: Card[] = ["JHERC", "KHERC", "7PIK", "8PIK", "8TREF", "9KARA"]
+        const v = view({ seat: 0, hand, dealer: 1 })
+        expect(heuristicBot.chooseBid(v, allSuits, noRng)).toBe("PASS")
+    })
+
+    it("calls the same J + K once a plain ACE stands beside it", () => {
+        const hand: Card[] = ["JHERC", "KHERC", "APIK", "8PIK", "8TREF", "9KARA"]
+        const v = view({ seat: 0, hand, dealer: 1 })
+        expect(heuristicBot.chooseBid(v, allSuits, noRng)).toBe("HERC")
+    })
+
+    it("calls J + K with LENGTH instead of an ace (three trumps)", () => {
+        const hand: Card[] = ["JHERC", "KHERC", "8HERC", "8PIK", "8TREF", "9KARA"]
+        const v = view({ seat: 0, hand, dealer: 1 })
+        expect(heuristicBot.chooseBid(v, allSuits, noRng)).toBe("HERC")
+    })
+
+    it("still calls J + 9 alone — two sure tricks are not a bare jack", () => {
+        const hand: Card[] = ["JHERC", "9HERC", "7PIK", "8PIK", "8TREF", "9KARA"]
+        const v = view({ seat: 0, hand, dealer: 1 })
+        expect(heuristicBot.chooseBid(v, allSuits, noRng)).toBe("HERC")
+    })
+
+    it("does not stop the DEALER on mus — he has no pass", () => {
+        const hand: Card[] = ["JHERC", "KHERC", "7PIK", "8PIK", "8TREF", "9KARA"]
+        const legal: LegalBids = { canPass: false, suits: ["HERC", "KARA", "PIK", "TREF"] }
+        const v = view({ seat: 0, hand, dealer: 0 })
+        expect(heuristicBot.chooseBid(v, legal, noRng)).toBe("HERC")
+    })
+})

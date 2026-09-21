@@ -4,11 +4,53 @@ import { LATEST_VERSION } from "./latestVersion"
 export const releasesSl: Release[] = [
     {
         version: LATEST_VERSION,
+        date: "2026-09-21",
+        title: "Nova podoba in pametnejši boti",
+        groups: [
+            {
+                heading: "Aplikacija",
+                area: "general",
+                sections: [
+                    {
+                        title: "Nova podoba",
+                        body: [
+                            "Popolnoma prenovljen vmesnik — nova tema, barve in tipografija, v svetli in temni različici."
+                        ],
+                    },
+                ],
+            },
+            {
+                heading: "Bela Online",
+                area: "game",
+                sections: [
+                    {
+                        title: "Zvok in animacije",
+                        bullets: true,
+                        body: [
+                            "Novi zvoki v igri.",
+                            "Nove animacije delitve kart in odkrivanja talona.",
+                            "Točke se zdaj prelivajo v skupni rezultat z animacijo.",
+                            "Nove animacije tudi v predverju.",
+                        ],
+                    },
+                    {
+                        title: "Pametnejši boti",
+                        body: [
+                            "Boti zdaj bolj pametno napovedujejo in igrajo."
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        version: "v3",
         date: "2026-09-18",
         title: "Bela Online je v živo",
         groups: [
             {
                 heading: "Bela Online",
+                area: "game",
                 sections: [
                     {
                         title: "Igra je na voljo",
@@ -22,12 +64,13 @@ export const releasesSl: Release[] = [
         ],
     },
     {
-        version: LATEST_VERSION,
+        version: "v3",
         date: "2026-09-10",
         title: "Novosti na kratko",
         groups: [
             {
                 "heading": "Spletna bela — kmalu",
+                "area": "game",
                 "accent": true,
                 "sections": [
                     {
@@ -40,6 +83,7 @@ export const releasesSl: Release[] = [
             },
             {
                 "heading": "Blok",
+                "area": "blok",
                 "sections": [
                     {
                         "title": "Točke brez papirja",
@@ -51,6 +95,7 @@ export const releasesSl: Release[] = [
             },
             {
                 "heading": "Turnirji",
+                "area": "tournaments",
                 "sections": [
                     {
                         "title": "Lažje iskanje in prijava",
@@ -62,6 +107,7 @@ export const releasesSl: Release[] = [
             },
             {
                 "heading": "Aplikacija",
+                "area": "general",
                 "sections": [
                     {
                         "title": "Pregledneje na telefonu",

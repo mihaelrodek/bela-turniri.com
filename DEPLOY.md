@@ -450,6 +450,33 @@ file extension - `.gz` (what `ops/backup-db.sh` produces) is gunzipped into
 `psql`, `.dump`/`.backup` (a custom-format `pg_dump -Fc` archive) goes
 through `pg_restore`, anything else is fed to `psql` as plain SQL.
 
+### Resetting the online-game statistics
+
+`ops/reset-game-stats.sh` wipes **only** the online-game (`game/`) statistics:
+`game_results` + `game_result_players` (every "partije / pobjede" number is
+computed from these — there is no aggregate table), `game_analytics_events`
+(the admin "Analitika igre" tab), `game_reliability_events` (the abandon
+ledger karma is derived from) and the three game counters on `user_profiles`
+(`game_abandons` → 0, legacy `game_karma` → 10,
+`game_completed_since_recovery` → 0).
+
+It never touches tournaments, pairs, matches, cjenik, blok, push
+subscriptions, profiles as such, or the players' chosen in-game names
+(`game_names` — identity, not a statistic).
+
+```bash
+./ops/reset-game-stats.sh                    # DRY RUN (default): prints the counts, changes nothing
+./ops/reset-game-stats.sh --yes              # backup first, then wipe; asks you to type WIPE
+./ops/reset-game-stats.sh --yes --force      # same, without the typed confirmation
+./ops/reset-game-stats.sh --yes --keep-karma # wipe games + analytics, keep the abandon ledger and karma
+```
+
+A real run calls `ops/backup-db.sh` first and aborts if that backup fails, and
+does all the deletes in one transaction. No restart is needed afterwards: the
+game server caches profiles for ~5 minutes, so connected players see the reset
+numbers within about five minutes (or immediately on reconnect), and the
+frontend persists nothing about game statistics.
+
 ### `/api/q/*` is no longer public
 
 The SmallRye health / OpenAPI namespace (`/api/q/health`, `/api/q/openapi`,

@@ -111,6 +111,8 @@ export const qk = {
     adminDashboard: ["admin", "dashboard"] as const,
     adminPlayers: ["admin", "players"] as const,
     adminGameAnalytics: ["admin", "gameAnalytics"] as const,
+    /** Who played the online game and how much — admin-only, names accounts. */
+    adminGamePlayers: ["admin", "gamePlayers"] as const,
     /** Contact-form triage inbox — carries senders' e-mail/IP, admin-only. */
     adminContactMessages: ["admin", "contactMessages"] as const,
     /** Content-report queue, one entry per status bucket (open / resolved). */

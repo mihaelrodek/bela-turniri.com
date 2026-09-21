@@ -268,6 +268,12 @@ export interface RoomSummary {
      */
     joinable: boolean
     createdAt: number
+    /**
+     * When the game now on this table started (epoch ms); null/absent while
+     * the room is still gathering players. The lobby lists running games
+     * oldest first by it (2026-09-21).
+     */
+    startedAt?: number | null
 }
 
 export interface RoomState extends RoomSummary {

@@ -1,9 +1,10 @@
 import { Box, Grid, HStack, Spinner, Text, VStack } from "@chakra-ui/react"
 import { useQuery } from "@tanstack/react-query"
-import { FiActivity, FiBarChart2 } from "react-icons/fi"
-import { adminGetGameAnalytics } from "../api/admin"
-import { useTranslation } from "../i18n"
+import { FiActivity, FiBarChart2, FiUsers } from "react-icons/fi"
+import { adminGetGameAnalytics, adminGetGamePlayers, type AdminGamePlayerDto } from "../api/admin"
+import { useTranslation, usePlural } from "../i18n"
 import { qk } from "../queryClient"
+import { formatDateTime } from "../utils/format"
 import SectionCard from "./SectionCard"
 
 const pct = (value: number) => (value * 100).toFixed(1)
@@ -29,6 +30,104 @@ function Row({ title, detail }: { title: string; detail: string }) {
             <Text fontWeight="semibold" flexShrink={0}>{title}</Text>
             <Text fontSize="sm" color="fg.muted" textAlign="right">{detail}</Text>
         </HStack>
+    )
+}
+
+/**
+ * One account in the "who played" list.
+ *
+ * Two stacked lines rather than table columns: at phone width a five-column
+ * table either scrolls the page sideways or squeezes the name to nothing, and
+ * the name is the one thing this section exists to show. The games count stays
+ * on the first line, right-aligned, so the list can be scanned by the number
+ * it is sorted by.
+ */
+function PlayerRow({ player }: { player: AdminGamePlayerDto }) {
+    const { t } = useTranslation()
+    return (
+        <VStack align="stretch" gap="0.5" bg="bg.subtle" rounded="md" px="3" py="2" minW="0">
+            <HStack justify="space-between" gap="3" minW="0">
+                <Text fontWeight="semibold" truncate>{player.name}</Text>
+                <Text flexShrink={0} fontWeight="bold" fontFamily="mono" fontVariantNumeric="tabular-nums">
+                    {t("admin.analytics.playerGames", { games: player.games })}
+                </Text>
+            </HStack>
+            <Text fontSize="xs" color="fg.muted" fontVariantNumeric="tabular-nums">
+                {t("admin.analytics.playerRecord", { wins: player.wins, losses: player.losses })}
+                {" · "}
+                {t("admin.analytics.playerLast", { date: formatDateTime(player.lastPlayedAt, "—") })}
+                {" · "}
+                {t("admin.analytics.playerAbandons", { abandons: player.abandons })}
+                {" · "}
+                {t("admin.analytics.playerKarma", { karma: player.karma, max: player.maxKarma })}
+            </Text>
+        </VStack>
+    )
+}
+
+/**
+ * Own query, own loading state: the list comes from a different endpoint
+ * (`/admin/game-analytics/players`, read off the finished-games table) than
+ * the aggregate above, so a slow or empty one must not hold back the other.
+ */
+function PlayersSection() {
+    const { t } = useTranslation()
+    const plural = usePlural()
+    const query = useQuery({ queryKey: qk.adminGamePlayers, queryFn: () => adminGetGamePlayers() })
+
+    const data = query.data
+    return (
+        <Box borderWidth="1px" borderColor="border.muted" rounded="lg" p="3">
+            <HStack mb="2" gap="2">
+                <FiUsers />
+                <Text fontWeight="bold" fontFamily="heading" letterSpacing="-0.015em">
+                    {t("admin.analytics.players")}
+                </Text>
+                {data && (
+                    <Text fontSize="sm" color="fg.muted" fontVariantNumeric="tabular-nums">
+                        {plural("admin.analytics.playersCount", data.totalPlayers)}
+                    </Text>
+                )}
+            </HStack>
+
+            {query.isLoading && (
+                <HStack py="4" gap="2"><Spinner size="sm" /><Text fontSize="sm">{t("admin.analytics.playersLoading")}</Text></HStack>
+            )}
+            {!query.isLoading && !data && <Text color="danger" fontSize="sm">{t("admin.analytics.error")}</Text>}
+
+            {data && (
+                <VStack align="stretch" gap="2">
+                    {data.players.length === 0 && (
+                        <Text fontSize="sm" color="fg.muted">{t("admin.analytics.playersEmpty")}</Text>
+                    )}
+                    {data.players.length > 0 && (
+                        // Capped list, so the box scrolls internally instead of
+                        // making the whole tab a mile long; overflowX stays
+                        // hidden because nothing here is wider than the column.
+                        <Box maxH="420px" overflowY="auto" overflowX="hidden">
+                            <Rows>
+                                {data.players.map((player) => <PlayerRow key={player.uid} player={player} />)}
+                            </Rows>
+                        </Box>
+                    )}
+                    {data.totalPlayers > data.shown && (
+                        <Text fontSize="xs" color="fg.muted">
+                            {t("admin.analytics.playersCapped", { shown: data.shown })}
+                        </Text>
+                    )}
+                    <Box borderTopWidth="1px" borderColor="border.subtle" pt="2">
+                        <Text fontWeight="semibold" fontSize="sm">{t("admin.analytics.anonymous")}</Text>
+                        <Text fontSize="sm" color="fg.muted" fontVariantNumeric="tabular-nums">
+                            {t("admin.analytics.guestSeats", { seats: data.guestSeats, wins: data.guestWins })}
+                        </Text>
+                        <Text fontSize="sm" color="fg.muted" fontVariantNumeric="tabular-nums">
+                            {t("admin.analytics.botSeats", { seats: data.botSeats })}
+                        </Text>
+                        <Text fontSize="xs" color="fg.muted">{t("admin.analytics.guestsNote")}</Text>
+                    </Box>
+                </VStack>
+            )}
+        </Box>
     )
 }
 
@@ -73,6 +172,8 @@ export default function AdminGameAnalyticsTab() {
                         </Grid>
                     </Box>
                 </Grid>
+
+                <PlayersSection />
 
                 <Grid templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }} gap="3">
                     <Box borderWidth="1px" borderColor="border.muted" rounded="lg" p="3">

@@ -81,6 +81,43 @@ export async function adminGetGameAnalytics(): Promise<AdminGameAnalyticsDto> {
     return data
 }
 
+/** One real account in the "who played" list. */
+export type AdminGamePlayerDto = {
+    uid: string
+    /** In-game name, else profile display name, else a shortened uid. */
+    name: string
+    games: number
+    wins: number
+    losses: number
+    lastPlayedAt: string | null
+    /** Lifetime confirmed abandonments, never reset. */
+    abandons: number
+    karma: number
+    maxKarma: number
+}
+
+/**
+ * Sibling of the analytics aggregate: read from the finished-games table
+ * rather than the analytics event log, hence its own endpoint and query key.
+ * Guests carry no stored identity, so they can only be counted as seats.
+ */
+export type AdminGamePlayersDto = {
+    totalPlayers: number
+    shown: number
+    limit: number
+    guestSeats: number
+    guestWins: number
+    botSeats: number
+    players: AdminGamePlayerDto[]
+}
+
+export async function adminGetGamePlayers(limit = 200): Promise<AdminGamePlayersDto> {
+    const { data } = await http.get<AdminGamePlayersDto>("/admin/game-analytics/players", {
+        params: { limit },
+    })
+    return data
+}
+
 /** All non-deleted tournaments, newest first. */
 export async function adminListTournaments(): Promise<AdminTournamentDto[]> {
     const { data } = await http.get<AdminTournamentDto[]>("/admin/tournaments")

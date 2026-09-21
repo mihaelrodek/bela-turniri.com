@@ -369,7 +369,16 @@ export class Lobby implements RoomHost, DemoLobbyApi {
             const mine = uid !== null && room.seatOfUid(uid) !== null
             out.push(room.toSummary(mine))
         }
-        out.sort((a, b) => b.createdAt - a.createdAt)
+        // Tables still gathering players come first (newest first — those are
+        // the ones a visitor can sit at), then the running games, LONGEST
+        // running first, then anything finished (2026-09-21, user request: the
+        // list was one mix of both ordered by creation time).
+        const rank = (r: RoomSummary): number => (r.status === "LOBBY" ? 0 : r.status === "PLAYING" ? 1 : 2)
+        out.sort((a, b) => {
+            if (rank(a) !== rank(b)) return rank(a) - rank(b)
+            if (a.status === "PLAYING") return (a.startedAt ?? a.createdAt) - (b.startedAt ?? b.createdAt)
+            return b.createdAt - a.createdAt
+        })
         return out
     }
 

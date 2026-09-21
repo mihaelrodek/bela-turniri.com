@@ -69,6 +69,94 @@ public class GameResultPlayerRepository implements AppRepository<GameResultPlaye
     }
 
     /**
+     * One row of the admin "who played" list.
+     *
+     * @param uid          Firebase UID of a REAL account
+     * @param games        finished games recorded for it
+     * @param wins         of those, games won
+     * @param lastPlayedAt the newest {@code game_results.played_at} among them
+     */
+    public record PlayerTally(String uid, long games, long wins, OffsetDateTime lastPlayedAt) {}
+
+    /**
+     * The busiest real accounts, most games first.
+     *
+     * <p>ONE grouped query for the whole list — the per-player extras (name,
+     * karma, abandons) are looked up in bulk by the caller from the uids this
+     * returns, so no part of the admin list fans out per player.
+     *
+     * <p>{@code uid is not null} is the entire "real account" filter: a bot
+     * seat has no uid by construction and a guest seat is rejected at write
+     * time if it carries one ({@code GameStatsService.validateSeats}). The
+     * {@code is_bot = false} clause is therefore redundant and deliberately
+     * left in anyway — it is free (the rows are already loaded) and it keeps
+     * the query honest if a future seat kind ever gets both.
+     *
+     * @param limit hard cap on returned rows; the caller reports the true
+     *              distinct total separately via {@link #countDistinctPlayers()}
+     */
+    public List<PlayerTally> topPlayers(int limit) {
+        List<Object[]> rows = getEntityManager().createQuery("""
+                        select p.uid,
+                               count(p),
+                               sum(case when p.won = true then 1 else 0 end),
+                               max(g.playedAt)
+                        from GameResultPlayer p
+                        join p.gameResult g
+                        where p.uid is not null and p.bot = false
+                        group by p.uid
+                        order by count(p) desc, max(g.playedAt) desc
+                        """, Object[].class)
+                .setMaxResults(Math.max(1, limit))
+                .getResultList();
+
+        List<PlayerTally> out = new ArrayList<>(rows.size());
+        for (Object[] row : rows) {
+            out.add(new PlayerTally(
+                    (String) row[0],
+                    ((Number) row[1]).longValue(),
+                    row[2] == null ? 0L : ((Number) row[2]).longValue(),
+                    (OffsetDateTime) row[3]));
+        }
+        return out;
+    }
+
+    /** How many distinct real accounts appear in any recorded game. */
+    public long countDistinctPlayers() {
+        return getEntityManager().createQuery("""
+                        select count(distinct p.uid)
+                        from GameResultPlayer p
+                        where p.uid is not null and p.bot = false
+                        """, Long.class)
+                .getSingleResult();
+    }
+
+    /**
+     * Seats played by someone who is NOT a real account, split by kind.
+     *
+     * <p>A guest has no identifier anywhere in the schema, so this is the only
+     * thing that can be said about guests at all: how many seats they filled
+     * and how many of those seats won. Two different guests and one guest
+     * twice are indistinguishable here, by design of the write path.
+     *
+     * @return {@code [guestSeats, guestWins, botSeats]}
+     */
+    public long[] anonymousSeatTally() {
+        Object[] row = getEntityManager().createQuery("""
+                        select sum(case when p.uid is null and p.bot = false then 1 else 0 end),
+                               sum(case when p.uid is null and p.bot = false and p.won = true then 1 else 0 end),
+                               sum(case when p.bot = true then 1 else 0 end)
+                        from GameResultPlayer p
+                        """, Object[].class)
+                .getSingleResult();
+        return new long[]{ asLong(row[0]), asLong(row[1]), asLong(row[2]) };
+    }
+
+    private static long asLong(Object value) {
+        return value == null ? 0L : ((Number) value).longValue();
+    }
+
+    /**
      * Finished games this user actually played inside a time window.
      *
      * <p>Used by the karma popup (2026-09-21): "napustio X od Y partija u

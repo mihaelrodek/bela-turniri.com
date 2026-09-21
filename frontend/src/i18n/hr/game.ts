@@ -24,6 +24,14 @@ export const game = {
     "guest.loginOrRegister": "Prijavi se ili kreiraj račun",
     "guest.playAsGuest": "Igraj kao gost",
     "guest.back": "Natrag",
+    "guest.heroTitle": "Zaigraj belu odmah",
+    "guest.heroSubtitle": "Bez računa i bez instalacije. Izaberi ime i lik pa sjedni za stol.",
+    "guest.playNow": "Igraj odmah kao gost",
+    "guest.youBadge": "Ti",
+    "guest.perk.noAccount": "Bez registracije",
+    "guest.perk.free": "Besplatno",
+    "guest.perk.bots": "S ljudima ili botovima",
+    "guest.or": "ili",
     "guest.loginInline": "Prijavi se",
     "guest.statsHintSuffix": "za spremanje statistike na svim uređajima.",
     "guest.nameOffensive": "To ime nije dopušteno. Odaberi drugo.",
@@ -54,7 +62,7 @@ export const game = {
        otpadne. `{window}` je već gotova fraza ("30 dana"/"30 dni"), sastavljena
        preko `usePlural()`/`game.karma.daysDuration` u pozivnoj komponenti —
        ne prosljeđuje se goli broj u fiksnu imenicu (v. KARMA-CONTRACT.md). */
-    "karma.explain": "Karma pokazuje koliko se na igrača možeš osloniti. Svi kreću s {max}/{max}. Napuštanje partije koja je u tijeku, uz još barem jednog igrača, oduzima 1 bod — nakon što istekne vrijeme za povratak za stol. Svako napuštanje vrijedi {window}, a zatim samo otpadne. Igranjem se ništa ne vraća. Karmu vide ostali igrači u sobi.",
+    "karma.explain": "Karma je ocjena pouzdanosti od 0 do {max}. Svi kreću s {max}. Ako napustiš partiju koja je u tijeku i ne vratiš se u roku za povratak, gubiš 1 bod (ne računa se ako si za stolom bio samo s botovima). Bod se sam vraća nakon {window}. Igranjem se karma ne može popraviti. Tvoju karmu vide igrači s kojima sjediš u sobi.",
     /* Redak s brojkama iza karme (2026-09-21): "Napustio X od Y partija u
        zadnjih Z dana". `{games}` i `{window}` su već sklonjene fraze
        (`karma.gamesOf` / `karma.lastDays`, ispod) — `{abandoned}` ostaje gola
@@ -470,6 +478,11 @@ export const game = {
     "active.holdNone": "Sjedalo je i dalje tvoje.",
     "active.resume": "Vrati se u igru",
     "active.leave": "Napusti igru",
+    "active.leaveNow": "Napusti",
+    "active.leaveConfirm.title": "Napustiti partiju?",
+    "active.leaveConfirm.body": "Odmah gubiš mjesto za stolom, preuzima ga bot i više se ne možeš vratiti u ovu partiju. Gubiš i 1 bod karme (osim ako su za stolom ostali samo botovi).",
+    "active.leaveConfirm.confirm": "Napusti partiju",
+    "active.leaveConfirm.cancel": "Ostani",
     "active.seatBadge": "Tvoje sjedalo",
     "active.status.LOBBY": "Čeka početak",
     "active.status.PLAYING": "Igra u tijeku",
@@ -484,7 +497,7 @@ export const game = {
     "phase.declarations": "Provjeravaju se zvanja",
 
     "exit.title": "Napustiti stol?",
-    "exit.description": "Ako ostaneš, nastavljaš igrati. Ako izađeš, počinje odbrojavanje od dvije minute; do isteka se možeš vratiti, a zatim tvoje mjesto preuzima bot.",
+    "exit.description": "Ako ostaneš, nastavljaš igrati. Ako izađeš, počinje odbrojavanje od dvije minute; do isteka se možeš vratiti. Ne vratiš li se, tvoje mjesto preuzima bot, a ti gubiš 1 bod karme.",
     "exit.descriptionLobby": "Ako izađeš, odmah napuštaš sobu i tvoje mjesto za stolom se oslobađa.",
     "exit.stay": "Ostani u sobi",
     "exit.leave": "Izađi iz sobe",

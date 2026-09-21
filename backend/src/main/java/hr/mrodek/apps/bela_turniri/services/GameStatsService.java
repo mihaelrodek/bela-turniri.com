@@ -1,18 +1,25 @@
 package hr.mrodek.apps.bela_turniri.services;
 
+import hr.mrodek.apps.bela_turniri.dtos.AdminGamePlayersDto;
+import hr.mrodek.apps.bela_turniri.dtos.GameReliabilityDto;
 import hr.mrodek.apps.bela_turniri.dtos.GameResultReportRequest;
 import hr.mrodek.apps.bela_turniri.dtos.GameStatsDto;
 import hr.mrodek.apps.bela_turniri.model.GameResult;
 import hr.mrodek.apps.bela_turniri.model.GameResultPlayer;
+import hr.mrodek.apps.bela_turniri.model.UserProfile;
+import hr.mrodek.apps.bela_turniri.repository.GameNameRepository;
 import hr.mrodek.apps.bela_turniri.repository.GameResultPlayerRepository;
 import hr.mrodek.apps.bela_turniri.repository.GameResultRepository;
+import hr.mrodek.apps.bela_turniri.repository.UserProfileRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.BadRequestException;
 import org.jboss.logging.Logger;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -48,6 +55,11 @@ public class GameStatsService {
     @Inject GameResultRepository resultRepo;
     @Inject GameResultPlayerRepository playerRepo;
     @Inject EntityManager em;
+    // Only the admin list below uses these three; they are the batch sources
+    // that keep it at a fixed number of queries.
+    @Inject GameNameRepository gameNames;
+    @Inject UserProfileRepository profiles;
+    @Inject GameReliabilityService reliability;
 
     /**
      * Record one finished game.
@@ -134,7 +146,62 @@ public class GameStatsService {
         return new GameStatsDto(GameStatsDto.Bucket.of(totalGames, totalWins), buckets);
     }
 
+    /**
+     * The admin "who played and how much" list (Analitika igre).
+     *
+     * <p>Fixed query count whatever the list size: one grouped tally, one
+     * distinct count, one anonymous-seat tally, one batch of in-game names,
+     * one batch of profiles and {@link GameReliabilityService#forUsers} (three
+     * more). Nothing here is per player.
+     *
+     * <p>The name follows the SAME precedence the game server applies per seat
+     * — in-game name, else profile display name — with a shortened uid as the
+     * last resort, since the backend has no Firebase token to fall back to the
+     * way {@code auth.ts} does.
+     *
+     * @param limit cap on rows returned; the reported total is the true
+     *              distinct count, not the capped one
+     */
+    public AdminGamePlayersDto adminPlayers(int limit) {
+        int cap = limit <= 0 ? 200 : Math.min(limit, 1000);
+        List<GameResultPlayerRepository.PlayerTally> tallies = playerRepo.topPlayers(cap);
+        List<String> uids = tallies.stream().map(GameResultPlayerRepository.PlayerTally::uid).toList();
+
+        Map<String, String> gameNameByUid = gameNames.namesByGameUid(uids);
+        Map<String, UserProfile> profileByUid = profiles.findByUids(uids);
+        Map<String, GameReliabilityDto> reliabilityByUid = reliability.forUsers(uids);
+
+        List<AdminGamePlayersDto.Player> rows = new ArrayList<>(tallies.size());
+        for (var tally : tallies) {
+            UserProfile profile = profileByUid.get(tally.uid());
+            GameReliabilityDto rel = reliabilityByUid.get(tally.uid());
+            rows.add(new AdminGamePlayersDto.Player(
+                    tally.uid(),
+                    resolveName(tally.uid(), gameNameByUid.get(tally.uid()),
+                            profile == null ? null : profile.getDisplayName()),
+                    tally.games(),
+                    tally.wins(),
+                    tally.games() - tally.wins(),
+                    tally.lastPlayedAt(),
+                    rel == null ? 0L : rel.abandons(),
+                    rel == null ? GameReliabilityService.MAX_KARMA : rel.karma(),
+                    GameReliabilityService.MAX_KARMA));
+        }
+
+        long[] anonymous = playerRepo.anonymousSeatTally();
+        return new AdminGamePlayersDto(
+                playerRepo.countDistinctPlayers(), rows.size(), cap,
+                anonymous[0], anonymous[1], anonymous[2], rows);
+    }
+
     /* ===================== internals ===================== */
+
+    /** In-game name → profile display name → shortened uid. Never null. */
+    private static String resolveName(String uid, String gameName, String displayName) {
+        if (gameName != null && !gameName.isBlank()) return gameName.trim();
+        if (displayName != null && !displayName.isBlank()) return displayName.trim();
+        return uid.length() > 8 ? uid.substring(0, 8) + "…" : uid;
+    }
 
     private static UUID parseUuid(String raw) {
         try {

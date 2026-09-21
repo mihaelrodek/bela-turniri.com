@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react"
-import { LATEST_VERSION } from "./latestVersion"
+import { isGamesSite } from "../site"
+import { LATEST_VERSION, LATEST_VERSION_GAMES } from "./latestVersion"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Module-level store for the "Novosti" dialog's open/closed state and the
@@ -10,14 +11,19 @@ import { LATEST_VERSION } from "./latestVersion"
    reactively without a Context provider, and non-component code (none here
    today, but `open()`/`close()` are plain functions) can drive it too.
 
-   `hasUnseen()` compares against `LATEST_VERSION`, NOT the full `RELEASES`
-   array from `./releases` — see `latestVersion.ts` for why: that file pulls
-   in both locales' full release prose, and this store is imported by the
-   eager `WhatsNewFab`, so importing it here would defeat lazy-loading the
-   dialog.
+   `hasUnseen()` compares against `LATEST_VERSION` (or `LATEST_VERSION_GAMES`
+   on the games site), NOT the full `RELEASES` array from `./releases` — see
+   `latestVersion.ts` for why: that file pulls in both locales' full release
+   prose, and this store is imported by the eager `WhatsNewFab`, so importing
+   it here would defeat lazy-loading the dialog. `LATEST_VERSION_GAMES` is the
+   newest version tag that still has a games-visible group in it, so a
+   tournaments-only release never lights the badge on bela.games/belot.games.
    ────────────────────────────────────────────────────────────────────── */
 
 const STORAGE_KEY = "bela:whatsnew:seen"
+
+/** The version tag this device's site cares about — see the header comment. */
+const targetVersion: string = isGamesSite ? LATEST_VERSION_GAMES : LATEST_VERSION
 
 let isOpen = false
 const listeners = new Set<() => void>()
@@ -59,7 +65,7 @@ function readSeen(): string | null {
     } catch {
         // Private mode / storage blocked: treat as "seen" everywhere below,
         // never nag someone whose browser can't remember the choice anyway.
-        return LATEST_VERSION
+        return targetVersion
     }
 }
 
@@ -77,12 +83,12 @@ function writeSeen(version: string) {
  *  re-renders on `markSeen()`/`open()`/`close()` the same way `isOpen` does,
  *  since seeing the newest release always happens through this module. */
 export function hasUnseen(): boolean {
-    return readSeen() !== LATEST_VERSION
+    return readSeen() !== targetVersion
 }
 
 export function markSeen() {
-    if (readSeen() === LATEST_VERSION) return
-    writeSeen(LATEST_VERSION)
+    if (readSeen() === targetVersion) return
+    writeSeen(targetVersion)
     emit()
 }
 

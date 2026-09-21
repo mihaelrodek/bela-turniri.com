@@ -32,8 +32,11 @@ import { GLASS_STRONG, INK, INK_MUTED } from "./tableStyles"
       majority of deals.
    ────────────────────────────────────────────────────────────────────── */
 
-/** Both buttons at the 44 px tap-target floor + 2, as in `BiddingPanel`. */
-const ROW_H = "46px"
+/** Button row height. Was 46 px (the 44 px tap floor + 2, as in
+ *  `BiddingPanel`); 54 px since 2026-09-21 — user request, the prompt sat too
+ *  low and too small on a phone. The panel also stands 32 px off the bottom
+ *  edge on a phone now (`bottom` below), clear of the home indicator. */
+const ROW_H = "54px"
 
 export default function BelaPrompt({
     onDeclare,
@@ -59,10 +62,10 @@ export default function BelaPrompt({
             position="absolute"
             left="0"
             right="0"
-            bottom="0"
+            bottom={{ base: "8", md: "0" }}
             justify="center"
             px="3"
-            pb="3"
+            pb={{ base: "4", md: "3" }}
             zIndex={10}
             // Only the panel takes taps. Nothing above it is dimmed or
             // covered, so the trick stays readable while the question is up.
@@ -79,8 +82,8 @@ export default function BelaPrompt({
                 {...GLASS_STRONG}
                 borderColor="brand.300"
                 rounded="l3"
-                px="3"
-                py="2.5"
+                px="4"
+                py="3.5"
                 boxShadow="0 18px 40px rgba(0,0,0,0.55)"
                 css={{
                     ...GLASS_STRONG.css,
@@ -91,7 +94,7 @@ export default function BelaPrompt({
                     },
                 }}
             >
-                <Text fontSize="md" fontFamily="heading" fontWeight="bold" color={INK} textAlign="center" lineHeight="1.2">
+                <Text fontSize="lg" fontFamily="heading" fontWeight="bold" color={INK} textAlign="center" lineHeight="1.2">
                     {t("game.bela.ask")}
                 </Text>
                 <HStack gap="2">

@@ -1,6 +1,10 @@
 import { getLocale } from "../i18n"
+import { isGamesSite } from "../site"
 import { releasesHr } from "./releases.hr"
 import { releasesSl } from "./releases.sl"
+import type { ReleaseArea } from "./latestVersion"
+
+export type { ReleaseArea }
 
 /* ──────────────────────────────────────────────────────────────────────────
    "Novosti" (what's new) release notes — content, not UI chrome.
@@ -53,6 +57,23 @@ export interface ReleaseGroup {
     heading: string
     sections: ReleaseSection[]
     /**
+     * Which product this group's content is about. Groups are already
+     * thematic (one heading per topic — "Blok", "Turniri", "Bela Online",
+     * "Aplikacija", …), so this classifies at the group level rather than
+     * per section: every section in a group shares its subject.
+     *
+     * Drives `getReleases()`'s filtering on the games site (bela.games /
+     * belot.games), which has no tournaments/calendar/map — see that
+     * function below. `"general"` is for content that reads fine with no
+     * mention of tournaments (app-wide redesigns, install prompts, …); a
+     * group mixing general and tournament-specific content should be split,
+     * or classified `"tournaments"` if the tournament framing dominates.
+     * `LATEST_VERSION_GAMES` in `latestVersion.ts` mirrors this per-release
+     * (not per-group) for the eager unseen-badge check — keep both in sync
+     * when adding a release.
+     */
+    area: ReleaseArea
+    /**
      * Render this group in the announcement accent (amber) instead of the
      * app's brand green, and give it a tinted panel. For the ONE group in a
      * release that is a heads-up about something not shipped yet — it sits
@@ -73,9 +94,31 @@ export interface Release {
     groups: ReleaseGroup[]
 }
 
-/** Newest first, in the active UI locale. `getLocale()` is read at call
- *  time (like `utils/format.ts` does), not cached at module load, so a
- *  language switch is picked up the next time the dialog opens. */
+/** Areas shown on the games site (bela.games / belot.games) — no
+ *  tournaments, calendar or map there, so `"tournaments"` groups are cut.
+ *  `"general"` groups are kept: they were written (and classified) to read
+ *  fine on their own, with no tournament context. */
+const GAMES_VISIBLE_AREAS: ReadonlySet<ReleaseArea> = new Set(["game", "blok", "general"])
+
+/** On the games site, drop tournament-only groups from every release, then
+ *  drop any release left with no groups at all — a release that was purely
+ *  about tournaments simply never appears there. bela-turniri.com gets the
+ *  unfiltered list. */
+function filterForSite(releases: Release[]): Release[] {
+    if (!isGamesSite) return releases
+    return releases
+        .map((release) => ({
+            ...release,
+            groups: release.groups.filter((group) => GAMES_VISIBLE_AREAS.has(group.area)),
+        }))
+        .filter((release) => release.groups.length > 0)
+}
+
+/** Newest first, in the active UI locale, filtered for the current site.
+ *  `getLocale()` is read at call time (like `utils/format.ts` does), not
+ *  cached at module load, so a language switch is picked up the next time
+ *  the dialog opens. */
 export function getReleases(): Release[] {
-    return getLocale() === "sl" ? releasesSl : releasesHr
+    const releases = getLocale() === "sl" ? releasesSl : releasesHr
+    return filterForSite(releases)
 }

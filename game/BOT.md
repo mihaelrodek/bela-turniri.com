@@ -904,3 +904,22 @@ imati adut ne pokreću pravilo — sijeku li, boja nije sigurna.
 Testovi: `scenarios.lead.test.ts`, „cash a certain suit while I still have the
 lead". Nisu pokrenuti u trenutku pisanja; mjerenje jakosti bota (`10 000`
 parova) treba ponoviti jer je ovo novo pravilo visoko u redoslijedu.
+
+### 15.21 Dečko i jedna mala nisu zvanje sami po sebi (`isBareJackCall`, prijava 2026-09-21)
+
+Bot je zvao na dečka i kralja u adutu, a sa strane nije imao ništa. Zvanje na
+dečka i kralja je normalno — ali **uz nešto**: asa sa strane ili dužinu (tri
+aduta). Samo po sebi jamči jedan štih, dečkov, i ništa drugo.
+
+Uzrok: `handTricks` za J + K iznosi 1,0, a bonusi za mjesto u `bidThreshold`
+(suigrač prvi na igri −0,25, spašavanje djelitelja −0,4 …) spuštaju prag na 0,85
+i niže, pa je ruka prolazila.
+
+Pravilo: dobrovoljno zvanje otpada kad ruka ima **najviše dva aduta**, među njima
+**samo jedan od J / 9 / A**, i **nijednog asa sa strane**. J + 9 ostaje zvanje
+(dva sigurna štiha), J + K + as sa strane također, J + K + treći adut također.
+Prisilna zvanja — djelitelj na musu i „ne smije se proći" u završnici — ne
+prolaze kroz ovo pravilo: tamo nema „dalje".
+
+Testovi: `scenarios.bidding.test.ts`, „the jack and one small trump is not a call
+by itself". Nisu pokrenuti u trenutku pisanja.
