@@ -217,6 +217,18 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- firebase-admin 9.10.0 still constructs `JacksonFactory` in the
+             FirebaseOptions constructor but no longer declares the artifact
+             that contains it (its tree carries only the Gson flavour). With
+             no service account configured that code path is never reached, so
+             production booted for weeks without it; the first real key
+             crashed the application with NoClassDefFoundError (2026-09-21).
+             Same version as the google-http-client core in the tree. -->
+        <dependency>
+            <groupId>com.google.http-client</groupId>
+            <artifactId>google-http-client-jackson2</artifactId>
+            <version>1.44.2</version>
+        </dependency>
 
         <!-- Tests -->
         <dependency>

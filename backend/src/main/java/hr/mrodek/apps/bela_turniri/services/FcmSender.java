@@ -136,10 +136,13 @@ public class FcmSender {
             this.app = app;
             this.messaging = FirebaseMessaging.getInstance(app);
             LOG.info("Push: FCM configured, native push enabled.");
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
             // A broken key file must not stop the application from booting —
             // same rule as the VAPID branch, and the same consequence: one
-            // delivery path is off, everything else runs.
+            // delivery path is off, everything else runs. LinkageError is here
+            // on purpose: a class missing from the classpath is an Error, not
+            // an Exception, and it took the whole backend down once
+            // (NoClassDefFoundError: JacksonFactory, 2026-09-21).
             LOG.error("Push: failed to initialise FCM, native push disabled", e);
         }
     }

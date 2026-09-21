@@ -6,7 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Caddyfile" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -31,23 +30,23 @@
 }</component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.9382264440266808" />
-      <entry key="MS500" value="5.262444604674209" />
-      <entry key="S2" value="15.76032831661896" />
-      <entry key="S5" value="28.19532719564796" />
-      <entry key="S10" value="41.66815778363545" />
-      <entry key="S30" value="64.09020956546674" />
-      <entry key="S60" value="73.68971842873941" />
-      <entry key="M2" value="79.45489038423781" />
-      <entry key="M5" value="83.28085189946462" />
-      <entry key="M10" value="84.62290366181661" />
-      <entry key="M15" value="85.07799045712633" />
-      <entry key="M30" value="85.53701262069939" />
-      <entry key="H1" value="85.78599591473856" />
-      <entry key="H2" value="88.13412583477839" />
-      <entry key="H4" value="118.86402177432916" />
-      <entry key="D1" value="477.9557695459445" />
-      <entry key="W1" value="892.653912424491" />
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.000000027863648" />
+      <entry key="S2" value="1.0363554177884293" />
+      <entry key="S5" value="1.609939912750653" />
+      <entry key="S10" value="2.5618676095467463" />
+      <entry key="S30" value="3.9588827140891967" />
+      <entry key="S60" value="5.65121433987493" />
+      <entry key="M2" value="11.974729518001148" />
+      <entry key="M5" value="26.199838375246475" />
+      <entry key="M10" value="39.18953874818952" />
+      <entry key="M15" value="50.216705055277735" />
+      <entry key="M30" value="74.38804194575903" />
+      <entry key="H1" value="97.33723879917527" />
+      <entry key="H2" value="115.23942385997691" />
+      <entry key="H4" value="152.15579641175313" />
+      <entry key="D1" value="515.9155134278585" />
+      <entry key="W1" value="937.9643580104438" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -57,35 +56,35 @@
       <entry key="S10" value="0.0" />
       <entry key="S30" value="0.0" />
       <entry key="S60" value="0.0" />
-      <entry key="M2" value="1.6405837186011853E-175" />
-      <entry key="M5" value="1.847556472002132E-70" />
-      <entry key="M10" value="1.922253171291786E-35" />
-      <entry key="M15" value="9.040997073424359E-24" />
-      <entry key="M30" value="4.2522892501148875E-12" />
-      <entry key="H1" value="2.9162604375756587E-6" />
-      <entry key="H2" value="0.002415061130634476" />
-      <entry key="H4" value="0.06949908010099859" />
-      <entry key="D1" value="1.1424963947944036" />
-      <entry key="W1" value="1.8462507615108454" />
+      <entry key="M2" value="4.441322128776805E-182" />
+      <entry key="M5" value="4.361172575063704E-73" />
+      <entry key="M10" value="9.339279251999188E-37" />
+      <entry key="M15" value="1.2037921645473005E-24" />
+      <entry key="M30" value="1.5516379401589602E-12" />
+      <entry key="H1" value="1.7616113592743826E-6" />
+      <entry key="H2" value="0.0018770248665900171" />
+      <entry key="H4" value="0.0612702997785418" />
+      <entry key="D1" value="1.118750725089161" />
+      <entry key="W1" value="1.8407195071539604" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.8814150270135446" />
-      <entry key="MS500" value="5.228087176328904" />
-      <entry key="S2" value="15.735215857773648" />
-      <entry key="S5" value="28.17699135037008" />
-      <entry key="S10" value="41.654186950881474" />
-      <entry key="S30" value="64.08273029981365" />
-      <entry key="S60" value="73.68535504124573" />
-      <entry key="M2" value="79.45251929736186" />
-      <entry key="M5" value="83.27985288466077" />
-      <entry key="M10" value="84.62239525634762" />
-      <entry key="M15" value="85.07764950655354" />
-      <entry key="M30" value="85.53684112939442" />
-      <entry key="H1" value="85.78591280683266" />
-      <entry key="H2" value="88.13649589781265" />
-      <entry key="H4" value="118.93348068822617" />
-      <entry key="D1" value="479.09821669788863" />
-      <entry key="W1" value="894.5001496901102" />
+      <entry key="MS100" value="5.320524850274673E-6" />
+      <entry key="MS500" value="0.08814365011995494" />
+      <entry key="S2" value="0.5811478497808283" />
+      <entry key="S5" value="1.3937523502362101" />
+      <entry key="S10" value="2.4468057592436305" />
+      <entry key="S30" value="3.918766836142057" />
+      <entry key="S60" value="5.630837245810166" />
+      <entry key="M2" value="11.964273953070288" />
+      <entry key="M5" value="26.195449898966015" />
+      <entry key="M10" value="39.18725694218874" />
+      <entry key="M15" value="50.21513710782181" />
+      <entry key="M30" value="74.38720810056795" />
+      <entry key="H1" value="97.33680023888957" />
+      <entry key="H2" value="115.2410710218341" />
+      <entry key="H4" value="152.2169336745584" />
+      <entry key="D1" value="517.0341996369166" />
+      <entry key="W1" value="939.8050617334162" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -99,49 +98,49 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Application.BelaTurniriApplication.executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [clean].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [compile].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [install].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [test].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [validate].executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Quarkus Application.BelaTurniriApplication.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.restore.workspace.module&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;ignore_missing_gitignore&quot;: &quot;true&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/mihaelrodek/Programming/bela-turniri.com/frontend&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_interpreter_path&quot;: &quot;node&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;settings.javascript.runtime&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;/Users/mihaelrodek/Programming/bela-turniri.com/game/node_modules/typescript/lib&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Application.BelaTurniriApplication.executor": "Run",
+    "Maven.bela-turniri [clean].executor": "Run",
+    "Maven.bela-turniri [compile].executor": "Run",
+    "Maven.bela-turniri [install].executor": "Run",
+    "Maven.bela-turniri [test].executor": "Run",
+    "Maven.bela-turniri [validate].executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Quarkus Application.BelaTurniriApplication.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.go.formatter.settings.were.checked": "true",
+    "RunOnceActivity.go.migrated.go.modules.settings": "true",
+    "RunOnceActivity.restore.workspace.module": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "main",
+    "go.import.settings.migrated": "true",
+    "ignore.virus.scanning.warn.message": "true",
+    "ignore_missing_gitignore": "true",
+    "javascript.preferred.runtime.type.id": "node",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/Users/mihaelrodek/Programming/bela-turniri.com/scripts",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_interpreter_path": "node",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "settings.javascript.runtime",
+    "to.speed.mode.migration.done": "true",
+    "ts.external.directory.path": "/Users/mihaelrodek/Programming/bela-turniri.com/game/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/frontend" />
