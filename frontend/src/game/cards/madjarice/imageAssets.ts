@@ -11,8 +11,11 @@ import type { DeckStyle } from "../../util/cards"
      assets/klasicne/suits/<SUIT>.webp   4 suit icons, 192×192 RGBA
      assets/moderne/<RANK><SUIT>.webp    32 faces  (our own cleaned scans)
      assets/moderne/BACK.webp
-     assets/moderne/suits/<SUIT>.webp    4 suit icons, 192×192 RGBA, cut from
-                                         the deck's own J cards (2026-09-20)
+     assets/moderne/suits/<SUIT>.webp    4 suit icons, 384×384 RGBA, cut from
+                                         the ORIGINAL 12 MP photos of the J
+                                         cards (2026-09-21; the first set came
+                                         off the 363 px faces and was blurry —
+                                         scripts/extract-moderne-suits-hires.py)
 
    Only bundled files are registered: a deck whose folder is missing or half
    finished simply yields nothing, and the card falls back to the vector face

@@ -8,6 +8,63 @@ import { teamOf } from "../util/seats"
 import SuitGlyph from "./SuitGlyph"
 import TrumpBadge from "./TrumpBadge"
 import { INK, INK_MUTED, SHORT, TEAM, type TeamSide } from "./tableStyles"
+import { useGamePrefs } from "../hooks/useGamePrefs"
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
+
+/* ── The deal pouring into the total (2026-09-21, user request) ─────────────
+   When a deal ends, the big deal number runs DOWN to zero while the small
+   match total runs UP by the same amount, in step — the points visibly move
+   from one line to the other instead of the total silently changing with the
+   next deal.
+
+   What pours is `dealScore.total[team]`, the figure the server actually wrote,
+   NOT the card points on screen: on a "pad" the caller's side writes 0 and the
+   other side takes everything, and a štiglja adds its bonus. So at the start
+   of the pour the big number becomes that written figure (for an ordinary
+   deal it is simply cards + declarations, which is why the separate "+20"
+   chip is hidden while it runs — it is inside the number now).
+
+   `progress` is null outside DEAL_DONE, 0..1 while pouring, 1 when done. A
+   page opened or refreshed in the middle of DEAL_DONE never saw the deal end,
+   so it starts at 1 — the settled state, no replay. Reduced motion keeps the
+   old static picture (deal number + the total as it stood before the deal). */
+const SETTLE_HOLD_MS = 700
+const SETTLE_MS = 1300
+const easeInOut = (x: number): number => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2)
+
+function useSettleProgress(settling: boolean, dealNo: number, reducedMotion: boolean): number | null {
+    const [progress, setProgress] = useState<number | null>(settling ? 1 : null)
+    const sawPlay = useRef(!settling)
+    useEffect(() => {
+        if (!settling) {
+            sawPlay.current = true
+            setProgress(null)
+            return
+        }
+        if (reducedMotion) {
+            setProgress(null)
+            return
+        }
+        if (!sawPlay.current) {
+            setProgress(1)
+            return
+        }
+        sawPlay.current = false
+        setProgress(0)
+        let frame = 0
+        let start: number | null = null
+        const tick = (now: number) => {
+            if (start === null) start = now
+            const elapsed = now - start - SETTLE_HOLD_MS
+            const x = Math.max(0, Math.min(1, elapsed / SETTLE_MS))
+            setProgress(easeInOut(x))
+            if (x < 1) frame = requestAnimationFrame(tick)
+        }
+        frame = requestAnimationFrame(tick)
+        return () => cancelAnimationFrame(frame)
+    }, [settling, dealNo, reducedMotion])
+    return progress
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
    ScoreBoard — the panel across the top of the felt.
@@ -134,8 +191,18 @@ export default function ScoreBoard({
        "Upisano" figure and the header switches to the new total with the
        next deal. */
     const settling = view.phase === "DEAL_DONE" ? view.dealScore : null
+    const [prefs] = useGamePrefs()
+    const reducedMotion = usePrefersReducedMotion() || prefs.reduceMotion
+    const pour = useSettleProgress(settling !== null, view.dealNo, reducedMotion)
+    /** Points of this deal already moved onto the total line. */
+    const poured = (team: Team) =>
+        settling && pour !== null ? Math.round(settling.total[team] * pour) : 0
     const shownTotal = (team: Team) =>
-        settling ? view.score[team] - settling.total[team] : view.score[team]
+        settling ? view.score[team] - settling.total[team] + poured(team) : view.score[team]
+    const shownDeal = (team: Team) =>
+        settling && pour !== null ? settling.total[team] - poured(team) : view.currentDealPoints[team]
+    const shownDeclarations = (team: Team) =>
+        settling && pour !== null ? 0 : declarationPoints[team]
 
     return (
         <Box
@@ -218,8 +285,8 @@ export default function ScoreBoard({
                 <TeamCard
                     label={usLabel}
                     team="us"
-                    dealPoints={view.currentDealPoints[myTeam]}
-                    declarationPoints={declarationPoints[myTeam]}
+                    dealPoints={shownDeal(myTeam)}
+                    declarationPoints={shownDeclarations(myTeam)}
                     declarationLabel={t("game.score.declarationBonus")}
                     total={shownTotal(myTeam)}
                     progressLabel={t("game.score.progress", {
@@ -253,8 +320,8 @@ export default function ScoreBoard({
                 <TeamCard
                     label={themLabel}
                     team="them"
-                    dealPoints={view.currentDealPoints[theirTeam]}
-                    declarationPoints={declarationPoints[theirTeam]}
+                    dealPoints={shownDeal(theirTeam)}
+                    declarationPoints={shownDeclarations(theirTeam)}
                     declarationLabel={t("game.score.declarationBonus")}
                     total={shownTotal(theirTeam)}
                     progressLabel={t("game.score.progress", {

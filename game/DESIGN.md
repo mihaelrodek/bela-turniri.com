@@ -1071,3 +1071,15 @@ ugašene uz `prefers-reduced-motion` ili postavku „smanji animacije":
 Koje su karte „iz talona" odlučuje se u jednom renderu — onom u kojem licitacija
 završi, a na stolu je bilo šest karata. Nakon osvježavanja stranice tog trenutka
 nema, pa se cijela ruka jednostavno podijeli odozdo.
+
+### Bodovi dijeljenja se „prelijevaju" u ukupne (2026-09-21)
+
+Kad dijeljenje završi (`DEAL_DONE`), veliki broj dijeljenja odbrojava prema 0, a
+mali ukupni zbroj istovremeno raste za isti iznos (`useSettleProgress` u
+`ScoreBoard.tsx`: 700 ms stanke da se vidi zadnji štih, pa 1300 ms, ease-in-out;
+traka napretka prati zbroj). Prelijeva se `dealScore.total[team]` — ono što je
+server stvarno upisao — a ne bodovi karata na ekranu: kod pada zvač upisuje 0, a
+štiglja nosi bonus. Zato veliki broj na početku postaje upisani iznos, a „+20"
+uz njega se za to vrijeme skriva (već je u broju). Stranica otvorena usred
+`DEAL_DONE` kreće iz završnog stanja, bez ponavljanja. Uz smanjene animacije
+ostaje stara statična slika (broj dijeljenja + zbroj prije dijeljenja).

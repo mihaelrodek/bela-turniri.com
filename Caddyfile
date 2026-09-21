@@ -102,7 +102,10 @@
     }
     handle @maintenance {
         root * /srv
-        rewrite * /maintenance.html
+        # The page is per brand: `import maintenance /maintenance.html` on
+        # bela-turniri.com, `/maintenance.games.html` on the games hosts
+        # (felt-green page with the bela.games logo, 2026-09-21).
+        rewrite * {args[0]}
         header Cache-Control "no-store"
         header Retry-After "120"
         file_server {
@@ -524,7 +527,7 @@
 bela-turniri.com, www.bela-turniri.com {
     encode zstd gzip
 
-    import maintenance
+    import maintenance /maintenance.html
     import well_known /well-known
     import game_status
     import hidden_api
@@ -774,7 +777,7 @@ www.bela.games {
 bela.games {
     encode zstd gzip
 
-    import maintenance
+    import maintenance /maintenance.games.html
     # Its own association files: a second native app, different bundle id
     # (placeholder `games.bela.app`), claiming BOTH games domains — see
     # ops/well-known-games/.
