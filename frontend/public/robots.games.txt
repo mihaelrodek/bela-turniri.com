@@ -1,0 +1,77 @@
+# bela.games + belot.games — crawler instructions.
+#
+# Served at https://bela.games/robots.txt AND https://belot.games/robots.txt:
+# Caddy rewrites /robots.txt to this file inside the games site block, which
+# both domains share (see the Caddyfile). The full site's own robots.txt
+# (public/robots.txt) is untouched and still served on bela-turniri.com.
+#
+# The two games domains are equal front doors onto one product, so crawling
+# is ALLOWED on both — a crawler has to be able to fetch belot.games to read
+# the <link rel="canonical"> that points it at bela.games. Blocking it here
+# would hide that signal and risk a bare, canonical-less URL being indexed
+# anyway. Consolidation is done by the canonical tag, not by robots.txt.
+#
+# One `Sitemap:` line, absolute, naming the canonical host on both domains:
+# the sitemap lists canonical URLs only, so there is nothing belot-specific
+# to point at. Cross-host sitemap references are honoured when both hosts are
+# verified in Search Console — add both properties (DEPLOY.md says so).
+#
+# This domain shows only the online game (/igra) and the scorepad (/blok).
+# Everything tournament-shaped (/turniri, /kalendar, /karta, …) 301s to
+# bela-turniri.com at the edge, so there is nothing to disallow here — a
+# crawler following one is simply sent to the canonical domain.
+#
+# The sitemap is a small static file (public/sitemap.games.xml); the backend's
+# dynamic sitemap lists tournaments and profiles and belongs to the other
+# domain.
+
+User-agent: *
+# No public value in indexing the auth screens.
+Disallow: /prijava
+Disallow: /registracija
+# The JSON API is not content. Nothing on this domain needs an /api/ Allow
+# rule: the OG image is a static /bela-turniri-og-card.png, not an /api/
+# render, and there are no SSR preview routes here.
+Disallow: /api/
+
+# Social / link-preview crawlers — explicitly allowed everywhere with an
+# empty Disallow, same as on bela-turniri.com. Facebook's sharing debugger
+# refuses to scrape unless facebookexternalhit is allowlisted, and WhatsApp
+# uses Facebook's crawler under the hood.
+User-agent: facebookexternalhit
+Disallow:
+
+User-agent: Facebot
+Disallow:
+
+User-agent: WhatsApp
+Disallow:
+
+User-agent: Twitterbot
+Disallow:
+
+User-agent: LinkedInBot
+Disallow:
+
+User-agent: Slackbot
+Disallow:
+
+User-agent: Slackbot-LinkExpanding
+Disallow:
+
+User-agent: Discordbot
+Disallow:
+
+User-agent: TelegramBot
+Disallow:
+
+User-agent: Applebot
+Disallow:
+
+User-agent: Pinterest
+Disallow:
+
+User-agent: SkypeUriPreview
+Disallow:
+
+Sitemap: https://bela.games/sitemap.xml

@@ -104,8 +104,13 @@ export function useLiveActivity({ room, view, yourSeat, turnDeadline, send }: Us
     /* Decisions are taken synchronously in the effects; the native calls run
        on one promise chain so a `start` is always settled before the
        `update` that follows it, however fast the view moves. */
-    const session = useRef<{ running: boolean; last: LiveActivityState | null; chain: Promise<void> }>({
+    /* `room` is the id of the room the activity was STARTED for. It has to be
+       remembered rather than read off `room?.id` at teardown time, because by
+       then the room is usually already null — and Android cancels its ongoing
+       notification by room id (see liveActivityPlugin.ts `end`). */
+    const session = useRef<{ running: boolean; room: string | null; last: LiveActivityState | null; chain: Promise<void> }>({
         running: false,
+        room: null,
         last: null,
         chain: Promise.resolve(),
     })
@@ -126,9 +131,11 @@ export function useLiveActivity({ room, view, yourSeat, turnDeadline, send }: Us
         if (live) {
             if (!s.running) {
                 s.running = true
+                s.room = state.roomId
                 s.last = state
                 run((plugin) => plugin.start({ state }))
             } else if (s.last === null || !sameState(s.last, state)) {
+                s.room = state.roomId
                 s.last = state
                 run((plugin) => plugin.update({ state }))
             }
@@ -137,10 +144,13 @@ export function useLiveActivity({ room, view, yourSeat, turnDeadline, send }: Us
         if (!s.running) return
         s.running = false
         s.last = null
+        const ended = s.room
+        s.room = null
         // A finished game leaves its final score on the lock screen; leaving
-        // the room (or standing up) just removes the activity.
+        // the room (or standing up) just removes the activity — and that
+        // removal needs the room id, or Android has nothing to cancel.
         if (state !== null && state.phase === "gameOver") run((plugin) => plugin.end({ state }))
-        else run((plugin) => plugin.end({}))
+        else run((plugin) => plugin.end(ended === null ? {} : { roomId: ended }))
     }, [state, roomPlaying])
 
     // Unmount — navigating away from the table ends the activity too.
@@ -150,10 +160,12 @@ export function useLiveActivity({ room, view, yourSeat, turnDeadline, send }: Us
             if (!s.running) return
             s.running = false
             s.last = null
+            const ended = s.room
+            s.room = null
             s.chain = s.chain
                 .then(async () => {
                     const plugin = await availablePlugin()
-                    if (plugin) await plugin.end({})
+                    if (plugin) await plugin.end(ended === null ? {} : { roomId: ended })
                 })
                 .catch(() => undefined)
         }

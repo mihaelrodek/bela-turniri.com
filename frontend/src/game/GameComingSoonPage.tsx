@@ -4,6 +4,7 @@ import { Link as RouterLink } from "react-router-dom"
 import { FiArrowLeft, FiEdit3 } from "react-icons/fi"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 import { useTranslation } from "../i18n"
+import { isGamesSite } from "../site"
 
 /* ──────────────────────────────────────────────────────────────────────────
    What /igra* renders while the production kill switch is OFF.
@@ -103,12 +104,16 @@ export default function GameComingSoonPage() {
                     {t("game.comingSoon.description")}
                 </Text>
                 <HStack justify="center" gap="3" wrap="wrap">
-                    <Button asChild size="sm" variant="solid" colorPalette="brand">
-                        <RouterLink to="/turniri">
-                            <FiArrowLeft /> {t("game.comingSoon.backToTournaments")}
-                        </RouterLink>
-                    </Button>
-                    <Button asChild size="sm" variant="outline">
+                    {/* bela.games has no tournaments to go back to — the
+                        scorepad is the only other door on this site. */}
+                    {!isGamesSite && (
+                        <Button asChild size="sm" variant="solid" colorPalette="brand">
+                            <RouterLink to="/turniri">
+                                <FiArrowLeft /> {t("game.comingSoon.backToTournaments")}
+                            </RouterLink>
+                        </Button>
+                    )}
+                    <Button asChild size="sm" variant={isGamesSite ? "solid" : "outline"} colorPalette={isGamesSite ? "brand" : undefined}>
                         <RouterLink to="/blok">
                             <FiEdit3 /> {t("game.comingSoon.openBlok")}
                         </RouterLink>

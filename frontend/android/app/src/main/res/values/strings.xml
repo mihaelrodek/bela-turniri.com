@@ -20,6 +20,16 @@
     <string name="live_notif_text_other_turn">Na potezu je igrač %1$d</string>
     <string name="live_notif_win">Pobjeda!</string>
     <string name="live_notif_lose">Poraz</string>
+    <!-- Base URL the live-game notification taps deep-link into. NOT hard-coded
+         in Kotlin any more: create-games-native.sh rewrites the host in every
+         *.xml of the copied project, so the games build automatically gets
+         https://bela.games/igra/. A URL baked into LiveGameNotification.kt
+         survived that rewrite and the JS host check in NativeShell.tsx then
+         rejected the tap. Keep the trailing slash — the room id is appended. -->
+    <string name="live_deep_link_base" translatable="false">https://bela-turniri.com/igra/</string>
+    <!-- Content shown on the lock screen when notifications are set to hide
+         sensitive content: the fact that a game is running, never the score. -->
+    <string name="live_notif_public_title">Partija u tijeku</string>
 
     <!-- N5.3 "Nadolazeći turniri" home-screen widget. See
          UpcomingTournamentsWidgetProvider.kt / widget_upcoming_tournaments.xml. -->

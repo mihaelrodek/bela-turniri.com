@@ -288,7 +288,7 @@ export default function PwaNativeGestures() {
             {(pullDistance > 0 || refreshing) && (
                 <Box
                     position="fixed"
-                    top={`calc(env(safe-area-inset-top, 0px) + ${Math.max(pullDistance - 36, 4)}px)`}
+                    top={`calc(var(--safe-top) + ${Math.max(pullDistance - 36, 4)}px)`}
                     left="50%"
                     transform="translateX(-50%)"
                     zIndex="max"

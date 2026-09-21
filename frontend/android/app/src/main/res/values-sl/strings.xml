@@ -16,6 +16,7 @@
     <string name="live_notif_text_other_turn">Na potezi je igralec %1$d</string>
     <string name="live_notif_win">Zmaga!</string>
     <string name="live_notif_lose">Poraz</string>
+    <string name="live_notif_public_title">Igra poteka</string>
 
     <!-- N5.3 widget, Slovenian. See values/strings.xml for the hr source. -->
     <string name="widget_title">Prihajajoči turnirji</string>

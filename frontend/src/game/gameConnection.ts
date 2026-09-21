@@ -1,7 +1,6 @@
 import { DEFAULTS, PROTOCOL_VERSION } from "@bela/protocol"
 import type {
     ActiveSeatInfo,
-    ChatMessage,
     ClientMessage,
     PlayerView,
     Reaction,
@@ -65,7 +64,6 @@ const IDLE_CLOSE_MS = 3_000
 
 /** Ring buffers — a long game must not grow unbounded React state. */
 const MAX_EVENTS = 200
-const MAX_CHAT = 100
 /** Reactions are on screen briefly; a handful is all the table can ever show. */
 const MAX_REACTIONS = 12
 
@@ -93,7 +91,6 @@ export interface GameSocketState {
     declarationsPending: boolean
     autoPlayed: boolean
     events: QueuedGameEvent[]
-    chat: ChatMessage[]
     reactions: SeatReaction[]
     error: GameError | null
     /** Server's answer to "do I hold a seat anywhere?" (`game.active`). */
@@ -143,7 +140,6 @@ const initialState: GameSocketState = {
     declarationsPending: false,
     autoPlayed: false,
     events: [],
-    chat: [],
     reactions: [],
     error: null,
     activeSeat: null,
@@ -335,9 +331,9 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
             }
         }
         case "room.left":
-            // Chat can survive a hop, but no game-local visual state may: a
-            // later join is a fresh room unless the server explicitly sends a
-            // state for the same one.
+            // No game-local visual state may survive a hop: a later join is a
+            // fresh room unless the server explicitly sends a state for the
+            // same one.
             return {
                 ...prev,
                 room: null,
@@ -369,10 +365,6 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
                 seq: prev.seq + msg.events.length,
                 events: events.length > MAX_EVENTS ? events.slice(-MAX_EVENTS) : events,
             }
-        }
-        case "chat.msg": {
-            const chat = [...prev.chat, msg.msg]
-            return { ...prev, chat: chat.length > MAX_CHAT ? chat.slice(-MAX_CHAT) : chat }
         }
         case "chat.reaction": {
             // Append rather than replace-by-seat: two reactions from the same

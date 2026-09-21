@@ -107,6 +107,8 @@ export const legal = {
     "privacy.accountDeletion.body3":
         "Turniri koje ste organizirali i rezultati u kojima su sudjelovali drugi igrači se zadržavaju, s oznakom \"Obrisani korisnik\" umjesto vašeg imena — jer podaci i povijest turnira drugih igrača moraju ostati netaknuti.",
 
+    "privacy.accountDeletion.pageLink": "Detaljne upute i popis podataka: Brisanje računa",
+
     "privacy.rights.heading": "Vaša prava",
     "privacy.rights.body1":
         "Imate pravo na pristup, ispravak i brisanje svojih osobnih podataka, kao i na ograničenje obrade, prigovor na obradu te na prenosivost podataka.",
@@ -197,6 +199,97 @@ export const legal = {
 
     "terms.contact.heading": "Kontakt",
     "terms.contact.body": "Za sva pitanja vezana uz ove uvjete obratite nam se putem kontakt obrasca.",
+
+    // ═════════════════ AccountDeletionPage (/brisanje-racuna) ═════════════════
+    // Javna stranica, bez prijave — Google Play traži "web resurs" na kojem se
+    // brisanje računa može zatražiti i objasniti bez instalirane aplikacije
+    // (support.google.com/googleplay/android-developer/answer/13327111), a
+    // Apple traži da put do brisanja bude lako pronaći (5.1.1(v)).
+    //
+    // `{site}` je naziv proizvoda, a `{origin}` njegova adresa — oba dolaze iz
+    // `src/site.ts`, pa isti tekst ispravno glasi i na bela-turniri.com i na
+    // bela.games / belot.games. Stavke označene "fullOnly" u
+    // `AccountDeletionPage.tsx` ne prikazuju se na igraćim domenama jer tamo
+    // turnira nema.
+    "deletion.documentTitle": "Brisanje računa — {site}",
+    "deletion.documentDescription":
+        "Kako obrisati korisnički račun na {site}: koji se podaci brišu, što ostaje i kako zatražiti brisanje bez instalirane aplikacije.",
+    "deletion.title": "Brisanje računa",
+    "deletion.lastUpdated": "Zadnja izmjena: 20. 9. 2026.",
+    "deletion.intro":
+        "Na ovoj stranici piše kako obrisati svoj korisnički račun na {site}, koji se podaci pritom brišu, što ostaje i zašto, te kako zatražiti brisanje ako nemaš instaliranu aplikaciju.",
+
+    "deletion.inApp.heading": "Brisanje u aplikaciji",
+    "deletion.inApp.intro":
+        "Račun možeš obrisati sam, u svakom trenutku i bez da nam pišeš:",
+    "deletion.inApp.step1": "Prijavi se u aplikaciju.",
+    "deletion.inApp.step2":
+        "Otvori svoj profil i odaberi karticu \"Postavke\".",
+    "deletion.inApp.step3":
+        "Na dnu te kartice nalazi se odjeljak \"Brisanje računa\" — pritisni gumb \"Obriši račun\".",
+    "deletion.inApp.step4":
+        "U prozoru za potvrdu upiši riječ OBRIŠI i potvrdi. Brisanje se izvršava odmah i ne može se poništiti.",
+    "deletion.inApp.apple":
+        "Ako se prijavljuješ Apple ID-om, prilikom brisanja te još jednom pitamo za Apple prijavu kako bismo Appleu opozvali pristup aplikacije. Račun tada nestaje i s popisa \"Prijava s Appleom\" u postavkama tvog uređaja.",
+
+    "deletion.noApp.heading": "Brisanje bez aplikacije",
+    "deletion.noApp.body1":
+        "Isti postupak radi i u običnom web pregledniku, bez ikakve instalacije: otvori {origin}, prijavi se i slijedi korake iznad.",
+    "deletion.noApp.linkLabel": "Prijavi se i otvori profil",
+    "deletion.noApp.body2":
+        "Ako se više ne možeš prijaviti (izgubljen pristup e-pošti ili uređaju), pošalji nam zahtjev putem kontakt obrasca i navedi e-poštu s kojom je račun otvoren. Zahtjev rješavamo najkasnije u roku od 30 dana; prije brisanja možemo zatražiti potvrdu da je račun doista tvoj.",
+    "deletion.noApp.contactLabel": "Zatraži brisanje putem kontakt obrasca",
+
+    "deletion.deleted.heading": "Što se briše",
+    "deletion.deleted.item.profile":
+        "Podaci profila — prikazano ime, broj telefona i država, profilna fotografija (uključujući datoteku na poslužitelju), odabrani avatar, jezik i tema sučelja.",
+    "deletion.deleted.item.auth":
+        "Prijava — korisnik u usluzi Firebase Authentication, dakle e-pošta i lozinka odnosno povezani Google ili Apple račun. Kod Apple prijave dodatno opozivamo pristupni token kod Applea.",
+    "deletion.deleted.item.gameName":
+        "Ime za igru — ime koje se prikazuje za stolom u online beli.",
+    "deletion.deleted.item.push":
+        "Push obavijesti — sve pretplate preglednika i tokeni uređaja, pa obavijesti odmah prestaju.",
+    "deletion.deleted.item.blok":
+        "Blok bilježnica — spremljena povijest rezultata, i na poslužitelju i lokalno na uređaju s kojeg brišeš.",
+    "deletion.deleted.item.blocks":
+        "Blokirani korisnici — popis se briše u oba smjera.",
+    "deletion.deleted.item.reliability":
+        "Karma i zapisi o napuštanju partija u online beli.",
+    "deletion.deleted.item.pairPhone":
+        "Kontakt broj telefona na svim parovima koje si prijavio.",
+    "deletion.deleted.item.pairRequests":
+        "Oglasi \"tražim para\" koje si objavio, zajedno s imenom i kontakt brojem u njima.",
+    "deletion.deleted.item.presets":
+        "Spremljeni parovi i spremljeni predlošci cjenika. Spremljeni par koji dijeliš sa suvlasnikom prelazi njemu, jer je i on upisao pola tog imena.",
+    "deletion.deleted.item.device":
+        "Podaci na uređaju s kojeg brišeš — predmemorija podataka, red čekanja za rad bez mreže i spremljene konobarske sesije.",
+
+    "deletion.kept.heading": "Što ostaje i zašto",
+    "deletion.kept.intro":
+        "Brisanje je anonimizacija: osoba nestaje, a zajednička povijest igre ostaje netaknuta. Nakon brisanja tvoje se ime nigdje više ne prikazuje — umjesto njega piše \"Obrisani korisnik\".",
+    "deletion.kept.item.uid":
+        "Prazan zapis računa s nasumičnim identifikatorom i adresom profila (slug). Zadržava se trajno: to je jedini način da stare poveznice na tvoj profil daju uredno \"stranica ne postoji\" umjesto da tu adresu naslijedi netko drugi čije se ime jednako piše.",
+    "deletion.kept.item.tournaments":
+        "Turniri koje si organizirao i parovi koje si prijavio — bez tvog imena i broja telefona. Rezultati drugih igrača ne smiju se promijeniti zato što si ti otišao.",
+    "deletion.kept.item.gameResults":
+        "Rezultati odigranih partija online bele, vezani uz onaj prazni identifikator. Za stolom su četiri igrača i njihova statistika ne smije se promijeniti.",
+    "deletion.kept.item.reports":
+        "Prijave sadržaja — čuvaju se dok se ne riješe, jer je to upravo onaj zapis koji ne smije nestati kada prijavljena strana obriše račun.",
+    "deletion.kept.item.contact":
+        "Poruke poslane putem kontakt obrasca — IP adresu brišemo najkasnije 30 dana od zaprimanja, a cijelu poruku najkasnije 12 mjeseci od zaprimanja.",
+    "deletion.kept.item.logs":
+        "Zapisi poslužitelja (IP adresa i identifikator zahtjeva) — kratkoročno, radi sigurnosti i otklanjanja poteškoća.",
+    "deletion.kept.item.guest":
+        "Gostujući identitet, ako si uz račun igrao i kao gost. On je zaseban i nije dio računa koji brišeš, pa ostaje na uređaju; ukloniš ga brisanjem podataka stranice odnosno deinstalacijom aplikacije.",
+
+    "deletion.timing.heading": "Kada se brisanje izvršava",
+    "deletion.timing.body":
+        "Brisanje pokrenuto u aplikaciji izvršava se odmah, unutar istog zahtjeva — nema razdoblja čekanja i nema mogućnosti povrata. Sigurnosne kopije baze čuvaju se najviše 14 dana i u tom se roku automatski prepisuju, pa obrisani podaci nestaju i iz njih.",
+
+    "deletion.more.heading": "Više informacija",
+    "deletion.more.body":
+        "Potpuni popis podataka koje prikupljamo, svrhe i pravne osnove obrade te tvoja prava opisani su u pravilima privatnosti.",
+    "deletion.more.privacyLabel": "Pravila privatnosti",
 }
 
 /** Contract every other locale's `legal` namespace must satisfy. */

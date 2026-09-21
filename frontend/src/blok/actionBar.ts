@@ -26,4 +26,4 @@ export const ACTION_BAR_H = "8.25rem"
 
 /** Space to keep clear beneath the deal list — and the offset anything else
  *  fixed to the bottom of this route has to clear to sit ABOVE the bar. */
-export const ACTION_BAR_RESERVE = `calc(${ACTION_BAR_H} + ${ACTION_BAR_GAP} + env(safe-area-inset-bottom, 0px))`
+export const ACTION_BAR_RESERVE = `calc(${ACTION_BAR_H} + ${ACTION_BAR_GAP} + var(--safe-bottom))`

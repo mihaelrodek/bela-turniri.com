@@ -8,6 +8,7 @@ import {
     jackOverAceOnTrumpLead,
     lowTrumpBackAfterJack,
     partnerLowPlainLeadAsksForTrump,
+    singletonLead,
     suitToReturnToPartner,
     belaLead,
     belaSeat,
@@ -28,6 +29,16 @@ import {
     shouldChaseStiglja,
     stigljaIsLive,
     stigljaLead,
+    stigljaTrumpRun,
+    stigljaHandOver,
+    plainBeforeLastTrump,
+    continueAceSuit,
+    stigljaStopSignal,
+    callerLeadsToPartnersNine,
+    declaredNineThrough,
+    stigljaSignalDiscard,
+    stigljaDefenceDiscard,
+    opponentsChasingStiglja,
     stigljaTakeOver,
     forceOutTheLastTrump,
     iAmDefending,
@@ -1169,11 +1180,21 @@ describe("partnerSignal (BOT.md §3)", () => {
     })
 
     it("discards from every plain suit but one name the one he is protecting", () => {
+        // From the TOP of each suit he gives up — that is what wanting the
+        // third one looks like.
+        const v = withHistory([
+            wonTrick(1, ["7HERC", "KKARA", "8HERC", "9HERC"], 3),
+            wonTrick(1, ["10HERC", "QPIK", "JHERC", "QHERC"], 3),
+        ])
+        expect(partnerSignal(v)).toEqual({ wants: "TREF", avoids: ["KARA", "PIK"] })
+    })
+
+    it("two LOW cards in a row from two suits say 'stani', not 'I want the third'", () => {
         const v = withHistory([
             wonTrick(1, ["7HERC", "7KARA", "8HERC", "9HERC"], 3),
             wonTrick(1, ["10HERC", "8PIK", "JHERC", "QHERC"], 3),
         ])
-        expect(partnerSignal(v)).toEqual({ wants: "TREF", avoids: ["KARA", "PIK"] })
+        expect(partnerSignal(v)).toEqual({ wants: null, avoids: ["KARA", "PIK"] })
     })
 
     it("does NOT guess while two suits are still untouched", () => {
@@ -1272,7 +1293,17 @@ describe("isThinLead (BOT.md §5.5)", () => {
     })
 
     it("is false for a card from a suit I hold more than one of", () => {
-        expect(isThinLead(v, "7TREF")).toBe(false)
+        const plain = view({ seat: 0, hand: ["7HERC", "7PIK", "AKARA", "KTREF", "7TREF", "8TREF"] })
+        expect(isThinLead(plain, "7TREF")).toBe(false)
+    })
+
+    it("is TRUE for any card of a short suit that holds the 10 under an outstanding ace", () => {
+        // 10-8-7 of TREF, the ace still out: open it and the ace takes the
+        // trick, the 10 is ruffed next round (reported 2026-09-21).
+        expect(isThinLead(v, "7TREF")).toBe(true)
+        // With the ace already played the 10 is a master and the suit is fine.
+        const aceGone = view({ seat: 0, hand: v.hand, played: ["ATREF"] })
+        expect(isThinLead(aceGone, "7TREF")).toBe(false)
     })
 
     it("is false for a master 10, singleton or not", () => {
@@ -2641,14 +2672,28 @@ describe("suitToReturnToPartner / partnerLowPlainLeadAsksForTrump (BOT.md §13.2
         }
     }
 
+    /** The same table, but with my partner (seat 2) as the caller. */
+    const hisCall: Partial<PlayerView> = { bidding: { turn: 0, passes: [], trump: "HERC", caller: 2 } }
+
     it("gives the suit back when he opened it with an honour", () => {
         expect(suitToReturnToPartner(afterHisLead("KPIK"))).toBe("PIK")
         expect(partnerLowPlainLeadAsksForTrump(afterHisLead("KPIK"))).toBe(false)
     })
 
-    it("reads a LOW opening as a request for trump instead", () => {
-        expect(suitToReturnToPartner(afterHisLead("8PIK"))).toBeNull()
-        expect(partnerLowPlainLeadAsksForTrump(afterHisLead("8PIK"))).toBe(true)
+    it("gives the suit back on a LOW opening too when he did not call — it may be his singleton", () => {
+        // Helper default: I (seat 0) am the caller, so he is not.
+        expect(suitToReturnToPartner(afterHisLead("8PIK"))).toBe("PIK")
+        expect(partnerLowPlainLeadAsksForTrump(afterHisLead("8PIK"))).toBe(false)
+    })
+
+    it("reads the CALLER's low opening as a request for trump instead", () => {
+        expect(suitToReturnToPartner(afterHisLead("8PIK", hisCall))).toBeNull()
+        expect(partnerLowPlainLeadAsksForTrump(afterHisLead("8PIK", hisCall))).toBe(true)
+    })
+
+    it("still gives the suit back when the caller opened it with an honour", () => {
+        expect(suitToReturnToPartner(afterHisLead("KPIK", hisCall))).toBe("PIK")
+        expect(partnerLowPlainLeadAsksForTrump(afterHisLead("KPIK", hisCall))).toBe(false)
     })
 
     it("says nothing when an OPPONENT opened the suit", () => {
@@ -2681,10 +2726,52 @@ describe("suitToReturnToPartner / partnerLowPlainLeadAsksForTrump (BOT.md §13.2
 
     it("drops the trump request once his declarations deny him the jack", () => {
         const v = afterHisLead("8PIK", {
+            ...hisCall,
             declarations: { 2: [{ kind: "SEQUENCE", cards: ["8HERC", "9HERC", "10HERC"], points: 20 }] },
             declarationsRevealed: true,
         })
         expect(partnerLowPlainLeadAsksForTrump(v)).toBe(false)
+    })
+})
+
+describe("singletonLead (BOT.md §13.6)", () => {
+    const defender: Partial<PlayerView> = { bidding: { turn: 0, passes: [], trump: "HERC", caller: 1 } }
+
+    it("opens a low singleton when there is a small trump to ruff with", () => {
+        const hand: Card[] = ["7HERC", "8PIK", "KTREF", "QTREF", "9KARA", "8KARA"]
+        const v = { ...view({ seat: 0, hand }), ...defender }
+        expect(singletonLead(v, hand)).toBe("8PIK")
+    })
+
+    it("stays silent for the caller, whose trumps are for drawing", () => {
+        const hand: Card[] = ["7HERC", "8PIK", "KTREF", "QTREF", "9KARA", "8KARA"]
+        expect(singletonLead(view({ seat: 0, hand }), hand)).toBeNull()
+    })
+
+    it("stays silent without a small trump — the jack is not a ruffing card", () => {
+        const hand: Card[] = ["JHERC", "8PIK", "KTREF", "QTREF", "9KARA", "8KARA"]
+        const v = { ...view({ seat: 0, hand }), ...defender }
+        expect(singletonLead(v, hand)).toBeNull()
+    })
+
+    it("does not lead the singleton into a suit the partner DECLARED without the ace", () => {
+        // Reported 2026-09-21: partner showed 8-9-10 of KARA, the bot led its
+        // lone KARA jack, he had to go over it and the 10 fell under the ace.
+        const hand: Card[] = ["7HERC", "JKARA", "KTREF", "QTREF", "9PIK", "8PIK"]
+        const v = {
+            ...view({ seat: 0, hand }),
+            ...defender,
+            declarations: { 2: [{ kind: "SEQUENCE" as const, cards: ["8KARA", "9KARA", "10KARA"] as Card[], points: 20 as const }] },
+            declarationsRevealed: true,
+        }
+        expect(singletonLead(v, hand)).toBeNull()
+    })
+
+    it("never leads a singleton ten blind, nor a singleton ace", () => {
+        const ten: Card[] = ["7HERC", "10PIK", "KTREF", "QTREF", "9KARA", "8KARA"]
+        const ace: Card[] = ["7HERC", "APIK", "KTREF", "QTREF", "9KARA", "8KARA"]
+        expect(singletonLead({ ...view({ seat: 0, hand: ten }), ...defender }, ten)).toBeNull()
+        expect(singletonLead({ ...view({ seat: 0, hand: ace }), ...defender }, ace)).toBeNull()
     })
 })
 
@@ -2700,8 +2787,13 @@ describe("callerLengthTrumpLead (BOT.md §13.3)", () => {
         ...over,
     })
 
-    it("leads the smallest trump on the reported length call", () => {
+    it("leads the queen on the reported length call — a 7/8 would say 'vrati aduta'", () => {
         const hand: Card[] = ["7HERC", "9HERC", "10HERC", "QHERC", "AHERC"]
+        expect(callerLengthTrumpLead(asCaller(hand), hand)).toBe("QHERC")
+    })
+
+    it("falls back to the smallest trump when it holds neither the king nor the queen", () => {
+        const hand: Card[] = ["7HERC", "8HERC", "9HERC", "AHERC"]
         expect(callerLengthTrumpLead(asCaller(hand), hand)).toBe("7HERC")
     })
 
@@ -2851,5 +2943,326 @@ describe("jackOverAceOnTrumpLead (BOT.md §13.5)", () => {
             },
         })
         expect(jackOverAceOnTrumpLead(v, ["JHERC", "AHERC"])).toBeNull()
+    })
+})
+
+describe("štihak: runner, partner, defender (BOT.md §14)", () => {
+    const otherTrumps: Card[] = ["QHERC", "8HERC", "7HERC"]
+
+    it("keeps leading master trumps after the opponents have run out, so the partner can discard", () => {
+        const hand: Card[] = ["JHERC", "9HERC", "AHERC", "10HERC", "KHERC", "7PIK", "8PIK", "7TREF"]
+        const v = view({ seat: 0, hand, played: otherTrumps })
+        expect(stigljaTrumpRun(v, hand)).toBe("JHERC")
+    })
+
+    it("is silent for the defending side and once a trick has been lost", () => {
+        const hand: Card[] = ["JHERC", "9HERC", "AHERC", "7PIK"]
+        const defending = view({ seat: 0, hand, played: otherTrumps, bidding: { turn: 0, passes: [], trump: "HERC", caller: 1 } })
+        expect(stigljaTrumpRun(defending, hand)).toBeNull()
+        const lostOne = view({ seat: 0, hand, played: otherTrumps, tricksWon: { A: 2, B: 1 } })
+        expect(stigljaTrumpRun(lostOne, hand)).toBeNull()
+    })
+
+    it("stops the parade once the partner has given up on every suit I would need him in", () => {
+        const t1: Card[] = ["JHERC", "7HERC", "KPIK", "8HERC"]
+        const t2: Card[] = ["9HERC", "QHERC", "KTREF", "7KARA"]
+        const hand: Card[] = ["AHERC", "10HERC", "KHERC", "7PIK", "8TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            played: [...t1, ...t2],
+            trickHistory: [wonTrick(0, t1, 0), wonTrick(0, t2, 0)],
+            tricksWon: { A: 2, B: 0 },
+        })
+        expect(stigljaTrumpRun(v, hand)).toBeNull()
+    })
+
+    it("keeps the last trump as a re-entry while somebody else can still hold one", () => {
+        const hand: Card[] = ["KHERC", "7PIK", "8TREF"]
+        const gone: Card[] = ["JHERC", "9HERC", "AHERC", "10HERC", "QHERC", "8HERC"] // the 7 is still out
+        const v = view({ seat: 0, hand, played: gone, tricksWon: { A: 5, B: 0 } })
+        expect(stigljaTrumpRun(v, hand)).toBeNull()
+    })
+
+    it("leads the very last trump in play: it costs nothing and buys the partner's second discard", () => {
+        // Reported 2026-09-21: seven trumps out after two rounds, the caller
+        // holds the eighth and an ace; the partner has thrown one TREF so far.
+        const t1: Card[] = ["JHERC", "7HERC", "8HERC", "QHERC"]
+        const t2: Card[] = ["9HERC", "10HERC", "8TREF", "AHERC"]
+        const hand: Card[] = ["KHERC", "APIK", "7PIK", "8KARA", "9KARA", "7TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            played: [...t1, ...t2],
+            trickHistory: [wonTrick(0, t1, 0), wonTrick(0, t2, 0)],
+            tricksWon: { A: 2, B: 0 },
+        })
+        // The ace first ("čim si protivnicima pokupio adute"), so the partner
+        // knows which 10 to keep before he starts discarding — then the trump.
+        expect(stigljaTrumpRun(v, hand)).toBe("APIK")
+        const afterAce = hand.filter((card) => card !== "APIK")
+        const t3: Card[] = ["APIK", "8PIK", "9PIK", "QPIK"]
+        const thenTrump = {
+            ...v,
+            hand: afterAce,
+            played: [...v.played, ...t3],
+            trickHistory: [...(v.trickHistory ?? []), wonTrick(0, t3, 0)],
+            tricksWon: { A: 3, B: 0 },
+        }
+        expect(stigljaTrumpRun(thenTrump, afterAce)).toBe("KHERC")
+
+        // The same table with NOTHING behind the trump — no ace of my own,
+        // none shown by my partner: no štihak to play for, the trump stays.
+        const bare: Card[] = ["KHERC", "QPIK", "7PIK", "8KARA", "9KARA", "7TREF"]
+        expect(stigljaTrumpRun({ ...v, hand: bare }, bare)).toBeNull()
+        // …unless his declaration shows an ace.
+        const shown = {
+            ...v,
+            hand: bare,
+            declarations: { 2: [{ kind: "SEQUENCE" as const, cards: ["QKARA", "KKARA", "AKARA"] as Card[], points: 20 as const }] },
+            declarationsRevealed: true,
+        }
+        expect(stigljaTrumpRun(shown, bare)).toBe("KHERC")
+    })
+
+    it("the partner keeps his take-over suit whole and sheds the others, shortest first, high to low", () => {
+        // A-10-K of PIK is where I take over; the lone KARA jack goes first,
+        // then TREF from the top — never the PIK 10 that `fillCard` would feed.
+        const hand: Card[] = ["APIK", "10PIK", "KPIK", "QTREF", "7TREF", "JKARA"]
+        const v = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 2 },
+            trick: { leader: 2, turn: 0, cards: [{ seat: 2, card: "AHERC" }, { seat: 3, card: "7HERC" }] },
+        })
+        expect(stigljaSignalDiscard(v, hand)).toBe("JKARA")
+        expect(fillCard(v, hand)).toBe("JKARA")
+        // On his JACK the backed ace goes in instead: it fills the trick and
+        // shows the 10 behind it (the document's own example).
+        const onJack = { ...v, trick: { leader: 2 as Seat, turn: 0 as Seat, cards: [{ seat: 2 as Seat, card: "JHERC" as Card }, { seat: 3 as Seat, card: "7HERC" as Card }] } }
+        expect(fillCard(onJack, hand)).toBe("APIK")
+        const next = hand.filter((card) => card !== "JKARA")
+        expect(stigljaSignalDiscard({ ...v, hand: next }, next)).toBe("QTREF")
+    })
+
+    it("a defender does not throw away the guard of his only stopper", () => {
+        // The PIK ace is still out: 10-8-7 needs two cards to survive it, so
+        // exactly one low PIK is spare; TREF can never take a trick.
+        const hand: Card[] = ["10PIK", "8PIK", "7PIK", "8TREF", "7TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 1 },
+            tricksWon: { A: 0, B: 3 },
+            trick: { leader: 1, turn: 0, cards: [{ seat: 1, card: "AKARA" }, { seat: 2, card: "7KARA" }, { seat: 3, card: "8KARA" }] },
+        })
+        expect(opponentsChasingStiglja(v)).toBe(true)
+        const thrown = stigljaDefenceDiscard(v, hand)
+        expect(["7PIK", "7TREF", "8TREF"]).toContain(thrown)
+    })
+
+    it("says nothing on defence while our side has a trick", () => {
+        const hand: Card[] = ["10PIK", "8PIK", "7TREF"]
+        const v = view({ seat: 0, hand, bidding: { turn: 0, passes: [], trump: "HERC", caller: 1 }, tricksWon: { A: 1, B: 3 } })
+        expect(stigljaDefenceDiscard(v, hand)).toBeNull()
+    })
+})
+
+describe("the caller's jack waits for the partner's declared nine (BOT.md §15.9)", () => {
+    const partnersRun = {
+        declarations: { 2: [{ kind: "SEQUENCE" as const, cards: ["8HERC", "9HERC", "10HERC"] as Card[], points: 20 as const }] },
+        declarationsRevealed: true,
+    }
+
+    it("the caller looks for his partner's hand instead of leading the jack", () => {
+        const hand: Card[] = ["JHERC", "QHERC", "APIK", "7PIK", "KTREF", "8TREF", "7KARA", "QKARA"]
+        const v = { ...view({ seat: 0, hand }), ...partnersRun }
+        const led = callerLeadsToPartnersNine(v, hand)
+        // Not PIK (my ace is there), never a trump: a low TREF or KARA.
+        expect(["8TREF", "7KARA"]).toContain(led)
+    })
+
+    it("says nothing without the declaration, without the jack, or once the nine is gone", () => {
+        const hand: Card[] = ["JHERC", "QHERC", "APIK", "7PIK", "KTREF", "8TREF"]
+        expect(callerLeadsToPartnersNine(view({ seat: 0, hand }), hand)).toBeNull()
+        const noJack: Card[] = ["AHERC", "QHERC", "APIK", "7PIK", "KTREF", "8TREF"]
+        expect(callerLeadsToPartnersNine({ ...view({ seat: 0, hand: noJack }), ...partnersRun }, noJack)).toBeNull()
+        const played = { ...view({ seat: 0, hand, played: ["9HERC"] }), ...partnersRun }
+        expect(callerLeadsToPartnersNine(played, hand)).toBeNull()
+    })
+
+    it("the partner puts his DECLARED nine through when he gets the lead", () => {
+        const hand: Card[] = ["8HERC", "9HERC", "10HERC", "7PIK", "8TREF"]
+        const mine = {
+            bidding: { turn: 0 as Seat, passes: [], trump: "HERC" as const, caller: 2 as Seat },
+            declarations: { 0: [{ kind: "SEQUENCE" as const, cards: ["8HERC", "9HERC", "10HERC"] as Card[], points: 20 as const }] },
+            declarationsRevealed: true,
+        }
+        expect(declaredNineThrough({ ...view({ seat: 0, hand }), ...mine }, hand)).toBe("9HERC")
+        // An undeclared nine is not this rule's business.
+        const silent = { ...view({ seat: 0, hand }), bidding: mine.bidding }
+        expect(declaredNineThrough(silent, hand)).toBeNull()
+    })
+})
+
+
+describe("stigljaHandOver — the ten under the partner's shown ace (BOT.md §15.13)", () => {
+    const trumpsGone: Card[] = ["JHERC", "9HERC", "AHERC", "10HERC", "KHERC", "QHERC", "8HERC", "7HERC"]
+    const shown = {
+        declarations: { 2: [{ kind: "SEQUENCE" as const, cards: ["QPIK", "KPIK", "APIK"] as Card[], points: 20 as const }] },
+        declarationsRevealed: true,
+    }
+
+    it("hands over with the TEN, not the seven, so his suit is never blocked", () => {
+        const hand: Card[] = ["10PIK", "7PIK", "8TREF"]
+        const v = { ...view({ seat: 0, hand, played: trumpsGone, tricksWon: { A: 5, B: 0 } }), ...shown }
+        expect(stigljaHandOver(v, hand)).toBe("10PIK")
+    })
+
+    it("waits while I still hold a winner of my own, and is silent without the proof", () => {
+        const withAce: Card[] = ["10PIK", "7PIK", "ATREF"]
+        const v = { ...view({ seat: 0, hand: withAce, played: trumpsGone, tricksWon: { A: 5, B: 0 } }), ...shown }
+        expect(stigljaHandOver(v, withAce)).toBeNull()
+        const hand: Card[] = ["10PIK", "7PIK", "8TREF"]
+        expect(stigljaHandOver(view({ seat: 0, hand, played: trumpsGone, tricksWon: { A: 5, B: 0 } }), hand)).toBeNull()
+    })
+
+    it("is silent once a trick has been lost", () => {
+        const hand: Card[] = ["10PIK", "7PIK", "8TREF"]
+        const v = { ...view({ seat: 0, hand, played: trumpsGone, tricksWon: { A: 4, B: 1 } }), ...shown }
+        expect(stigljaHandOver(v, hand)).toBeNull()
+    })
+})
+
+
+describe("hand-over on discards alone, and the stop signal (BOT.md §15.13–§15.14)", () => {
+    it("hands over with the ten once he has thrown from BOTH other suits and never from this one", () => {
+        const t1: Card[] = ["JHERC", "7HERC", "KTREF", "8HERC"]
+        const t2: Card[] = ["9HERC", "QHERC", "QKARA", "KHERC"]
+        const t3: Card[] = ["AHERC", "10HERC", "8TREF", "7TREF"]
+        const hand: Card[] = ["10PIK", "7PIK", "9TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            played: [...t1, ...t2, ...t3],
+            trickHistory: [wonTrick(0, t1, 0), wonTrick(0, t2, 0), wonTrick(0, t3, 0)],
+            tricksWon: { A: 3, B: 0 },
+        })
+        expect(stigljaHandOver(v, hand)).toBe("10PIK")
+    })
+
+    it("does NOT risk the ten after a single discard", () => {
+        const t1: Card[] = ["JHERC", "7HERC", "KTREF", "8HERC"]
+        const rest: Card[] = ["9HERC", "QHERC", "KHERC", "AHERC", "10HERC"]
+        const hand: Card[] = ["10PIK", "7PIK", "9TREF"]
+        const v = view({
+            seat: 0,
+            hand,
+            played: [...t1, ...rest],
+            trickHistory: [wonTrick(0, t1, 0)],
+            tricksWon: { A: 3, B: 0 },
+        })
+        expect(stigljaHandOver(v, hand)).toBeNull()
+    })
+
+    it("with nothing to take over, mixes the suits: a fresh suit each time", () => {
+        // No ace, no backed ten, no master, nothing four long.
+        const hand: Card[] = ["KPIK", "8PIK", "QTREF", "7TREF", "JKARA", "9KARA"]
+        const first = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 2 },
+            trick: { leader: 2, turn: 0, cards: [{ seat: 2, card: "AHERC" }, { seat: 3, card: "7HERC" }] },
+        })
+        const one = stigljaStopSignal(first, hand)
+        expect(one).not.toBeNull()
+        // The second discard must come from a DIFFERENT suit than the first.
+        const t1: Card[] = ["AHERC", "7HERC", one as Card, "8HERC"]
+        const next = hand.filter((card) => card !== one)
+        const second = view({
+            seat: 0,
+            hand: next,
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 2 },
+            played: t1,
+            trickHistory: [wonTrick(2, t1, 2)],
+            tricksWon: { A: 1, B: 0 },
+            trick: { leader: 2, turn: 0, cards: [{ seat: 2, card: "9HERC" }, { seat: 3, card: "QHERC" }] },
+        })
+        const two = stigljaStopSignal(second, next)
+        expect(two).not.toBeNull()
+        expect((two as Card).slice(-3)).not.toBe((one as Card).slice(-3))
+    })
+
+    it("stays out of it when there IS a suit to take over in", () => {
+        const hand: Card[] = ["APIK", "10PIK", "QTREF", "7TREF", "JKARA"]
+        const v = view({
+            seat: 0,
+            hand,
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 2 },
+            trick: { leader: 2, turn: 0, cards: [{ seat: 2, card: "AHERC" }, { seat: 3, card: "7HERC" }] },
+        })
+        expect(stigljaStopSignal(v, hand)).toBeNull()
+    })
+})
+
+describe("plainBeforeLastTrump — the master trump takes the LAST trick (BOT.md §15.16)", () => {
+    // Every trump but mine and one lower one has been played.
+    const gone: Card[] = ["JHERC", "AHERC", "10HERC", "KHERC", "8HERC", "7HERC"]
+
+    it("leads the plain card first and keeps the master trump for the last trick", () => {
+        const hand: Card[] = ["9HERC", "QPIK"] // QHERC is still out, below my nine
+        const v = view({ seat: 0, hand, played: gone, handSizes: { 0: 2, 1: 2, 2: 2, 3: 2 } })
+        expect(plainBeforeLastTrump(v, hand)).toBe("QPIK")
+    })
+
+    it("is silent when the plain card is a master too, or when my trump is not", () => {
+        const masters: Card[] = ["9HERC", "APIK"]
+        expect(plainBeforeLastTrump(view({ seat: 0, hand: masters, played: gone }), masters)).toBeNull()
+        const lowTrump: Card[] = ["QHERC", "QPIK"] // the nine is still out, above my queen
+        const v = view({ seat: 0, hand: lowTrump, played: gone })
+        expect(plainBeforeLastTrump(v, lowTrump)).toBeNull()
+    })
+
+    it("only speaks with exactly two cards left", () => {
+        const hand: Card[] = ["9HERC", "QPIK", "7PIK"]
+        expect(plainBeforeLastTrump(view({ seat: 0, hand, played: gone }), hand)).toBeNull()
+    })
+})
+
+describe("continueAceSuit — no hopping from ace to ace (BOT.md §15.17)", () => {
+    const aceTrick: Card[] = ["APIK", "8PIK", "QPIK", "9PIK"]
+    const after = (hand: Card[], over: Omit<Partial<PlayerView>, "seat" | "hand"> = {}): PlayerView =>
+        view({
+            seat: 0,
+            hand,
+            bidding: { turn: 0, passes: [], trump: "HERC", caller: 1 },
+            played: aceTrick,
+            trickHistory: [wonTrick(0, aceTrick, 0)],
+            tricksWon: { A: 1, B: 0 },
+            ...over,
+        })
+
+    it("follows the cashed ace with a low card of the same suit, not with the other ace", () => {
+        const hand: Card[] = ["7PIK", "JPIK", "ATREF", "8TREF", "7KARA"]
+        expect(continueAceSuit(after(hand), hand)).toBe("7PIK")
+    })
+
+    it("plays the 10 when it is the master and three cards of the suit are still out", () => {
+        const hand: Card[] = ["10PIK", "ATREF", "8TREF"]
+        expect(continueAceSuit(after(hand), hand)).toBe("10PIK")
+    })
+
+    it("keeps the 10 back when only two cards of the suit are left outside — a ruff is too likely", () => {
+        const hand: Card[] = ["10PIK", "7PIK", "ATREF", "8TREF"]
+        expect(continueAceSuit(after(hand), hand)).toBe("7PIK")
+    })
+
+    it("is silent when somebody did not follow the ace, or when I have no card of the suit left", () => {
+        const ruffed: Card[] = ["APIK", "8PIK", "QPIK", "7KARA"]
+        const hand: Card[] = ["7PIK", "ATREF", "8TREF"]
+        const v = after(hand, { played: ruffed, trickHistory: [wonTrick(0, ruffed, 0)] })
+        expect(continueAceSuit(v, hand)).toBeNull()
+        const none: Card[] = ["ATREF", "8TREF", "7KARA"]
+        expect(continueAceSuit(after(none), none)).toBeNull()
     })
 })

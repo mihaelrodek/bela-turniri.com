@@ -5,12 +5,11 @@ import SwiftUI
 /**
  * SwiftUI Live Activity for a running bela online game (N4.1b).
  *
- * DROP-IN FILE: the `BelaActivity` widget-extension target does not exist
- * yet (see `BelaActivity-dropin/README.md` for the exact Xcode steps). This
- * file only depends on `BelaActivityAttributes` (shared with the `App`
- * target, read-only from here) and the iOS SDK — nothing here reaches into
- * app code, so it can be dragged into the extension target unmodified once
- * it is created.
+ * This file is the whole `BelaActivity` widget-extension target (created by
+ * `frontend/scripts/add-live-activity-target.rb`). It depends only on
+ * `BelaActivityAttributes` — the one file shared with the `App` target, read
+ * only from here — and on the iOS SDK; nothing reaches into app code.
+ * `BelaActivityBundle` below is the extension's `@main` entry point.
  *
  * Every user-facing string lives in `L10n` below: widget extensions cannot
  * share the web app's `hr`/`sl` dictionaries (`src/i18n`), so Croatian is
@@ -236,9 +235,19 @@ private struct ProgressBar: View {
 
 // MARK: - Widget
 
+/**
+ * The one configuration, factored out of the widget structs so the iOS 18.4
+ * `supplementalActivityFamilies` variant below can reuse it verbatim.
+ *
+ * `context.isStale` flips to true once the `staleDate` the app set on the
+ * content passes (`BelaLiveActivityPlugin` sets it to "now + 15 min", the
+ * same window the backend's remote `end` uses). Every surface below then
+ * shows "Čeka ažuriranje" instead of a score/timer that is quietly wrong —
+ * which is exactly what a Live Activity is required to do when its data can
+ * no longer be trusted.
+ */
 @available(iOS 16.2, *)
-struct BelaActivityLiveActivity: Widget {
-    var body: some WidgetConfiguration {
+private func belaActivityConfiguration() -> some WidgetConfiguration {
         ActivityConfiguration(for: BelaActivityAttributes.self) { context in
             LockScreenView(state: context.state, isStale: context.isStale)
                 .activityBackgroundTint(Color.deepGreen)
@@ -263,6 +272,42 @@ struct BelaActivityLiveActivity: Widget {
                 TrumpGlyph(trump: context.state.trump)
             }
         }
+}
+
+/** Plain widget — everything down to iOS 16.2. */
+@available(iOS 16.2, *)
+struct BelaActivityLiveActivity: Widget {
+    var body: some WidgetConfiguration { belaActivityConfiguration() }
+}
+
+// MARK: - Extension entry point
+
+/**
+ * `@main` for the `BelaActivity` widget extension. A widget extension with
+ * no `WidgetBundle` (or `@main Widget`) builds but registers NOTHING, and
+ * the Live Activity then never draws no matter how well the app requests it.
+ *
+ * ── Why there is no `.supplementalActivityFamilies([.small])` here ──
+ * That modifier (Apple Watch Smart Stack / small surfaces) is iOS 18.0+,
+ * while this extension deploys to 16.2 so Live Activities keep working on
+ * iOS 16.2–17.x. Offering it only on 18+ would need a runtime either/or
+ * between two widgets, and `WidgetBundleBuilder` cannot express one: its
+ * `buildOptional` is explicitly `@available(*, unavailable, message: "if
+ * statements in a WidgetBundleBuilder can only be used with #available
+ * clauses")`, there is no `buildEither`, and a function returning
+ * `some WidgetConfiguration` cannot return two different opaque types.
+ * Registering BOTH widgets compiles, but that would mean two
+ * `ActivityConfiguration`s for the same `BelaActivityAttributes` — which
+ * one WidgetKit then draws is undefined.
+ *
+ * So: add `.supplementalActivityFamilies([.small])` to
+ * `belaActivityConfiguration()` the day the extension's deployment target
+ * moves to iOS 18.0, and not before. Nothing else has to change.
+ */
+@main
+struct BelaActivityBundle: WidgetBundle {
+    var body: some Widget {
+        BelaActivityLiveActivity()
     }
 }
 

@@ -1,14 +1,16 @@
-import React, { useEffect, type ReactNode } from "react"
+import React, { useEffect, useState, type ReactNode } from "react"
 import {
     Box, Flex, HStack, IconButton, Image, Button, Container, Menu, Switch, Text, chakra, useBreakpointValue,
+    CloseButton, Drawer, Portal, VStack,
 } from "@chakra-ui/react"
-import { Link as RouterLink, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
+import { Link as RouterLink, useLocation, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
 import { CardsIcon } from "./MobileTabBar"
 import {
     FiCalendar, FiEdit3, FiHome, FiLogOut, FiMap, FiMenu, FiMoon, FiSun, FiUser, FiVolume2,
 } from "react-icons/fi"
 import { useAuth } from "../auth/authContextValue"
 import { useColorMode } from "../color-mode-hooks"
+import { homePath, isGamesSite, siteName } from "../site"
 import { updateColorMode } from "../api/userMe"
 import { useInstallPrompt, type InstallPromptState } from "../hooks/useInstallPrompt"
 import { useInvalidateMyProfile, useMyProfile } from "../hooks/useMyProfile"
@@ -157,7 +159,7 @@ type NavItem = {
 }
 
 function buildNavItems(t: (key: string) => string): NavItem[] {
-    return [
+    const items: NavItem[] = [
         { to: "/turniri", label: t("common.nav.turniri"), icon: <FiHome size={16} />, exact: true },
         { to: "/kalendar", label: t("common.nav.kalendar"), icon: <FiCalendar size={16} /> },
         // Online bela (src/game), dead centre — the same slot it holds in the
@@ -172,6 +174,10 @@ function buildNavItems(t: (key: string) => string): NavItem[] {
         // subtree.
         { to: "/blok", label: t("common.nav.blok"), icon: <FiEdit3 size={16} /> },
     ]
+    // bela.games (src/site.ts) has no tournaments, calendar or map — only
+    // the game and the scorepad stay in the nav.
+    if (isGamesSite) return items.filter((item) => item.to === "/igra" || item.to === "/blok")
+    return items
 }
 
 /**
@@ -414,7 +420,7 @@ function UserMenu({ tourAnchor, compact }: { tourAnchor?: string; compact?: bool
         try {
             await signOut()
         } finally {
-            navigate("/turniri")
+            navigate(homePath)
         }
     }
 
@@ -519,6 +525,224 @@ function AuthArea({ compact, tourAnchor }: { compact?: boolean; tourAnchor?: str
     return <UserMenu tourAnchor={tourAnchor} compact={compact} />
 }
 
+/* ── bela.games mobile bar (2026-09-20, owner's design) ─────────────────────
+   The games site has exactly two places to be, so they are a SWITCH in the
+   middle of the header rather than a tab bar at the bottom: mark on the left
+   (no wordmark — the address bar and the icon already say it), Igraj | Blok
+   in the centre, and one hamburger on the right that opens a side drawer with
+   everything else (account, news, theme, language, install, sign out). The
+   bottom tab bar is not rendered at all on this site (`MobileTabBar`). */
+
+function GamesSwitch() {
+    const { t } = useTranslation()
+    const { pathname } = useLocation()
+    const onBlok = pathname.startsWith("/blok")
+    const items = [
+        { to: "/igra", label: t("common.nav.igraj"), icon: <CardsIcon size={16} />, active: !onBlok },
+        { to: "/blok", label: t("common.nav.blok"), icon: <FiEdit3 size={15} />, active: onBlok },
+    ]
+    return (
+        <HStack
+            as="nav"
+            aria-label={t("common.mobileNav.ariaLabel")}
+            gap="0.5"
+            p="0.5"
+            rounded="full"
+            bg="bg.subtle"
+            borderWidth="1px"
+            borderColor="border.subtle"
+        >
+            {items.map((item) => (
+                <chakra.a
+                    key={item.to}
+                    asChild
+                    display="inline-flex"
+                    alignItems="center"
+                    gap="1.5"
+                    h="32px"
+                    px="3.5"
+                    rounded="full"
+                    fontSize="sm"
+                    fontWeight="semibold"
+                    textDecoration="none"
+                    bg={item.active ? "brand.solid" : "transparent"}
+                    color={item.active ? "brand.contrast" : "fg.muted"}
+                    _hover={{ textDecoration: "none", color: item.active ? "brand.contrast" : "fg" }}
+                    transition="background 0.15s ease, color 0.15s ease"
+                >
+                    <RouterLink to={item.to} aria-current={item.active ? "page" : undefined}>
+                        {item.icon}
+                        {item.label}
+                    </RouterLink>
+                </chakra.a>
+            ))}
+        </HStack>
+    )
+}
+
+/** One row of the side drawer: icon, label, optional trailing node. */
+function DrawerRow({ icon, children, onClick, danger }: {
+    icon: ReactNode
+    children: ReactNode
+    onClick: () => void
+    danger?: boolean
+}) {
+    return (
+        <Button
+            variant="ghost"
+            w="100%"
+            h="12"
+            px="3"
+            justifyContent="flex-start"
+            gap="3"
+            fontSize="md"
+            fontWeight="medium"
+            rounded="lg"
+            color={danger ? "fg.error" : "fg"}
+            onClick={onClick}
+        >
+            {icon}
+            {children}
+        </Button>
+    )
+}
+
+function GamesSideMenu({ tourAnchor }: { tourAnchor?: string }) {
+    const { t } = useTranslation()
+    const { user, signOut } = useAuth()
+    const { data: profile } = useMyProfile()
+    const navigate = useNavigate()
+    const installPrompt = useInstallPrompt()
+    const unseen = useHasUnseenWhatsNew()
+    const [open, setOpen] = useState(false)
+
+    const go = (to: string) => {
+        setOpen(false)
+        navigate(to)
+    }
+    async function onSignOut() {
+        setOpen(false)
+        try {
+            await signOut()
+        } finally {
+            navigate(homePath)
+        }
+    }
+
+    return (
+        <Drawer.Root open={open} onOpenChange={(e) => setOpen(e.open)} placement="end" size="xs">
+            <Drawer.Trigger asChild>
+                <IconButton
+                    aria-label={t("common.nav.menuAriaLabel")}
+                    title={t("common.nav.menuAriaLabel")}
+                    size="sm"
+                    variant="ghost"
+                    rounded="full"
+                    position="relative"
+                    data-tour={tourAnchor}
+                >
+                    <FiMenu />
+                    {unseen && (
+                        <Box position="absolute" top="1.5" right="1.5" boxSize="7px" rounded="full" bg="fg.error" aria-hidden="true" />
+                    )}
+                </IconButton>
+            </Drawer.Trigger>
+            <Portal>
+                <Drawer.Backdrop />
+                <Drawer.Positioner>
+                    <Drawer.Content
+                        /* OPAQUE on purpose. The drawer recipe's stock
+                           `bg.panel` is 61% translucent and a sliding panel
+                           cannot hold a backdrop blur, so the lobby read
+                           straight through the menu (2026-09-20, user report:
+                           "previše glossy"). A side menu is a solid sheet. */
+                        bg="bg.opaque"
+                        shadow="xl"
+                        css={{
+                            paddingTop: "var(--safe-top)",
+                            paddingBottom: "var(--safe-bottom)",
+                            paddingRight: "var(--safe-right)",
+                        }}
+                    >
+                        <Drawer.Header pb="2">
+                            {user ? (
+                                <HStack gap="3" minW="0">
+                                    <UserAvatar
+                                        avatarUrl={profile?.avatarUrl ?? null}
+                                        avatarPreset={profile?.avatarPreset ?? null}
+                                        name={user.displayName || user.email}
+                                        alt={user.displayName ?? t("common.nav.avatarAlt")}
+                                        size="40px"
+                                        fontSize="sm"
+                                        fontWeight="semibold"
+                                    />
+                                    <Drawer.Title fontSize="md" truncate>
+                                        {user.displayName || user.email}
+                                    </Drawer.Title>
+                                </HStack>
+                            ) : (
+                                <Drawer.Title fontSize="md">{siteName}</Drawer.Title>
+                            )}
+                            <Drawer.CloseTrigger asChild>
+                                <CloseButton size="sm" />
+                            </Drawer.CloseTrigger>
+                        </Drawer.Header>
+                        <Drawer.Body px="2" pt="1">
+                            <VStack align="stretch" gap="0.5">
+                                {user ? (
+                                    <DrawerRow icon={<FiUser />} onClick={() => go("/profil")}>
+                                        {t("common.nav.profil")}
+                                    </DrawerRow>
+                                ) : (
+                                    <Button colorPalette="brand" size="lg" mx="1" mb="2" onClick={() => go("/prijava")}>
+                                        {t("common.nav.login")}
+                                    </Button>
+                                )}
+                                <DrawerRow
+                                    icon={<FiVolume2 />}
+                                    onClick={() => {
+                                        setOpen(false)
+                                        openWhatsNew()
+                                    }}
+                                >
+                                    {t("common.nav.novosti")}
+                                    {unseen && <Box boxSize="6px" rounded="full" bg="fg.error" aria-hidden="true" />}
+                                </DrawerRow>
+                            </VStack>
+                            <PreferencesSection installPrompt={installPrompt} />
+                            {user && (
+                                <Box mt="2" pt="2" borderTopWidth="1px" borderColor="border.subtle">
+                                    <DrawerRow icon={<FiLogOut />} onClick={() => { void onSignOut() }} danger>
+                                        {t("common.nav.logout")}
+                                    </DrawerRow>
+                                </Box>
+                            )}
+                        </Drawer.Body>
+                    </Drawer.Content>
+                </Drawer.Positioner>
+            </Portal>
+        </Drawer.Root>
+    )
+}
+
+function GamesMobileBar({ tourAnchor }: { tourAnchor?: string }) {
+    const { t } = useTranslation()
+    return (
+        <Flex display={{ base: "flex", md: "none" }} h={BAR_H} align="center" position="relative">
+            <RouterLink to={homePath} aria-label={t("common.nav.brandAriaLabel")} style={{ display: "inline-flex" }}>
+                <Image src="/bela-turniri-symbol.svg" alt="" h="30px" w="auto" draggable={false} />
+            </RouterLink>
+            {/* Centred on the BAR, not on the space left between the two
+                side items, which have different widths. */}
+            <Box position="absolute" left="50%" top="50%" transform="translate(-50%, -50%)">
+                <GamesSwitch />
+            </Box>
+            <Box flex="1" />
+            <GamesSideMenu tourAnchor={tourAnchor} />
+        </Flex>
+    )
+}
+
 export default function NavBar() {
     const { t } = useTranslation()
 
@@ -580,12 +804,28 @@ export default function NavBar() {
             // launched standalone on iOS (viewport-fit=cover in index.html
             // lets content draw under the notch, so without this the header
             // sits behind it). 0px on every other browser — see navChrome.ts.
-            style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+            // `--safe-top` (index.html) rather than a bare `env(...)`: below
+            // WebView 140 that resolves to 0px even under Android 16
+            // edge-to-edge, where Capacitor's own `--safe-area-inset-top`
+            // still carries the real value.
+            style={{ paddingTop: "var(--safe-top)" }}
         >
             {/* py={0}: the row height is pinned by BAR_H instead, so the
                 rendered header matches NAVBAR_H to the pixel (plus the safe-area
                 inset above, on a notched device). */}
-            <Container maxW="6xl" py={0}>
+            <Container
+                maxW="6xl"
+                py={0}
+                /* Same treatment the page Container gets in App.tsx: in
+                   LANDSCAPE on a notched phone the logo on one end and the
+                   language/account controls on the other would otherwise sit
+                   under the cutout. Both terms are 0 in portrait and in a
+                   browser tab, so this costs nothing anywhere else. */
+                css={{
+                    paddingInlineStart: "max(var(--chakra-spacing-4), var(--safe-left))",
+                    paddingInlineEnd: "max(var(--chakra-spacing-4), var(--safe-right))",
+                }}
+            >
                 <Box
                     display={{ base: "none", md: "grid" }}
                     h={BAR_H}
@@ -614,7 +854,7 @@ export default function NavBar() {
                             _focusVisible={{ outline: "2px solid", outlineColor: "blue.solid", outlineOffset: "2px", borderRadius: "md" }}
                         >
                             <RouterLink
-                                to="/turniri"
+                                to={homePath}
                                 aria-label={t("common.nav.brandAriaLabel")}
                             >
                                 <Image
@@ -629,7 +869,7 @@ export default function NavBar() {
                                     display={{ base: "none", sm: "inline" }}
                                     fontWeight="semibold"
                                 >
-                                    {t("common.nav.brandName")}
+                                    {siteName}
                                 </Box>
                             </RouterLink>
                         </chakra.a>
@@ -681,38 +921,42 @@ export default function NavBar() {
                     The `data-tour` anchors are kept so the guided tour can
                     still spotlight nav-auth + help-install on mobile. The
                     nav-items anchor moved to the bottom tab bar itself. */}
-                <Flex display={{ base: "flex", md: "none" }} h={BAR_H} align="center" gap="1">
-                    <chakra.a
-                        asChild
-                        display="inline-flex"
-                        alignItems="center"
-                        gap="1.5"
-                        color="fg"
-                        fontWeight="semibold"
-                        textDecoration="none"
-                        _hover={{ textDecoration: "none", color: "fg" }}
-                        _active={{ color: "fg" }}
-                        _focusVisible={{ outline: "2px solid", outlineColor: "blue.solid", outlineOffset: "2px", borderRadius: "md" }}
-                    >
-                        <RouterLink
-                            to="/turniri"
-                            aria-label={t("common.nav.brandAriaLabel")}
+                {isGamesSite ? (
+                    <GamesMobileBar tourAnchor={isMobile ? "help-install" : undefined} />
+                ) : (
+                    <Flex display={{ base: "flex", md: "none" }} h={BAR_H} align="center" gap="1">
+                        <chakra.a
+                            asChild
+                            display="inline-flex"
+                            alignItems="center"
+                            gap="1.5"
+                            color="fg"
+                            fontWeight="semibold"
+                            textDecoration="none"
+                            _hover={{ textDecoration: "none", color: "fg" }}
+                            _active={{ color: "fg" }}
+                            _focusVisible={{ outline: "2px solid", outlineColor: "blue.solid", outlineOffset: "2px", borderRadius: "md" }}
                         >
-                            <Image
-                                src="/bela-turniri-symbol.svg"
-                                alt=""
-                                h="28px"
-                                w="auto"
-                                draggable={false}
-                            />
-                            <Box as="span" fontWeight="semibold">{t("common.nav.brandName")}</Box>
-                        </RouterLink>
-                    </chakra.a>
-                    <Box flex="1" />
-                    <Box data-tour={isMobile ? "nav-auth" : undefined}>
-                        <AuthArea compact tourAnchor={isMobile ? "help-install" : undefined} />
-                    </Box>
-                </Flex>
+                            <RouterLink
+                                to={homePath}
+                                aria-label={t("common.nav.brandAriaLabel")}
+                            >
+                                <Image
+                                    src="/bela-turniri-symbol.svg"
+                                    alt=""
+                                    h="28px"
+                                    w="auto"
+                                    draggable={false}
+                                />
+                                <Box as="span" fontWeight="semibold">{siteName}</Box>
+                            </RouterLink>
+                        </chakra.a>
+                        <Box flex="1" />
+                        <Box data-tour={isMobile ? "nav-auth" : undefined}>
+                            <AuthArea compact tourAnchor={isMobile ? "help-install" : undefined} />
+                        </Box>
+                    </Flex>
+                )}
             </Container>
         </Box>
     )

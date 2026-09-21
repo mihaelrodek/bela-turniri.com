@@ -205,7 +205,7 @@ export default function JoinByCodeDialog({
                         m={{ base: "0", md: "auto" }}
                         roundedTop={{ base: "2xl", md: "2xl" }}
                         roundedBottom={{ base: "0", md: "2xl" }}
-                        pb={{ base: "calc(14px + env(safe-area-inset-bottom, 0px))", md: "5" }}
+                        pb={{ base: "calc(14px + var(--safe-bottom))", md: "5" }}
                     >
                         <Dialog.Header>
                             <HStack justify="space-between" align="flex-start" w="full" gap="3">

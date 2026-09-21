@@ -4,6 +4,7 @@ import type { RoomState, Seat, TrickReview, WonTrick } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import PlayingCard from "./PlayingCard"
 import { GLASS_STRONG, INK, INK_MUTED } from "./tableStyles"
+import { OVERLAY_SAFE_INSET } from "../../components/navChrome"
 
 /* ──────────────────────────────────────────────────────────────────────────
    TrickHistory — "gledanje štihova" (game/README.md §1.8).
@@ -55,12 +56,15 @@ export default function TrickHistory({
             inset="0"
             align="center"
             justify="center"
-            px="3"
             zIndex={1500}
             bg="blackAlpha.500"
             backdropFilter="blur(2px)"
             onClick={onDismiss}
             css={{
+                // The backdrop reaches every edge; the board of cards inside
+                // it does not. `px="3"` used to live on the props above and
+                // said nothing about a landscape cutout — see navChrome.ts.
+                ...OVERLAY_SAFE_INSET,
                 // A board of cards, not text (2026-09-20) — see the same rule
                 // on the room root and on the declarations overlay.
                 userSelect: "none",

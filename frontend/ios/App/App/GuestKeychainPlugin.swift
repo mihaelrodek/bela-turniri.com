@@ -22,8 +22,9 @@ import Security
  *    and would be lost on reinstall same as UserDefaults.
  *
  * Capacitor 8 does not auto-discover local (in-app-target) Swift plugins —
- * see `CAPBridgeViewControllerWithLocalPlugins.swift` for how this class is
- * wired to the bridge.
+ * see `AppBridgeViewController.swift` for how this class is wired to the
+ * bridge (and `SceneDelegate.swift` for why the storyboard must stay the
+ * thing that builds the root view controller).
  */
 @objc(GuestKeychainPlugin)
 public class GuestKeychainPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -37,7 +38,18 @@ public class GuestKeychainPlugin: CAPPlugin, CAPBridgedPlugin {
 
     // Scopes every item this plugin ever writes so it can never collide with
     // (or be swept up by) Keychain items any other plugin or library adds.
-    private static let service = "com.belaturniri.app.guest"
+    //
+    // Derived from the bundle id rather than hard-coded, because this exact
+    // source file ships in TWO apps: com.belaturniri.app and, via
+    // scripts/create-games-native.sh, games.bela.app. A literal string here
+    // would make the games app read and write the tournaments app's guest
+    // record — same Keychain access group is not even required for that,
+    // since an item's service is just an attribute, so on a device with both
+    // apps installed one would quietly overwrite the other's guest identity.
+    // The fallback is unreachable in a real app bundle (bundleIdentifier is
+    // nil only in some unit-test hosts) and only has to be stable.
+    private static let service =
+        (Bundle.main.bundleIdentifier ?? "com.belaturniri.app") + ".guest"
 
     private func query(for key: String) -> [String: Any] {
         [

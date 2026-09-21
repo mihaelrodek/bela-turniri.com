@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Notification small icon (status bar + the Live Update chip).
+
+    Android draws a small icon as a MASK: every non-transparent pixel is
+    repainted with the system's tint, so any colour in the source is thrown
+    away and a full-bleed launcher icon renders as the infamous white blob.
+    Hence: white-on-transparent, flat, no gradients, generous padding.
+
+    Glyph: a playing card outline (knocked out with evenOdd so the card reads
+    as an outline rather than a slab) with a filled spade pip inside.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Card outline: outer rounded rect minus inner rounded rect. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M6.5,2 L17.5,2 A2.5,2.5 0 0 1 20,4.5 L20,19.5 A2.5,2.5 0 0 1 17.5,22 L6.5,22 A2.5,2.5 0 0 1 4,19.5 L4,4.5 A2.5,2.5 0 0 1 6.5,2 Z M6.9,3.8 A1.3,1.3 0 0 0 5.6,5.1 L5.6,18.9 A1.3,1.3 0 0 0 6.9,20.2 L17.1,20.2 A1.3,1.3 0 0 0 18.4,18.9 L18.4,5.1 A1.3,1.3 0 0 0 17.1,3.8 Z" />
+
+    <!-- Spade pip. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,7.2 C12,7.2 8.1,10.3 7.1,11.9 C6.2,13.4 6.9,15.4 8.8,15.4 C9.7,15.4 10.5,14.9 11.05,14.25 C10.95,15.4 10.55,16.15 9.9,16.7 L14.1,16.7 C13.45,16.15 13.05,15.4 12.95,14.25 C13.5,14.9 14.3,15.4 15.2,15.4 C17.1,15.4 17.8,13.4 16.9,11.9 C15.9,10.3 12,7.2 12,7.2 Z" />
+</vector>

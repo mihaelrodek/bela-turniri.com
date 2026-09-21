@@ -150,10 +150,10 @@ export const common = {
         "Hvala što si pogledao ovaj kratki uvod u stranicu. Sad slobodno razgledaj stranicu — kreiraj svoj turnir, pridruži se postojećem ili samo prati rezultate. Sretno!",
 
     // --- Install prompts (components/FirstRunInstallPrompt.tsx, InstallAppButton.tsx) --
-    "install.title": "Instaliraj Bela Turniri",
+    "install.title": "Instaliraj {site}",
     "install.iosSubtitle": "Dodaj aplikaciju na svoj iPhone u 3 koraka:",
     "install.genericSubtitle":
-        "Spremi Bela Turniri kao aplikaciju i otvori je jednim klikom s početnog zaslona.",
+        "Spremi {site} kao aplikaciju i otvori je jednim klikom s početnog zaslona.",
     "install.dismissIos": "Razumijem",
     "install.dismissLater": "Možda kasnije",
     "install.installButton": "Instaliraj",
@@ -312,7 +312,7 @@ export const common = {
     "footer.contactLink": "Kontakt",
     "footer.privacyLink": "Privatnost",
     "footer.termsLink": "Uvjeti",
-    "footer.copyright": "© {year} bela-turniri.com",
+    "footer.copyright": "© {year} {domain}",
 
     // --- Deleted-account guard (auth/AuthContext.tsx) ----------------------
     // Shown once when /user/me/sync answers 410 ACCOUNT_DELETED, i.e. the

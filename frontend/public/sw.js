@@ -77,7 +77,23 @@ const DECK_CACHE = "bela-decks-v1";
 // explicitly. It is fixed behind every route and must paint from Cache
 // Storage as soon as the app has been opened once, even on weak Wi-Fi.
 const STATIC_ASSETS = ["/bg-cards-faded.png"];
-const SHELL = ["/", "/index.html", "/manifest.webmanifest", ...STATIC_ASSETS];
+/* SEVERAL DOMAINS, ONE WORKER (2026-09-20). The same bundle is served on
+ * bela-turniri.com and on the games domains (bela.games, belot.games), and
+ * those two groups have DIFFERENT HTML shells:
+ * `/index.html` and `/index.games.html`, built from one another (see the
+ * `bela-games-shell` plugin in vite.config.ts). A service worker's storage is
+ * per-origin, so each host caches its own shell — but only if the worker asks
+ * for it by a name that resolves correctly on BOTH hosts.
+ *
+ * `"/"` is that name: it is the SPA entry on every domain and Caddy answers
+ * it with that domain's shell. So the worker fetches and caches the shell as
+ * `"/"` and never as `"/index.html"` — the literal file name would be right
+ * on the full site and wrong here if the edge ever stopped rewriting it.
+ * `"/index.html"` is still WRITTEN as an alias in refreshPrecache (an older
+ * install may have cached it, and the navigation fallback still looks there
+ * second), just never fetched. Same story for `/manifest.webmanifest`, which
+ * Caddy rewrites to `/manifest.games.webmanifest` on bela.games. */
+const SHELL = ["/", "/manifest.webmanifest", ...STATIC_ASSETS];
 
 /* ─────────────────────────────── PRECACHE ───────────────────────────────
  * `/precache-manifest.json` is written at build time by the
@@ -218,10 +234,13 @@ async function refreshPrecache() {
                 }
             }
 
-            // 2. Only now the shell, so index.html is never newer than the
-            //    chunks it names.
+            // 2. Only now the shell, so it is never newer than the chunks it
+            //    names. Fetched as "/" so each domain caches ITS OWN shell —
+            //    see the SHELL comment at the top of this file. The
+            //    "/index.html" copy is an alias for the navigation fallback,
+            //    not a second fetch.
             try {
-                const shell = await fetch("/index.html", { cache: "no-store" });
+                const shell = await fetch("/", { cache: "no-store" });
                 if (shell && shell.status === 200 && shell.type === "basic") {
                     await cache.put("/index.html", shell.clone());
                     await cache.put("/", shell);
@@ -661,8 +680,12 @@ async function navigationNetworkFirst(req, event) {
         // Preload didn't complete or wasn't available — fetch normally
         return await fetch(req);
     } catch (_) {
+        // "/" first: it is the entry this worker actually caches, and on
+        // bela.games it is the only one guaranteed to hold that domain's own
+        // shell (see the SHELL comment at the top). "/index.html" stays as a
+        // fallback for installs that predate that change.
         const shell =
-            (await caches.match("/index.html")) || (await caches.match("/"));
+            (await caches.match("/")) || (await caches.match("/index.html"));
         if (shell) return shell;
         return new Response(
             "<!doctype html><meta charset='utf-8'><title>Nema veze</title>" +

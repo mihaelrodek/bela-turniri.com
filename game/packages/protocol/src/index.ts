@@ -33,6 +33,15 @@ export type {
 
 export const PROTOCOL_VERSION = 1
 
+export {
+    hasUsableContent,
+    isOffensiveName,
+    sanitizePlayerNameInput,
+    stripControlChars,
+    validatePlayerName,
+} from "./nameModeration.js"
+export type { PlayerNameRejectReason, PlayerNameValidation } from "./nameModeration.js"
+
 export const REACTIONS = ["👏", "🍀", "😱", "🤬", "⏰", "🤝"] as const
 export type Reaction = (typeof REACTIONS)[number]
 
@@ -100,12 +109,10 @@ export const LIMITS = {
      * inputs so the cap is visible while typing rather than after sending.
      */
     playerNameMax: 16,
-    chatMax: 300,
     /** Minimum gap between two reactions from the same user. */
     reactionCooldownMs: 3000,
     /** Client messages per second per connection before RATE_LIMITED. */
     messagesPerSecond: 10,
-    chatPerSecond: 1,
     /**
      * Longest Live Activity token (`liveActivity.tokens`) the server stores.
      * APNs tokens are 32 bytes (64 hex chars) today; 512 leaves room for a
@@ -279,13 +286,6 @@ export interface ActiveSeatInfo {
     holdUntil: number | null
 }
 
-export interface ChatMessage {
-    id: string
-    from: UserInfo
-    text: string
-    at: number
-}
-
 export type ErrorCode =
     | "UNAUTHENTICATED"
     | "ROOM_NOT_FOUND"
@@ -394,7 +394,6 @@ export type ClientMessage =
      */
     | { t: "game.play"; card: Card; bela?: boolean }
     | { t: "game.nextDeal" }
-    | { t: "chat.send"; text: string }
     | { t: "chat.react"; reaction: Reaction }
     /**
      * iOS only (README §3 "Live Activity"): the tokens ActivityKit handed the
@@ -453,7 +452,6 @@ export type ServerMessage =
           autoPlayed: boolean
       }
     | { t: "game.events"; events: GameEvent[] }
-    | { t: "chat.msg"; msg: ChatMessage }
     /** Quick reaction shown as text above the sender's seat/avatar. */
     | { t: "chat.reaction"; from: UserInfo; seat: Seat | null; reaction: Reaction; at: number }
 
@@ -493,7 +491,7 @@ const CLIENT_TYPES: ReadonlySet<string> = new Set<ClientMessageType>([
     "hello", "ping", "lobby.subscribe", "lobby.unsubscribe",
     "room.create", "room.join", "room.leave", "room.sit", "room.stand",
     "room.addBot", "room.removeBot", "room.ready", "room.start",
-    "game.bid", "game.pass", "game.play", "game.nextDeal", "chat.send",
+    "game.bid", "game.pass", "game.play", "game.nextDeal",
     "room.joinByCode", "chat.react", "room.setPrivate", "room.setOptions",
     "profile.setName", "profile.setAvatar", "liveActivity.tokens",
 ])

@@ -396,8 +396,19 @@ export default function BelotShowcase({
                     align="center"
                     justify="center"
                     gap={{ base: "6", md: "8" }}
-                    px="4"
-                    css={{ animation: still ? undefined : `${KF.belotShake} 420ms ease-out ${IMPACT_MS}ms both` }}
+                    css={{
+                        // The stage itself stays full-bleed — its gradient and
+                        // embers are supposed to run off every edge — but the
+                        // fan and the title sit inside the safe area. The `4`
+                        // gutter this replaces is preserved by the max() terms
+                        // in OVERLAY_SAFE_INSET's siblings; spelled out here
+                        // because this layer wants the wider one.
+                        paddingTop: "var(--safe-top)",
+                        paddingBottom: "var(--safe-bottom)",
+                        paddingInlineStart: "max(var(--chakra-spacing-4), var(--safe-left))",
+                        paddingInlineEnd: "max(var(--chakra-spacing-4), var(--safe-right))",
+                        animation: still ? undefined : `${KF.belotShake} 420ms ease-out ${IMPACT_MS}ms both`,
+                    }}
                 >
                     {/* The fan. The outer box reserves the SCALED size in the
                         layout; the inner one is the fixed design box, scaled

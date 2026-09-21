@@ -4,8 +4,8 @@
    Rules enforced here:
      • every frame is JSON and must pass `isClientMessage`; anything else is a
        single `error BAD_REQUEST` and the connection stays open
-     • a token-bucket rate limit per connection (`LIMITS.messagesPerSecond`,
-       `LIMITS.chatPerSecond`) → `error RATE_LIMITED`
+     • a token-bucket rate limit per connection (`LIMITS.messagesPerSecond`)
+       → `error RATE_LIMITED`
      • `hello` must come first, everything else before it is `UNAUTHENTICATED`
      • `ping` → `pong`; on top of that the server pings every 25 s and
        terminates a socket that misses two pongs
@@ -16,6 +16,7 @@ import {
     isAvatarPreset,
     isClientMessage,
     isLiveActivityToken,
+    isOffensiveName,
     isReaction,
     isSeat,
     isTargetScore,
@@ -33,7 +34,7 @@ import type {
 } from "@bela/protocol"
 import type { Authenticator } from "./auth.js"
 import type { Config, RateLimits, Timings } from "./config.js"
-import { handleChat, handleReaction } from "./chat.js"
+import { handleReaction } from "./reactions.js"
 import { DEFAULT_MESSAGES, isProtocolError, ProtocolError } from "./errors.js"
 import { newConnId } from "./ids.js"
 import type { LiveActivityHub } from "./liveActivity.js"
@@ -87,7 +88,6 @@ class Conn implements Connection {
 
     private readonly socket: WebSocket
     private readonly messages: Bucket
-    private readonly chat: Bucket
     private lastReactionAt: number | null
     private closed: boolean
 
@@ -99,17 +99,12 @@ class Conn implements Connection {
         this.lobbySubscribed = false
         this.missedPongs = 0
         this.messages = makeBucket(rates.messagesPerSecond)
-        this.chat = makeBucket(rates.chatPerSecond)
         this.lastReactionAt = null
         this.closed = false
     }
 
     takeMessage(now: number): boolean {
         return take(this.messages, now)
-    }
-
-    takeChat(now: number): boolean {
-        return take(this.chat, now)
     }
 
     /** `LIMITS.reactionCooldownMs` between two reactions from the same connection. */
@@ -487,6 +482,15 @@ export class Hub {
                 if (trimmed.length === 0 || trimmed.length > LIMITS.playerNameMax) {
                     throw new ProtocolError("BAD_REQUEST", "Ime za igru mora imati 1 do 16 znakova.")
                 }
+                // Checked BEFORE the backend round trip, same as the length
+                // above: a name the protocol cannot carry costs the once-a-
+                // week rule nothing (moderation task, 2026-09-20). The client
+                // validates the same way before it ever sends this — see
+                // `GameSettingsSheet.tsx` — so this is the authoritative
+                // backstop, not the primary defence.
+                if (isOffensiveName(trimmed)) {
+                    throw new ProtocolError("BAD_REQUEST", "Ime sadrži neprikladan sadržaj. Odaberi drugo ime.")
+                }
                 if (!conn.user) throw new ProtocolError("UNAUTHENTICATED")
 
                 const result = await this.deps.profiles.setGameName(conn.user.uid, trimmed)
@@ -646,15 +650,6 @@ export class Hub {
             case "game.nextDeal":
                 this.requireGame(conn).nextDeal(conn)
                 return
-
-            case "chat.send": {
-                const room = this.requireRoom(conn)
-                if (!conn.takeChat(Date.now())) {
-                    throw new ProtocolError("RATE_LIMITED", "Prebrzo šaljete poruke u chat.")
-                }
-                handleChat(room, conn, msg.text)
-                return
-            }
 
             case "chat.react": {
                 const room = this.requireRoom(conn)

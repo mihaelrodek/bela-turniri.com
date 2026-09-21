@@ -1,4 +1,5 @@
 import { http } from "../api/http"
+import { publicOrigin } from "../site"
 import { isRecordableGame, totalsOf, winnerOf } from "./store"
 import type { BlokDealerSeat, BlokGame, BlokGameEndRule, BlokSide } from "./types"
 
@@ -256,12 +257,15 @@ export async function revokeBlokShare(uuid: string): Promise<void> {
 /**
  * The public URL for a token — `/blok/z/{token}` (§5.2).
  *
- * Absolute, and built from the live origin rather than from a configured base
- * URL: this string is about to be handed to the OS share sheet or to somebody's
- * clipboard, where a relative path is useless, and a hard-coded production host
- * would put a developer's tap into someone else's inbox.
+ * Absolute, and built from `publicOrigin` (src/site.ts) rather than
+ * `window.location.origin`: this string is about to be handed to the OS share
+ * sheet or to somebody's clipboard, where a relative path is useless, and
+ * `window.location.origin` is `capacitor://localhost` inside the native
+ * shell — nobody can open that. `publicOrigin` is the canonical origin of
+ * whichever product served this page (bela-turniri.com, or the games twin —
+ * bela.games / belot.games — the visitor is actually on), so a link shared
+ * from any of them always resolves.
  */
 export function blokShareUrl(token: string): string {
-    const origin = typeof window !== "undefined" ? window.location.origin : ""
-    return `${origin}/blok/z/${token}`
+    return `${publicOrigin}/blok/z/${token}`
 }

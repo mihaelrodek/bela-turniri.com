@@ -12,6 +12,7 @@ import { useDocumentHead } from "../hooks/useDocumentHead"
 import { usePolling } from "../hooks/usePolling"
 import { useTranslation, type TParams } from "../i18n"
 import { qk } from "../queryClient"
+import { publicOrigin } from "../site"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Public, read-only "Bela blok" share page — /blok/z/{token}
@@ -198,7 +199,7 @@ export default function SharedBlokPage() {
             })
             : undefined,
         canonical: token
-            ? `https://bela-turniri.com/blok/z/${encodeURIComponent(token)}`
+            ? `${publicOrigin}/blok/z/${encodeURIComponent(token)}`
             : undefined,
     })
 

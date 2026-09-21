@@ -13,6 +13,7 @@ import { FiDownload, FiX } from "react-icons/fi"
 import { useInstallPrompt } from "../hooks/useInstallPrompt"
 import { useTranslation } from "../i18n"
 import { isNative } from "../platform"
+import { siteName } from "../site"
 import IosInstallSteps from "./IosInstallSteps"
 
 /**
@@ -129,12 +130,12 @@ export default function FirstRunInstallPrompt() {
                                     />
                                     <Box flex="1">
                                         <Text fontWeight="semibold" fontSize="md">
-                                            {t("common.install.title")}
+                                            {t("common.install.title", { site: siteName })}
                                         </Text>
                                         <Text fontSize="sm" color="fg.muted">
                                             {isIos
                                                 ? t("common.install.iosSubtitle")
-                                                : t("common.install.genericSubtitle")}
+                                                : t("common.install.genericSubtitle", { site: siteName })}
                                         </Text>
                                     </Box>
                                 </HStack>

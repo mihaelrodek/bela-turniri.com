@@ -2,6 +2,7 @@ import { Box, Text } from "@chakra-ui/react"
 import { Link as RouterLink, useLocation } from "react-router-dom"
 import { FiCalendar, FiEdit3, FiHome, FiMap } from "react-icons/fi"
 import { useTranslation } from "../i18n"
+import { isGamesSite } from "../site"
 import type { ReactNode } from "react"
 import NewBadge from "./NewBadge"
 
@@ -35,9 +36,9 @@ import NewBadge from "./NewBadge"
  *
  * <p>Visibility: shown on `base` viewport, hidden on `md+`. The bar uses
  * `position: fixed` + `bottom: 0` so it stays glued to the viewport bottom
- * even while the page scrolls. iOS safe-area-inset-bottom is respected via
- * `paddingBottom: env(safe-area-inset-bottom)` so the row clears the home
- * indicator on notched phones.
+ * even while the page scrolls. The safe-area bottom inset is respected via
+ * `paddingBottom: var(--safe-bottom)` (index.html) so the row clears the
+ * home indicator on notched phones and, on Android 16+, the gesture bar.
  *
  * <p>This supplements the existing hamburger drawer in NavBar rather than
  * replacing it. The drawer continues to host the secondary affordances
@@ -86,20 +87,18 @@ type TabDef = {
     isNew?: boolean
 }
 
-/** The tab that gets the raised disc: the middle one, "Igraj". Derived from
- *  the list rather than hard-coded, so the shape follows the tabs if the list
- *  ever changes rather than pointing at whatever ends up third. */
-const CENTRE_INDEX = 2
-
 /**
  * Built inside the component (not as a module-level constant) so the
  * labels re-render immediately on a language switch — `useTranslation()`
  * only triggers a re-render for the component that calls it, so the tab
  * list has to be recomputed on every render rather than once at import
  * time.
+ *
+ * bela.games (src/site.ts) has no tournaments, calendar or map — only Igraj
+ * and Blok remain, so the bar collapses to two tabs there.
  */
 function buildTabs(t: (key: string) => string): TabDef[] {
-    return [
+    const tabs: TabDef[] = [
         { to: "/turniri", label: t("common.nav.turniri"), icon: <FiHome size={20} />, matchPrefixes: ["/turniri"] },
         { to: "/kalendar", label: t("common.nav.kalendar"), icon: <FiCalendar size={20} /> },
         // Online bela (src/game) — centre slot, see the header comment. The
@@ -114,6 +113,8 @@ function buildTabs(t: (key: string) => string): TabDef[] {
         // bar and the game table's docked hand.
         { to: "/blok", label: t("common.nav.blok"), icon: <FiEdit3 size={20} />, matchPrefixes: ["/blok"] },
     ]
+    if (isGamesSite) return tabs.filter((tab) => tab.to === "/igra" || tab.to === "/blok")
+    return tabs
 }
 
 function isActive(pathname: string, tab: TabDef): boolean {
@@ -128,6 +129,10 @@ export default function MobileTabBar() {
     const { pathname } = useLocation()
     const { t } = useTranslation()
     const TABS = buildTabs(t)
+    // The tab that gets the raised disc: "Igraj", wherever it lands in the
+    // (possibly filtered) list — derived rather than a hard-coded index so
+    // the shape follows the tabs when bela.games trims the array down to two.
+    const centreIndex = TABS.findIndex((tab) => tab.to === "/igra")
 
     // ── Liquid Glass treatment ────────────────────────────────────────
     // iOS 26 Safari renders its bottom URL/toolbar with a translucent
@@ -176,7 +181,9 @@ export default function MobileTabBar() {
         pathname.startsWith("/igra/soba") ||
         pathname.startsWith("/blok")
 
-    if (hidden) return null
+    // bela.games switches between its two pages in the header (NavBar's
+    // `GamesMobileBar`), so it has no bottom bar at all.
+    if (hidden || isGamesSite) return null
 
     return (
         <Box
@@ -202,18 +209,20 @@ export default function MobileTabBar() {
             borderColor="border.glass"
             zIndex={900}
             style={{
-                // env(safe-area-inset-bottom) clears the iOS home indicator
-                // on notched phones. iOS auto-bumps this value when the
-                // Safari bottom toolbar is expanded, so the tab bar slides
-                // up to stay clear of the browser chrome without us
-                // re-measuring anything.
+                // `--safe-bottom` (index.html) clears the iOS home indicator
+                // on notched phones — and, on Android 16+, whatever the
+                // gesture/nav bar leaves, which a bare `env(safe-area-inset-
+                // bottom)` misses below WebView 140. iOS auto-bumps the
+                // underlying value when the Safari bottom toolbar is
+                // expanded, so the tab bar slides up to stay clear of the
+                // browser chrome without us re-measuring anything.
                 //
-                // Still an inline style rather than a `pb` prop: `env()` is
-                // not a spacing token, and this is the only declaration left
-                // here now that the blur moved to `layerStyle="glass.bar"`.
-                paddingBottom: "env(safe-area-inset-bottom)",
-                paddingInlineStart: "max(var(--chakra-spacing-2), env(safe-area-inset-left, 0px))",
-                paddingInlineEnd: "max(var(--chakra-spacing-2), env(safe-area-inset-right, 0px))",
+                // Still an inline style rather than a `pb` prop: a CSS `var()`
+                // is not a spacing token, and this is the only declaration
+                // left here now that the blur moved to `layerStyle="glass.bar"`.
+                paddingBottom: "var(--safe-bottom)",
+                paddingInlineStart: "max(var(--chakra-spacing-2), var(--safe-left))",
+                paddingInlineEnd: "max(var(--chakra-spacing-2), var(--safe-right))",
             }}
             px="2"
             pt="2"
@@ -241,7 +250,7 @@ export default function MobileTabBar() {
                        other tab — same route, same accessible name — only
                        painted differently, so nothing about navigation depends
                        on the shape. */
-                    if (index === CENTRE_INDEX) {
+                    if (index === centreIndex) {
                         return (
                             <Box
                                 key={tab.to}

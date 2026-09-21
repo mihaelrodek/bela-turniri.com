@@ -23,6 +23,7 @@ export const game = {
     "guest.login": "Prijava",
     "guest.loginInline": "Prijavi se",
     "guest.statsHintSuffix": "za spremanje statistike na svim uređajima.",
+    "guest.nameOffensive": "To ime nije dopušteno. Odaberi drugo.",
     "declarations.calculating": "Igra računa zvanja…",
     "declarations.starting": "Igra počinje…",
 
@@ -55,6 +56,7 @@ export const game = {
     "settings.gameNameHint": "Ime koje ostali igrači vide za stolom. Možeš ga promijeniti jednom u sedam dana.",
     "settings.gameNameSaved": "Ime je spremljeno.",
     "settings.gameNameNext": "Ime možeš ponovno promijeniti {date}.",
+    "settings.gameNameOffensive": "To ime nije dopušteno. Odaberi drugo.",
     "settings.avatar": "Lik",
     "settings.avatarHint": "Lik koji ostali igrači vide za stolom.",
     "settings.alwaysReady": "Uvijek spreman",
@@ -370,16 +372,6 @@ export const game = {
     "over.finalScore": "Konačni rezultat",
 
     /* ─── Chat ──────────────────────────────────────────────── */
-    "chat.title": "Chat",
-    "chat.empty": "Još nema poruka.",
-    "chat.placeholder": "Napiši poruku…",
-    "chat.send": "Pošalji",
-    "chat.open": "Otvori chat",
-    "chat.close": "Zatvori chat",
-    "chat.unread.one": "{n} nova poruka",
-    "chat.unread.two": "{n} nove poruke",
-    "chat.unread.few": "{n} nove poruke",
-    "chat.unread.other": "{n} novih poruka",
 
     /* ─── Greške (kodovi iz @bela/protocol) ─────────────────── */
     "error.UNAUTHENTICATED": "Prijavi se da bi igrao.",
@@ -450,6 +442,7 @@ export const game = {
 
     "exit.title": "Napustiti stol?",
     "exit.description": "Ako ostaneš, nastavljaš igrati. Ako izađeš, počinje odbrojavanje od dvije minute; do isteka se možeš vratiti, a zatim tvoje mjesto preuzima bot.",
+    "exit.descriptionLobby": "Ako izađeš, odmah napuštaš sobu i tvoje mjesto za stolom se oslobađa.",
     "exit.stay": "Ostani u sobi",
     "exit.leave": "Izađi iz sobe",
 

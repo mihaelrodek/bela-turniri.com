@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
@@ -9,14 +9,79 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <!--
+        THE RUNTIME THEME. `BridgeActivity.onCreate` swaps the launch theme
+        below for this one (`setTheme(R.style.AppTheme_NoActionBar)`), so
+        everything about how the window meets the system bars is decided here.
+
+        windowBackground
+          Capacitor's own SystemBars plugin paints the decor view with exactly
+          this attribute on every `setStyle` call, including the one it makes
+          on a night-mode configuration change
+          (@capacitor/android .../plugin/SystemBars.java, end of `setStyle`).
+          It is what shows THROUGH the transparent bars whenever the WebView
+          is not covering them — which is the normal state on an Android
+          WebView older than 140, where SystemBars pads the WebView's parent
+          by the system-bar insets instead of letting the page draw under them.
+          Stock `Theme.AppCompat.DayNight` leaves it at #FAFAFA / #303030; the
+          app's canvas is #DAE7DE / #161719, so without this the user saw a
+          pale or grey band exactly where the app expects its own colour.
+          DayNight-resolved via values-night/colors.xml.
+
+          Caveat, deliberately accepted: this follows the OS night mode, while
+          the app's own light/dark is a stored preference that does NOT follow
+          the system (color-mode.tsx, `enableSystem: false`). A user running a
+          light OS with the app forced dark gets the light band behind the bars
+          on a pre-140 WebView. On WebView >= 140 — the passthrough path — the
+          page itself draws behind the bars and this never shows at all.
+
+        statusBarColor / navigationBarColor
+          Transparent, so the bars are pure overlays and the app's own surface
+          is what the user sees behind them. Android 15+/targetSdk 35+ enforces
+          this anyway; minSdk here is 24, so it still has to be said out loud
+          for every device from API 24 to 34.
+
+        enforceStatusBarContrast / enforceNavigationBarContrast
+          Off (API 29+). The system otherwise drops a translucent scrim behind
+          a transparent bar, which grey-washes the app background in precisely
+          the strip this whole change is about. Contrast is instead guaranteed
+          by the bar ICON style, which follows the app's colour mode at runtime
+          (components/StatusBarSafeArea.tsx).
+
+        windowLayoutInDisplayCutoutMode
+          `shortEdges` so a landscape game table uses the full display instead
+          of being letterboxed beside the cutout. Safe because every
+          edge-anchored element pays `var(safe-left/right)`; on API 35+ the
+          platform forces `always` regardless, so this only changes API 27-34.
+
+        `android:background` stays `@null` (Capacitor ships it that way) — the
+        WebView paints its own background and an extra opaque layer under it
+        only costs overdraw.
+    -->
     <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <item name="android:windowBackground">@color/app_window_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="29">false</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="29">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="27">shortEdges</item>
     </style>
 
 
+    <!-- Launch (splash) theme. Same bar treatment as the runtime theme, so the
+         cold-start frame does not flash a different colour behind the bars
+         before BridgeActivity swaps themes. `@drawable/splash` is a layer-list
+         whose own background carries the brand colour, so windowBackground is
+         not repeated here. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="29">false</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="29">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="27">shortEdges</item>
     </style>
 </resources>

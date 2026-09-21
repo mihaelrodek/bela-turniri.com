@@ -70,7 +70,6 @@ export default function TableHeader({
 }
 
 export function TableActions({
-    chat,
     declarationsEnabled,
     declarationPoints,
     onDeclarations,
@@ -78,7 +77,6 @@ export function TableActions({
     tricksPlayed,
     onTricks,
 }: {
-    chat?: ReactNode
     declarationsEnabled: boolean
     declarationPoints: Record<TeamSide, number>
     onDeclarations: () => void
@@ -118,7 +116,6 @@ export function TableActions({
                     onClick={onTricks}
                 />
             )}
-            {chat}
         </HStack>
     )
 }

@@ -11,6 +11,7 @@ import { FiDownload } from "react-icons/fi"
 import { useInstallPrompt, type InstallPromptState } from "../hooks/useInstallPrompt"
 import { useTranslation } from "../i18n"
 import { isNative } from "../platform"
+import { siteName } from "../site"
 import IosInstallSteps from "./IosInstallSteps"
 
 /**
@@ -136,7 +137,7 @@ export function InstallAppButton({
                                         h="28px"
                                         w="auto"
                                     />
-                                    <Dialog.Title>{t("common.install.title")}</Dialog.Title>
+                                    <Dialog.Title>{t("common.install.title", { site: siteName })}</Dialog.Title>
                                 </HStack>
                             </Dialog.Header>
                             <Dialog.Body>

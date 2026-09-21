@@ -72,7 +72,7 @@ import { usePlural, useTranslation } from "../i18n"
 const PANE_TOP = CONTENT_STICKY_TOP
 /** Viewport left for a pinned pane, minus a 16px breathing gap. The split
  *  only exists at lg+, where the navbar is always at its `md` height. */
-const PANE_MAX_H = `calc(100dvh - ${NAVBAR_H.md + 24}px - 16px - env(safe-area-inset-top, 0px))`
+const PANE_MAX_H = `calc(100dvh - ${NAVBAR_H.md + 24}px - 16px - var(--safe-top))`
 
 /** Avatar with initials, used by the pair cards, the panel and the info dialog. */
 export function PairAvatar({ name, eliminated }: { name: string; eliminated?: boolean }) {

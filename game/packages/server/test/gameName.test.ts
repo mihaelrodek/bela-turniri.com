@@ -73,4 +73,30 @@ describe("profile.setName", () => {
             expect(asked).toBe(0)
         } finally { await client.close(); await server.close() }
     })
+
+    it("refuses an offensive name without asking the backend (moderation, 2026-09-20)", async () => {
+        let asked = 0
+        const server = await startTestServer({
+            profiles: stubProfiles(async (_uid, name) => { asked += 1; return { ok: true, name, nextChangeAt: 0 } }),
+        })
+        const client = await TestClient.connect(server.url())
+        try {
+            client.send({ t: "hello", v: 1, devName: "Ana" })
+            await client.nextOfType("hello.ok")
+
+            for (const name of ["pička", "p i c k a", "KURAC"]) {
+                client.send({ t: "profile.setName", name })
+                const error = await client.nextOfType("error")
+                expect(error.code).toBe("BAD_REQUEST")
+                expect(error.ref).toBe("profile.setName")
+            }
+            expect(asked).toBe(0)
+
+            // The refused attempts left nothing broken: a legitimate rename
+            // right after still goes through normally.
+            client.send({ t: "profile.setName", name: "Pero" })
+            expect((await client.nextOfType("profile.name")).name).toBe("Pero")
+            expect(asked).toBe(1)
+        } finally { await client.close(); await server.close() }
+    })
 })

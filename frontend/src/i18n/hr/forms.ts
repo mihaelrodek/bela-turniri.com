@@ -12,6 +12,9 @@
 export const forms = {
     // --- Shared across pages.tsx-adjacent standalone pages ------------------
     "shared.backToTournaments": "Natrag na turnire",
+    // bela.games has no tournaments — used wherever `isGamesSite` swaps the
+    // destination to `homePath` instead of `/turniri` (NotFoundPage, …).
+    "shared.backHome": "Natrag na početnu",
 
     // --- Auth (LoginPage.tsx + RegisterPage.tsx) ----------------------------
     "auth.email": "Email",

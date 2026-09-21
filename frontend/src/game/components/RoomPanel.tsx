@@ -94,8 +94,9 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
         <VStack gap={{ base: "1.5", md: "3" }} align="stretch" p={{ base: "1.5", md: "4" }} pt={{ base: "0", md: "1" }} flex="1" minH="0">
             {/* No `pr="8"` any more: that gutter existed only to keep the
                 title clear of the absolutely-positioned chat toggle, and the
-                chat is gone (2026-09-09). Without it the settings and exit
-                icons reach the panel's own right edge. */}
+                room text chat is gone for good (2026-09-20, app-store
+                review). Without it the settings and exit icons reach the
+                panel's own right edge. */}
             <Box
                 bg="bg.panel"
                 borderWidth="1px"
@@ -240,7 +241,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 the home indicator in the installed PWA. */}
             <VStack mt="auto" align="stretch" gap={{ base: "1", md: "1.5" }} p={{ base: "1.5", md: "2.5" }}
                 pb={{ base: "1.5", md: "2.5" }}
-                mb={{ base: "calc(12px + env(safe-area-inset-bottom, 0px))", md: "2" }}
+                mb={{ base: "calc(12px + var(--safe-bottom))", md: "2" }}
                 bg="bg.panel" rounded="2xl" borderWidth="1px" borderColor="border.subtle">
                 {/* Side by side on every width now (2026-09-20, user
                     request): the two toggles stacked burned a whole row on a

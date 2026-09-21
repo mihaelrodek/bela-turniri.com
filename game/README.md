@@ -645,7 +645,14 @@ Ključni tokovi:
   sjedalo doista drži K+Q aduta odlučuje engine. Zastavicu koju ruka ne
   pokriva engine **ignorira** (ne odbija potez), pa `bela: true` iz krivotvorenog
   ili zastarjelog klijenta ne može stvoriti bodove.
-- **Chat**: `chat.send {text}` → `chat.msg`. Max 300 znakova, rate-limit 1/s.
+- **Reakcije**: `chat.react {reaction}` → `chat.reaction {from, seat, reaction, at}`,
+  jedna od fiksnog skupa `REACTIONS` (6 emojija) — **nema slobodnog teksta**
+  između igrača, namjerno (app store zahtjev). Rate-limit
+  `LIMITS.reactionCooldownMs` (3 s) po vezi; gledatelj bez sjedala dobiva
+  `BAD_REQUEST`. Bez povijesti — prolazni mjehurić uz sjedalo pošiljatelja.
+  Stara soba-chat (`chat.send`/`chat.msg`, slobodan tekst) je **uklonjena**
+  (2026-09-20); poruka tog tipa danas ne prolazi `isClientMessage` i vraća
+  obični `BAD_REQUEST`, ne ruši vezu.
 - **Aktivno sjedalo**: `game.active { seat: ActiveSeatInfo | null }` — server→klijent,
   bez zahtjeva. Kaže *koja soba još drži sjedalo za ovog korisnika* i do kada:
   `{ roomId, roomName, code, status, targetScore, seat, present, holdUntil }`.
@@ -1031,7 +1038,8 @@ prijavljeni suigrači zadržavaju svoju statistiku prema pravilima prihvatljivos
   mjesta zauzeta” piše **samo** kad slobodnog sjedala doista nema, inače nudi
   „Sjedni ovdje”), `RoomListItem` (redak predvorja: `occupants` po imenima,
   botovi kao botovi, badge „Puna” i odbijanje klika kad `joinable` nije
-  istinit), `Chat`.
+  istinit), `ReactionsBar` (šest emoji reakcija — jedini oblik komunikacije
+  između igrača, nema slobodnog teksta).
   Završena partija vraća istu sobu u LOBBY, uz konačni rezultat, sačuvana
   mjesta i pravila. Nova partija resetira rezultat i povijest.
 - Animacije: CSS transitions/keyframes (bez novih dependencyja): dijeljenje

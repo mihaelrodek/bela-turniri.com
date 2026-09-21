@@ -97,6 +97,14 @@ describe("bad input", () => {
         err = await client.nextOfType("error")
         expect(err.code).toBe("BAD_REQUEST")
 
+        // Free-text room chat was removed (2026-09-20, app-store review: no
+        // user-to-user free text). An old client that still sends `chat.send`
+        // must get a normal protocol error, not crash the connection — the
+        // type simply no longer passes `isClientMessage`.
+        client.sendRaw(JSON.stringify({ t: "chat.send", text: "bok" }))
+        err = await client.nextOfType("error")
+        expect(err.code).toBe("BAD_REQUEST")
+
         client.sendRaw(JSON.stringify({ t: "room.sit", seat: 9 }))
         err = await client.nextOfType("error")
         expect(err.code).toBe("BAD_REQUEST")
@@ -123,35 +131,4 @@ describe("rate limiting", () => {
         await client.close()
     })
 
-    it("rate-limits chat separately", async () => {
-        server = await startTestServer({
-            rateLimits: { messagesPerSecond: 100, chatPerSecond: 1 },
-        })
-        const client = await TestClient.connect(server.url())
-        await client.hello("Ana")
-        client.send({ t: "room.create", name: "Test", targetScore: 501, private: false })
-        await client.nextOfType("room.joined")
-
-        client.send({ t: "chat.send", text: "bok" })
-        const msg = await client.nextOfType("chat.msg")
-        expect(msg.msg.text).toBe("bok")
-        expect(msg.msg.from.uid).toBe("dev:ana")
-
-        client.send({ t: "chat.send", text: "opet" })
-        const err = await client.nextOfType("error")
-        expect(err.code).toBe("RATE_LIMITED")
-        await client.close()
-    })
-
-    it("trims and rejects empty chat", async () => {
-        server = await startTestServer({ rateLimits: { messagesPerSecond: 100 } })
-        const client = await TestClient.connect(server.url())
-        await client.hello("Ana")
-        client.send({ t: "room.create", name: "Test", targetScore: 501, private: false })
-        await client.nextOfType("room.joined")
-        client.send({ t: "chat.send", text: "   " })
-        const err = await client.nextOfType("error")
-        expect(err.code).toBe("BAD_REQUEST")
-        await client.close()
-    })
 })

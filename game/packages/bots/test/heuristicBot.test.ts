@@ -76,13 +76,47 @@ describe("heuristicBot.chooseBid — the whole-hand rule (BOT.md §1)", () => {
     it("calls anyway in a tight endgame, rather than let the opponents choose the trump", () => {
         // Both sides are one ordinary deal from 501: whoever takes and passes
         // wins, so "tad se mora zvati i ne dozvoliti protivniku da bira aduta."
-        const v = view({
-            seat: 0, // team A
-            hand: acesButNoTrumps,
-            targetScore: 501,
-            score: { A: 450, B: 420 },
-        })
-        expect(heuristicBot.chooseBid(v, allSuits, noRng)).toBe("HERC")
+        // A lone trump jack would never call at an ordinary score (no second
+        // trick anywhere), but it is a real trump, and here that is enough.
+        const loneJack: Card[] = ["JHERC", "7PIK", "8PIK", "7TREF", "8TREF", "7KARA"]
+        const tight = { seat: 0 as const, hand: loneJack, dealer: 0 as const, targetScore: 501 as const }
+        expect(heuristicBot.chooseBid(view({ ...tight, score: { A: 0, B: 0 } }), allSuits, noRng)).toBe("PASS")
+        expect(heuristicBot.chooseBid(view({ ...tight, score: { A: 450, B: 420 } }), allSuits, noRng)).toBe("HERC")
+        // Aces with no trump at all are still a fall, tight endgame or not
+        // (reported 2026-09-21; this test asserted the opposite until then).
+        const junk = view({ seat: 0, hand: acesButNoTrumps, dealer: 0, targetScore: 501, score: { A: 450, B: 420 } })
+        expect(heuristicBot.chooseBid(junk, allSuits, noRng)).toBe("PASS")
+    })
+
+    it("does not make the endgame call on a junk trump, nor when the pass puts an OPPONENT on mus", () => {
+        // Reported: 92:90 to 163, the bot called HERC on 8-Q-A with the
+        // opposing dealer next to speak.
+        const junk: Card[] = ["8HERC", "QHERC", "AHERC", "7PIK", "8TREF", "9KARA"]
+        const reported = view({ seat: 2, hand: junk, dealer: 3, targetScore: 163 as never, score: { A: 92, B: 90 } })
+        expect(heuristicBot.chooseBid(reported, allSuits, noRng)).toBe("PASS")
+        // Same junk with my own PARTNER dealing: still no call — it is a fall.
+        const partnerDeals = view({ seat: 1, hand: junk, dealer: 3, targetScore: 501, score: { A: 450, B: 430 } })
+        expect(heuristicBot.chooseBid(partnerDeals, allSuits, noRng)).toBe("PASS")
+        // A real trump (the jack) still makes the forced call when a partner deals…
+        const jack: Card[] = ["JHERC", "7HERC", "7PIK", "8TREF", "9KARA", "8KARA"]
+        const mustCall = view({ seat: 1, hand: jack, dealer: 3, targetScore: 501, score: { A: 450, B: 430 } })
+        expect(heuristicBot.chooseBid(mustCall, allSuits, noRng)).toBe("HERC")
+        // …but not when passing forces the opposing dealer instead.
+        const forceHim = view({ seat: 2, hand: jack, dealer: 3, targetScore: 501, score: { A: 450, B: 430 } })
+        expect(heuristicBot.chooseBid(forceHim, allSuits, noRng)).toBe("PASS")
+    })
+
+    it("the quick game to 163 is not one long endgame: the forced call starts at 122, not at 73", () => {
+        // A lone jack: passes at an ordinary score, calls only in the endgame.
+        const loneJack: Card[] = ["JHERC", "7PIK", "8PIK", "7TREF", "8TREF", "7KARA"]
+        const at = (a: number, b: number) =>
+            heuristicBot.chooseBid(
+                view({ seat: 0, hand: loneJack, dealer: 0, targetScore: 163 as never, score: { A: a, B: b } }),
+                allSuits,
+                noRng,
+            )
+        expect(at(92, 90)).toBe("PASS")
+        expect(at(125, 130)).toBe("HERC")
     })
 
     it("does not fire the endgame exception at an ordinary score", () => {
@@ -143,6 +177,27 @@ describe("heuristicBot.chooseBid — the whole-hand rule (BOT.md §1)", () => {
             )
         expect(at(880)).toBe("HERC")
         expect(at(990)).toBe("PASS")
+    })
+
+    it("calls the document's minimum hands only from the opening seat", () => {
+        // Bela + nine with a backed ten elsewhere: suitStrength is only 4.0,
+        // so the yardstick passes it; the document calls it when I open.
+        const bela: Card[] = ["KHERC", "QHERC", "9HERC", "10PIK", "KPIK", "7TREF"]
+        const opening = view({ seat: 0, hand: bela, dealer: 3 })
+        expect(heuristicBot.chooseBid(opening, allSuits, noRng)).toBe("HERC")
+        const notOpening = view({ seat: 0, hand: bela, dealer: 0 })
+        expect(heuristicBot.chooseBid(notOpening, allSuits, noRng)).toBe("PASS")
+
+        // Four small cards of one suit, again only when I open the play.
+        const long: Card[] = ["7TREF", "8TREF", "QTREF", "KTREF", "7PIK", "8KARA"]
+        expect(heuristicBot.chooseBid(view({ seat: 0, hand: long, dealer: 3 }), allSuits, noRng)).toBe("TREF")
+        expect(heuristicBot.chooseBid(view({ seat: 0, hand: long, dealer: 1 }), allSuits, noRng)).toBe("PASS")
+    })
+
+    it("does not make a documented minimum call while the opponents are near the target", () => {
+        const long: Card[] = ["7TREF", "8TREF", "QTREF", "KTREF", "7PIK", "8KARA"]
+        const v = view({ seat: 0, hand: long, dealer: 3, targetScore: 1001, score: { A: 400, B: 985 } })
+        expect(heuristicBot.chooseBid(v, allSuits, noRng)).toBe("PASS")
     })
 
     it("ignores the endgame rule entirely when no target is known", () => {
@@ -550,6 +605,10 @@ describe("heuristicBot.chooseCard — leading a trick", () => {
             dealer: 3,
             bidding: { turn: 1, passes: [], trump: "HERC", caller: 2 }, // partner called
             played: ["7HERC", "8HERC", "9HERC", "10HERC", "QHERC", "KHERC", "AHERC", "7TREF"],
+            // One trick each: with no trick lost the štihak would still be
+            // alive, and then the last trump DOES go first (BOT.md §14.1) —
+            // a different rule from the one this test is about.
+            tricksWon: { A: 1, B: 1 },
             trick: { leader: 0, turn: 0, cards: [] },
         })
         expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("APIK")
@@ -875,13 +934,16 @@ describe("heuristicBot — BOT.md §13, the reported table rules", () => {
         expect(heuristicBot.chooseCard(v, [...v.hand], noRng)).toBe("9PIK")
     })
 
-    it("§13.2 answers his LOW opening with a trump instead of the suit", () => {
+    it("§13.2 answers the CALLER's low opening with a trump instead of the suit", () => {
+        // Only the caller's low card is the request for trump (owner's
+        // correction, 2026-09-20); from a partner who did not call, the same
+        // card is a possible singleton and the suit goes back.
         const first: Card[] = ["8PIK", "7PIK", "APIK", "9PIK"]
         const v = view({
             seat: 0,
             hand: ["7HERC", "10PIK", "8TREF"],
             handSizes: { 0: 3, 1: 3, 2: 3, 3: 3 },
-            bidding: { turn: 1, passes: [], trump: "HERC", caller: 1 },
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 2 },
             tricksWon: { A: 1, B: 0 },
             currentDealPoints: { A: 11, B: 0 },
             played: first,
@@ -893,7 +955,7 @@ describe("heuristicBot — BOT.md §13, the reported table rules", () => {
         expect(heuristicBot.chooseCard(v, [...v.hand], noRng)).toBe("7HERC")
     })
 
-    it("§13.3 the caller who called on length flushes the jack with his smallest trump", () => {
+    it("§13.3 the caller who called on length flushes the jack with his queen, not a 7/8", () => {
         const hand: Card[] = ["7HERC", "9HERC", "10HERC", "QHERC", "APIK"]
         const v = view({
             seat: 0,
@@ -902,7 +964,7 @@ describe("heuristicBot — BOT.md §13, the reported table rules", () => {
             bidding: { turn: 1, passes: [], trump: "HERC", caller: 0 },
             trick: { leader: 0, turn: 0, cards: [] },
         })
-        expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("7HERC")
+        expect(heuristicBot.chooseCard(v, hand, noRng)).toBe("QHERC")
     })
 
     it("§13.4 after taking his low trump with the jack, returns a cheap trump and keeps the nine", () => {

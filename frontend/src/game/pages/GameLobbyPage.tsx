@@ -250,11 +250,15 @@ export default function GameLobbyPage() {
                             `lineClamp`: a long name must never push the
                             stats row or the gear out past the viewport. */}
                         <Text fontWeight="medium" minW="0" truncate>{socket.me?.name ?? "…"}</Text>
+                        {/* Karma rides beside the name (2026-09-20, user
+                            request): alone on its own row under the stat tiles
+                            it read as a stray sixth tile. It is a fact about
+                            the PLAYER, so it sits with the player. */}
+                        <Box flexShrink={0}><SeatKarmaPill karma={socket.me?.karma} /></Box>
                     </HStack>
-                    <VStack display={{ base: "none", md: "flex" }} gap="1" align="center">
+                    <Box display={{ base: "none", md: "block" }}>
                         <MyGameStatsPills stats={socket.me?.gameStats} variant="row" />
-                        <SeatKarmaPill karma={socket.me?.karma} />
-                    </VStack>
+                    </Box>
                     <HStack>
                     <IconButton aria-label={t("game.settings.title")} variant="outline" rounded="full" onClick={() => setSettingsOpen(true)}><FiSettings /></IconButton>
                     {!connected && (
@@ -266,10 +270,9 @@ export default function GameLobbyPage() {
                     </HStack>
                 </Grid>
 
-                <VStack display={{ base: "flex", md: "none" }} gap="1.5" align="center" w="full" maxW="340px">
+                <Box display={{ base: "block", md: "none" }} w="full" maxW="340px">
                     <MyGameStatsPills stats={socket.me?.gameStats} />
-                    <SeatKarmaPill karma={socket.me?.karma} />
-                </VStack>
+                </Box>
 
                 {socket.me?.guest && <Text fontSize="sm" color="fg.muted">
                     <Link to="/prijava" style={{ fontWeight: 700, color: "var(--chakra-colors-brand-fg)", textDecoration: "underline", textUnderlineOffset: "3px" }}>

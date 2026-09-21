@@ -139,10 +139,10 @@ export const common: CommonDict = {
         "Hvala, da si si ogledal ta kratek uvod v stran. Zdaj prosto razišči stran — ustvari svoj turnir, se pridruži obstoječemu ali samo spremljaj rezultate. Srečno!",
 
     // --- Install prompts -------------------------------------------------------
-    "install.title": "Namesti Bela Turniri",
+    "install.title": "Namesti {site}",
     "install.iosSubtitle": "Dodaj aplikacijo na svoj iPhone v 3 korakih:",
     "install.genericSubtitle":
-        "Shrani Bela Turniri kot aplikacijo in jo odpri z enim klikom z domačega zaslona.",
+        "Shrani {site} kot aplikacijo in jo odpri z enim klikom z domačega zaslona.",
     "install.dismissIos": "Razumem",
     "install.dismissLater": "Morda kasneje",
     "install.installButton": "Namesti",
@@ -294,7 +294,7 @@ export const common: CommonDict = {
     "footer.contactLink": "Kontakt",
     "footer.privacyLink": "Zasebnost",
     "footer.termsLink": "Pogoji",
-    "footer.copyright": "© {year} bela-turniri.com",
+    "footer.copyright": "© {year} {domain}",
 
     // --- Deleted-account guard (auth/AuthContext.tsx) ----------------------
     "account.deleted": "Ta račun je izbrisan.",

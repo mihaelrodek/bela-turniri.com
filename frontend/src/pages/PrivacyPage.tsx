@@ -1,7 +1,10 @@
 import type { ReactNode } from "react"
-import { Box, Heading, Text, VStack } from "@chakra-ui/react"
+import { Box, Heading, Link as ChakraLink, Text, VStack } from "@chakra-ui/react"
+import { Link as RouterLink } from "react-router-dom"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 import { useTranslation } from "../i18n"
+import { publicOrigin } from "../site"
+import { ACCOUNT_DELETION_PATH } from "./accountDeletionPath"
 
 /* ──────────────────────────────────────────────────────────────────────────
    PrivacyPage — "Pravila privatnosti" (/privatnost).
@@ -83,7 +86,7 @@ export default function PrivacyPage() {
         ogTitle: t("legal.privacy.title"),
         ogDescription: t("legal.privacy.documentDescription"),
         ogType: "website",
-        canonical: "https://bela-turniri.com/privatnost",
+        canonical: `${publicOrigin}/privatnost`,
     })
 
     return (
@@ -102,6 +105,20 @@ export default function PrivacyPage() {
                     {section.itemKeys?.map((key) => (
                         <Text key={key}>• {t(`legal.privacy.${section.headingKey}.${key}`)}</Text>
                     ))}
+                    {/* The deletion section ends in a link to the public,
+                        login-free instructions page — the URL Google Play's
+                        Data safety form points at. Rendered here rather than
+                        as another body key because `t()` resolves to a plain
+                        string and cannot carry an anchor. */}
+                    {section.headingKey === "accountDeletion" && (
+                        <Text>
+                            <ChakraLink asChild color="fg" textDecoration="underline">
+                                <RouterLink to={ACCOUNT_DELETION_PATH}>
+                                    {t("legal.privacy.accountDeletion.pageLink")}
+                                </RouterLink>
+                            </ChakraLink>
+                        </Text>
+                    )}
                 </SectionBlock>
             ))}
         </VStack>

@@ -21,6 +21,7 @@ export const game: GameDict = {
     "guest.login": "Prijava",
     "guest.loginInline": "Prijavi se",
     "guest.statsHintSuffix": "za shranjevanje statistike v vseh napravah.",
+    "guest.nameOffensive": "To ime ni dovoljeno. Izberi drugo.",
     "declarations.calculating": "Igra računa napovedi…",
     "declarations.starting": "Igra se začenja…",
 
@@ -46,6 +47,7 @@ export const game: GameDict = {
     "settings.gameNameHint": "Ime, ki ga drugi igralci vidijo za mizo. Spremeniš ga lahko enkrat na sedem dni.",
     "settings.gameNameSaved": "Ime je shranjeno.",
     "settings.gameNameNext": "Ime lahko znova spremeniš {date}.",
+    "settings.gameNameOffensive": "To ime ni dovoljeno. Izberi drugo.",
     "settings.avatar": "Lik",
     "settings.avatarHint": "Lik, ki ga drugi igralci vidijo za mizo.",
     "settings.alwaysReady": "Vedno pripravljen",
@@ -335,16 +337,6 @@ export const game: GameDict = {
     "over.finalScore": "Končni izid",
 
     /* ─── Klepet ────────────────────────────────────────────── */
-    "chat.title": "Klepet",
-    "chat.empty": "Še ni sporočil.",
-    "chat.placeholder": "Napiši sporočilo…",
-    "chat.send": "Pošlji",
-    "chat.open": "Odpri klepet",
-    "chat.close": "Zapri klepet",
-    "chat.unread.one": "{n} novo sporočilo",
-    "chat.unread.two": "{n} novi sporočili",
-    "chat.unread.few": "{n} nova sporočila",
-    "chat.unread.other": "{n} novih sporočil",
 
     /* ─── Napake (kode iz @bela/protocol) ───────────────────── */
     "error.UNAUTHENTICATED": "Prijavi se, da lahko igraš.",
@@ -410,6 +402,7 @@ export const game: GameDict = {
 
     "exit.title": "Zapustiti mizo?",
     "exit.description": "Če ostaneš, igraš naprej. Če izstopiš, se začne dvominutno odštevanje; do izteka se lahko vrneš, nato tvoje mesto prevzame bot.",
+    "exit.descriptionLobby": "Če izstopiš, takoj zapustiš sobo in tvoje mesto za mizo se sprosti.",
     "exit.stay": "Ostani v sobi",
     "exit.leave": "Izstopi iz sobe",
 

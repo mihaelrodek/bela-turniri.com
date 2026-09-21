@@ -9,6 +9,7 @@ import type { FormsDict } from "../hr/forms"
 export const forms: FormsDict = {
     // --- Shared across pages.tsx-adjacent standalone pages ------------------
     "shared.backToTournaments": "Nazaj na turnirje",
+    "shared.backHome": "Nazaj na domačo stran",
 
     // --- Auth (LoginPage.tsx + RegisterPage.tsx) ----------------------------
     "auth.email": "E-pošta",

@@ -85,8 +85,10 @@ export default function CookieConsent() {
     return (
         <Box
             position="fixed"
-            left="3"
-            right="3"
+            /* `max()` so a landscape cutout pushes the banner in rather than
+               swallowing the "Prihvati" button. */
+            left="max(var(--chakra-spacing-3), var(--safe-left))"
+            right="max(var(--chakra-spacing-3), var(--safe-right))"
             // Clears MobileTabBar on mobile (it's fixed at the same viewport
             // edge); on md+ the tab bar doesn't exist, so a small fixed gap
             // is enough.

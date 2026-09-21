@@ -8,22 +8,56 @@
 
 /* Begin PBXBuildFile section */
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
+		3882ACDE835484A9DCB54A6C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 045758B5A4BB8687DBB4CEA1 /* PrivacyInfo.xcprivacy */; };
+		3A7C1E5B9D2F4A6C8B0E1D03 /* BelaActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7C1E5B9D2F4A6C8B0E1D01 /* BelaActivityAttributes.swift */; };
+		3A7C1E5B9D2F4A6C8B0E1D04 /* BelaLiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7C1E5B9D2F4A6C8B0E1D02 /* BelaLiveActivityPlugin.swift */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
+		4DCDD6E6F2F34539E0FFEF01 /* AppBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DD38FCD133DF7AFE084C46E /* AppBridgeViewController.swift */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		56B0C68F2266F2D829BAB054 /* BelaActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ADBC7DC0A9D6B510015B2996 /* BelaActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		59C07E840CD5C42B1DAC5ABE /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F0C7AAF7C9B3541C8A5FF3 /* Foundation.framework */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
+		9A0597DB0E326DAD3D9DDBAD /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F9B77DB5C7F794DCF3C19506 /* PrivacyInfo.xcprivacy */; };
+		9B5D8A0214BF5F3274497E86 /* BelaActivityLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE267E724E1E6D2388EC5245 /* BelaActivityLiveActivity.swift */; };
 		E7E1552133B264C891E0079B /* GuestKeychainPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8EDE9BB89EE3FB69D371871 /* GuestKeychainPlugin.swift */; };
-		3A7C1E5B9D2F4A6C8B0E1D03 /* BelaActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7C1E5B9D2F4A6C8B0E1D01 /* BelaActivityAttributes.swift */; };
-		3A7C1E5B9D2F4A6C8B0E1D04 /* BelaLiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7C1E5B9D2F4A6C8B0E1D02 /* BelaLiveActivityPlugin.swift */; };
-		4DCDD6E6F2F34539E0FFEF01 /* AppBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DD38FCD133DF7AFE084C46E /* AppBridgeViewController.swift */; };
+		F33FF8F4DF6AD7844BFF4B65 /* BelaActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7C1E5B9D2F4A6C8B0E1D01 /* BelaActivityAttributes.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		B32597A46F2375682233A3F6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C2104E8977A1AB7C12C3E5D5;
+			remoteInfo = BelaActivity;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		159B9F316FA1E95C090CBDBD /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				56B0C68F2266F2D829BAB054 /* BelaActivity.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		045758B5A4BB8687DBB4CEA1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
+		3A7C1E5B9D2F4A6C8B0E1D01 /* BelaActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BelaActivityAttributes.swift; sourceTree = "<group>"; };
+		3A7C1E5B9D2F4A6C8B0E1D02 /* BelaLiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BelaLiveActivityPlugin.swift; sourceTree = "<group>"; };
+		41F0C7AAF7C9B3541C8A5FF3 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -32,15 +66,25 @@
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
+		5CEB82473EC5E76B41F36B4E /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
-		B8EDE9BB89EE3FB69D371871 /* GuestKeychainPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestKeychainPlugin.swift; sourceTree = "<group>"; };
-		3A7C1E5B9D2F4A6C8B0E1D01 /* BelaActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BelaActivityAttributes.swift; sourceTree = "<group>"; };
-		3A7C1E5B9D2F4A6C8B0E1D02 /* BelaLiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BelaLiveActivityPlugin.swift; sourceTree = "<group>"; };
 		9DD38FCD133DF7AFE084C46E /* AppBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBridgeViewController.swift; sourceTree = "<group>"; };
+		ADBC7DC0A9D6B510015B2996 /* BelaActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BelaActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B8EDE9BB89EE3FB69D371871 /* GuestKeychainPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestKeychainPlugin.swift; sourceTree = "<group>"; };
+		DE267E724E1E6D2388EC5245 /* BelaActivityLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BelaActivityLiveActivity.swift; sourceTree = "<group>"; };
+		F9B77DB5C7F794DCF3C19506 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		0FD63ADE430F72937BAFFB38 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				59C07E840CD5C42B1DAC5ABE /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3011FED79650016851F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -58,6 +102,8 @@
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,
+				AD8F4781504BC32350524084 /* Frameworks */,
+				E4A9A1D7E8FCDD70DB439033 /* BelaActivity */,
 			);
 			sourceTree = "<group>";
 		};
@@ -65,6 +111,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				ADBC7DC0A9D6B510015B2996 /* BelaActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -85,8 +132,36 @@
 				504EC3131FED79650016851F /* Info.plist */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
+				F9B77DB5C7F794DCF3C19506 /* PrivacyInfo.xcprivacy */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		7C2BA51A4C6537D2B4F3B0E2 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				41F0C7AAF7C9B3541C8A5FF3 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		AD8F4781504BC32350524084 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				7C2BA51A4C6537D2B4F3B0E2 /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		E4A9A1D7E8FCDD70DB439033 /* BelaActivity */ = {
+			isa = PBXGroup;
+			children = (
+				DE267E724E1E6D2388EC5245 /* BelaActivityLiveActivity.swift */,
+				5CEB82473EC5E76B41F36B4E /* Info.plist */,
+				045758B5A4BB8687DBB4CEA1 /* PrivacyInfo.xcprivacy */,
+			);
+			name = BelaActivity;
+			path = BelaActivity;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -99,10 +174,12 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				159B9F316FA1E95C090CBDBD /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A405203AA636A830A3F0AF7F /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -111,6 +188,23 @@
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		C2104E8977A1AB7C12C3E5D5 /* BelaActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4CC133C5DAFE70620F34E97B /* Build configuration list for PBXNativeTarget "BelaActivity" */;
+			buildPhases = (
+				939A1C53DFC9A42B888A9639 /* Sources */,
+				0FD63ADE430F72937BAFFB38 /* Frameworks */,
+				5C82D54493BE5BB109C4F9EB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BelaActivity;
+			productName = BelaActivity;
+			productReference = ADBC7DC0A9D6B510015B2996 /* BelaActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -145,6 +239,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				C2104E8977A1AB7C12C3E5D5 /* BelaActivity */,
 			);
 		};
 /* End PBXProject section */
@@ -160,6 +255,15 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+				9A0597DB0E326DAD3D9DDBAD /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5C82D54493BE5BB109C4F9EB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3882ACDE835484A9DCB54A6C /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -179,7 +283,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		939A1C53DFC9A42B888A9639 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9B5D8A0214BF5F3274497E86 /* BelaActivityLiveActivity.swift in Sources */,
+				F33FF8F4DF6AD7844BFF4B65 /* BelaActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A405203AA636A830A3F0AF7F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = BelaActivity;
+			target = C2104E8977A1AB7C12C3E5D5 /* BelaActivity */;
+			targetProxy = B32597A46F2375682233A3F6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -201,6 +323,31 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		4D7F8425A9AC2EF75C85E2B5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BelaActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.belaturniri.app.BelaActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		504EC3141FED79650016851F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
@@ -356,9 +503,44 @@
 			};
 			name = Release;
 		};
+		BFC2EA87F52901B4C85AAFDB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BelaActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.belaturniri.app.BelaActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4CC133C5DAFE70620F34E97B /* Build configuration list for PBXNativeTarget "BelaActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BFC2EA87F52901B4C85AAFDB /* Release */,
+				4D7F8425A9AC2EF75C85E2B5 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

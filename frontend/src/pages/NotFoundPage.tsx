@@ -2,6 +2,7 @@ import {Box, Button, Heading, HStack, Text, VStack} from "@chakra-ui/react"
 import {Link as RouterLink} from "react-router-dom"
 import {FiArrowLeft} from "react-icons/fi"
 import {useTranslation} from "../i18n"
+import {homePath, isGamesSite} from "../site"
 
 /**
  * Catch-all for unmatched URLs. Avoids the React Router default of rendering
@@ -30,8 +31,8 @@ export default function NotFoundPage() {
                         variant="outline"
                         size="sm"
                     >
-                        <RouterLink to="/turniri">
-                            <FiArrowLeft/> {t("forms.shared.backToTournaments")}
+                        <RouterLink to={homePath}>
+                            <FiArrowLeft/> {isGamesSite ? t("forms.shared.backHome") : t("forms.shared.backToTournaments")}
                         </RouterLink>
                     </Button>
                 </HStack>

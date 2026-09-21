@@ -1,3 +1,5 @@
+import { readFile, writeFile } from "node:fs/promises"
+import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { defineConfig, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
@@ -166,8 +168,205 @@ function precacheManifest(): Plugin {
     }
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   THE SECOND FRONT DOOR'S HTML SHELL — `dist/index.games.html`.
+
+   The games domains (bela.games AND its equal twin belot.games) serve the
+   SAME bundle as bela-turniri.com from the SAME container (see the
+   Caddyfile's site blocks and `src/site.ts`, which picks the product from
+   the hostname at runtime). What they cannot share is
+   the <head>: title, description, canonical, Open Graph/Twitter card, the
+   JSON-LD and the manifest link all name the full site, and a crawler or a
+   link-unfurler reads exactly those bytes — it never runs `site.ts`.
+
+   So this plugin derives a second shell from the FINISHED `dist/index.html`,
+   after Vite has injected the hashed <script>/<link> tags. Deriving it (not
+   maintaining a second index.html) is the whole point: the two shells can
+   never drift on the parts that matter for booting the app — the asset tags
+   are byte-identical, because they are copied from the real build output.
+   Caddy serves this file as `/` and as the SPA fallback on bela.games.
+
+   EVERY substitution is asserted, with the expected occurrence count. A
+   wrong count fails the build loudly instead of silently shipping a page
+   titled "Bela Turniri" on bela.games — a failure nobody would notice for
+   weeks, by which time Google has indexed it. If you edit index.html's head
+   and this build starts failing, that is the mechanism working: update the
+   constants below in the same commit.
+   ────────────────────────────────────────────────────────────────────── */
+
+/** Strings from `index.html` this transform rewrites, with how many times
+ *  each must appear in the built shell. */
+const MAIN_TITLE = "Bela Turniri — turniri u beli, online bela i zapisnik"
+const MAIN_DESCRIPTION = "Platforma za vođenje i praćenje turnira u beli. Kreiraj turnir, prikupi prijave parova i objavi rezultate, igraj belu online i vodi zapisnik partije u bloku."
+const MAIN_OG_CARD = "https://bela-turniri.com/bela-turniri-og-card.png"
+
+/** Croatian copy for the games domains. They show only the online game and
+ *  the scorepad, so the promise made in a search result or a WhatsApp
+ *  preview has to be exactly that — nothing about organising tournaments.
+ *
+ *  ONE shell is served by BOTH bela.games and belot.games, so every absolute
+ *  URL in it names the CANONICAL twin, bela.games: identical content on two
+ *  hostnames is duplicate content, and a canonical that follows the host
+ *  would just put two competing copies in the index instead of consolidating
+ *  them. belot.games still serves the app in full — it simply tells crawlers
+ *  which name to rank. Keep this in step with GAMES_ORIGIN in
+ *  frontend/src/site.ts. */
+const GAMES_ORIGIN = "https://bela.games"
+const GAMES_TITLE = "bela.games — igraj belu online i vodi zapisnik"
+const GAMES_DESCRIPTION = "Igraj belu online protiv prijatelja ili botova i vodi zapisnik partije u bloku. Besplatno, bez instalacije, u pregledniku i na mobitelu."
+
+function gamesShell(): Plugin {
+    let outDir = ""
+
+    /** Replace `find` with `to`, insisting it occurred exactly `times`. */
+    const swap = (html: string, find: string, to: string, times: number, what: string) => {
+        const seen = html.split(find).length - 1
+        if (seen !== times) {
+            throw new Error(
+                `index.games.html: expected ${times}× ${what} in the built shell, found ${seen}. `
+                + `Did index.html's <head> change? Searched for: ${JSON.stringify(find.slice(0, 120))}`,
+            )
+        }
+        return html.split(find).join(to)
+    }
+
+    const transform = (html: string) => {
+        let out = html
+
+        // Title, description and the OG card image. Each appears in several
+        // tags (title + og:title + og:image:alt; description + og:description;
+        // og:image + og:image:secure_url + twitter:image), which is why the
+        // counts below are what they are.
+        out = swap(out, MAIN_TITLE, GAMES_TITLE, 3, "the site title")
+        out = swap(out, MAIN_DESCRIPTION, GAMES_DESCRIPTION, 2, "the site description")
+        // Same picture, served from this domain: the file is in public/ and
+        // therefore exists on both hosts, and an og:image on the same origin
+        // as og:url is what every unfurler expects.
+        out = swap(out, MAIN_OG_CARD, `${GAMES_ORIGIN}/bela-turniri-og-card.png`, 3, "the OG card URL")
+
+        out = swap(
+            out,
+            `<meta property="og:url" content="https://bela-turniri.com/" />`,
+            `<meta property="og:url" content="${GAMES_ORIGIN}/" />`,
+            1,
+            "og:url",
+        )
+        out = swap(
+            out,
+            `<meta property="og:site_name" content="Bela Turniri" />`,
+            `<meta property="og:site_name" content="bela.games" />`,
+            1,
+            "og:site_name",
+        )
+        out = swap(
+            out,
+            `<meta name="application-name" content="Bela Turniri" />`,
+            `<meta name="application-name" content="bela.games" />`,
+            1,
+            "application-name",
+        )
+        out = swap(
+            out,
+            `<meta name="apple-mobile-web-app-title" content="Bela Turniri" />`,
+            `<meta name="apple-mobile-web-app-title" content="bela.games" />`,
+            1,
+            "apple-mobile-web-app-title",
+        )
+        // This domain's own PWA identity: name, start_url /igra, its own
+        // shortcuts. Caddy ALSO rewrites /manifest.webmanifest to the same
+        // file on bela.games, so the service worker's shell precache (which
+        // asks for the canonical name) gets the right one too.
+        out = swap(
+            out,
+            `<link rel="manifest" href="/manifest.webmanifest" />`,
+            `<link rel="manifest" href="/manifest.games.webmanifest" />`,
+            1,
+            "the manifest link",
+        )
+
+        // index.html carries no <link rel="canonical"> (useDocumentHead sets
+        // one per route client-side). A crawler that does not run JS has to
+        // be told which origin owns this page, or the several domains serving
+        // one bundle look like duplicate content — so add it here, right
+        // before the title. Always bela.games, including when this exact file
+        // is served on belot.games; see GAMES_ORIGIN above.
+        out = swap(
+            out,
+            "<title>",
+            `<link rel="canonical" href="${GAMES_ORIGIN}/" />\n    <title>`,
+            1,
+            "the <title> tag",
+        )
+
+        // JSON-LD: the full site's block advertises a SearchAction over
+        // /turniri?q=, a page that does not exist on this domain (Caddy 301s
+        // it away). Replace both records with a plain WebSite + Organization
+        // for bela.games.
+        const ldBlocks = out.match(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g) ?? []
+        if (ldBlocks.length !== 2) {
+            throw new Error(
+                `index.games.html: expected 2 JSON-LD blocks in the built shell, found ${ldBlocks.length}. `
+                + "Update the JSON-LD rewrite in vite.config.ts.",
+            )
+        }
+        const ld = (value: unknown) => `<script type="application/ld+json">\n    ${JSON.stringify(value, null, 2).split("\n").join("\n    ")}\n    </script>`
+        out = out.replace(ldBlocks[0], ld({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "bela.games",
+            url: `${GAMES_ORIGIN}/`,
+            inLanguage: "hr",
+        }))
+        out = out.replace(ldBlocks[1], ld({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "bela.games",
+            url: `${GAMES_ORIGIN}/`,
+            logo: `${GAMES_ORIGIN}/bela-turniri-symbol.png`,
+            sameAs: [],
+        }))
+
+        // BEST-EFFORT (deliberately not asserted): the first-screen seed in
+        // index.html prefetches /api/seed for "/" because on the full site
+        // "/" IS the tournament listing. On bela.games "/" is the game, so
+        // that request would fetch a listing nothing renders. If the line
+        // ever changes shape the games shell simply keeps the harmless extra
+        // fetch rather than failing a build over a performance nicety.
+        out = out.replace(
+            `var seeded = p === "/" || p === "/turniri"`,
+            `var seeded = p === "/turniri"`,
+        )
+
+        return out
+    }
+
+    return {
+        name: "bela-games-shell",
+        apply: "build",
+        configResolved(config) {
+            outDir = resolve(config.root, config.build.outDir)
+        },
+        async closeBundle() {
+            // Runs after the bundle is on disk, so `index.html` already has
+            // the hashed script/style tags this shell must copy verbatim.
+            let html: string
+            try {
+                html = await readFile(join(outDir, "index.html"), "utf8")
+            } catch (err) {
+                this.error(`index.games.html: cannot read the built index.html (${String(err)})`)
+                return
+            }
+            try {
+                await writeFile(join(outDir, "index.games.html"), transform(html), "utf8")
+            } catch (err) {
+                this.error(err instanceof Error ? err.message : String(err))
+            }
+        },
+    }
+}
+
 export default defineConfig({
-    plugins: [react(), precacheManifest()],
+    plugins: [react(), precacheManifest(), gamesShell()],
     resolve: {
         // The online-bela packages live OUTSIDE this app, in the sibling
         // `game/` workspace, and are consumed straight from TypeScript source

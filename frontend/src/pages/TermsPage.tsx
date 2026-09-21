@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { Box, Heading, Text, VStack } from "@chakra-ui/react"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 import { useTranslation } from "../i18n"
+import { publicOrigin } from "../site"
 
 /* ──────────────────────────────────────────────────────────────────────────
    TermsPage — "Uvjeti korištenja" (/uvjeti).
@@ -54,7 +55,7 @@ export default function TermsPage() {
         ogTitle: t("legal.terms.title"),
         ogDescription: t("legal.terms.documentDescription"),
         ogType: "website",
-        canonical: "https://bela-turniri.com/uvjeti",
+        canonical: `${publicOrigin}/uvjeti`,
     })
 
     return (

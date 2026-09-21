@@ -19,6 +19,7 @@ import { useDocumentHead } from "../hooks/useDocumentHead"
 import { submitContactMessage } from "../api/contact"
 import { showError } from "../toaster"
 import { useTranslation } from "../i18n"
+import { homePath, isGamesSite, publicOrigin } from "../site"
 
 /* ──────────────────────────────────────────────────────────────────────────
    ContactPage — "Kontaktiraj nas" (/kontakt).
@@ -57,7 +58,7 @@ export default function ContactPage() {
         ogTitle: t("pages.contact.seo.ogTitle"),
         ogDescription: t("pages.contact.seo.ogDescription"),
         ogType: "website",
-        canonical: "https://bela-turniri.com/kontakt",
+        canonical: `${publicOrigin}/kontakt`,
     })
 
     const [name, setName] = useState(user?.displayName ?? "")
@@ -143,8 +144,10 @@ export default function ContactPage() {
                                 {t("pages.contact.success.description")}
                             </Text>
                             <Button asChild variant="outline" size="sm" mt="2" minH="44px">
-                                <RouterLink to="/turniri">
-                                    <FiArrowLeft /> {t("pages.contact.success.backLink")}
+                                <RouterLink to={homePath}>
+                                    <FiArrowLeft /> {isGamesSite
+                                        ? t("pages.contact.success.backLinkHome")
+                                        : t("pages.contact.success.backLink")}
                                 </RouterLink>
                             </Button>
                         </VStack>

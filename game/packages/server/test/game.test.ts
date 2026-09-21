@@ -87,7 +87,7 @@ describe("a full game", () => {
         "plays through to GAME_OVER with one human and three bots",
         async () => {
             server = await startTestServer({
-                rateLimits: { messagesPerSecond: 5000, chatPerSecond: 5000 },
+                rateLimits: { messagesPerSecond: 5000 },
             })
             const host = await connect("Igrac")
             const roomId = await startSoloRoom(host, 501)
@@ -159,7 +159,7 @@ describe("a full game", () => {
         "plays a 701 room through to GAME_OVER",
         async () => {
             server = await startTestServer({
-                rateLimits: { messagesPerSecond: 5000, chatPerSecond: 5000 },
+                rateLimits: { messagesPerSecond: 5000 },
             })
             const host = await connect("Igrac701")
             await startSoloRoom(host, 701)

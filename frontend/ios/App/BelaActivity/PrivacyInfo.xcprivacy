@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Privacy manifest of the BelaActivity widget extension.
+
+  Deliberately empty: the extension only renders the ActivityKit content
+  state the app or APNs hands it. It collects nothing, stores nothing, calls
+  no required-reason API (no UserDefaults, no file timestamps, no disk space,
+  no boot time) and links no third-party SDK. The app target's own manifest
+  (App/App/PrivacyInfo.xcprivacy) is the one that describes the product's
+  data use.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>

@@ -436,7 +436,7 @@ Nova komponenta. Lijevo strelica natrag + ime sobe (`sm`, semibold, INK) +
 statusni čipovi (`StatusChip` se preselio ovamo iz `GameRoomPage`), desno
 **grupa pill gumba s ikonom i badgeom**: „Zvanja” (`FiFileText`, badge = bodovi
 zvanja kad ih ima, disabled dok nisu otkrivena) i „Štihovi” (`FiLayers`, badge =
-broj odigranih štihova), pa chat i zupčanik. Ispod `md` natpisi nestaju, ostaju
+broj odigranih štihova), pa zupčanik. Ispod `md` natpisi nestaju, ostaju
 ikona + badge, a riječ živi u `aria-label`/`title`. Komponenta **nema stanja** —
 sve brojke računa stranica koja ima `view`.
 
@@ -853,3 +853,157 @@ bez dečka izbija ga **malim adutom**; nakon što je suigračev niski adut uzet
 **dečkom**, ne asom, dok devetka može sjediti iza bota. Zvačevo otvaranje
 (as/devetka, dečko zadnji) je netaknuto. Testovi su napisani, nisu pokrenuti;
 A/B mjerenja nema.
+
+### bela.games — uži prikaz iste aplikacije (2026-09-20)
+
+Isti build, isti backend, isti Firebase, ista game-server lobby — samo drugi
+domenski dio istog frontenda, uveden `src/site.ts` (`siteMode`/`isGamesSite`,
+`publicOrigin`, `siteName`, `homePath`) i `App.tsx` (redirect s full-site-only
+putanja na bela-turniri.com, oba nedirana ovom izmjenom). `bela.games` i
+`belot.games` su ravnopravni blizanci — isti prikaz, svaki sa svojom domenom
+u `publicOrigin`/`siteName`.
+
+Skriveno na `bela.games`/`belot.games` (a vidljivo na bela-turniri.com):
+
+- **Navigacija** (`NavBar.tsx`, `MobileTabBar.tsx`) — Turniri/Kalendar/Karta
+  ispadaju iz oba izbornika; ostaju samo Igraj i Blok. Marka (logo+tekst) i
+  link vode na `homePath` umjesto tvrdo na `/turniri`; naziv marke je
+  `siteName`, ne prijevodni ključ. Raspon "Igraj" diska u mobilnoj traci
+  računa se po poziciji u (filtriranom) popisu, ne po fiksnom indeksu.
+- **Profil** (`PublicProfilePage.tsx`, `profile/sections.ts`) — kartica
+  "Turniri" (povijest nastupa) postaje "Statistika" (samo `GameStatsCard`,
+  bez povijesti turnira); "Predlošci" (spremljena imena parova za prijavu na
+  turnir) i "Računi" (računi za mečeve) nestaju posve; admin kartica
+  "Dashboard" (upravljanje turnirima) nestaje, ali "Analitika igre", "Popis
+  igrača" i "Poruke" ostaju — to su opći alati, ne turnirski. Postavke,
+  avatar, tema/jezik, statistika igre i povijest bloka ostaju netaknuti.
+  Posjetitelj tuđeg profila na games stranici vidi samo identitetsku
+  karticu, bez popisa turnira.
+- **"Nema igre" stranica** (`GameComingSoonPage.tsx`, dok je produkcijski
+  prekidač isključen) — gumb "Natrag na turnire" nestaje, ostaje samo
+  "Otvori blok".
+- **404** (`NotFoundPage.tsx`) — gumb vodi na `homePath` s natpisom "Natrag
+  na početnu" umjesto "Natrag na turnire".
+- **Prijava/registracija** (`LoginPage.tsx`, `RegisterPage.tsx`) — zadani
+  `?next=` fallback je `homePath`, ne `/turniri`.
+- **Kontakt** (`ContactPage.tsx`) — gumb nakon slanja poruke vodi na
+  `homePath` s natpisom "Natrag na početnu".
+
+Ostalo namjerno netaknuto: `RequireAuth`, `ErrorBoundary`, `OfflineNotice`
+već su generički (`/`, `/blok`) i rade ispravno na oba weba bez izmjene.
+Vodič kroz aplikaciju (`PageTour.tsx`/`tourSteps.ts`) pokreće se samo s
+`/turniri` i `/turniri/:slug` — full-site-only putanja, pa se na games
+stranici uopće ne učitava (App.tsx-ov redirect je presreće prije rutiranja).
+
+Vanjske poveznice i naslovi (canonical/og, dijeljenje) sad idu preko
+`publicOrigin`/`siteName` umjesto tvrdo upisanog `bela-turniri.com` ili
+`window.location.origin` (potonji je `capacitor://localhost` u nativnoj
+ljusci): `ContactPage`, `PrivacyPage`, `TermsPage`, `BlokPage`,
+`SharedBlokPage`, `PublicProfilePage` (canonical + Person/BreadcrumbList
+JSON-LD), `blokHistoryApi.ts#blokShareUrl`, footer copyright
+(`SiteFooter.tsx`) i naslov instalacijskog dijaloga
+(`FirstRunInstallPrompt.tsx`, `InstallAppButton.tsx`, ključ
+`common.install.title`/`genericSubtitle` s `{site}` placeholderom). Pravni
+tekst na `PrivacyPage`/`TermsPage` i dalje imenuje "vlasnika
+bela-turniri.com" u tijelu teksta — to je pravni sadržaj, nije dirano ovom
+izmjenom (samo `canonical` URL je popravljen); vlasnik bi trebao odlučiti
+treba li tekst spominjati oba weba.
+
+---
+
+## Sigurne zone i tipkovnica u nativnoj aplikaciji
+
+### Jedno pravilo
+
+**WebView je *full-bleed* na obje platforme.** Ispod statusne trake, ispod
+ureza/Dynamic Islanda, ispod home indikatora i ispod Androidove
+gesture/navigacijske trake operativni sustav ne ostavlja ništa slobodno — sve
+plaća sama aplikacija, i to **isključivo preko `var(--safe-top)`,
+`var(--safe-right)`, `var(--safe-bottom)` i `var(--safe-left)`** (definirane
+jednom, u `<style>` bloku `frontend/index.html`).
+
+Nikad ne piši goli `env(safe-area-inset-*)`. Na Android WebView-u starijem od
+140 `env()` se tiho rezolvira u `0px` iako sustav stvarno crta edge-to-edge;
+jedini izvor koji tamo nosi pravi broj je `--safe-area-inset-*`, koji ubrizgava
+Capacitorov `SystemBars` plugin. `--safe-*` je `max()` tih dvaju izvora, pa je
+točan u oba slučaja i svugdje drugdje (desktop, obična kartica preglednika)
+iznosi 0.
+
+Praktično, za svaki element koji dodiruje rub ekrana (`position: fixed`,
+`position: sticky`, `inset`, `top/bottom/left/right: 0`, `100dvh`):
+
+- **Obojena ploha smije doći do ruba; sadržaj ne smije.** Donje trake
+  (`MobileTabBar`, blokova akcijska traka, donji *sheet*) boje se do dna i
+  razmak drže *unutarnjim* `padding-bottom: calc(<gap> + var(--safe-bottom))`,
+  da se ispod trake ne pojavi traka druge boje.
+- **Visine se računaju s insetom**, ne s golim pikselima — `NAVBAR_SAFE_TOP`,
+  `CONTENT_STICKY_TOP`, `MOBILE_TABBAR_CLEARANCE`, `ACTION_BAR_RESERVE`
+  (`components/navChrome.ts`, `blok/actionBar.ts`).
+- **Vodoravni rubovi nisu opcionalni.** U portretu su `--safe-left/right` nula,
+  ali u landscapeu na telefonu s urezom nisu; zato ide
+  `max(var(--chakra-spacing-N), var(--safe-left))`, a ne čisti razmak.
+  Cjeloekranski *overlay*-i (`BelotShowcase`, `DeclarationsReveal`,
+  `TrickHistory`) koriste `OVERLAY_SAFE_INSET` iz `navChrome.ts`.
+- **Samo zadnji element u stupcu plaća `--safe-bottom`.** Ako ga plate i
+  omotač i dijete, u instaliranoj aplikaciji nastane ~70 px mrtvog prostora
+  (stvarna prijava, 2026-09-20).
+
+### Odabrana konfiguracija i zašto
+
+`frontend/capacitor.config.ts`:
+
+| Postavka | Vrijednost | Razlog |
+| --- | --- | --- |
+| `ios.contentInset` | `"never"` | To je samo `WKWebView.scrollView.contentInsetAdjustmentBehavior`. Kod `"automatic"` UIScrollView sam odmakne sadržaj za sigurnu zonu, **a `env(safe-area-inset-*)` i dalje prijavljuje pravi inset** — pa se stranica koja se i sama odmiče odmakne dvaput. `"never"` je ujedno Capacitorov vlastiti default i jedina vrijednost pod kojom isti CSS vrijedi i na iOS-u i na Androidu. |
+| `plugins.StatusBar.overlaysWebView` | `true` | Na Androidu 15+/targetSdk 36 opcija ionako nema učinka (README samog plugina). Na iOS-u je `false` skraćivao okvir WKWebView-a **i** podmetao neproziran `backgroundView` obojen `StatusBarConfig.backgroundColor`, čiji je default `.black` — to je bila crna traka na vrhu u svijetloj temi, plus treći inset povrh naša dva. Traku iznad ureza sada crta sama aplikacija (`components/StatusBarSafeArea.tsx`). |
+| `plugins.Keyboard.resize` | `"native"` | `resize` je iOS-only (vidi `definitions.d.ts` plugina). `"body"` postavlja samo `document.body.style.height`, a `position: fixed` se ne računa prema `body`-ju — donja traka, ruka i donji *sheet* ostajali bi **iza** tipkovnice. `"native"` skraćuje okvir WKWebView-a, pa `100dvh`, `position: fixed` i `--safe-bottom` prate tipkovnicu. To je točno ono što Capacitor 8 već radi na Androidu (`SystemBars` puni roditelja WebView-a IME insetom i javlja `--safe-area-inset-bottom: 0` dok je tipkovnica gore). |
+| `plugins.Keyboard.resizeOnFullScreen` | uklonjeno | Android-only zaobilaznica koju Capacitor 8 ionako preskače — `Keyboard.possiblyResizeChildOfContent` odmah izlazi kad je klasa `SystemBars` na classpathu, a u Capacitoru 8 uvijek jest. Ostavljena, bila bi poziv na dvostruko skraćivanje čim se taj uvjet promijeni. |
+
+Android prozor (`android/app/src/main/res/values/styles.xml`,
+`AndroidManifest.xml`): prozirne statusna i navigacijska traka,
+`enforce*Contrast` isključen (inače sustav podmeće sivi veo točno u toj traci),
+`windowLayoutInDisplayCutoutMode="shortEdges"` za landscape,
+`windowSoftInputMode="adjustResize"`, i `windowBackground` =
+`@color/app_window_bg` (`#DAE7DE` / `#161719`, DayNight) — to je ono što se
+vidi iza traka na WebView-u < 140, gdje `SystemBars` puni roditelja WebView-a
+umjesto da pusti stranicu ispod traka. Napomena: ta boja prati **noćni način
+OS-a**, dok je svijetlo/tamno u aplikaciji spremljena preferencija koja ne
+prati sustav (`color-mode.tsx`, `enableSystem: false`).
+
+Ikone traka prate boju aplikacije, ne OS-a: statusnu traku postavlja
+`NativeShell.tsx` (`@capacitor/status-bar`), a **navigacijsku**
+`StatusBarSafeArea.tsx` preko `SystemBars.setStyle({ bar: "NavigationBar" })`
+iz `@capacitor/core` — `@capacitor/status-bar` na Androidu dira samo
+`setAppearanceLightStatusBars`, pa bi navigacijska traka inače ostala nevidljiva
+(tamne ikone na tamnoj plohi) kad je aplikacija tamna, a OS svijetao.
+
+### iOS zumiranje polja
+
+Mobile Safari / WKWebView zumiraju stranicu kad fokusirano polje ima
+`font-size` manji od 16 px, a u *standalone* aplikaciji nema načina da se
+odzumira. `index.html` zato nosi, pod `@supports (-webkit-touch-callout: none)`
+(najuži pošten test za "WebKit na iOS-u"), pravilo
+`input, select, textarea { font-size: max(16px, 1em) }` — diže samo polja
+stvarno ispod praga, npr. Chakrin `size="sm"`.
+
+### bela.games — zaglavlje na mobitelu (2026-09-20, dizajn vlasnika)
+
+Stranica za igru ima točno dva mjesta, pa su ona **prekidač u sredini
+zaglavlja** (`GamesSwitch` u `NavBar.tsx`: Igraj | Blok), a ne traka na dnu.
+Lijevo je samo znak, bez imena; desno jedan hamburger koji otvara **bočnu
+ladicu** (`GamesSideMenu`, `Drawer placement="end"`) s računom, novostima,
+temom, jezikom, instalacijom i odjavom. `MobileTabBar` se na ovoj stranici
+uopće ne crta, a `MOBILE_TABBAR_H` je 0, pa sve što se odmiče od donje trake
+(„Nova igra", akcijska traka bloka) sjeda na dno bez praznine. Puna stranica
+(bela-turniri.com) i prikaz od `md` naviše nisu dirani.
+
+Karma u lobbyju stoji **uz ime igrača**, ne u vlastitom redu ispod pločica sa
+statistikom: to je podatak o igraču, a sama u redu čitala se kao šesta pločica.
+
+### Bot i štihak (2026-09-20)
+
+Tri nova pravila u `BOT.md` §14: bot s najjačim adutima nastavlja vući adute
+da suigrač može odbacivanjem pokazati gdje preuzima, i staje čim suigrač
+odbaci iz svih boja koje bi botu trebale; suigrač čuva boju za preuzeti cijelu
+i ostale baca od veće prema manjoj; u obrani bot ne skida čuvara sa svog
+jedinog stopera. Testovi su napisani u `evaluate.test.ts`, nisu pokrenuti.

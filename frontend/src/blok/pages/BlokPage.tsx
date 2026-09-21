@@ -8,6 +8,7 @@ import { CONTENT_STICKY_TOP, NAVBAR_H } from "../../components/navChrome"
 import { useAuth } from "../../auth/authContextValue"
 import { useDocumentHead } from "../../hooks/useDocumentHead"
 import { usePlural, useTranslation } from "../../i18n"
+import { publicOrigin } from "../../site"
 import { showError, showSuccess, toaster } from "../../toaster"
 import { linkWriteToken, revokeMyBlokLink } from "../blokLinkApi"
 import { blokShareUrl, createBlokShare, revokeBlokShare } from "../blokHistoryApi"
@@ -93,7 +94,7 @@ import { useKeyboardOpen } from "../../platform/useKeyboardOpen"
 
 /** Navbar + the app Container's own `py={6}`, so the mobile column can be
  *  told to fill exactly the space that is left. */
-const PAGE_CHROME = `calc(${NAVBAR_H.base}px + 48px + env(safe-area-inset-top, 0px))`
+const PAGE_CHROME = `calc(${NAVBAR_H.base}px + 48px + var(--safe-top))`
 
 /* The fixed action bar's geometry now lives in `../actionBar` — the active-game
    dock has to clear it too, and two components guessing the same number is how
@@ -190,7 +191,7 @@ export default function BlokPage() {
     useDocumentHead({
         title: t("blok.seo.title"),
         description: t("blok.seo.description"),
-        canonical: "https://bela-turniri.com/blok",
+        canonical: `${publicOrigin}/blok`,
     })
 
     const [entry, setEntry] = useState<EntryState>({ mode: "closed" })
@@ -1052,9 +1053,9 @@ export default function BlokPage() {
                 px="3"
                 pt="2.5"
                 css={{
-                    paddingBottom: `calc(var(--chakra-spacing-3) + ${ACTION_BAR_GAP} + env(safe-area-inset-bottom, 0px))`,
-                    paddingInlineStart: "max(var(--chakra-spacing-3), env(safe-area-inset-left, 0px))",
-                    paddingInlineEnd: "max(var(--chakra-spacing-3), env(safe-area-inset-right, 0px))",
+                    paddingBottom: `calc(var(--chakra-spacing-3) + ${ACTION_BAR_GAP} + var(--safe-bottom))`,
+                    paddingInlineStart: "max(var(--chakra-spacing-3), var(--safe-left))",
+                    paddingInlineEnd: "max(var(--chakra-spacing-3), var(--safe-right))",
                 }}
             >
                 {actionBar}

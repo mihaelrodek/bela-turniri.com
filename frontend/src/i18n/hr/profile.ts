@@ -43,6 +43,8 @@ export const profile = {
     unavailable: "Profil nije dostupan.",
     back: "Natrag",
     toTournaments: "Na turnire",
+    // bela.games has no tournaments — used instead of `toTournaments` there.
+    toHome: "Na početnu",
 
     // --- Section nav (owner-only; admin sections gated on the role claim) ---
     // Rendered as a stacked list in the desktop sidebar card and as a wrapping
@@ -54,6 +56,8 @@ export const profile = {
     "tab.gameAnalytics": "Analitika igre",
     "tab.playersList": "Popis igrača",
     "tab.contactMessages": "Poruke",
+    // bela.games only — replaces "tab.tournaments" (see sections.ts).
+    "tab.gameStats": "Statistika",
 
     // --- Turniri tab (the one view visitors also get) ----------------------
     "tournaments.heading": "Turniri",
@@ -382,6 +386,12 @@ export const profile = {
     "deleteAccount.done": "Račun je obrisan",
     "deleteAccount.failed": "Brisanje računa nije uspjelo",
     "deleteAccount.recentLogin": "Prijavi se ponovno pa pokušaj opet",
+    /* Prikazuje se samo kad je opoziv Apple tokena pao (otkazana prijava,
+       blokiran skočni prozor). Račun je u tom trenutku VEĆ obrisan, pa tekst
+       govori što korisniku preostaje, a ne da je nešto propalo. */
+    "deleteAccount.appleRevokeFailed":
+        "Račun je obrisan, ali pristup Apple prijavi nismo uspjeli opozvati. Ukloni aplikaciju u Postavke → Apple ID → Prijava s Appleom.",
+    "deleteAccount.moreInfo": "Detaljno: što se briše, a što ostaje",
 }
 
 /** Contract every other locale's `profile` namespace must satisfy. */

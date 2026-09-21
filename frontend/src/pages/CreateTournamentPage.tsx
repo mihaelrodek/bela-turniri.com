@@ -1368,7 +1368,7 @@ export default function CreateTournamentPage() {
                 style={{
                     marginLeft: "calc(-1 * var(--chakra-spacing-4))",
                     marginRight: "calc(-1 * var(--chakra-spacing-4))",
-                    paddingBottom: "calc(var(--chakra-spacing-3) + env(safe-area-inset-bottom, 0px))",
+                    paddingBottom: "calc(var(--chakra-spacing-3) + var(--safe-bottom))",
                 }}
                 px="4"
             >

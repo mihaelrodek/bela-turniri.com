@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ (API 31+) backup/transfer rules. Referenced from
+    <application android:dataExtractionRules>.
+
+    DECISION (2026-09-20): this app opts OUT of both cloud backup and
+    device-to-device transfer.
+
+    Why not "back up everything except the secrets": every piece of local
+    state this app keeps is either (a) a credential/identifier that is WRONG
+    on a second device, or (b) a cache of something the server already owns.
+      - Firebase Auth session (native SDK SharedPreferences + files, AND the
+        Firebase JS SDK's copy inside the WebView's app_webview/Local Storage)
+      - the FCM registration token + Firebase Installations id
+        (com.google.android.gms.appid, PersistedInstallation*) — a cloned
+        token means push for one account landing on two devices
+      - Capacitor Preferences ("CapacitorStorage") and the WebView's
+        localStorage/IndexedDB: the guest id, the offline op queue
+        (bela:opq:v1), the TanStack Query snapshot
+    Nothing here is user-authored content that would be lost. Re-installing
+    and signing in restores the real account state from the backend in one
+    step, so there is no user-visible benefit to weigh against restoring a
+    logged-in session onto a device the user may no longer own.
+
+    android:allowBackup="false" in the manifest already stops cloud backup,
+    but it does NOT stop D2D transfer on API 31+ — that needs the
+    <device-transfer> block below. Both blocks are spelled out anyway so the
+    protection survives someone flipping allowBackup back on.
+
+    "exclude domain=... path=." excludes a whole domain; the domains are
+    listed individually because there is no single wildcard that covers them.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
+    </device-transfer>
+</data-extraction-rules>

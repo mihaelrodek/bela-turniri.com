@@ -429,6 +429,12 @@ export function shouldSpendAce(view: PlayerView, suit: Suit): boolean {
     const trump = view.bidding.trump
     if (seat === null || trump === null || suit === trump) return true
     if (view.hand.length <= 2) return true
+    // "Ako je tvoj suigrač zvao, a ti si prvi na igri i nemaš aduta, NE
+    // podigravaj boju gdje imaš asa": the ace is my way back in, and he needs
+    // me on lead again later more than he needs eleven points now.
+    if (partnerCalledTrump(view) && myLength(view, trump) === 0 && view.played.length === 0) {
+        return false
+    }
     const partner = partnerOf(seat)
     const partnerMustRuff =
         seatShownVoidIn(view, partner, suit) &&
@@ -544,6 +550,37 @@ export function fillCard(view: PlayerView, pool: readonly Card[]): Card {
         view.seat !== null &&
         led.seat === partnerOf(view.seat)
     if (partnerDrawing) {
+        // On his JACK the backed ace goes in: it fills the trick and shows the
+        // 10 behind it in one card ("na tvog dečka staviti tog asa da ti
+        // napuni, a ujedno pokaže da ima desetku").
+        const onJack = led !== undefined && cardRank(led.card) === "J"
+        const backedAce = usable.find(
+            (card) =>
+                cardRank(card) === "A" &&
+                cardSuit(card) !== trump &&
+                hasBackedTen(view.hand, cardSuit(card)),
+        )
+        if (onJack && backedAce !== undefined) return backedAce
+        // A live štihak outranks the points on this one trick: the suit I can
+        // take over in stays whole (BOT.md §14).
+        const forStiglja = stigljaSignalDiscard(view, usable)
+        if (forStiglja !== null) return forStiglja
+        // With a suit to take over in, the run of discards is a SENTENCE
+        // (BOT.md §2): the suits I give up go high to low, the one I keep is
+        // touched last and from the bottom. Feeding the most valuable card
+        // here threw the 10 of exactly the suit I wanted led. With nothing to
+        // take over in there is nothing to say, and every point is fed.
+        const hasTakeOver = usable.some(
+            (card) => cardSuit(card) !== trump && suitWorthKeeping(view, cardSuit(card)),
+        )
+        if (hasTakeOver) {
+            const said = signalDiscard(view, usable, true)
+            if (said !== null) return said
+        }
+        // Nothing to take over in, and he is playing for all eight: tell him
+        // to stop, by mixing the suits (BOT.md §15.14).
+        const stop = stigljaStopSignal(view, usable)
+        if (stop !== null) return stop
         const junk = usable.filter(
             (card) => cardPoints(card, trump) === 0 && !suitWorthKeeping(view, cardSuit(card)),
         )
@@ -718,6 +755,13 @@ export function openingTrumpForCallingPartner(
 
     const trumps = legal.filter((card) => cardSuit(card) === trump)
     if (trumps.length === 0) return null
+    // "Solo devet u adutu … igrat ćeš solo kartu u drugoj boji" and "7 i 8 u
+    // adutu, ako nemaš drugih aduta, se ne podigravaju": the lone nine is the
+    // second-best trump thrown under his jack, and a bare 7/8 says "vrati
+    // aduta" about a hand with nothing to back the request.
+    const soloNine = trumps.length === 1 && cardRank(trumps[0] as Card) === "9"
+    const onlySmall = trumps.every((card) => cardRank(card) === "7" || cardRank(card) === "8")
+    if (soloNine || onlySmall) return null
     return trumpDrawCard(view, trumps) ?? weakestCard(trumps, trump)
 }
 
@@ -1052,6 +1096,26 @@ const NO_SIGNAL: PartnerSignal = { wants: null, avoids: [] }
  * `avoids` is every suit he has discarded from. Both stay silent when there is
  * nothing to read: a bot that invents a signal is worse than one with none.
  */
+/** The last two discards: both worthless cards, from two different suits. */
+function discardsSayStop(discards: readonly DiscardRecord[], trump: Suit): boolean {
+    if (discards.length < 2) return false
+    const last = discards[discards.length - 1] as DiscardRecord
+    const previous = discards[discards.length - 2] as DiscardRecord
+    return (
+        last.suit !== previous.suit &&
+        cardPoints(last.card, trump) === 0 &&
+        cardPoints(previous.card, trump) === 0
+    )
+}
+
+/** True when my partner's discards read as "stop" — see `discardsSayStop`. */
+export function partnerSaysStop(view: PlayerView): boolean {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null) return false
+    return discardsSayStop(discardsBy(view, partnerOf(seat)), trump)
+}
+
 export function partnerSignal(view: PlayerView): PartnerSignal {
     const seat = view.seat
     const trump = view.bidding.trump
@@ -1068,6 +1132,11 @@ export function partnerSignal(view: PlayerView): PartnerSignal {
     if (acePitch !== undefined) {
         return { wants: acePitch.suit, avoids: avoids.filter((s) => s !== acePitch.suit) }
     }
+
+    // Two LOW cards in a row from two different suits is not "I want the
+    // third" but "stani, nemam što preuzeti" (BOT.md §15.14): a partner who
+    // wants a suit sheds the others from the TOP, so his discards start high.
+    if (discardsSayStop(discards, trump)) return { wants: null, avoids }
 
     const plainSuits = SUITS.filter((suit) => suit !== trump)
     const untouched = plainSuits.filter(
@@ -1159,7 +1228,55 @@ export function isThinLead(view: PlayerView, card: Card): boolean {
     if (suit === trump) return false
     if (view.hand.length <= 3) return false
     if (cardRank(card) === "10" && !isMasterCard(view, card)) return true // "potkovana" 10
+    // Any card from a SHORT suit that holds the 10 under an ace still out
+    // (reported 2026-09-21: 7-J-10, the 7 was led, the ace took it, and the 10
+    // was left to be ruffed on the next round). Left alone, the 10 goes on
+    // somebody else's ace — or gets its chance later; opened, it is dead.
+    const ten = makeCard("10", suit)
+    const ace = makeCard("A", suit)
+    if (
+        view.hand.includes(ten) &&
+        !view.hand.includes(ace) &&
+        myLength(view, suit) <= 3 &&
+        outstandingCardsInSuit(view, suit).includes(ace)
+    ) {
+        return true
+    }
     return myLength(view, suit) === 1 && !isMasterCard(view, card)
+}
+
+/**
+ * NO "ŠARANJE" (BOT.md §15.17). I opened the last trick with a plain ace and
+ * took it; everybody followed. The next card comes from the SAME suit — not a
+ * second ace from somewhere else, which opens a new suit for the opponents and
+ * tells my partner nothing. The 10 when it is now the master of the suit and
+ * nobody can be out of it yet; otherwise the lowest card.
+ *
+ * Silent when somebody failed to follow the ace (the suit is about to be
+ * ruffed), when I have no card of it left, or when only one more card of the
+ * suit is out (a third round is a ruff waiting to happen).
+ */
+export function continueAceSuit(view: PlayerView, legal: readonly Card[]): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null) return null
+    const tricks = reviewableTricks(view)
+    const last = tricks[tricks.length - 1]
+    if (last === undefined || last.winner !== seat) return null
+    const opener = last.plays[0]
+    if (opener === undefined || opener.seat !== seat) return null
+    const suit = cardSuit(opener.card)
+    if (suit === trump || cardRank(opener.card) !== "A") return null
+    if (!last.plays.every((play) => cardSuit(play.card) === suit)) return null
+
+    const mine = legal.filter((card) => cardSuit(card) === suit)
+    if (mine.length === 0) return null
+    if (outstandingInSuit(view, suit) < 2) return null
+
+    const ten = makeCard("10", suit)
+    if (mine.includes(ten) && isMasterCard(view, ten) && outstandingInSuit(view, suit) >= 3) return ten
+    const low = mine.filter((card) => card !== ten)
+    return low.length > 0 ? weakestCard(low, trump) : null
 }
 
 /**
@@ -1620,6 +1737,313 @@ export function stigljaTakeOver(view: PlayerView, legal: readonly Card[]): Card 
     return cheapestWinningCard(view, legal)
 }
 
+/* ── Štihak: the three seats of it (BOT.md §14, owner's rules 2026-09-20) ──
+   `stigljaLead` above only fires once the pass is banked AND every card in
+   hand is a master. That is the END of a štihak. What was missing is the
+   middle of it: the hand that holds the top trumps keeps leading them so the
+   partner can talk with his discards, the partner keeps the suit he can take
+   over in, and the defenders stop throwing away the one card that stops it. */
+
+/** Did my own side name the trump? A štihak is the calling side's play. */
+function mySideCalled(view: PlayerView): boolean {
+    const seat = view.seat
+    const caller = view.bidding.caller
+    return seat !== null && caller !== null && teamOf(caller) === teamOf(seat)
+}
+
+/** Plain suits in my hand that hold no master card — the ones I cannot run
+ *  myself and need my partner to take over in. */
+function suitsNeedingPartner(view: PlayerView): Suit[] {
+    const trump = view.bidding.trump
+    if (trump === null) return []
+    return SUITS.filter(
+        (suit) =>
+            suit !== trump &&
+            myLength(view, suit) > 0 &&
+            !view.hand.some((card) => cardSuit(card) === suit && isMasterCard(view, card)),
+    )
+}
+
+/**
+ * THE RUNNER. I am on lead, nobody on the other side has taken a trick, and
+ * every trump I hold is a master — so leading one can never lose the trick.
+ * Keep leading them even after the opponents' trumps are gone
+ * (`shouldDrawTrumps` stops there): each extra trump is a free discard for my
+ * partner, and his discards are how he tells me where he can take over
+ * ("baca adute da si suigrač odbaci slabe karte").
+ *
+ * It stops when the štihak has stopped being possible, not on a percentage:
+ *   - my partner has discarded from every suit I would need him in, without
+ *     asking for one — he has nothing there, so the rest of my trumps are
+ *     worth more as ruffs and re-entries than as a parade;
+ *   - my LAST trump is only led when it costs nothing: every plain card I
+ *     hold is a master, or he has asked for a suit I can give him.
+ * "Ne riskiraj pad da bi išao na štiglju" is kept by construction: a master
+ * trump lead cannot lose a trick, so this never risks the pass on its own.
+ */
+export function stigljaTrumpRun(view: PlayerView, legal: readonly Card[]): Card | null {
+    const trump = view.bidding.trump
+    if (trump === null || !stigljaIsLive(view) || !mySideCalled(view)) return null
+
+    const trumps = legal.filter((card) => cardSuit(card) === trump)
+    if (trumps.length === 0) return null
+    if (!view.hand.every((card) => cardSuit(card) !== trump || isMasterCard(view, card))) return null
+    // The only trumps still out are my PARTNER's: every lead would pull one of
+    // his instead of a discard, which is the opposite of the point — and the
+    // fault the owner already reported once ("uzima suigraču adute").
+    const outlook = trumpOutlook(view)
+    if (outlook.outstanding > 0 && outlook.opponentMax === 0) return null
+
+    // "Stranog asa odigravaš čim si protivnicima pokupio adute (tako da tvoj
+    // suigrač zna zadržati bezec desetku), a onda nastaviš s povlačenjem
+    // aduta": the ace goes BEFORE the rest of the run, so that when my partner
+    // starts discarding he already knows which 10 to keep. `aceToCash` leaves
+    // the solo ace out on purpose — that one is pulled after the trumps, so he
+    // is not told to keep a 10 in a suit I can never open for him.
+    if (outlook.opponentMax === 0) {
+        const ace = aceToCash(view, legal)
+        if (ace !== null) return ace
+    }
+
+    // He has said "stani": the trumps that are left are worth more at home.
+    if (partnerSaysStop(view) && suitsNeedingPartner(view).length > 0) return null
+
+    const needed = suitsNeedingPartner(view)
+    const signal = partnerSignal(view)
+    const askedFor = signal.wants !== null && myLength(view, signal.wants) > 0
+    if (needed.length > 0 && !askedFor && needed.every((suit) => signal.avoids.includes(suit))) {
+        return null
+    }
+    // The last trump is my way back in — but only while somebody else can
+    // still hold one. Once every other trump has been played (reported
+    // 2026-09-21: seven out in two rounds, the caller sitting on the eighth
+    // and an ace), leading it costs nothing: I win the trick and am STILL on
+    // lead, and my partner gets one more discard. One discard leaves him
+    // between two suits; the second one names the suit he wants.
+    //
+    // And only with something to follow it with (owner's correction, same
+    // day): a plain master of my own, a suit he has asked for, or an ace his
+    // declaration shows. A hand with nothing but that trump is not on a
+    // štihak at all — it plays the deal normally and the trump stays home.
+    if (trumps.length === 1 && needed.length > 0 && !askedFor) {
+        if (outlook.outstanding > 0) return null
+        const seat = view.seat
+        const ownPlainMaster = view.hand.some(
+            (card) => cardSuit(card) !== trump && isMasterCard(view, card),
+        )
+        const partnersShownAce =
+            seat !== null &&
+            [...locatedCards(view).entries()].some(
+                ([card, holder]) =>
+                    holder === partnerOf(seat) && cardRank(card) === "A" && cardSuit(card) !== trump,
+            )
+        // The ace I cashed a moment ago counts too: it told him to keep the
+        // 10 of that suit, and a card of it still in my hand is how I reach it.
+        const reachCashedSuit =
+            seat !== null &&
+            reviewableTricks(view).some((trick) => {
+                const opener = trick.plays[0]
+                if (opener === undefined || opener.seat !== seat || trick.winner !== seat) return false
+                const suit = cardSuit(opener.card)
+                return suit !== trump && cardRank(opener.card) === "A" && myLength(view, suit) > 0
+            })
+        if (!ownPlainMaster && !partnersShownAce && !reachCashedSuit) return null
+    }
+
+    return strongestCard(trumps, trump)
+}
+
+/**
+ * THE LAST TWO TRICKS (BOT.md §15.16). Two cards left, I am on lead, one of
+ * them is the master trump and the other a plain card that is not a master.
+ * The plain card goes FIRST: the trump then takes the LAST trick and the ten
+ * points that come with it. Trump first wins the seventh trick instead and
+ * hands the eighth — and its ten — to whoever beats my plain card.
+ *
+ * When the plain card is itself a master the order no longer costs anything
+ * and the trump goes first as usual (it also pulls the last trump that could
+ * have ruffed the master), so this returns null and the ordinary rules lead.
+ */
+export function plainBeforeLastTrump(view: PlayerView, legal: readonly Card[]): Card | null {
+    const trump = view.bidding.trump
+    if (trump === null || view.hand.length !== 2 || legal.length !== 2) return null
+    const mine = view.hand.filter((card) => cardSuit(card) === trump)
+    const plain = view.hand.filter((card) => cardSuit(card) !== trump)
+    if (mine.length !== 1 || plain.length !== 1) return null
+    if (!isMasterCard(view, mine[0] as Card)) return null
+    const other = plain[0] as Card
+    if (isMasterCard(view, other)) return null
+    return other
+}
+
+/**
+ * HANDING THE DEAL OVER (BOT.md §15.13). My trumps and my own winners are
+ * gone, the štihak is still alive, and a declaration shows my partner holds
+ * the ace of a suit I have cards in. He gets the lead there — with my HIGHEST
+ * card of the suit, not my lowest: holding 10-7, the seven would let him take
+ * with the ace and then leave MY ten sitting over his king on the next round,
+ * so I take a trick I cannot follow up and the run dies in my hand. Under his
+ * ace the ten costs nothing: the points are ours either way.
+ *
+ * Only with the ace PROVEN in his hand. On a mere discard signal the ten could
+ * be walking into an opponent's ace, and that is a different bet.
+ */
+export function stigljaHandOver(view: PlayerView, legal: readonly Card[]): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null) return null
+    if (!stigljaIsLive(view) || !mySideCalled(view)) return null
+    if (trumpOutlook(view).opponentMax > 0) return null
+    if (view.hand.some((card) => isMasterCard(view, card))) return null
+
+    const partner = partnerOf(seat)
+    const located = locatedCards(view)
+    // …or SAID, as plainly as discards can say it (owner, 2026-09-21): he has
+    // thrown away from BOTH other plain suits and never from this one, and its
+    // ace is still unseen and not mine. That is the whole sentence "predaj mi
+    // ovdje"; one discard short of it, the low card goes as before.
+    const signal = partnerSignal(view)
+    const others = (suit: Suit): Suit[] => SUITS.filter((other) => other !== trump && other !== suit)
+    const saidByDiscards = (suit: Suit): boolean => {
+        const ace = makeCard("A", suit)
+        return (
+            signal.wants === suit &&
+            others(suit).every((other) => signal.avoids.includes(other)) &&
+            !view.hand.includes(ace) &&
+            outstandingCardsInSuit(view, suit).includes(ace) &&
+            (located.get(ace) === undefined || located.get(ace) === partner)
+        )
+    }
+    for (const suit of SUITS) {
+        if (suit === trump) continue
+        if (located.get(makeCard("A", suit)) !== partner && !saidByDiscards(suit)) continue
+        const mine = legal.filter((card) => cardSuit(card) === suit)
+        if (mine.length > 0) return strongestCard(mine, trump)
+    }
+    return null
+}
+
+/**
+ * THE PARTNER WITH NOTHING (BOT.md §15.14). He is running trumps for a štihak
+ * and I have no suit to take over in. Saying so EARLY is worth more than the
+ * points on these tricks: every further trump he leads is one he could have
+ * kept. The sentence is a MIX — one card from a suit I have not thrown from
+ * yet, then another suit, then the third — because his reading
+ * (`partnerSignal`, `partnerSaysStop`) is: two LOW cards in a row from two
+ * different suits mean "stani". The points on these tricks are worth less than
+ * the trumps he keeps by stopping one round earlier.
+ */
+export function stigljaStopSignal(view: PlayerView, pool: readonly Card[]): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    const led = view.trick.cards[0]
+    if (seat === null || trump === null || led === undefined) return null
+    if (!stigljaIsLive(view) || !mySideCalled(view)) return null
+    if (cardSuit(led.card) !== trump || led.seat !== partnerOf(seat)) return null
+
+    const plain = pool.filter((card) => cardSuit(card) !== trump)
+    const suits = [...new Set(plain.map((card) => cardSuit(card)))]
+    if (suits.length < 2) return null
+    if (suits.some((suit) => suitWorthKeeping(view, suit))) return null
+
+    const already = new Set(discardsBy(view, seat).map((discard) => discard.suit))
+    const fresh = suits.filter((suit) => !already.has(suit))
+    if (fresh.length === 0) return null
+    // LOW, and that is the point: a high first discard is how a suit is given
+    // up by somebody who wants another one. Prefer a suit that actually holds
+    // a worthless card, so the sentence is not muddied by a king.
+    const lowest = (suit: Suit): Card => weakestCard(plain.filter((card) => cardSuit(card) === suit), trump)
+    fresh.sort((a, b) => cardPoints(lowest(a), trump) - cardPoints(lowest(b), trump) || myLength(view, a) - myLength(view, b))
+    return lowest(fresh[0] as Suit)
+}
+
+/**
+ * THE PARTNER of the runner, with no trump to follow: keep the suit I can
+ * take over in WHOLE and say so by throwing the others away, high to low,
+ * shortest first ("odbacuje ostale dvije boje od veće prema manjoj").
+ *
+ * `fillCard` would otherwise put the most valuable spendable card on the
+ * trick — which, holding A-10-K of a plain suit, is the 10 of exactly the
+ * suit the štihak needs. Ninety points beat the ten. Returns null when there
+ * is nothing to say (no suit to keep, or only that suit left) and the normal
+ * fill applies.
+ */
+export function stigljaSignalDiscard(view: PlayerView, pool: readonly Card[]): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    const led = view.trick.cards[0]
+    if (seat === null || trump === null || led === undefined) return null
+    if (!stigljaIsLive(view) || !mySideCalled(view)) return null
+    if (cardSuit(led.card) !== trump || led.seat !== partnerOf(seat)) return null
+
+    const plain = pool.filter((card) => cardSuit(card) !== trump)
+    const suits = [...new Set(plain.map((card) => cardSuit(card)))]
+    const kept = suits.filter((suit) => suitWorthKeeping(view, suit))
+    const given = suits.filter((suit) => !kept.includes(suit))
+    if (kept.length === 0 || given.length === 0) return null
+
+    given.sort((a, b) => myLength(view, a) - myLength(view, b))
+    const from = given[0] as Suit
+    return strongestCard(plain.filter((card) => cardSuit(card) === from), trump)
+}
+
+/** The OTHER side has taken every trick so far, and at least two of them:
+ *  they are playing for all eight. */
+export function opponentsChasingStiglja(view: PlayerView): boolean {
+    const mine = myTeam(view)
+    if (mine === null) return false
+    const theirs: Team = mine === "A" ? "B" : "A"
+    return (view.tricksWon[mine] ?? 0) === 0 && (view.tricksWon[theirs] ?? 0) >= 2
+}
+
+/** How many cards I must keep in `suit` for my best card there to take a
+ *  trick once the higher ones have been played: one more than the number of
+ *  outstanding cards that beat it. 0 = nothing here can ever stop them. */
+function stopperGuard(view: PlayerView, suit: Suit): number {
+    const trump = view.bidding.trump
+    if (trump === null) return 0
+    const mine = view.hand.filter((card) => cardSuit(card) === suit)
+    if (mine.length === 0) return 0
+    const best = cardStrength(strongestCard(mine, trump), trump)
+    const above = outstandingCardsInSuit(view, suit).filter(
+        (card) => cardStrength(card, trump) > best,
+    ).length
+    const guard = above + 1
+    return mine.length >= guard ? guard : 0
+}
+
+/**
+ * THE DEFENDER. They are running for the štihak and I have to throw a card on
+ * a trick I cannot win. One trick is all it takes to save ninety points, so
+ * the discard comes from a suit where I can never take one, and a stopper is
+ * never unguarded ("ne odbaci uzalud neku kartu"): a 10 with two small cards
+ * under an outstanding ace keeps both small cards, a master keeps itself.
+ * Returns null when every card on offer is part of a guard, and the ordinary
+ * rule picks the least bad one.
+ */
+export function stigljaDefenceDiscard(view: PlayerView, legal: readonly Card[]): Card | null {
+    const trump = view.bidding.trump
+    if (trump === null || !opponentsChasingStiglja(view)) return null
+
+    const free: Card[] = []
+    for (const suit of SUITS) {
+        const offered = legal.filter((card) => cardSuit(card) === suit)
+        if (offered.length === 0) continue
+        const guard = stopperGuard(view, suit)
+        if (guard === 0) {
+            free.push(...offered)
+            continue
+        }
+        // Spare cards beyond the guard may go — cheapest first, never the top.
+        const spare = myLength(view, suit) - guard
+        if (spare <= 0) continue
+        const lowFirst = [...offered].sort((a, b) => cardStrength(a, trump) - cardStrength(b, trump))
+        free.push(...lowFirst.slice(0, spare))
+    }
+    if (free.length === 0 || free.length === legal.length) return null
+    return cheapestCard(free, trump)
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
    INFERENCE — who holds what (BOT.md §11), added 2026-09-09.
 
@@ -1849,6 +2273,10 @@ export function aceOverCheapWinner(view: PlayerView, legal: readonly Card[]): Ca
 
     const ace = makeCard("A", suit)
     if (!legal.includes(ace) || !legal.includes(makeCard("10", suit))) return null
+    // NB "odnesi cenerom" (the caller-partner opened, I hold A and 10) needs no
+    // exception here: when my partner opens I am THIRD to play, never last, so
+    // this rule cannot see that trick at all — `cheapestWinningCard` already
+    // takes it with the ten, and §13.2 then sends the trump back.
     return wouldWinTrick(view, ace) ? ace : null
 }
 
@@ -1868,17 +2296,22 @@ function partnerSuitTakenByMyAce(view: PlayerView, trick: WonTrick, seat: Seat):
     const suit = cardSuit(opener.card)
     if (suit === trump) return null
     const mine = trick.plays.find((play) => play.seat === seat)
-    return mine !== undefined && mine.card === makeCard("A", suit) ? suit : null
+    if (mine === undefined) return null
+    // The ace — or the TEN, which is how the caller's partner takes it when he
+    // holds both (`aceOverCheapWinner`).
+    return mine.card === makeCard("A", suit) || mine.card === makeCard("10", suit) ? suit : null
 }
 
 /**
  * The suit to give back to my partner (BOT.md §13.2, reported): he opened a
  * trick with it, I took it with the ace, so on my next lead it goes back.
  *
- * His card decides which of the two readings applies, because the card is the
- * sentence: an opening 7, 8 or 9 is the request for TRUMP below, anything else
- * is a suit he brought out and wants continued. The two can never fire on the
- * same trick.
+ * WHO CALLED decides which of the two readings applies (owner's correction,
+ * 2026-09-20): when my partner did NOT call, any plain card he opens with —
+ * low or high — may well be a singleton, and giving the suit back lets him
+ * ruff it and "save" a small trump he would otherwise lose. So it goes back,
+ * always. Only when he IS the caller does a LOW opening mean something else
+ * (the request for trump below). The two can never fire on the same trick.
  *
  * The debt is paid once: a later trick I opened in that suit myself clears it,
  * so the rule cannot pin the bot to one suit for the whole deal.
@@ -1896,7 +2329,8 @@ export function suitToReturnToPartner(view: PlayerView): Suit | null {
             continue
         }
         const suit = partnerSuitTakenByMyAce(view, trick, seat)
-        if (suit === null || LOW_LEAD_RANKS.has(cardRank(opener.card))) continue
+        if (suit === null) continue
+        if (partnerCalledTrump(view) && LOW_LEAD_RANKS.has(cardRank(opener.card))) continue
         wanted = suit
     }
     return wanted
@@ -1916,6 +2350,9 @@ export function suitToReturnToPartner(view: PlayerView): Suit | null {
 export function partnerLowPlainLeadAsksForTrump(view: PlayerView): boolean {
     const seat = view.seat
     if (seat === null || view.bidding.trump === null) return false
+    // Only the CALLER's low lead is this sentence; from anybody else it is a
+    // suit to give back (`suitToReturnToPartner`).
+    if (!partnerCalledTrump(view)) return false
     if (trumpOutlook(view).opponentMax === 0) return false
     if (provablyNoTrumpJack(view, partnerOf(seat))) return false
 
@@ -1925,6 +2362,59 @@ export function partnerLowPlainLeadAsksForTrump(view: PlayerView): boolean {
         if (partnerSuitTakenByMyAce(view, trick, seat) !== null) return true
     }
     return false
+}
+
+/**
+ * Opening with a SINGLETON so the partner can give the suit back and I ruff it
+ * (BOT.md §13.6) — the mirror image of `suitToReturnToPartner`, which is the
+ * partner's half of the same conversation.
+ *
+ * Decided by what is known, not by a dice roll:
+ *   - I am not the caller: the caller's trumps are for drawing, not ruffing;
+ *   - I hold a SMALL trump to ruff with — spending the jack or the nine on a
+ *     ruff saves nothing;
+ *   - the suit has not been played yet and my partner is not known to be void
+ *     in it, so he can still hold the card that wins and the card to return;
+ *   - the ace is not known to sit with an opponent (then the lead only hands
+ *     them the tempo). Known to sit with my PARTNER is the best case, and the
+ *     only one in which a singleton 10 may be led — it rides home under his
+ *     ace. A singleton ace is not this rule's business at all.
+ */
+export function singletonLead(view: PlayerView, legal: readonly Card[]): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null || view.bidding.caller === seat) return null
+    if (view.hand.length <= 3) return null
+
+    const smallTrump = view.hand.some(
+        (card) => cardSuit(card) === trump && cardRank(card) !== "J" && cardRank(card) !== "9",
+    )
+    if (!smallTrump) return null
+
+    const partner = partnerOf(seat)
+    const located = locatedCards(view)
+    let fallback: Card | null = null
+    for (const card of legal) {
+        const suit = cardSuit(card)
+        const rank = cardRank(card)
+        if (suit === trump || rank === "A" || myLength(view, suit) !== 1) continue
+        if (!isFirstRoundOf(view, suit) || seatShownVoidIn(view, partner, suit)) continue
+
+        const aceHolder = located.get(makeCard("A", suit))
+        if (aceHolder === partner) return card
+        // His declaration shows cards of this suit WITHOUT the ace (seen:
+        // partner declared 8-9-10, I led my lone jack). He has to go over my
+        // card (§1.5), so the lead drags his 10 out under an ace that is
+        // somewhere else — I "save" one small trump and cost him ten points
+        // and the suit. A declaration outranks the hope of a ruff.
+        const partnerShownInSuit = [...located.entries()].some(
+            ([held, seatOf]) => seatOf === partner && cardSuit(held) === suit,
+        )
+        if (partnerShownInSuit) continue
+        if (aceHolder !== undefined || rank === "10") continue
+        fallback ??= card
+    }
+    return fallback
 }
 
 /** A length call needs this many trumps before a low lead is the way to flush
@@ -1961,8 +2451,87 @@ export function callerLengthTrumpLead(view: PlayerView, legal: readonly Card[]):
     // Never the 9, the 10 or the ace: leading one of those under the jack is
     // the ten points the flush was supposed to save (same line `trumpDrawCard`
     // draws for the support case).
+    // "Ako si zvao, a nemaš adutskog dečka, moraš to pokazati … podigrati
+    // aduta (NE 7 i 8)": a 7/8 is the sentence "vrati aduta". The queen or the
+    // king flushes the jack just as well and says the right thing; only a hand
+    // without either falls back to the small one.
+    const middle = trumps.filter((card) => cardRank(card) === "Q" || cardRank(card) === "K")
+    if (middle.length > 0) return weakestCard(middle, trump)
     const cheap = trumps.filter((card) => cardPoints(card, trump) <= CHEAP_TRUMP_POINTS)
     return cheap.length > 0 ? weakestCard(cheap, trump) : null
+}
+
+/* ── §15.9: the caller's jack waits for the partner's DECLARED nine ─────────
+   Reported 2026-09-21. The partner showed 7-8-9 or 8-9-10 of the trump suit,
+   so the whole table knows where the nine is. Leading the jack then pulls his
+   trumps along with theirs; getting HIM on lead instead lets the nine come
+   through — nothing but my own jack beats it — and the jack is still at home
+   for the round after. */
+
+/** The trump nine, if a declaration places it in my partner's hand and it has
+ *  not been played yet. */
+function partnersDeclaredNine(view: PlayerView): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null) return null
+    const nine = makeCard("9", trump)
+    if (view.played.includes(nine)) return null
+    return locatedCards(view).get(nine) === partnerOf(seat) ? nine : null
+}
+
+/**
+ * THE CALLER: hold the jack back and look for my partner's hand instead — a
+ * low card from a plain suit in which I have no ace (so I am not throwing a
+ * trick away to find him), best of all a suit where a declaration shows his
+ * ace. Null when there is no such card, and the ordinary jack lead applies.
+ */
+export function callerLeadsToPartnersNine(view: PlayerView, legal: readonly Card[]): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null || view.bidding.caller !== seat) return null
+    if (!view.hand.includes(makeCard("J", trump))) return null
+    if (partnersDeclaredNine(view) === null) return null
+    if (trumpOutlook(view).opponentMax === 0) return null
+
+    const partner = partnerOf(seat)
+    const located = locatedCards(view)
+    let best: Card | null = null
+    let bestScore = -Infinity
+    for (const suit of SUITS) {
+        if (suit === trump || view.hand.includes(makeCard("A", suit))) continue
+        if (seatShownVoidIn(view, partner, suit)) continue
+        const mine = legal.filter((card) => cardSuit(card) === suit)
+        if (mine.length === 0) continue
+        const low = weakestCard(mine, trump)
+        if (cardPoints(low, trump) >= 10) continue // never a ten led blind
+        const aceHolder = located.get(makeCard("A", suit))
+        if (aceHolder !== undefined && aceHolder !== partner) continue // their ace: no entry there
+        const score = (aceHolder === partner ? 100 : 0) - cardPoints(low, trump) + mine.length
+        if (score > bestScore) {
+            best = low
+            bestScore = score
+        }
+    }
+    return best
+}
+
+/**
+ * THE PARTNER: I declared the nine, he called and has kept his jack at home —
+ * on lead, the nine goes through. Only my DECLARED nine: that is what made his
+ * waiting a plan rather than a guess, and it is the only case in which I know
+ * he is not the one hoping for the nine from somebody else.
+ */
+export function declaredNineThrough(view: PlayerView, legal: readonly Card[]): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null || !partnerCalledTrump(view)) return null
+    const nine = makeCard("9", trump)
+    if (!legal.includes(nine)) return null
+    if (view.played.includes(makeCard("J", trump))) return null
+    if (provablyNoTrumpJack(view, partnerOf(seat))) return null
+    const mine = view.declarationsRevealed ? (view.declarations[seat] ?? []) : []
+    const declared = mine.some((declaration) => declaration.cards.includes(nine))
+    return declared ? nine : null
 }
 
 /* ── §13.4 and §13.5: the two trump rules reported alongside them ──────── */

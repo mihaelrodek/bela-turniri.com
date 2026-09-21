@@ -8,4 +8,9 @@
     <color name="widget_bg_row">#2A2E2B</color>
     <color name="widget_text_primary">#F1F4F2</color>
     <color name="widget_text_secondary">#B7C4BC</color>
+
+    <!-- Dark twin of `app_window_bg` — the `bg.canvas` dark token
+         (src/system.ts, and the same #161719 index.html paints on
+         `html.dark`). See values/colors.xml and values/styles.xml. -->
+    <color name="app_window_bg">#161719</color>
 </resources>

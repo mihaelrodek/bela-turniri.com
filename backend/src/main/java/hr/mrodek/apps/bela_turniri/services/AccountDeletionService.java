@@ -47,6 +47,25 @@ import java.util.List;
  *   <tr><td>{@code user_blocks}</td>
  *       <td>edges in BOTH directions DELETED — a block is a setting, and
  *           settings go with the account.</td></tr>
+ *   <tr><td>{@code pair_requests}</td>
+ *       <td>rows DELETED (2026-09-20). A "tražim para" ad carries the
+ *           author's NAME and PHONE in its own columns, nothing references
+ *           it, and an ad whose author has left is an invitation to call a
+ *           number that no longer wants to be called.</td></tr>
+ *   <tr><td>{@code user_drink_templates}</td>
+ *       <td>rows DELETED (2026-09-20) — a saved cjenik template is
+ *           user-authored, keyed on the uid alone and owned by nobody else;
+ *           the price lists already COPIED into tournaments are untouched
+ *           (they are the tournament's data, not the account's).</td></tr>
+ *   <tr><td>{@code game_reliability_events}</td>
+ *       <td>rows DELETED (2026-09-20) — karma and abandon history is a
+ *           behavioural record of the person, not of any match, and the
+ *           derived score is only ever read for a live uid.</td></tr>
+ *   <tr><td>{@code processed_operations}</td>
+ *       <td>rows DELETED (2026-09-20) — the idempotency ledger stores the
+ *           REPLAYED RESPONSE BODY of each queued mutation, which can hold
+ *           pair names and phone numbers. Nothing can replay against a dead
+ *           account anyway, since every op id is client-generated.</td></tr>
  *   <tr><td>{@code pairs}</td>
  *       <td>{@code contact_phone} nulled on every pair they submitted.
  *           {@code submitted_by_uid} / {@code co_submitted_by_uid} KEPT.</td></tr>
@@ -141,6 +160,17 @@ public class AccountDeletionService {
                 .setParameter("uid", uid)
                 .executeUpdate();
 
+        // The four tables added on 2026-09-20 — see the class javadoc for why
+        // each one goes rather than stays. Native SQL for the same reason as
+        // the blok history above: every one of these repositories is shaped
+        // around one viewer's list, not around "everything this uid touches",
+        // and two of them (processed_operations, game_reliability_events) have
+        // no repository at all that a caller outside this method would want.
+        deleteAllFor("pair_requests", "created_by_uid", uid);
+        deleteAllFor("user_drink_templates", "user_uid", uid);
+        deleteAllFor("game_reliability_events", "user_uid", uid);
+        deleteAllFor("processed_operations", "user_uid", uid);
+
         // The one PII field on a row we are keeping. Both submitter columns,
         // because a co-owner's phone is on the pair just the same.
         List<Pairs> myPairs = pairRepo.list("submittedByUid = ?1 or coSubmittedByUid = ?1", uid);
@@ -174,6 +204,21 @@ public class AccountDeletionService {
         deleteFirebaseUser(uid);
 
         return alreadyDeleted || profile == null ? Outcome.ALREADY_GONE : Outcome.DELETED;
+    }
+
+    /**
+     * {@code delete from <table> where <column> = uid}.
+     *
+     * <p>Both identifiers are compile-time constants from this class — never
+     * anything that reached the process from a request — so the concatenation
+     * is not an injection surface; the uid itself is bound. A helper rather
+     * than four near-identical statements so the checklist above reads as a
+     * checklist.
+     */
+    private void deleteAllFor(String table, String column, String uid) {
+        em.createNativeQuery("delete from " + table + " where " + column + " = :uid")
+                .setParameter("uid", uid)
+                .executeUpdate();
     }
 
     /**

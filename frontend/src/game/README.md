@@ -16,7 +16,7 @@ lazy chunks behind `GameIdentityGate` (`src/App.tsx`), and both hide
 ```
 components/     PlayingCard, Hand, Seat, TrickArea, Table, BiddingPanel,
                 ScoreBoard, DeclarationsReveal (+ BelaFlash), BelaPrompt,
-                DealSummary, RoomPanel, Chat, DeckSuitIcon (THE one answer to
+                DealSummary, RoomPanel, ReactionsBar, DeckSuitIcon (THE one answer to
                 "what does a suit look like in this deck" — klasicne draws its
                 own printed mark, the other mađarice decks our vector glyph,
                 francuske ♥♦♠♣; SuitIcon/SuitGlyph only add the preference)

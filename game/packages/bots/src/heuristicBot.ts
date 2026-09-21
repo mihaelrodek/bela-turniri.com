@@ -39,16 +39,25 @@ import {
     jackOverAceOnTrumpLead,
     lowTrumpBackAfterJack,
     partnerAskedForTrump,
+    plainBeforeLastTrump,
     partnerLowPlainLeadAsksForTrump,
+    stigljaDefenceDiscard,
+    stigljaHandOver,
     stigljaLead,
+    stigljaTrumpRun,
+    singletonLead,
     suitToReturnToPartner,
     stigljaTakeOver,
     forceOutTheLastTrump,
+    hasBackedTen,
     tenThatSecuresThePass,
     highTrumpOnPartnersLowTrump,
     bestTrumpSuit,
+    callerLeadsToPartnersNine,
     callerLengthTrumpLead,
+    declaredNineThrough,
     callerTrumpLead,
+    continueAceSuit,
     cheapestCard,
     cheapestDiscard,
     cheapestWinningCard,
@@ -131,9 +140,12 @@ function bidThreshold(view: PlayerView, best: Suit): number {
         if (!view.hand.includes(makeCard("J", best))) threshold += NO_JACK_UNDER_GUN_PENALTY
     }
 
-    // My partner is the dealer and everybody before him has passed: pass and
-    // he is on mus, calling something he has not got.
-    const partnerOnMus = partnerOf(seat) === view.dealer && view.bidding.passes.length === 2
+    // My partner is the dealer, so I speak SECOND, with exactly one pass in
+    // (the opener's): pass and he is one opponent away from a mus, calling
+    // something he has not got. This read `=== 2` until 2026-09-21, which no
+    // seat can ever see here — the rule had never fired (measured: 0 in 185 000
+    // deals).
+    const partnerOnMus = partnerOf(seat) === view.dealer && view.bidding.passes.length === 1
     if (partnerOnMus) threshold -= RESCUE_PARTNER_BONUS
 
     return threshold
@@ -158,7 +170,18 @@ function mustNotPass(view: PlayerView, target: number): boolean {
     if (seat === null) return false
     const us = teamOf(seat)
     const them = us === "A" ? "B" : "A"
-    return view.score[them] + ONE_DEAL >= target && view.score[us] + ONE_DEAL >= target
+    const window = endgameWindow(target)
+    return view.score[them] + window >= target && view.score[us] + window >= target
+}
+
+/**
+ * How close to the target "kraj partije" begins. One ordinary deal (90) on the
+ * long games — but never more than a QUARTER of the target: in the quick game
+ * to 163 a flat 90 made the whole game an endgame from the second deal on
+ * (owner, 2026-09-21), so there it starts at 122, not at 73.
+ */
+function endgameWindow(target: number): number {
+    return Math.min(ONE_DEAL, Math.round(target / 4))
 }
 
 /**
@@ -187,19 +210,76 @@ const DANGER_MIN_TRUMP_STRENGTH = 8
 /** Extra expected tricks over the whole hand a call needs at full danger. */
 const DANGER_EXTRA_TRICKS = 1.5
 
+/**
+ * "Tad se mora zvati i ne dozvoliti protivniku da bira aduta" — but not at any
+ * price (reported 2026-09-21: 92:90 in a game to 163, a call on 8-Q-A of trump).
+ * Two limits on the endgame rule:
+ *   - if my pass leaves an OPPONENT on mus (he deals and I am the last to
+ *     speak before him), he does not get to CHOOSE anything — he is forced onto
+ *     whatever he holds, which is the best thing that can happen to us;
+ *   - a hand with no trump worth the name is a fall, and a fall at this score
+ *     is the game. The bar is far below an ordinary call (the jack alone, or
+ *     the nine alone, clears it), but 8-Q-A does not.
+ */
+const ENDGAME_MIN_TRUMP_STRENGTH = 4
+
+function worthAForcedEndgameCall(view: PlayerView, best: Suit): boolean {
+    const seat = view.seat
+    if (seat === null) return false
+    const opponentDeals = teamOf(view.dealer) !== teamOf(seat)
+    const lastBeforeDealer = nextSeat(seat) === view.dealer
+    if (opponentDeals && lastBeforeDealer) return false
+    return suitStrength(view.hand, best) >= ENDGAME_MIN_TRUMP_STRENGTH
+}
+
 function chooseBid(view: PlayerView, legal: LegalBids, _rng: () => number): BidChoice {
     const best = bestTrumpSuit(view.hand, legal.suits)
     if (!legal.canPass) return best // dealer forced (mus): best suit, no threshold
 
     const target = view.targetScore
-    if (target !== undefined && mustNotPass(view, target)) return best
+    if (target !== undefined && mustNotPass(view, target) && worthAForcedEndgameCall(view, best)) return best
 
-    const danger = target === undefined ? 0 : opponentDanger(view, target)
+    // Passing is only the safe choice when somebody ELSE then decides. With my
+    // partner the dealer (I speak second, one pass in), my pass leaves HIM one opponent away from a mus with a
+    // hand he did not choose — a likelier fall than my own middling call — so
+    // the ramp stands down and the ordinary rescue bonus applies.
+    const partnerOnMus =
+        view.seat !== null && partnerOf(view.seat) === view.dealer && view.bidding.passes.length === 1
+    const danger = target === undefined || partnerOnMus ? 0 : opponentDanger(view, target)
     const strength = suitStrength(view.hand, best)
     const minStrength = MIN_TRUMP_STRENGTH + danger * (DANGER_MIN_TRUMP_STRENGTH - MIN_TRUMP_STRENGTH)
-    if (strength < minStrength) return "PASS"
     const threshold = bidThreshold(view, best) + danger * DANGER_EXTRA_TRICKS
-    return handTricks(view.hand, best) >= threshold ? best : "PASS"
+    if (strength >= minStrength && handTricks(view.hand, best) >= threshold) return best
+
+    // The document's two minimum hands that the yardstick above misses, both
+    // only for the seat that OPENS the play and only at an ordinary score
+    // (BOT.md §1, "zvanje po dokumentu"). Measured neutral over 2000 paired
+    // games (50.1 % ± 2.2) — they fire about four times per hundred games —
+    // and kept for fidelity to the document, not for strength.
+    if (danger === 0 && view.seat !== null && openingSeat(view) === view.seat) {
+        const documented = documentedMinimumCall(view.hand, legal.suits)
+        if (documented !== null) return documented
+    }
+    return "PASS"
+}
+
+/**
+ * "Belu i devetku u zamišljenom adutu te bezec desetku u strancu (ako je prvi
+ * na igri)" and "četiri karte u istoj boji (ako je prvi na igri)". The bela
+ * hand comes first: it names a suit with two honours and twenty points of
+ * declaration in it, the length hand names a suit that may hold nothing.
+ */
+const ALL_SUITS: readonly Suit[] = ["HERC", "KARA", "PIK", "TREF"]
+
+function documentedMinimumCall(hand: readonly Card[], suits: readonly Suit[]): Suit | null {
+    for (const suit of suits) {
+        const holds = (rank: "K" | "Q" | "9"): boolean => hand.includes(makeCard(rank, suit))
+        if (!holds("K") || !holds("Q") || !holds("9")) continue
+        const backedTenElsewhere = ALL_SUITS.some((other) => other !== suit && hasBackedTen(hand, other))
+        if (backedTenElsewhere) return suit
+    }
+    const long = suits.filter((suit) => hand.filter((card) => cardSuit(card) === suit).length >= 4)
+    return long.length > 0 ? bestTrumpSuit(hand, long) : null
 }
 
 /* ── Leading ─────────────────────────────────────────────────────────────
@@ -253,6 +333,12 @@ function callerJackLead(
 function chooseLead(view: PlayerView, legal: readonly Card[], trump: Suit): Card {
     const signal = partnerSignal(view)
 
+    // Two cards left: the master trump is saved for the LAST trick and its ten
+    // points (BOT.md §15.16). Above everything — no other lead rule is about
+    // the last-trick bonus, and several of them would lead the trump here.
+    const saveForLast = plainBeforeLastTrump(view, legal)
+    if (saveForLast !== null) return saveForLast
+
     // All eight tricks are still ours to take: cash, do not manoeuvre.
     const chase = stigljaLead(view, legal)
     if (chase !== null) return chase
@@ -266,6 +352,15 @@ function chooseLead(view: PlayerView, legal: readonly Card[], trump: Suit): Card
     // trump. Even a lone 10 goes across to the jack he represented by calling.
     const openingTrump = openingTrumpForCallingPartner(view, legal)
     if (openingTrump !== null) return openingTrump
+
+    // His declaration put the trump nine in my partner's hand: the jack waits
+    // and I look for his hand instead; and from his side, the declared nine
+    // goes through (BOT.md §15.9). Both sit above the jack lead and the draw,
+    // which would otherwise spend the jack on his trumps.
+    const toHisNine = callerLeadsToPartnersNine(view, legal)
+    if (toHisNine !== null) return toHisNine
+    const nineThrough = declaredNineThrough(view, legal)
+    if (nineThrough !== null) return nineThrough
 
     const callerJack = callerJackLead(view, legal, trump)
     if (callerJack !== null) return callerJack
@@ -295,6 +390,20 @@ function chooseLead(view: PlayerView, legal: readonly Card[], trump: Suit): Card
     // Defending normally keeps trumps, except when our master trump can pull
     // an outstanding opposing A/10 for certain. In the reported shape the 9
     // follows the A-winning trick and captures the caller's remaining 10.
+    // The draw above stops once the opponents are out of trumps. With every
+    // trump I hold a master and no trick lost yet, the run goes ON: each one
+    // is a free discard for my partner, and his discards are the only way he
+    // can show me where he takes over (BOT.md §14). It sits below the draw so
+    // the caller's own sequencing (ace/nine before the jack) still opens.
+    const run = stigljaTrumpRun(view, legal)
+    if (run !== null) return run
+
+    // Nothing left of my own to win with: the deal is handed to the partner
+    // whose ace a declaration has shown — top card first, so I never end up
+    // winning a trick in HIS suit (BOT.md §15.13).
+    const handOver = stigljaHandOver(view, legal)
+    if (handOver !== null) return handOver
+
     const capture = defensiveTrumpCapture(view, legal)
     if (capture !== null) return capture
 
@@ -339,8 +448,20 @@ function chooseLead(view: PlayerView, legal: readonly Card[], trump: Suit): Card
 
     // On defence the document has its own opening book (BOT.md §7), and it
     // outranks cashing an ace: its first rule is not to open your ace suit.
+    // A singleton opened on purpose, so the partner can give it back and I
+    // ruff (BOT.md §13.6). Above the defensive book and the quiet lead, both of
+    // which would otherwise refuse it as a thin lead (`isThinLead`) — that
+    // price list is for singletons led with no plan, this one has the plan.
+    const solo = singletonLead(view, legal)
+    if (solo !== null) return solo
+
     const defensive = defensiveLead(view, legal)
     if (defensive !== null) return defensive
+
+    // The ace I just cashed is followed in its own suit, not by a second ace
+    // from another one (BOT.md §15.17).
+    const sameSuit = continueAceSuit(view, legal)
+    if (sameSuit !== null) return sameSuit
 
     const cash = aceToCash(view, legal)
     if (cash !== null) return cash
@@ -511,6 +632,11 @@ function chooseCard(view: PlayerView, legal: Card[], _rng: () => number): Card {
     // still control, and BOT.md §2 says it is a sentence, not a leftover.
     // The last card of a suit nobody else holds still forces a trump out of
     // somebody later, so it is not the one thrown away here.
+    // They are running for all eight: the discard must not be the card that
+    // would have stopped them (BOT.md §14).
+    const guarded = stigljaDefenceDiscard(view, legal)
+    if (guarded !== null) return guarded
+
     const throwable = legal.filter((card) => !isLastOfADeadSuit(view, card))
     const pool = throwable.length > 0 ? throwable : legal
     return cheapestDiscard(view.hand, pool, trump)

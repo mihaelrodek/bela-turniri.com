@@ -19,7 +19,17 @@ export interface BelaLiveActivityPlugin {
     isAvailable(): Promise<{ available: boolean }>
     start(options: { state: LiveActivityState }): Promise<void>
     update(options: { state: LiveActivityState }): Promise<void>
-    end(options: { state?: LiveActivityState }): Promise<void>
+    /**
+     * `{ state }` — the game ended: leave the final score on the lock screen.
+     * `{ roomId }` — the user just left: take the activity down NOW.
+     *
+     * `roomId` is what Android needs to cancel its per-room ongoing
+     * notification (a `setOngoing(true)` notification is not user-dismissible,
+     * so a stateless end that cancelled nothing left it stuck forever). iOS
+     * reads only `state` and ends every activity it owns, so the extra key is
+     * inert there — the contract stays one shape for both platforms.
+     */
+    end(options: { state?: LiveActivityState; roomId?: string }): Promise<void>
     /** iOS only: the per-activity APNs token the server pushes updates to. */
     addListener(
         eventName: "activityToken",

@@ -124,7 +124,7 @@ describe("game.nextDeal as a per-seat ack", () => {
     it("advances immediately when the table's only human acks", async () => {
         server = await startTestServer({
             timings: { dealDoneAutoMs: NEVER },
-            rateLimits: { messagesPerSecond: 5000, chatPerSecond: 5000 },
+            rateLimits: { messagesPerSecond: 5000 },
         })
         const host = await connect("Igrac")
         await startSoloRoom(host)
@@ -146,7 +146,7 @@ describe("game.nextDeal as a per-seat ack", () => {
     it("waits for every connected human and then advances on the last ack", async () => {
         server = await startTestServer({
             timings: { dealDoneAutoMs: NEVER },
-            rateLimits: { messagesPerSecond: 5000, chatPerSecond: 5000 },
+            rateLimits: { messagesPerSecond: 5000 },
         })
         const seated = await startHumanTable()
 
@@ -174,7 +174,7 @@ describe("game.nextDeal as a per-seat ack", () => {
     it("does not count a spectator, and starts the acks over on the next deal", async () => {
         server = await startTestServer({
             timings: { dealDoneAutoMs: NEVER },
-            rateLimits: { messagesPerSecond: 5000, chatPerSecond: 5000 },
+            rateLimits: { messagesPerSecond: 5000 },
         })
         const host = await connect("Igrac")
         const roomId = await startSoloRoom(host)
@@ -209,7 +209,7 @@ describe("game.nextDeal as a per-seat ack", () => {
     it("stops waiting for a seat that drops while the receipt is up", async () => {
         server = await startTestServer({
             timings: { dealDoneAutoMs: NEVER, reconnectGraceMs: 60_000 },
-            rateLimits: { messagesPerSecond: 5000, chatPerSecond: 5000 },
+            rateLimits: { messagesPerSecond: 5000 },
         })
         const seated = await startHumanTable()
 

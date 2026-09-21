@@ -415,6 +415,8 @@ export const pages = {
     "contact.success.title": "Poruka je poslana",
     "contact.success.description": "Hvala na poruci — javit ćemo se čim prije na navedenu e-poštu.",
     "contact.success.backLink": "Natrag na turnire",
+    // bela.games has no tournaments — used instead of `backLink` there.
+    "contact.success.backLinkHome": "Natrag na početnu",
 
     // ═══════════════════════ SharedBlokPage (/blok/z/{token}) ═══════════════════════
     // Public, read-only view of a shared "Bela blok" session (BLOK-HISTORY.md

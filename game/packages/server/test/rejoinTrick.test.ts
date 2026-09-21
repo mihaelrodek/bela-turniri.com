@@ -149,7 +149,7 @@ describe("a seat that comes back mid-trick", () => {
         // the assertions while a seat is away.
         server = await startTestServer({
             timings: { turnTimeoutMs: 60_000, reconnectGraceMs: 60_000 },
-            rateLimits: { messagesPerSecond: 5000, chatPerSecond: 5000 },
+            rateLimits: { messagesPerSecond: 5000 },
         })
         const { seated, names, roomId } = await startHumanTable()
 
@@ -196,7 +196,7 @@ describe("a seat that comes back mid-trick", () => {
     it("gets the same trick back through the hello reattach a reload uses", async () => {
         server = await startTestServer({
             timings: { turnTimeoutMs: 60_000, reconnectGraceMs: 60_000 },
-            rateLimits: { messagesPerSecond: 5000, chatPerSecond: 5000 },
+            rateLimits: { messagesPerSecond: 5000 },
         })
         const { seated, names } = await startHumanTable()
 

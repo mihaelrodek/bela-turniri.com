@@ -52,10 +52,18 @@ captures/
 # Comment next line if keeping position of elements in Navigation Editor is relevant for you
 .idea/navEditor.xml
 
-# Keystore files
-# Uncomment the following lines if you do not want to check your keystore files in.
-#*.jks
-#*.keystore
+# Keystore files — NEVER commit these. The upload key is the only thing
+# standing between someone else and a Play update of this app; if it leaks,
+# recovery means asking Google to reset the upload key. app/build.gradle reads
+# keystore.properties (or the BELA_KEYSTORE_* env vars) and simply leaves the
+# release build unsigned when neither is present, so nothing here is required
+# for a debug build or for CI.
+*.jks
+*.keystore
+*.p12
+*.pepk
+keystore.properties
+keystore.properties.local
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild

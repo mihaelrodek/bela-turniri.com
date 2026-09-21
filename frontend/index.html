@@ -98,6 +98,48 @@
       })()
     </script>
 
+    <!-- ── Native splash failsafe ─────────────────────────────────────────
+         `SplashScreen.launchAutoHide` is false (capacitor.config.ts): the
+         splash only comes down once React has painted and NativeShell.tsx's
+         own effect runs (src/platform/NativeShell.tsx). If the JS bundle
+         fails to fetch, or throws before that effect ever runs, nothing else
+         would ever dismiss it and the user is stuck looking at the splash
+         forever.
+
+         A plain classic script, parsed and run independently of the module
+         graph — it fires even when /src/main.tsx 404s or throws during
+         evaluation, which is the one case NativeShell.tsx's React effect
+         cannot cover by definition. Native-only: `window.Capacitor` does not
+         exist in a browser tab or the installed PWA, so this is a no-op on
+         the web (same detection the first-screen seed script above uses).
+
+         8s is comfortably longer than a cold start should ever take — the
+         effect in NativeShell.tsx normally wins this race after React's
+         first paint, well under a second — while still being short enough
+         that a genuinely stuck launch does not leave the splash up through
+         an app-review screenshot. `hide()` on an already-hidden splash is a
+         harmless no-op per the plugin's own contract, so this never fights
+         the normal path; it only matters on the failure path. -->
+    <script>
+      (function () {
+          try {
+              if (!window.Capacitor || typeof window.Capacitor.isNativePlatform !== "function") return
+              if (!window.Capacitor.isNativePlatform()) return
+              setTimeout(function () {
+                  try {
+                      var plugins = window.Capacitor.Plugins
+                      var SplashScreen = plugins && plugins.SplashScreen
+                      if (SplashScreen && typeof SplashScreen.hide === "function") SplashScreen.hide()
+                  } catch (e) {
+                      /* plugin unavailable in this build — nothing more to do */
+                  }
+              }, 8000)
+          } catch (e) {
+              /* no Capacitor bridge (web) — never worth surfacing */
+          }
+      })()
+    </script>
+
     <!-- Warm up the connections the app reaches for early: map tiles on
          /karta (CARTO Voyager basemap) and the location picker used when
          creating a tournament (OpenStreetMap tile server), plus Firebase
@@ -283,6 +325,70 @@
          foldable.css's container queries written as media queries — container
          queries would need the JS layout to exist. -->
     <style>
+      /* ── Safe-area insets, read ONE robust way everywhere ────────────────
+         Two sources can carry the notch/status-bar/home-indicator inset:
+         the CSS environment variable `env(safe-area-inset-*)` (any browser,
+         and a native WebView >= 140), and Capacitor 8's SystemBars plugin,
+         which injects the same numbers as ordinary custom properties
+         (`--safe-area-inset-top` etc.) on `:root` — the only source that
+         still updates below WebView 140, where `env()` silently resolves to
+         0px even though the OS really is drawing edge-to-edge (Android 16 /
+         targetSdk 36 makes `StatusBar.overlaysWebView` a no-op, so this is
+         not a rare case). `--safe-top/right/bottom/left` below take the
+         larger of the two, so every consumer reads ONE variable instead of
+         repeating this `max(env(...), var(...))` at each call site — a
+         plain `env(safe-area-inset-top, 0px)` anywhere in this app is a bug
+         waiting for an older WebView. Harmless everywhere neither source
+         applies (desktop, an ordinary Android/desktop browser tab): both
+         resolve to their 0px fallback. */
+      :root {
+        --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+        --safe-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+        --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+        --safe-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+      }
+
+      /* ── Overlays never run under a landscape notch ─────────────────────
+         Every Chakra v3 Dialog / Drawer / bottom sheet renders into a portal
+         whose positioner is a `position: fixed; inset: 0` box — the recipe
+         has no idea a device edge can be unusable. In PORTRAIT that is
+         harmless (`--safe-left/right` are 0 everywhere), so this rule costs
+         nothing there; in LANDSCAPE on a notched iPhone, or on an Android
+         phone with the 3-button bar rotated to the side, it is the difference
+         between a reachable close button and one under the cutout.
+
+         Horizontal only, deliberately: the vertical edges belong to the
+         individual surfaces, because a bottom sheet is supposed to PAINT to
+         the bottom edge and pad its contents from the inside (see
+         `RoundEntrySheet`, `JoinByCodeDialog`), which a positioner-level
+         padding would break by lifting the whole sheet off the edge.
+
+         Unlayered on purpose: Chakra emits its recipes into a CSS layer, and
+         unlayered author styles beat layered ones regardless of order — the
+         same reason system.ts documents `!important` around its own globalCss.
+         The `max()` keeps the recipe's own inline padding wherever it is the
+         larger of the two. */
+      [data-scope="dialog"][data-part="positioner"] {
+        padding-left: var(--safe-left);
+        padding-right: var(--safe-right);
+      }
+
+      /* ── iOS never auto-zooms a focused field ───────────────────────────
+         Mobile Safari / WKWebView zoom the page in when a focused input's
+         computed font-size is under 16px, and there is no zooming back out in
+         a standalone app: the user is left on a scaled, horizontally
+         scrollable layout with the safe-area padding scaled along with it.
+         Chakra's `size="sm"` inputs are 14px, which is exactly the trap.
+
+         `@supports (-webkit-touch-callout: none)` is the narrowest honest
+         guard for "WebKit on iOS" — no other engine implements that property
+         — so Android and desktop keep the designed size. `max(16px, 1em)`
+         raises only the fields that are actually below the threshold and
+         leaves a deliberately larger field (the blok's score inputs) alone. */
+      @supports (-webkit-touch-callout: none) {
+        input, select, textarea { font-size: max(16px, 1em); }
+      }
+
       html { scrollbar-gutter: stable; }
 
       /* Only `html`, never `body`: Chakra's own `html, body { background-color:
@@ -298,11 +404,18 @@
       :root.dark .boot { --boot-line: rgba(255, 255, 255, 0.10); --boot-sk: rgba(255, 255, 255, 0.08);
               --boot-panel: rgba(24, 24, 27, 0.61); --boot-border: #27272a; }
 
-      .boot-bar { border-bottom: 1px solid var(--boot-line); padding-top: env(safe-area-inset-top, 0px); }
+      /* `var(--safe-top)`, not a bare `env()`: the boot shell is the FIRST
+         thing an Android WebView < 140 paints, and there `env()` resolves to
+         0px even under edge-to-edge — Capacitor's injected
+         `--safe-area-inset-top` is the only source that carries the real
+         number. Same rule as every other consumer in the app. */
+      .boot-bar { border-bottom: 1px solid var(--boot-line); padding-top: var(--safe-top); }
       .boot-bar-row { display: flex; align-items: center; gap: 12px; height: 48px;
-                      max-width: 72rem; margin: 0 auto; padding: 0 1rem; }
+                      max-width: 72rem; margin: 0 auto;
+                      padding-inline: max(1rem, var(--safe-left)) max(1rem, var(--safe-right)); }
       .boot-logo { width: 28px; height: 28px; display: block; }
-      .boot-page { max-width: 72rem; margin: 0 auto; padding: 24px 1rem 0; }
+      .boot-page { max-width: 72rem; margin: 0 auto; padding-top: 24px;
+                   padding-inline: max(1rem, var(--safe-left)) max(1rem, var(--safe-right)); }
       .boot-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
       .boot-card { border: 1px solid var(--boot-border); border-radius: 0.75rem;
                    overflow: hidden; background: var(--boot-panel); }

@@ -7,4 +7,21 @@
     <color name="widget_bg_row">#F1F6F3</color>
     <color name="widget_text_primary">#1A1F1C</color>
     <color name="widget_text_secondary">#5B6B62</color>
+
+    <!-- Accent applied to notifications (NotificationCompat.setColor and the
+         FCM default_notification_color meta-data): the brand felt green, same
+         hue as widget_accent. Deliberately NOT overridden in values-night —
+         the system draws this tint against both notification shade themes and
+         a single accent keeps the icon recognisable in either. -->
+    <color name="notification_accent">#2F8F52</color>
+
+    <!-- What shows behind the transparent system bars whenever the WebView is
+         not itself drawing there (Android WebView < 140, and the frames
+         between the splash and the first React paint). The exact `bg.canvas`
+         token from src/system.ts, so the strip is indistinguishable from the
+         page; values-night/colors.xml carries the dark twin. Consumed by
+         `android:windowBackground` in values/styles.xml — see the comment
+         there for why the OS night mode, not the app's stored colour mode,
+         picks between them. -->
+    <color name="app_window_bg">#DAE7DE</color>
 </resources>

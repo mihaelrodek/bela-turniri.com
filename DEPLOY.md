@@ -181,6 +181,201 @@ is needed to flip it.
 ./ops/toggle-game.sh status  # check current state
 ```
 
+## Druge domene: bela.games i belot.games
+
+Two more front doors onto the **same stack**: same `edge`/`backend`/`game`
+containers, same Postgres, same Firebase project, same lobby, same rooms,
+same accounts. `bela.games` and `belot.games` are **equal twins** — both
+serve the site themselves, neither redirects to the other — and they show
+only the online game (`/igra`) and the scorepad (`/blok`). Everything
+tournament-shaped (`/turniri`, `/kalendar`, `/karta`, `/pronadi-para`,
+`/preuzmi-par`, `/preuzmi-ime` and their English aliases) 301s to
+`bela-turniri.com`, which is itself unchanged. Only the `www.` names
+redirect, each to its own apex.
+
+There is **one web build**: `frontend/src/site.ts` picks the product from the
+hostname at runtime (`GAMES_DOMAINS`), and the build emits a second HTML
+shell (`dist/index.games.html`, from the `bela-games-shell` plugin in
+`frontend/vite.config.ts`) with the games title/description/OG/canonical/
+JSON-LD and its own manifest link. Caddy serves that shell as `/` on both
+games domains. Nothing about the deploy procedure changes — `./ops/deploy.sh`
+as always.
+
+**One canonical, on purpose.** Two hostnames serving identical bytes is
+duplicate content, so the shell's `<link rel="canonical">` and `og:url` say
+`https://bela.games/` on **both** domains, and the sitemap lists only
+`bela.games` URLs. `belot.games` stays a fully working front door — it just
+hands its ranking signal to the twin chosen as canonical. Crawling is
+allowed on both (a crawler has to fetch `belot.games` to *read* that
+canonical). If the two ever have to rank separately, that is a different
+decision and needs per-host shells, not a tweak here.
+
+### Checklist, in order
+
+1. **DNS first — before the deploy.** Point all four names at the same
+   public IP as `bela-turniri.com`: `bela.games`, `www.bela.games`,
+   `belot.games`, `www.belot.games` (A, and AAAA if the box has IPv6). Caddy
+   requests each certificate lazily, on the first request for that hostname,
+   via the HTTP-01 challenge. If DNS is not propagated yet, that first
+   request never reaches the server and the site simply does not answer;
+   once DNS resolves, the next request triggers issuance and it works with
+   no redeploy. Nothing breaks on `bela-turniri.com` in the meantime — a
+   site block whose cert cannot be obtained does not take the others down.
+   Behind Cloudflare: **DNS-only (grey cloud)** until HTTPS works, same as
+   for the first domain. Repeated failed attempts count against Let's
+   Encrypt rate limits, so fix DNS rather than retrying in a loop.
+
+2. **`.env.prod` → `CORS_ORIGINS`.** Add all four origins —
+   `https://bela.games`, `https://www.bela.games`, `https://belot.games`,
+   `https://www.belot.games` — to the existing comma-separated list. The
+   same value is handed to the game server as `GAME_CORS_ORIGINS`, which
+   checks it against the WebSocket handshake's `Origin` header: miss one and
+   the lobby on that domain never connects, while REST calls are blocked by
+   the browser's CORS check. Then redeploy (`./ops/deploy.sh`) so backend
+   and game pick the value up.
+
+3. **Firebase Console → Authentication → Settings → Authorized domains.**
+   Add all four hostnames: `bela.games`, `www.bela.games`, `belot.games`,
+   `www.belot.games`. **Without this, Google and Apple sign-in fail on that
+   host** (`auth/unauthorized-domain`) — email/password keeps working, which
+   makes the breakage easy to miss. Nothing else in Firebase changes: same
+   project, same users, same ID tokens the backend already verifies.
+
+4. **Universal / App Links.** `ops/well-known-games/` is bind-mounted at
+   `/well-known-games` and served on **both** games domains (see the
+   `well_known` snippet in the Caddyfile) — one native games app claims both
+   names, so one set of files. Its two files carry placeholders for that
+   **second** app: `TEAMID.games.bela.app` in `apple-app-site-association`
+   and `REPLACE_WITH_GAMES_RELEASE_SHA256` in `assetlinks.json`. Replace
+   them exactly as described under "Universal / App Links" above once the
+   app exists, and remember its entitlements must list **both**
+   `applinks:bela.games` and `applinks:belot.games`. Until then the files are
+   harmless and every link opens in the browser. `ops/well-known/`
+   (com.belaturniri.app) is untouched.
+
+5. **Google Search Console.** Add a property for `https://bela.games` **and**
+   one for `https://belot.games` (URL-prefix properties; or Domain
+   properties if you can add the DNS TXT records). Verifying both is what
+   makes the cross-host `Sitemap:` line in `robots.txt` legitimate, and it is
+   how you watch the canonical consolidation actually happen. Submit the
+   sitemap `https://bela.games/sitemap.xml` under the bela.games property — a
+   small static file listing `/`, `/igra`, `/blok`
+   (`frontend/public/sitemap.games.xml`), not the backend's dynamic sitemap,
+   which lists tournaments and belongs to the bela-turniri.com property. Do
+   **not** submit a separate sitemap for belot.games: it has no canonical
+   URLs of its own. `robots.txt` on both games domains is
+   `frontend/public/robots.games.txt`. Bing Webmaster Tools: same, if you
+   keep that property. Expect `belot.games` URLs to be reported as
+   "Duplicate, Google chose a different canonical" — that is the design
+   working, not an error.
+
+6. **GA4.** There is currently **no analytics on the games domains**: the
+   inline GA4 snippet in `frontend/index.html` gates itself on the
+   `bela-turniri.com` / `www.bela-turniri.com` hostname, so it never loads
+   there, and the derived games shell inherits that. Deliberate — the
+   existing property's data stays clean. To measure them, either create a
+   second GA4 property and add a hostname branch to that snippet, or add the
+   games hostnames as additional data streams on the existing property and
+   widen the hostname check (one stream can serve both twins; the hostname
+   dimension separates them in reports). The CSP already allows
+   googletagmanager.com on every host, so nothing at the edge changes either
+   way.
+
+### Verify after the deploy
+
+```bash
+# 1. Certificate + the shell, on BOTH twins. HTTP/2 200, and the title must
+#    be the games one — NOT "Bela Turniri".
+for d in bela.games belot.games; do
+  curl -sI "https://$d/" | head -1
+  curl -s  "https://$d/" | grep -o '<title>[^<]*</title>'
+done
+# → <title>bela.games — igraj belu online i vodi zapisnik</title>  (both)
+
+# 2. The canonical is bela.games on BOTH — that is the duplicate-content fix.
+for d in bela.games belot.games; do
+  curl -s "https://$d/" | grep -E 'rel="canonical"|og:url|rel="manifest"'
+done
+# → canonical + og:url https://bela.games/ , manifest /manifest.games.webmanifest
+
+# 3. www → its OWN apex (301), and full-site-only paths → bela-turniri.com.
+curl -sI https://www.bela.games/igra     | grep -i '^location'   # bela.games
+curl -sI https://www.belot.games/igra    | grep -i '^location'   # belot.games
+curl -sI https://belot.games/turniri/foo | grep -i '^location'
+# → https://bela-turniri.com/turniri/foo
+
+# 4. Same containers behind both names.
+for d in bela.games belot.games; do
+  curl -s  "https://$d/game-status.json"                 # {"enabled":true|false}
+  curl -sI "https://$d/api/tournaments/count" | head -1  # 200
+done
+
+# 5. The games robots/sitemap/manifest.
+curl -s https://belot.games/robots.txt   | tail -2   # Sitemap: https://bela.games/...
+curl -s https://belot.games/sitemap.xml  | grep loc  # only bela.games URLs
+curl -s https://belot.games/manifest.webmanifest | head -3   # rewritten copy
+
+# 6. WebSocket path (same public URL everywhere). Expect 101.
+for d in bela.games belot.games; do
+  curl -sI -o /dev/null -w "$d %{http_code}\n" \
+       -H "Connection: Upgrade" -H "Upgrade: websocket" \
+       -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: AAAAAAAAAAAAAAAAAAAAAA==" \
+       -H "Origin: https://$d" "https://$d/ws/game"
+done
+# A 403/400 here almost always means that origin is missing from CORS_ORIGINS.
+
+# 7. Nothing regressed on the original domain.
+curl -s  https://bela-turniri.com/ | grep -o '<title>[^<]*</title>'
+curl -sI https://bela-turniri.com/tournaments | grep -i '^location'
+```
+
+Then open both games domains in a browser and sign in on each.
+
+### Two things that surprise people
+
+- **Login state is per-origin.** Same accounts, same profile, same rooms,
+  same lobby — but a browser session on `bela.games` is a separate sign-in
+  from one on `belot.games` and from one on `bela-turniri.com`. Signing out
+  of one does not sign you out of the others; a player who signed in on one
+  twin will be asked to sign in again on the other, with the same account.
+- **An installed PWA is per-origin too.** Installing from `bela.games` and
+  from `belot.games` gives **two** home-screen apps (both named
+  "bela.games", both starting at `/igra`), each with its own service-worker
+  cache and its own push subscription, alongside any existing "Bela Turniri"
+  install. Worth pointing people at one of the two when you promote it.
+
+### Adding another domain later
+
+A **third equal twin** means: add its apex to the `bela.games, belot.games`
+site block in the `Caddyfile`, add a `www.<name> { redir … }` block for it,
+add it to `GAMES_DOMAINS` in `frontend/src/site.ts`, and add its origins to
+`CORS_ORIGINS` and to Firebase's authorized domains. The canonical stays
+`bela.games`.
+
+A domain bought only to **funnel traffic** needs much less — one block in the
+`Caddyfile` (there is a commented, ready-to-copy example right above the
+games site block) plus DNS pointing here *before* the deploy:
+
+```
+example.tld, www.example.tld {
+    redir https://bela.games{uri} permanent
+}
+```
+
+Such an alias never reaches the SPA, so it must **not** be added to
+`GAMES_DOMAINS` — only hostnames that actually serve the app belong there.
+Rebuild the edge (`./ops/up.sh edge`) and Caddy fetches the new certificate
+on the first request.
+
+### Rollback
+
+Delete the offending name from the games site block (or the whole block, and
+the `www.` blocks) in the `Caddyfile` and redeploy (`./ops/up.sh edge`), or
+just point the DNS away — the domain then stops resolving here and nothing
+else in the stack is affected. The extra `CORS_ORIGINS` entries and
+`ops/well-known-games/` are harmless if left in place. `bela-turniri.com` is
+never involved in either direction.
+
 ## Maintenance mode, deploy scripts, backups
 
 ### `ops/deploy.sh` and `ops/up.sh`

@@ -6,6 +6,8 @@ import {
     GoogleAuthProvider,
     OAuthProvider,
     onAuthStateChanged,
+    reauthenticateWithPopup,
+    revokeAccessToken,
     sendPasswordResetEmail,
     signInWithCredential,
     signInWithEmailAndPassword,
@@ -67,6 +69,12 @@ export function createFirebaseAuth(config: FirebaseOptions) {
         signOut,
         updateProfile,
         deleteUser,
+        // Account deletion (App Store 5.1.1(v)): an Apple-linked account must
+        // have its Apple token REVOKED, and revocation needs a token Firebase
+        // never stores — hence a fresh `reauthenticateWithPopup`. See
+        // `src/auth/appleRevocation.ts`.
+        reauthenticateWithPopup,
+        revokeAccessToken,
         GoogleAuthProvider,
         OAuthProvider,
     }

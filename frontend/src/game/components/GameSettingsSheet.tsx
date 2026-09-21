@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Box, Button, Dialog, HStack, IconButton, Input, Popover, Portal, Separator, SimpleGrid, Text, VStack } from "@chakra-ui/react"
-import { LIMITS, TRICK_REVIEWS } from "@bela/protocol"
+import { isOffensiveName, LIMITS, TRICK_REVIEWS } from "@bela/protocol"
 import type { ClientMessage, RoomState, TargetScore } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import { formatDate } from "../../utils/format"
@@ -46,12 +46,16 @@ function GameNameSetting() {
     const limited = error?.code === "NAME_RATE_LIMITED"
     const trimmed = draft.trim()
     const changed = trimmed.length > 0 && trimmed !== current
+    // Client-side hint only — `ws.ts`'s `profile.setName` handler is the
+    // authoritative check and refuses the change (`BAD_REQUEST`) if this is
+    // ever bypassed.
+    const offensive = trimmed.length > 0 && isOffensiveName(trimmed)
     // `gameNameNextChangeAt` is only in the past once a change has landed, so a
     // player who has never renamed themselves sees no deadline at all.
     const blocked = gameNameNextChangeAt !== null && gameNameNextChangeAt > Date.now()
 
     function save() {
-        if (!changed || blocked) return
+        if (!changed || blocked || offensive) return
         clearError()
         setSent(true)
         send({ t: "profile.setName", name: trimmed })
@@ -93,11 +97,13 @@ function GameNameSetting() {
                     placeholder={t("game.settings.gameName")}
                     onChange={(e) => { setSent(false); setDraft(e.target.value) }}
                     onKeyDown={(e) => { if (e.key === "Enter") save() }} />
-                <Button size="sm" colorPalette="brand" disabled={!changed || blocked} onClick={save}>
+                <Button size="sm" colorPalette="brand" disabled={!changed || blocked || offensive} onClick={save}>
                     {t("game.common.save")}
                 </Button>
             </HStack>
-            {(blocked || (sent && !changed)) && (
+            {offensive ? (
+                <Text fontSize="xs" color="fg.error">{t("game.settings.gameNameOffensive")}</Text>
+            ) : (blocked || (sent && !changed)) && (
                 <Text fontSize="xs" color={limited ? "fg.error" : "fg.muted"}>
                     {blocked
                         ? t("game.settings.gameNameNext", { date: formatDate(new Date(gameNameNextChangeAt).toISOString()) })

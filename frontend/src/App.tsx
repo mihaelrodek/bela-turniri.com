@@ -1,5 +1,7 @@
 import { Suspense, useEffect, useState, type ComponentType } from 'react'
 import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
+import { homePath, isFullSiteOnlyPath, isGamesSite, mainSiteUrl } from './site'
+import { isNative } from './platform'
 import { Container, Flex, Spinner, Text } from '@chakra-ui/react'
 import NavBar from './components/NavBar'
 import MobileTabBar from './components/MobileTabBar'
@@ -8,6 +10,7 @@ import ThemeSync from './components/ThemeSync'
 import LocaleSync from './components/LocaleSync'
 import SiteFooter from './components/SiteFooter'
 import { RequireAuth } from "./components/RequireAuth"
+import { ACCOUNT_DELETION_PATH } from "./pages/accountDeletionPath"
 import { readStickyRoomId } from "./game/activeRoomKey"
 import { lazyWithReload } from "./utils/lazyWithReload"
 import { loadNamespace, type LazyNamespace } from "./i18n"
@@ -70,6 +73,11 @@ const ClaimNamePage = lazyWithReload(() => import('./pages/ClaimNamePage'))
 const ContactPage = lazyWithReload(() => import('./pages/ContactPage'))
 const PrivacyPage = lazyRoute(() => import('./pages/PrivacyPage'), 'legal')
 const TermsPage = lazyRoute(() => import('./pages/TermsPage'), 'legal')
+/* Public, login-free account-deletion instructions — the URL listed in
+   Google Play's Data safety form and linked from the privacy policy and the
+   delete card. The path itself lives in its own const module so importing it
+   here does not pull the page out of its chunk. */
+const AccountDeletionPage = lazyRoute(() => import('./pages/AccountDeletionPage'), 'legal')
 /* Bela blok — offline scorepad for a table game (src/blok/BLOK.md). Its own
    localStorage-backed subtree, no auth, no backend calls — split out purely
    because it's a heavy-ish page that most visitors never open. */
@@ -168,6 +176,23 @@ function LegacyClaimNameRedirect() {
  * change from this component's point of view (`activeRoomKey.ts` is a
  * dependency-free module for precisely this reason).
  */
+/**
+ * bela.games has no tournaments, calendar or map (src/site.ts). A link to one
+ * of them that lands there anyway — an old share, a push tap, a typed URL —
+ * is sent on to the same path on the full site instead of dying in a 404.
+ *
+ * The native games app has no browser chrome to come back with, so there it
+ * goes home instead. Caddy 301s the same paths for crawlers and first loads;
+ * this covers navigation that happens inside the already-running SPA.
+ */
+function FullSiteRedirect() {
+    const { pathname, search, hash } = useLocation()
+    useEffect(() => {
+        if (!isNative) window.location.replace(mainSiteUrl(`${pathname}${search}${hash}`))
+    }, [pathname, search, hash])
+    return isNative ? <Navigate to={homePath} replace /> : <RouteLoading />
+}
+
 function GameChrome() {
     const { pathname } = useLocation()
     const onTable = pathname.startsWith("/igra/soba/")
@@ -195,6 +220,8 @@ export default function App() {
     // tournament's detail page, so we prefetch that lazy chunk after first
     // paint — opening a tournament then feels instant.
     useEffect(() => {
+        // The games site never opens a tournament — do not fetch its chunk.
+        if (isGamesSite) return
         const prefetch = () => {
             void TournamentDetailsPage.preload().catch(() => {})
         }
@@ -247,8 +274,8 @@ export default function App() {
                     maxW="6xl"
                     py={6}
                     css={{
-                        paddingInlineStart: "max(var(--chakra-spacing-4), env(safe-area-inset-left, 0px))",
-                        paddingInlineEnd: "max(var(--chakra-spacing-4), env(safe-area-inset-right, 0px))",
+                        paddingInlineStart: "max(var(--chakra-spacing-4), var(--safe-left))",
+                        paddingInlineEnd: "max(var(--chakra-spacing-4), var(--safe-right))",
                     }}
                 >
                 {/* All user-facing routes use Croatian slugs. English slugs
@@ -257,8 +284,9 @@ export default function App() {
                     in-browser links don't break — server-side 301 redirects
                     in Caddy handle the SEO side. */}
                 <Suspense fallback={<RouteLoading />}>
+                {isGamesSite && isFullSiteOnlyPath(displayed.pathname) ? <FullSiteRedirect /> : (
                 <Routes location={displayed}>
-                    <Route path="/" element={<Navigate to="/turniri" replace />} />
+                    <Route path="/" element={<Navigate to={homePath} replace />} />
 
                     {/* Croatian (canonical) routes. */}
                     <Route path="/prijava" element={<LoginPage />} />
@@ -345,6 +373,7 @@ export default function App() {
                     <Route path="/kontakt" element={<ContactPage />} />
                     <Route path="/privatnost" element={<PrivacyPage />} />
                     <Route path="/uvjeti" element={<TermsPage />} />
+                    <Route path={ACCOUNT_DELETION_PATH} element={<AccountDeletionPage />} />
 
                     {/* Legacy English aliases — client-side Navigate for any
                         in-app link or typed URL that slips past Caddy's
@@ -371,6 +400,7 @@ export default function App() {
                     {/* Catch-all — keep last so explicit routes win. */}
                     <Route path="*" element={<NotFoundPage />} />
                 </Routes>
+                )}
                 </Suspense>
                 </Container>
                 {/* mt="auto" is the second half of the sticky-footer pattern:

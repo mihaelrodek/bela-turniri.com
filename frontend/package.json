@@ -5,8 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:games": "VITE_SITE=games vite",
     "build": "tsc -b && vite build",
     "build:native": "tsc -b && vite build --mode native && cap sync",
+    "build:native:games": "tsc -b && vite build --mode native-games && CAP_APP=games cap sync",
+    "cap:games": "CAP_APP=games cap",
+    "cap:games:sync": "CAP_APP=games cap sync",
+    "cap:games:add:ios": "CAP_APP=games cap add ios",
+    "cap:games:add:android": "CAP_APP=games cap add android",
+    "cap:games:open:ios": "CAP_APP=games cap open ios",
+    "cap:games:open:android": "CAP_APP=games cap open android",
+    "native:games:create": "bash scripts/create-games-native.sh",
     "lint": "eslint .",
     "preview": "vite preview"
   },

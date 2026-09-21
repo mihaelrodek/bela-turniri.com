@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Per-app language support (Android 13+ / API 33). Referenced from
+    <application android:localeConfig>. Listing the locales here is what makes
+    "App info → Language" appear for this app in system Settings; without it
+    the picker is simply absent.
+
+    The list must mirror the res/values-* translations that actually exist:
+      values/      → hr (default, Croatian — the source of truth)
+      values-sl/   → sl (Slovenian)
+    Adding a values-xx/ folder means adding xx here, and vice versa; a locale
+    listed with no resources falls back to the default and looks like a bug.
+
+    Below API 33 the attribute is ignored (the system has no per-app picker),
+    which is why minSdk 24 is unaffected.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="hr" />
+    <locale android:name="sl" />
+</locale-config>

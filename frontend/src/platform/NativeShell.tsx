@@ -5,8 +5,88 @@ import { isNative, platform } from "./index"
 import { nativeApp, nativeMessaging, nativeSplashScreen, nativeStatusBar } from "./native"
 import { applyFoldState, Foldable } from "./foldable"
 import { hydrateGuestFromNative } from "../game/hooks/guestIdentity"
+import { requestTableExit } from "../game/gameExitGuard"
+import { isFullSiteOnlyPath, isGamesHost, isGamesSite, mainSiteUrl, MAIN_ORIGIN } from "../site"
 import { t } from "../i18n"
 import { toaster } from "../toaster"
+
+/**
+ * Any open Zag-based overlay's CONTENT part, topmost first (see below).
+ * Chakra v3's Dialog, Drawer (same "dialog" scope, styled differently),
+ * Popover and Menu are all `@zag-js/*` state machines built from
+ * `createAnatomy(scope)`, which stamps every part with `data-scope="<scope>"`
+ * `data-part="<part>"` and, on the open/close-able parts, `data-state`.
+ */
+const OPEN_OVERLAY_SELECTOR = [
+    '[data-scope="dialog"][data-part="content"][data-state="open"]',
+    '[data-scope="popover"][data-part="content"][data-state="open"]',
+    '[data-scope="menu"][data-part="content"][data-state="open"]',
+].join(", ")
+
+/**
+ * True if some overlay was open and asked (best-effort) to close.
+ *
+ * Dispatches a synthetic Escape keydown on `document` rather than closing the
+ * DOM node directly: `@zag-js/dismissable`'s `trackEscapeKeydown` already
+ * listens for exactly this on `document` (capture phase, regardless of
+ * focus — see its source), and its layer stack only acts when the
+ * dispatching layer `isTopMost`, so with several overlays stacked this
+ * closes only the one on top, same as a real Escape key press would.
+ */
+function closeTopmostOverlay(): boolean {
+    if (!document.querySelector(OPEN_OVERLAY_SELECTOR)) return false
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }))
+    return true
+}
+
+/**
+ * Does THIS app get to swallow an https link to `hostname`?
+ *
+ * Asked as a predicate rather than matched against a list, because the games
+ * product lives on TWO equal apex domains (bela.games and belot.games — see
+ * GAMES_DOMAINS in src/site.ts) and the one shell claims both. `isGamesHost`
+ * already normalises `www.` and case, so both twins and both their `www.`
+ * forms land here; the tournaments shell keeps its single host pair.
+ *
+ * This must stay in step with what the OS is willing to hand over in the
+ * first place — the Associated Domains entitlement on iOS and the App Links
+ * intent-filter hosts on Android. The OS decides WHICH links reach
+ * `appUrlOpen`; this decides what is done with them once they do.
+ */
+const MAIN_HOST = new URL(MAIN_ORIGIN).hostname
+
+function isOwnHost(hostname: string): boolean {
+    if (isGamesSite) return isGamesHost(hostname)
+    const apex = hostname.toLowerCase().replace(/^www\./, "")
+    return apex === MAIN_HOST
+}
+
+/**
+ * A path that exists only on the full site (tournaments, calendar, map…) can
+ * still arrive in the games app — a shared link pasted by a friend, an old
+ * push payload, a notification for an account that also organises tournaments.
+ * The games build has no route for it, so handing it to the router would land
+ * on the 404 page. Send it to the system browser on bela-turniri.com instead,
+ * where it actually resolves. `window.open(..., "_blank")` is Capacitor's
+ * documented escape hatch: the iOS bridge answers it with
+ * `UIApplication.open` and the Android bridge with an ACTION_VIEW intent, so
+ * in both shells it leaves the WebView rather than navigating inside it.
+ */
+function leavesThisApp(pathname: string): boolean {
+    // `isFullSiteOnlyPath` answers "does the full site alone have this route",
+    // which is true in BOTH builds — so the mode check is what makes this a
+    // games-only detour. Without it the tournaments app would fling its own
+    // /turniri links out into Safari.
+    return isGamesSite && isFullSiteOnlyPath(pathname)
+}
+
+function openOnFullSite(pathAndQuery: string) {
+    try {
+        window.open(mainSiteUrl(pathAndQuery), "_blank")
+    } catch {
+        /* no external handler — better a dead tap than a 404 inside the app */
+    }
+}
 
 /**
  * Native-shell wiring — a no-op tree on the web (every effect below bails on
@@ -75,9 +155,13 @@ export default function NativeShell() {
 
     // Status bar icon colour follows the app's live colour mode, the same
     // value ThemeColorSync (color-mode.tsx) uses for the browser's own
-    // chrome. `overlaysWebView: false` in capacitor.config.ts means the OS
-    // reserves native space for the bar instead of drawing it over the
-    // WebView, so only its icon style — not an inset — needs to track theme.
+    // chrome. `overlaysWebView: false` in capacitor.config.ts asks the OS to
+    // reserve native space for the bar instead of drawing it over the
+    // WebView, but on Android 16 / targetSdk 36 that flag no longer has any
+    // effect — the WebView draws edge-to-edge regardless, and content needs
+    // its own inset (`--safe-top` etc., index.html) to clear it. This effect
+    // still only needs to track the icon STYLE, not an inset, on iOS and
+    // older Android where the flag still applies.
     useEffect(() => {
         if (!isNative) return
         nativeStatusBar()
@@ -88,11 +172,14 @@ export default function NativeShell() {
             })
     }, [colorMode])
 
-    // Universal Links (iOS) / App Links (Android) — a tap on a
-    // https://bela-turniri.com/... link on the device hands the URL to the
+    // Universal Links (iOS) / App Links (Android) — a tap on a link to this
+    // app's own product (https://bela-turniri.com/... in the tournaments app,
+    // https://bela.games/... or https://belot.games/... in the games app,
+    // which claims both of its twins) hands the URL to the
     // OS, which (once verified via the AASA / assetlinks.json files served
-    // at ops/well-known/, see the Caddyfile) opens THIS app instead of the
-    // browser and fires `appUrlOpen` with the full URL. Two cases:
+    // at ops/well-known/ and ops/well-known-games/, see the Caddyfile) opens
+    // THIS app instead of the browser and fires `appUrlOpen` with the full
+    // URL. Two cases:
     //   - warm start: app already running, listener fires.
     //   - cold start: the OS launches the app WITH the URL, so the first
     //     `appUrlOpen` can be missed — `getLaunchUrl()` is Capacitor's way
@@ -107,8 +194,7 @@ export default function NativeShell() {
         if (!isNative) return
         const isOurHost = (url: string) => {
             try {
-                const { hostname } = new URL(url)
-                return hostname === "bela-turniri.com" || hostname === "www.bela-turniri.com"
+                return isOwnHost(new URL(url).hostname)
             } catch {
                 return false
             }
@@ -116,7 +202,11 @@ export default function NativeShell() {
         const openInApp = (url: string) => {
             if (!isOurHost(url)) return
             const { pathname, search, hash } = new URL(url)
-            navigate(pathname + search + hash)
+            const target = pathname + search + hash
+            // A full-site-only path in the games shell has no route here;
+            // hand it to the browser on bela-turniri.com instead of 404-ing.
+            if (leavesThisApp(pathname)) openOnFullSite(target)
+            else navigate(target)
         }
         let handle: { remove: () => void } | undefined
         let cancelled = false
@@ -140,6 +230,29 @@ export default function NativeShell() {
     // would do in the browser: go back in the SPA's own history when there
     // is somewhere to go, otherwise this IS the app's root screen, so hand
     // control back to the OS instead of trapping the user with a dead button.
+    // Three things get first refusal, in order:
+    //   1. The game table (`/igra/soba/:roomId`) asks "ostani u sobi ili
+    //      izađi?" before an active game is abandoned — the SAME dialog a
+    //      nav-link click shows (`GameRoomExitGuard.tsx`), reached through
+    //      `gameExitGuard.ts` since that component's tree is nowhere near
+    //      this listener. `requestTableExit` is a no-op (returns false) on
+    //      every other route; on the table it asks whenever a seat is held
+    //      (waiting room included), and only a spectator goes straight back.
+    //   2. Off the table, an open dialog/drawer/popover/menu closes instead
+    //      of the page navigating away underneath it (`closeTopmostOverlay`).
+    //   3. Otherwise this is a normal back: within the SPA's own history if
+    //      there is one to return to, else the app's own root and the
+    //      button's job is to leave the app.
+    //
+    // `window.history.length` used to gate step 3, but it only ever GROWS —
+    // it is the size of the whole tab history, not a position in it — so
+    // once the player had navigated anywhere this session, walking back to
+    // the very first screen left every further back-press with nowhere to
+    // go and nothing to do: a dead button instead of an exit. React Router's
+    // own history object stamps every entry it pushes/replaces with
+    // `{ idx, ... }` in `history.state` (the `history` package's own
+    // convention); `idx === 0` is specifically THIS SPA's first entry, which
+    // is what "the app's root" means here.
     //
     // appStateChange -> "active" needs no handler here: game/gameConnection.ts
     // already reconnects its socket on its own (ping-timeout -> onclose ->
@@ -151,8 +264,17 @@ export default function NativeShell() {
         let cancelled = false
         nativeApp().then(async (AppPlugin) => {
             const h = await AppPlugin.addListener("backButton", () => {
-                if (window.history.length > 1) navigate(-1)
-                else AppPlugin.exitApp()
+                const idx = (window.history.state as { idx?: unknown } | null)?.idx
+                const goBack = () => {
+                    if (typeof idx === "number" && idx > 0) navigate(-1)
+                    else AppPlugin.exitApp()
+                }
+                // The table goes FIRST: there, back never closes anything and
+                // never leaves — it asks (or, pressed again, withdraws the
+                // question). Everywhere else an open overlay closes first.
+                if (requestTableExit(goBack)) return
+                if (closeTopmostOverlay()) return
+                goBack()
             })
             if (cancelled) h.remove()
             else handle = h
@@ -201,7 +323,13 @@ export default function NativeShell() {
                 const data = event.notification.data as { url?: unknown } | undefined
                 const url = data?.url
                 if (typeof url === "string" && url.startsWith("/") && !url.startsWith("//")) {
-                    navigate(url)
+                    // Same split as the deep-link listener: the games shell
+                    // has no tournament routes, so a "/turniri/..." payload
+                    // (an account that also organises tournaments, a stale
+                    // token) opens on the full site instead of 404-ing here.
+                    const path = url.split(/[?#]/, 1)[0]
+                    if (leavesThisApp(path)) openOnFullSite(url)
+                    else navigate(url)
                 }
             })
             if (cancelled) h.remove()

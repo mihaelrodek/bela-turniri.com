@@ -35,6 +35,7 @@ export const profile: ProfileDict = {
     unavailable: "Profil ni na voljo.",
     back: "Nazaj",
     toTournaments: "Na turnirje",
+    toHome: "Na domačo stran",
 
     // --- Section nav --------------------------------------------------------
     "tab.tournaments": "Turnirji",
@@ -44,6 +45,7 @@ export const profile: ProfileDict = {
     "tab.gameAnalytics": "Analitika igre",
     "tab.playersList": "Seznam igralcev",
     "tab.contactMessages": "Sporočila",
+    "tab.gameStats": "Statistika",
 
     // --- Turniri tab --------------------------------------------------------
     "tournaments.heading": "Turnirji",
@@ -336,4 +338,7 @@ export const profile: ProfileDict = {
     "deleteAccount.done": "Račun je izbrisan",
     "deleteAccount.failed": "Izbris računa ni uspel",
     "deleteAccount.recentLogin": "Znova se prijavi in poskusi še enkrat",
+    "deleteAccount.appleRevokeFailed":
+        "Račun je izbrisan, dostopa do prijave z Applom pa nam ni uspelo preklicati. Aplikacijo odstrani v Nastavitve → Apple ID → Prijava z Applom.",
+    "deleteAccount.moreInfo": "Podrobno: kaj se izbriše in kaj ostane",
 }

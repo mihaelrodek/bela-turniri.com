@@ -17,6 +17,7 @@ import { ConsentCheckbox } from "../components/auth/ConsentGate"
 import { SocialAuthButtons } from "../components/auth/SocialAuthButtons"
 import { nextFromState, pickSafeNext } from "../utils/safeNextPath"
 import { t, useTranslation } from "../i18n"
+import { homePath } from "../site"
 
 function authErrorMessage(err: unknown): string {
     // Shared with LoginPage — cancellations and the social-provider codes are
@@ -60,7 +61,7 @@ export default function RegisterPage() {
     // isn't a plain same-origin path (see utils/safeNextPath.ts).
     const redirectTo = pickSafeNext(
         [searchParams.get("next"), nextFromState(location.state)],
-        "/turniri",
+        homePath,
     )
 
     /**

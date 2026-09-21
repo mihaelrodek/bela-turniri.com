@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CHAT_ENABLED } from "../chatEnabled"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Box, Button, Flex, HStack, Spinner, Text, useBreakpointValue } from "@chakra-ui/react"
 import { FiArrowLeft, FiEye } from "react-icons/fi"
@@ -12,7 +11,6 @@ import { useTranslation } from "../../i18n"
 import { showError, toaster } from "../../toaster"
 import BelaPrompt from "../components/BelaPrompt"
 import BiddingPanel, { ROW_H } from "../components/BiddingPanel"
-import Chat, { ChatToggle } from "../components/Chat"
 import DealSummary from "../components/DealSummary"
 import DeclarationsReveal, { BelaFlash, BelotFlash, TrumpFlash } from "../components/DeclarationsReveal"
 import GameOverDialog from "../components/GameOverDialog"
@@ -147,7 +145,6 @@ export default function GameRoomPage() {
         send: socket.send,
     })
 
-    const [chatOpen, setChatOpen] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [accessCodeOpen, setAccessCodeOpen] = useState(false)
     const joinedOnce = useRef(false)
@@ -284,8 +281,6 @@ export default function GameRoomPage() {
         const occupant = room.seats[mySeat].occupant
         if (occupant?.kind === "PLAYER" && !occupant.ready) socket.send({ t: "room.ready", ready: true })
     }, [prefs.alwaysReady, mySeat, room, socket])
-    const [unread, setUnread] = useState(0)
-    const seenChatRef = useRef(0)
 
     useDocumentHead({ title: t("game.room.metaTitle", { name: room?.name ?? "" }) })
 
@@ -841,16 +836,6 @@ export default function GameRoomPage() {
         return () => ids.forEach(clearTimeout)
     }, [mySeat, turn, turnDeadline, turnTimeoutMs])
 
-    // ── chat unread ──────────────────────────────────────────────────────
-    useEffect(() => {
-        if (chatOpen) {
-            seenChatRef.current = socket.chat.length
-            setUnread(0)
-            return
-        }
-        setUnread(Math.max(0, socket.chat.length - seenChatRef.current))
-    }, [socket.chat, chatOpen])
-
     const leave = () => {
         // Clear sticky membership immediately as well as notifying the
         // server. Sending the frame directly left a short window in which the
@@ -1108,17 +1093,6 @@ export default function GameRoomPage() {
                             onSettings={() => setSettingsOpen(true)}
                         />
                     </Box>
-                    {CHAT_ENABLED ? (
-                        <Box position="absolute" top="0" right="0" zIndex={11}>
-                            {CHAT_ENABLED ? (
-                                <ChatToggle
-                                    open={chatOpen}
-                                    unread={unread}
-                                    onToggle={() => setChatOpen((v) => !v)}
-                                />
-                            ) : null}
-                        </Box>
-                    ) : null}
                 </>
             ) : (
                 view && (
@@ -1182,13 +1156,6 @@ export default function GameRoomPage() {
                                 }
                                 actions={
                                     <TableActions
-                                        chat={CHAT_ENABLED ? (
-                                            <ChatToggle
-                                                open={chatOpen}
-                                                unread={unread}
-                                                onToggle={() => setChatOpen((v) => !v)}
-                                            />
-                                        ) : null}
                                         declarationsEnabled={view.declarationsRevealed}
                                         // Same masked figure the score panel reads
                                         // above (`shownView`) — one shared rule, so
@@ -1490,7 +1457,7 @@ export default function GameRoomPage() {
                             // used to add the same inset again (2026-09-20):
                             // in a standalone PWA that is ~70 px of dead
                             // space sitting between the cards and this row.
-                            css={{ paddingBottom: "calc(4px + env(safe-area-inset-bottom, 0px))" }}
+                            css={{ paddingBottom: "calc(4px + var(--safe-bottom))" }}
                         >
                             {isBidding ? (
                                 <BiddingPanel
@@ -1515,16 +1482,6 @@ export default function GameRoomPage() {
                             )}
                         </Box>
 
-                        {CHAT_ENABLED ? (
-                            <Chat
-                                open={chatOpen}
-                                messages={socket.chat}
-                                disabled={socket.status !== "open"}
-                                onSend={(text) => socket.send({ t: "chat.send", text })}
-                                onClose={() => setChatOpen(false)}
-                            />
-                        ) : null}
-
                         <DealSummary
                             open={view.phase === "DEAL_DONE" && idle}
                             dealScore={view.dealScore}
@@ -1536,16 +1493,6 @@ export default function GameRoomPage() {
 
                     </Flex>
                 )
-            )}
-
-            {inLobbyPhase && (
-                <Chat
-                    open={chatOpen}
-                    messages={socket.chat}
-                    disabled={socket.status !== "open"}
-                    onSend={(text) => socket.send({ t: "chat.send", text })}
-                    onClose={() => setChatOpen(false)}
-                />
             )}
 
             {/* Informational only, and never stacked on the end-of-game

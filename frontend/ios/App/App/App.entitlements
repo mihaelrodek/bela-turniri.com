@@ -11,6 +11,18 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- APNs environment. Required for ANY remote push to register: without
+	     it `registerForRemoteNotifications` never yields a device token, so
+	     both FCM push (@capacitor-firebase/messaging) and the ActivityKit
+	     push tokens BelaLiveActivityPlugin reports stay dead.
+	     "development" is correct for local/TestFlight-from-Xcode builds;
+	     Xcode automatically rewrites it to "production" when the app is
+	     signed for App Store / TestFlight distribution, so this value never
+	     needs to be changed by hand. The App ID must ALSO have the Push
+	     Notifications capability enabled in the Apple Developer portal, or
+	     signing fails. -->
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:bela-turniri.com</string>

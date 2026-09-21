@@ -67,7 +67,6 @@ export interface Timings {
 
 export interface RateLimits {
     messagesPerSecond: number
-    chatPerSecond: number
 }
 
 export const DEFAULT_TIMINGS: Timings = {

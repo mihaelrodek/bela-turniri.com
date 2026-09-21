@@ -47,9 +47,12 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<!-- arm64, not the Xcode-8-era `armv7` default: every device that can run
+	     this app's deployment target (iOS 15) is 64-bit, and leaving armv7
+	     here claims a capability the binary does not have. -->
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -73,8 +76,23 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Koristi se za prikaz turnira blizu vaše lokacije na mapi.</string>
+	<!-- No NSLocation*UsageDescription on purpose. Nothing in the iOS project
+	     links CoreLocation and there is no @capacitor/geolocation plugin; the
+	     only geolocation in the product is the WEB `navigator.geolocation`
+	     call in src/hooks/useUserLocation.ts, used solely by the map and
+	     calendar pages — which the games build does not even ship
+	     (src/site.ts FULL_SITE_ONLY_PREFIXES). A usage string for a
+	     permission the app never asks for is an App Review question with no
+	     good answer. If a map screen is ever added back to a native build,
+	     WKWebView asks through the app, so the string comes back with it.
+
+	     Camera/photo strings DO stay: the profile page (/profil, present in
+	     both builds) has an <input type="file" accept="image/jpeg,image/png,
+	     image/webp"> avatar picker (src/pages/profile/MyDataCard.tsx), and
+	     WKWebView's file picker offers "Take Photo" / "Photo Library" — both
+	     hard-crash the app without these keys. -->
+	<!-- create-games-native.sh narrows these two strings to the profile-only
+	     wording for the games app, which has no tournament posters. -->
 	<key>NSCameraUsageDescription</key>
 	<string>Koristi se za snimanje fotografija za postere turnira i profilne slike.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

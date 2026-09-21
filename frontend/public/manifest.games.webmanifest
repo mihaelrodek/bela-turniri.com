@@ -1,0 +1,48 @@
+{
+  "name": "bela.games",
+  "short_name": "bela.games",
+  "description": "Igraj belu online i vodi zapisnik partije u bloku.",
+  "lang": "hr",
+  "start_url": "/igra",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#227342",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Igraj",
+      "short_name": "Igraj",
+      "description": "Otvori lobi i igraj belu online",
+      "url": "/igra",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Blok",
+      "short_name": "Blok",
+      "description": "Vodi zapisnik partije",
+      "url": "/blok",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

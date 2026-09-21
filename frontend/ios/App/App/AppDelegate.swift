@@ -18,6 +18,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
             FirebaseApp.configure()
         }
+
+        // A Live Activity survives the process that started it. If the last
+        // run ended badly (force quit, jetsam, crash) the lock screen can
+        // still be showing a finished or frozen game; clear those now.
+        // Running games are left alone on purpose.
+        BelaLiveActivityPlugin.sweepStaleActivities()
+
         return true
     }
 
@@ -40,7 +47,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
-        // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+        // Best effort only — iOS does NOT guarantee this runs (a suspended
+        // app reclaimed for memory never sees it). The reliable half of the
+        // cleanup is sweepStaleActivities() in didFinishLaunching above.
+        BelaLiveActivityPlugin.endAllActivitiesOnTerminate()
     }
 
     func application(_ application: UIApplication,

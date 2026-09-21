@@ -30,7 +30,8 @@ import { Hub } from "./ws.js"
 /** Paths accepted for the websocket upgrade. */
 const WS_PATHS: ReadonlySet<string> = new Set(["/ws/game", "/ws/game/", "/", ""])
 
-/** Max frame size — the biggest legitimate client frame is a chat line. */
+/** Max frame size — every legitimate client frame is tiny (a move, a room
+ *  name, a Live Activity token); this is generous headroom, not a budget. */
 const MAX_PAYLOAD = 32 * 1024
 
 export interface ServerOptions {
@@ -67,7 +68,6 @@ export interface GameServer {
 function resolveRates(overrides: Partial<RateLimits> = {}): RateLimits {
     return {
         messagesPerSecond: LIMITS.messagesPerSecond,
-        chatPerSecond: LIMITS.chatPerSecond,
         ...overrides,
     }
 }

@@ -42,7 +42,7 @@ import { StickyHeaderStrip, StickyPageHeader } from "./StickyPageHeader"
 /** NavBar + the app Container's `py={6}` — where the content column rests. */
 const SIDEBAR_TOP = CONTENT_STICKY_TOP
 /** Viewport height left for the pinned column, minus a 16px breathing gap. */
-const SIDEBAR_MAX_H = `calc(100vh - ${NAVBAR_H.md + 24}px - 16px - env(safe-area-inset-top, 0px))`
+const SIDEBAR_MAX_H = `calc(100vh - ${NAVBAR_H.md + 24}px - 16px - var(--safe-top))`
 
 export type TournamentSectionDef = {
     /** Stable key, also the page's `tab` state value. */

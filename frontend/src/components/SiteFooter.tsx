@@ -2,6 +2,12 @@ import type { BoxProps } from "@chakra-ui/react"
 import { Box, Flex, Text } from "@chakra-ui/react"
 import { Link as RouterLink, useLocation } from "react-router-dom"
 import { useTranslation } from "../i18n"
+import { publicOrigin } from "../site"
+
+/** "https://bela-turniri.com" → "bela-turniri.com" (or whichever games twin
+ *  the visitor is on — see `publicOrigin` in site.ts) — the copyright line
+ *  wants the bare host, not the scheme. */
+const FOOTER_DOMAIN = publicOrigin.replace(/^https?:\/\//, "")
 
 /* ──────────────────────────────────────────────────────────────────────────
    SiteFooter — global footer rendered once in App.tsx, under the routed
@@ -72,7 +78,7 @@ export default function SiteFooter(props: BoxProps) {
             // plus the iOS home-indicator inset), and `mt="auto"` from App.tsx
             // keeps that reserve pinned to the bottom of short pages. md+
             // hides the tab bar, so the reserve drops and the footer shows.
-            mb={{ base: "calc(100px + env(safe-area-inset-bottom))", md: "0" }}
+            mb={{ base: "calc(100px + var(--safe-bottom))", md: "0" }}
             {...props}
         >
             <Flex
@@ -100,7 +106,7 @@ export default function SiteFooter(props: BoxProps) {
                     </Box>
                 </Flex>
                 <Text whiteSpace="nowrap">
-                    {t("common.footer.copyright", { year })}
+                    {t("common.footer.copyright", { year, domain: FOOTER_DOMAIN })}
                 </Text>
             </Flex>
         </Box>

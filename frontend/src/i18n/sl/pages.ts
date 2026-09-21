@@ -330,6 +330,7 @@ export const pages: PagesDict = {
     "contact.success.title": "Sporočilo je poslano",
     "contact.success.description": "Hvala za sporočilo — odgovorili vam bomo čim prej na navedeni e-naslov.",
     "contact.success.backLink": "Nazaj na turnirje",
+    "contact.success.backLinkHome": "Nazaj na domačo stran",
 
     // ═══════════════════════ SharedBlokPage (/blok/z/{token}) ═══════════════════════
     "blokShare.seo.title": "Zapisnik partije bele — bela-turniri.com",

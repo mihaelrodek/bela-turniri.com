@@ -283,7 +283,7 @@ const MAP_RADIUS_MAX_KM = 100
  * `100dvh` (not `vh`) so the value tracks the real visible viewport, same
  * reasoning as the mobile constant below.
  */
-const MAP_DESKTOP_H = `calc(100dvh - ${NAVBAR_H.md + 24 + 76 + 16 + 24 + 10}px - env(safe-area-inset-top, 0px))`
+const MAP_DESKTOP_H = `calc(100dvh - ${NAVBAR_H.md + 24 + 76 + 16 + 24 + 10}px - var(--safe-top))`
 const MAP_DESKTOP_MIN_H = "420px"
 
 /**

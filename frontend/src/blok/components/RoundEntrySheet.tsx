@@ -644,7 +644,24 @@ function EntryForm({
                 </VStack>
             </Drawer.Body>
 
-            <Drawer.Footer px="4" pt="2" pb="4" display="block">
+            <Drawer.Footer
+                pt="2"
+                display="block"
+                /* The sheet is `h: 100dvh` on a phone and therefore paints all
+                   the way to the bottom edge; this is the LAST element in it,
+                   so it is the one that pays for the home indicator / gesture
+                   bar. `--safe-bottom` is 0 while the keyboard is up (both
+                   `Keyboard.resize: "native"` on iOS and Capacitor's Android
+                   SystemBars report it that way), so the trump grid rides the
+                   keyboard instead of leaving a dead strip. The horizontal
+                   terms keep the `4` gutter and only grow past it beside a
+                   landscape cutout. */
+                css={{
+                    paddingBottom: "calc(var(--chakra-spacing-4) + var(--safe-bottom))",
+                    paddingInlineStart: "max(var(--chakra-spacing-4), var(--safe-left))",
+                    paddingInlineEnd: "max(var(--chakra-spacing-4), var(--safe-right))",
+                }}
+            >
                 {/* NOTHING sits between the pad and the trump grid — FIXED
                     2026-09-08. First the "BODOVI IZ KARATA" caption went (a
                     0-9 pad under a sheet whose only number is card points did

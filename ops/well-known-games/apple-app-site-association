@@ -1,0 +1,17 @@
+{
+    "applinks": {
+        "details": [
+            {
+                "appIDs": ["TEAMID.games.bela.app"],
+                "components": [
+                    { "/": "/igra/*" },
+                    { "/": "/blok/*" },
+                    { "/": "/profil/*" }
+                ]
+            }
+        ]
+    },
+    "webcredentials": {
+        "apps": ["TEAMID.games.bela.app"]
+    }
+}

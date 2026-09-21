@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  App-level privacy manifest (Apple: "Describing data use in privacy
+  manifests" / "Describing use of required reason API").
+
+  Scope: this file covers the APP TARGET'S OWN code and any bundled code that
+  does not ship a manifest of its own. Each SPM dependency carries its own:
+  the Firebase SDKs (FirebaseCore/Auth/Messaging) and @capacitor/ios both
+  ship a PrivacyInfo.xcprivacy inside their package, and Xcode merges all of
+  them into the App Store privacy report. Nothing here may contradict the
+  App Store Connect "App Privacy" answers — keep the two in step.
+
+  MUST be a member of the App target's Resources build phase, or it is not
+  bundled and Apple's validator behaves as if it did not exist.
+-->
+<plist version="1.0">
+<dict>
+	<!-- No tracking: nothing in the app links data to third-party data for
+	     advertising or measurement, and there is no ad SDK, no analytics SDK
+	     and no IDFA/AppTrackingTransparency use anywhere in the project. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<!-- Account e-mail. Firebase Auth (e-mail/password, Google, Apple);
+		     the backend's principal IS the `email` claim. Linked to the
+		     user by definition, used only to run the account. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeEmailAddress</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Display name / player nickname shown to other players at the
+		     table and on the public profile. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeName</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Firebase UID + the guest id kept in the Keychain
+		     (GuestKeychainPlugin): the account/session identifier the server
+		     keys everything on. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeUserID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- The FCM registration token and the ActivityKit push tokens, both
+		     stored server-side so a notification can reach this install.
+		     Apple files a push token under Device ID. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeDeviceID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- The avatar the user uploads on /profil
+		     (src/pages/profile/MyDataCard.tsx → StorageService → MinIO). It
+		     is the only user-supplied image in the games app; the full site
+		     also has tournament posters, same category. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<!-- UserDefaults — @capacitor/preferences maps straight onto it
+		     (node_modules/@capacitor/preferences/ios/.../Preferences.swift)
+		     and the plugin ships no manifest of its own. CA92.1: data
+		     accessible only to this app (and its app-group peers). -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+		<!-- File timestamps — @capacitor/filesystem reports mtime in `stat`
+		     (IONFileStructures+Converters.swift) and Capacitor's own
+		     WebViewAssetHandler reads resource dates when serving the local
+		     bundle. C617.1: timestamps of files inside the app container,
+		     never reported off-device. -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -2,7 +2,7 @@ import { useState, useSyncExternalStore, type ReactNode } from "react"
 import { Box, Button, Heading, HStack, Input, Spinner, Text, VStack } from "@chakra-ui/react"
 import { Link, useLocation } from "react-router-dom"
 import { useAuth } from "../../auth/authContextValue"
-import { LIMITS } from "@bela/protocol"
+import { LIMITS, validatePlayerName } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import AvatarPicker from "../../components/avatars/AvatarPicker"
 import BelaAvatar from "../../components/avatars/BelaAvatar"
@@ -38,8 +38,15 @@ export default function GameIdentityGate({ children }: { children: ReactNode }) 
     const [avatar, setAvatar] = useState<AvatarId>(randomAvatar)
     if (loading || !hydrated) return <Spinner />
     if (user || guest) return children
+    // Client-side hint only — the server (`ws.ts`/`auth.ts`) is the
+    // authoritative check and rejects the `hello` if this is ever bypassed.
+    // Blank/whitespace-only never shows the error text: that state is already
+    // covered by the plain "required" disabled button, same as before this
+    // check existed.
+    const validation = validatePlayerName(name)
+    const offensive = validation.ok === false && validation.reason === "OFFENSIVE"
     return <Box maxW="420px" mx="auto" py="8">
-        <form onSubmit={(e) => { e.preventDefault(); if (name.trim()) setSavedGuest(saveGuest(name, avatar)) }}>
+        <form onSubmit={(e) => { e.preventDefault(); if (validation.ok) setSavedGuest(saveGuest(validation.name, avatar)) }}>
             <VStack align="stretch" gap="4" p="5" rounded="xl" bg="bg.panel" borderWidth="1px" borderColor="border.subtle">
                 <Heading size="lg">{t("game.guest.title")}</Heading>
                 <Text fontSize="sm" color="fg.muted">{t("game.guest.nameHint")}</Text>
@@ -52,7 +59,8 @@ export default function GameIdentityGate({ children }: { children: ReactNode }) 
                 </HStack>
                 <AvatarPicker value={avatar} onChange={setAvatar} size="44px" label={t("game.guest.avatar")} />
                 <Input aria-label={t("game.guest.name")} placeholder={t("game.guest.name")} value={name} maxLength={LIMITS.playerNameMax} autoComplete="nickname" onChange={(e) => setName(e.target.value)} required />
-                <Button type="submit" colorPalette="brand" disabled={!name.trim()}>{t("game.guest.play")}</Button>
+                {offensive && <Text fontSize="sm" color="fg.error">{t("game.guest.nameOffensive")}</Text>}
+                <Button type="submit" colorPalette="brand" disabled={!validation.ok}>{t("game.guest.play")}</Button>
                 <Text fontSize="sm" color="fg.muted">{t("game.guest.statsHint")}</Text>
                 <Button asChild variant="outline"><Link to="/prijava" state={{ from: location }}>{t("game.guest.login")}</Link></Button>
             </VStack>

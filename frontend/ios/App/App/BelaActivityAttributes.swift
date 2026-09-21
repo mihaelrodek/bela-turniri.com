@@ -7,7 +7,7 @@ import ActivityKit
  *
  * TARGET MEMBERSHIP: this file must belong to BOTH the `App` target (where
  * `BelaLiveActivityPlugin` requests/updates/ends the activity) AND the
- * future `BelaActivity` widget-extension target (where the SwiftUI
+ * `BelaActivity` widget-extension target (where the SwiftUI
  * lock-screen / Dynamic Island views render it). ActivityKit matches the two
  * sides by this type, so both must compile the exact same definition. It is
  * the ONLY file the two targets share.

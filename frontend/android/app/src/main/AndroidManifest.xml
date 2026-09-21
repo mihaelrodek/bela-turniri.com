@@ -2,19 +2,42 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- allowBackup="false" + the two rule files: the app's entire local state
+         is credentials (Firebase Auth session, FCM token / Installations id)
+         and caches of server-owned data, none of which is safe or useful to
+         clone onto another device. allowBackup alone does not cover Android
+         12+ device-to-device transfer, hence dataExtractionRules; and
+         fullBackupContent keeps the same exclusions honest on API 23-30.
+         Full reasoning in res/xml/data_extraction_rules.xml.
+         localeConfig: per-app language picker (API 33+), hr + sl. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:localeConfig="@xml/locales_config"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme"
+        tools:targetApi="33">
 
+        <!-- android:windowSoftInputMode is spelled out rather than left to the
+             platform default. At targetSdk 35+ `adjustResize` is what an
+             edge-to-edge window gets anyway, and it is the only mode under
+             which Capacitor 8's SystemBars IME handling makes sense: it pads
+             the WebView's parent by the IME inset and reports
+             `safe-area-inset-bottom: 0` while the keyboard is up
+             (@capacitor/android .../plugin/SystemBars.java). `adjustPan` would
+             slide the whole window up instead, leaving `100dvh` and every
+             `position: fixed` bar wrong. Named here so an OEM or a future
+             targetSdk cannot quietly pick the other one. -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:windowSoftInputMode="adjustResize"
             android:launchMode="singleTask"
             android:exported="true">
 
@@ -78,6 +101,20 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="bela" />
 
+        <!-- Small icon + accent for notifications the FCM SDK builds itself
+             (a `notification` payload arriving while the app is backgrounded
+             or killed — our own BelaMessagingService/LiveGameNotification
+             path sets the same two explicitly). Without these FCM falls back
+             to android:icon, i.e. the full-colour launcher icon, which the
+             status bar masks into a white blob. ic_stat_bela is
+             white-on-transparent by design. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_bela" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_accent" />
+
         <!-- N4.4: @capacitor-firebase/messaging registers its own
              FirebaseMessagingService (io.capawesome...MessagingService) for the
              com.google.firebase.MESSAGING_EVENT intent, and Android only ever
@@ -99,6 +136,18 @@
             </intent-filter>
         </service>
 
+        <!-- Cancels the ongoing "partija uživo" notification when the user
+             swipes the app off the recents screen. An Activity gets no
+             callback for that; a started Service's onTaskRemoved() does.
+             Deliberately stopWithTask="false" — with "true" the service is
+             torn down WITHOUT onTaskRemoved() ever running, which is the
+             whole point of it. Not exported: only this app starts it, and
+             only from the foreground (see LiveGameTaskWatcherService.kt). -->
+        <service
+            android:name=".LiveGameTaskWatcherService"
+            android:exported="false"
+            android:stopWithTask="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -113,14 +162,25 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- COARSE only. The "turniri u blizini" filter asks the browser API for
-         `enableHighAccuracy: false` (hooks/useUserLocation.ts) — city-level is
-         all it uses. Declaring FINE made Android 12+ offer "precise" and had to
-         be disclosed as precise location in Play's Data safety form for a
-         capability the app never exercises (store audit, 2026-09-13). -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 16 "Live Updates": without this the ongoing ProgressStyle
+         notification posted by LiveGameNotification is never PROMOTED to the
+         status-bar chip / always-on lock-screen card, no matter what
+         setRequestPromotedOngoing() says. Install-time permission, no runtime
+         prompt; the user can still demote it in Settings. -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+
+    <!-- NO LOCATION PERMISSION, on purpose (owner decision, 2026-09-20).
+         The only geolocation consumer in the web app is hooks/useUserLocation.ts,
+         reached exclusively from the tournaments calendar/map ("turniri u
+         blizini"); the shipping native app is Bela Games, which has neither
+         screen (src/site.ts FULL_SITE_ONLY_PREFIXES). A declared
+         ACCESS_COARSE_LOCATION would have to be disclosed in Play's Data
+         safety form for a capability the shipped binary never exercises.
+         If a native tournaments build is ever revived, re-add
+         <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+         here (COARSE only — see git history for why not FINE). -->
 
     <!-- Feature declarations -->
 

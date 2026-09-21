@@ -68,10 +68,13 @@ export default function ActiveRoomWidget() {
                 // /blok has no FAB (it hides there) and its own action bar, so
                 // there the pill takes the corner itself.
                 right={onBlokRoute
-                    ? { base: "calc(12px + env(safe-area-inset-right, 0px))", md: "4" }
+                    ? { base: "calc(12px + var(--safe-right))", md: "4" }
                     : {
-                        base: `${WHATS_NEW_FAB.right.base + WHATS_NEW_FAB.size + 8}px`,
-                        md: `${WHATS_NEW_FAB.right.md + WHATS_NEW_FAB.size + 8}px`,
+                        // + `var(--safe-right)` so the pair (pill + FAB) slides
+                        // in together beside a landscape cutout instead of the
+                        // pill walking under it while the FAB clears it.
+                        base: `calc(${WHATS_NEW_FAB.right.base + WHATS_NEW_FAB.size + 8}px + var(--safe-right))`,
+                        md: `calc(${WHATS_NEW_FAB.right.md + WHATS_NEW_FAB.size + 8}px + var(--safe-right))`,
                     }}
                 bottom={onBlokRoute
                     ? { base: `calc(${ACTION_BAR_RESERVE} + 12px)`, md: "4" }

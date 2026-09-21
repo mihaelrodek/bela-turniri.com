@@ -181,6 +181,11 @@ services:
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
 
       # Public-facing config used by the sitemap / preview / startup checks.
+      # CORS_ORIGINS must list EVERY origin the SPA is served from — since
+      # 2026-09-20 that includes the games front doors: https://bela.games,
+      # https://belot.games and both www names (two equal domains, same
+      # containers, same accounts; see the Caddyfile). Miss one and every API
+      # call from that domain is blocked by the browser. See .env.example.
       CORS_ORIGINS: ${CORS_ORIGINS}
       APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL}
 
@@ -244,7 +249,11 @@ services:
       GAME_PORT: 8285
       # Firebase OIDC — game server verifies auth tokens just like the backend
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
-      # CORS origins for the WebSocket handshake (same as backend)
+      # Origins accepted on the WebSocket handshake (same list as the
+      # backend's CORS). The games domains are where the game is the whole
+      # product, so https://bela.games, https://belot.games and their www
+      # names MUST be in CORS_ORIGINS or every socket from those domains is
+      # refused at the upgrade — the lobby then just never connects.
       GAME_CORS_ORIGINS: ${CORS_ORIGINS}
       # Development: allow anonymous connections for testing (prod: unset)
       GAME_DEV_ALLOW_ANON: ${GAME_DEV_ALLOW_ANON:-}
@@ -318,6 +327,16 @@ services:
       # Caddy reload (see the Caddyfile's `/.well-known/*` handlers and
       # DEPLOY.md "Universal / App Links").
       - ./ops/well-known:/well-known:ro
+      # The SAME files for the games front doors (bela.games + belot.games,
+      # one shared site block) — a separate mount because those domains are
+      # (or will be) a separate native app with a different bundle id
+      # (`games.bela.app`), so their AASA/assetlinks must name that app, not
+      # com.belaturniri.app. Both domains serve this one directory: one app
+      # claims both names. The Caddyfile's `well_known` snippet takes the
+      # directory as an argument and the games site block passes this one.
+      # Placeholders inside are marked exactly like ops/well-known/ — see
+      # DEPLOY.md → "Druge domene: bela.games i belot.games".
+      - ./ops/well-known-games:/well-known-games:ro
     networks:
       - bela_internal
 

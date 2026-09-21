@@ -2,6 +2,8 @@ import { Component, type ErrorInfo, type ReactNode } from "react"
 import { useLocation } from "react-router-dom"
 import { Box, Button, Heading, HStack, Text, VStack } from "@chakra-ui/react"
 import { t } from "../i18n"
+import { isNative } from "../platform"
+import { nativeSplashScreen } from "../platform/native"
 import OfflineNotice from "./OfflineNotice"
 import { OFFLINE_CHUNK_ERROR } from "../utils/lazyWithReload"
 
@@ -54,6 +56,18 @@ export default class ErrorBoundary extends Component<Props, State> {
         if (error.name === OFFLINE_CHUNK_ERROR) return
         // Surface for debugging; no external error reporting is wired up.
         console.error("[ErrorBoundary]", error, info.componentStack)
+        // The native splash is only hidden by NativeShell's own effect
+        // (src/platform/NativeShell.tsx) once the tree has painted. A crash
+        // caught here means that effect either already ran or never gets a
+        // chance to now that this subtree unmounted under it — hide it here
+        // too, best-effort, so the crash screen below is actually visible
+        // instead of sitting behind the splash forever. index.html's own
+        // failsafe timer covers the case where React never mounted at all.
+        if (isNative) {
+            nativeSplashScreen().then((SplashScreen) => SplashScreen.hide()).catch(() => {
+                /* already hidden, or unavailable in this build — non-fatal */
+            })
+        }
     }
 
     render() {

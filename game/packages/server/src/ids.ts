@@ -20,10 +20,6 @@ export function newConnId(): string {
     return shortId(8)
 }
 
-export function newChatId(): string {
-    return shortId(12)
-}
-
 /** Game seed — the engine derives its PRNG from any string. */
 export function newSeed(): string {
     return randomUUID()

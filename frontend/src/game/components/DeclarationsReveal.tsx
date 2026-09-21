@@ -12,6 +12,7 @@ import PlayerAvatar from "./PlayerAvatar"
 import { botAvatarPreset } from "../util/botAvatar"
 import { EVENT_DWELL_MS } from "../hooks/useEventQueue"
 import { GLASS_STRONG, INK, INK_MUTED, TEAM } from "./tableStyles"
+import { OVERLAY_SAFE_INSET } from "../../components/navChrome"
 
 /* ──────────────────────────────────────────────────────────────────────────
    DeclarationsReveal — the overlay that answers "who had what, and who got
@@ -106,12 +107,14 @@ export function TrumpFlash({ seats, seat, suit }: { seats: RoomState["seats"]; s
                 inset="0"
                 align="center"
                 justify="center"
-                px="3"
                 zIndex={1500}
                 pointerEvents="none"
                 bg="blackAlpha.500"
                 backdropFilter="blur(2px)"
                 css={{
+                    // Backdrop to every edge, content inside the safe area —
+                    // see OVERLAY_SAFE_INSET in navChrome.ts.
+                    ...OVERLAY_SAFE_INSET,
                     animation: "trumpBackdropIn 160ms ease-out",
                     "@keyframes trumpBackdropIn": { from: { opacity: 0 }, to: { opacity: 1 } },
                 }}
@@ -302,12 +305,14 @@ export default function DeclarationsReveal({
                 inset="0"
                 align="center"
                 justify="center"
-                px="3"
                 zIndex={1500}
                 bg="blackAlpha.500"
                 backdropFilter="blur(2px)"
                 onClick={onDismiss}
                 css={{
+                    // Backdrop to every edge, content inside the safe area —
+                    // see OVERLAY_SAFE_INSET in navChrome.ts.
+                    ...OVERLAY_SAFE_INSET,
                     // Same rule as the table under it (2026-09-20): this is a
                     // picture of cards, not text to select. Portals render
                     // outside the room's own subtree, so it is repeated here.

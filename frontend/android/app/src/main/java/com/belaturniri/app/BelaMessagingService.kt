@@ -32,16 +32,25 @@ class BelaMessagingService : MessagingService() {
         val data = remoteMessage.data
         if (data["type"] != "bela_live_update") return
 
-        val stateJson = data["state"] ?: return
-        val state = try {
-            LiveGameState.fromJson(JSONObject(stateJson))
-        } catch (e: Exception) {
-            null
-        } ?: return
-
-        when (data["event"]) {
-            "end" -> LiveGameNotification.end(applicationContext, state)
-            else -> LiveGameNotification.render(applicationContext, state)
+        val state = data["state"]?.let { stateJson ->
+            try {
+                LiveGameState.fromJson(JSONObject(stateJson))
+            } catch (e: Exception) {
+                null
+            }
         }
+
+        if (data["event"] == "end") {
+            // A remote "end" may legitimately carry no state (the server just
+            // wants the ongoing notification gone). end() cancels by roomId in
+            // that case rather than returning and leaving it stuck.
+            LiveGameNotification.end(applicationContext, state, data["roomId"])
+            return
+        }
+
+        // A non-end push with no usable state is simply nothing to draw.
+        // fromForeground stays false: this can arrive with the app killed,
+        // and starting a background service there throws on API 26+.
+        LiveGameNotification.render(applicationContext, state ?: return)
     }
 }

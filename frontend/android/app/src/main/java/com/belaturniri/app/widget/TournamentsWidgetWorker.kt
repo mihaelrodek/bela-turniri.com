@@ -25,20 +25,36 @@ import java.util.concurrent.TimeUnit
 class TournamentsWidgetWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
 
     override fun doWork(): Result {
-        val raw = TournamentsRepository.fetchUpcomingRaw() ?: return Result.retry()
+        val raw = TournamentsRepository.fetchUpcomingRaw() ?: return retryOrGiveUp()
         try {
             // Validate before caching so a malformed response never clobbers
             // a good previous cache.
             TournamentsRepository.parseTournaments(raw)
         } catch (e: Exception) {
-            return Result.retry()
+            return retryOrGiveUp()
         }
         TournamentsRepository.saveCache(applicationContext, raw)
         refreshAllWidgets(applicationContext)
         return Result.success()
     }
 
+    /**
+     * Result.retry() unconditionally is a stuck-job generator: the one-shot
+     * work is enqueued under a unique name with a KEEP policy, so as long as
+     * it keeps retrying (a permanently unreachable API, a server returning
+     * something unparseable) it stays in the queue and every later
+     * enqueueUniqueWork for that name is DROPPED — the widget then never
+     * refreshes again, with backoff pushing the retries hours apart.
+     *
+     * So: retry a few times, then succeed. The widget keeps showing the last
+     * good cache either way, and the hourly periodic work is the real safety
+     * net — it re-runs regardless of what this attempt concluded.
+     */
+    private fun retryOrGiveUp(): Result =
+        if (runAttemptCount < MAX_RETRIES) Result.retry() else Result.success()
+
     companion object {
+        private const val MAX_RETRIES = 3
         private const val PERIODIC_WORK_NAME = "bela_upcoming_tournaments_refresh"
         private const val IMMEDIATE_WORK_NAME = "bela_upcoming_tournaments_refresh_once"
         private val CONSTRAINTS = Constraints.Builder()
@@ -54,13 +70,24 @@ class TournamentsWidgetWorker(context: Context, params: WorkerParameters) : Work
                 .enqueueUniquePeriodicWork(PERIODIC_WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
         }
 
-        /** One-shot kick so a freshly placed widget doesn't wait up to an hour for real data. */
+        /**
+         * One-shot kick so a freshly placed widget doesn't wait up to an hour
+         * for real data.
+         *
+         * REPLACE, not KEEP: KEEP means "if anything is already enqueued or
+         * running under this name, drop the new request". A single attempt
+         * stuck in backoff (or, worse, left ENQUEUED by a process death) then
+         * swallows every subsequent kick — the user places a second widget,
+         * or reboots, and nothing happens. The work is idempotent (fetch,
+         * validate, cache, redraw), so replacing the pending attempt with a
+         * fresh one is always the behaviour the caller actually wants.
+         */
         fun enqueueImmediateRefresh(context: Context) {
             val request = OneTimeWorkRequestBuilder<TournamentsWidgetWorker>()
                 .setConstraints(CONSTRAINTS)
                 .build()
             WorkManager.getInstance(context)
-                .enqueueUniqueWork(IMMEDIATE_WORK_NAME, ExistingWorkPolicy.KEEP, request)
+                .enqueueUniqueWork(IMMEDIATE_WORK_NAME, ExistingWorkPolicy.REPLACE, request)
         }
 
         fun cancel(context: Context) {

@@ -26,6 +26,7 @@ import { CONTENT_STICKY_TOP } from "../components/navChrome"
 import { StickyHeaderStrip, StickyPageHeader } from "../components/StickyPageHeader"
 import { useAuth } from "../auth/authContextValue"
 import { useDocumentHead } from "../hooks/useDocumentHead"
+import { homePath, isGamesSite, publicOrigin } from "../site"
 import { errorMessage } from "../utils/apiError"
 import { lazyWithReload } from "../utils/lazyWithReload"
 // `tStatic` is the non-reactive translator: the fetch effect below writes
@@ -90,14 +91,18 @@ export default function PublicProfilePage() {
 
     // Profile sections. Predlošci + Postavke + Računi only show for the
     // profile owner; visitors viewing someone else's page see Turniri only.
-    const [profileTab, setProfileTab] = useState<ProfileSectionKey>("turniri")
+    // bela.games (src/site.ts) has no "turniri" section at all — start on
+    // "statistika" there instead (see buildProfileSections) so an owner
+    // never sees a one-frame flash of the tournament tab before the
+    // "postavke" default effect below kicks in.
+    const [profileTab, setProfileTab] = useState<ProfileSectionKey>(isGamesSite ? "statistika" : "turniri")
 
     // Per-route SEO. We deliberately do NOT include the user's phone in any
     // meta tag — phone display is a product call on the page itself, but
     // there's no need to make it any more discoverable than it already is.
     const totalTournaments = profile?.tournaments?.length ?? 0
     const totalWins = (profile?.pairs ?? []).reduce((sum, p) => sum + (p.wins ?? 0), 0)
-    const profileCanonical = slug ? `https://bela-turniri.com/profil/${slug}` : undefined
+    const profileCanonical = slug ? `${publicOrigin}/profil/${slug}` : undefined
     // Both counts go through the plural helper and then into ONE sentence key:
     // gluing translated fragments together would freeze the word order to
     // Croatian's.
@@ -156,7 +161,7 @@ export default function PublicProfilePage() {
                     "@type": "ListItem",
                     position: 1,
                     name: t("profile.seo.breadcrumbPlayers"),
-                    item: "https://bela-turniri.com/",
+                    item: `${publicOrigin}/`,
                 },
                 {
                     "@type": "ListItem",
@@ -304,7 +309,9 @@ export default function PublicProfilePage() {
                         <HStack mt="4">
                             <Button size="sm" variant="ghost" onClick={() => navigate(-1)}>{t("profile.back")}</Button>
                             <Button size="sm" variant="solid" colorPalette="blue" asChild>
-                                <RouterLink to="/turniri">{t("profile.toTournaments")}</RouterLink>
+                                <RouterLink to={homePath}>
+                                    {isGamesSite ? t("profile.toHome") : t("profile.toTournaments")}
+                                </RouterLink>
                             </Button>
                         </HStack>
                     </Card.Body>
@@ -327,8 +334,10 @@ export default function PublicProfilePage() {
     }
 
     /* Turniri — the one section a visitor also sees, so it is built once here
-       and rendered by both branches below. */
-    const tournamentsCard = (
+       and rendered by both branches below. bela.games has no tournaments
+       product at all, so this is never built or rendered there — see the two
+       `isGamesSite` guards below. */
+    const tournamentsCard = !isGamesSite && (
         <TournamentsCard
             profile={profile}
             activePair={activePair}
@@ -343,8 +352,9 @@ export default function PublicProfilePage() {
     /* The section list, in sidebar order. Admin entries are appended only
        when the Firebase `role=admin` claim is present, exactly as the old tab
        strip gated them; a non-admin never gets the row, so the lazy chunk is
-       never even referenced. */
-    const sections: ProfileSectionDef[] = buildProfileSections(t, isAdmin)
+       never even referenced. `isGamesSite` drops every tournament-only row —
+       see buildProfileSections. */
+    const sections: ProfileSectionDef[] = buildProfileSections(t, isAdmin, isGamesSite)
 
     /* ── Visitor view ───────────────────────────────────────────────────────
        Someone looking at another player's profile gets the identity card and
@@ -353,6 +363,8 @@ export default function PublicProfilePage() {
        back null with `hasPhone` true), and `isOwner` is a slug comparison —
        both unchanged. Keeping the visitor on its own branch means an owner-
        only card can never be reached by a visitor through a stale tab state.
+       On bela.games there is no Turniri list to show a visitor at all, so the
+       identity card stands alone.
        ────────────────────────────────────────────────────────────────────── */
     if (!isOwner) {
         return (
@@ -444,7 +456,7 @@ export default function PublicProfilePage() {
                     </StickyHeaderStrip>
                 </StickyPageHeader>
 
-                {/* === TURNIRI === */}
+                {/* === TURNIRI — full site only, see buildProfileSections === */}
                 {profileTab === "turniri" && (
                     <>
                         {tournamentsCard}
@@ -452,7 +464,12 @@ export default function PublicProfilePage() {
                     </>
                 )}
 
-                {/* === PREDLOŠCI — saved pair presets + drink templates === */}
+                {/* === STATISTIKA — bela.games' replacement for Turniri: just
+                    the online-bela stats, no tournament history. === */}
+                {profileTab === "statistika" && <GameStatsCard />}
+
+                {/* === PREDLOŠCI — saved pair presets + drink templates,
+                    full site only (tournament registration tooling) === */}
                 {profileTab === "predlosci" && (
                     <>
                         <MyPairsCard />
@@ -559,7 +576,7 @@ function VisitorProfileActions({ profile }: { profile: PublicProfile }) {
                 queryClient.invalidateQueries({ queryKey: qk.blocks }),
                 queryClient.invalidateQueries({ queryKey: ["tournaments"] }),
             ])
-            navigate("/turniri")
+            navigate(homePath)
         } catch (err) {
             showError(t("profile.blocks.failed"), errorMessage(err))
         } finally {

@@ -92,6 +92,8 @@ export const legal: LegalDict = {
     "privacy.accountDeletion.body3":
         "Turnirji, ki ste jih organizirali, in rezultati, pri katerih so sodelovali drugi igralci, se ohranijo, z oznako \"Izbrisani uporabnik\" namesto vašega imena — ker morajo podatki in zgodovina turnirjev drugih igralcev ostati nedotaknjeni.",
 
+    "privacy.accountDeletion.pageLink": "Podrobna navodila in seznam podatkov: Izbris računa",
+
     "privacy.rights.heading": "Vaše pravice",
     "privacy.rights.body1":
         "Imate pravico do dostopa, popravka in izbrisa svojih osebnih podatkov, kot tudi do omejitve obdelave, ugovora nanjo in prenosljivosti podatkov.",
@@ -182,4 +184,85 @@ export const legal: LegalDict = {
 
     "terms.contact.heading": "Kontakt",
     "terms.contact.body": "Za vsa vprašanja v zvezi s temi pogoji nas kontaktirajte prek kontaktnega obrazca.",
+
+    // ═════════════════ AccountDeletionPage (/brisanje-racuna) ═════════════════
+    "deletion.documentTitle": "Izbris računa — {site}",
+    "deletion.documentDescription":
+        "Kako izbrisati uporabniški račun na {site}: kateri podatki se izbrišejo, kaj ostane in kako zahtevati izbris brez nameščene aplikacije.",
+    "deletion.title": "Izbris računa",
+    "deletion.lastUpdated": "Zadnja sprememba: 20. 9. 2026.",
+    "deletion.intro":
+        "Na tej strani piše, kako izbrisati svoj uporabniški račun na {site}, kateri podatki se pri tem izbrišejo, kaj ostane in zakaj ter kako zahtevati izbris, če aplikacije nimate nameščene.",
+
+    "deletion.inApp.heading": "Izbris v aplikaciji",
+    "deletion.inApp.intro":
+        "Račun lahko izbrišeš sam, kadar koli in ne da bi nam pisal:",
+    "deletion.inApp.step1": "Prijavi se v aplikacijo.",
+    "deletion.inApp.step2":
+        "Odpri svoj profil in izberi zavihek \"Nastavitve\".",
+    "deletion.inApp.step3":
+        "Na dnu tega zavihka je razdelek \"Izbris računa\" — pritisni gumb \"Izbriši račun\".",
+    "deletion.inApp.step4":
+        "V oknu za potrditev vpiši besedo IZBRIŠI in potrdi. Izbris se izvede takoj in ga ni mogoče razveljaviti.",
+    "deletion.inApp.apple":
+        "Če se prijavljaš z Apple ID-jem, te pri izbrisu še enkrat vprašamo za prijavo z Applom, da Applu prekličemo dostop aplikacije. Račun takrat izgine tudi s seznama \"Prijava z Applom\" v nastavitvah tvoje naprave.",
+
+    "deletion.noApp.heading": "Izbris brez aplikacije",
+    "deletion.noApp.body1":
+        "Isti postopek deluje tudi v običajnem spletnem brskalniku, brez kakršne koli namestitve: odpri {origin}, prijavi se in sledi korakom zgoraj.",
+    "deletion.noApp.linkLabel": "Prijavi se in odpri profil",
+    "deletion.noApp.body2":
+        "Če se ne moreš več prijaviti (izgubljen dostop do e-pošte ali naprave), nam pošlji zahtevo prek kontaktnega obrazca in navedi e-pošto, s katero je bil račun odprt. Zahtevo rešimo najpozneje v 30 dneh; pred izbrisom lahko zahtevamo potrditev, da je račun res tvoj.",
+    "deletion.noApp.contactLabel": "Zahtevaj izbris prek kontaktnega obrazca",
+
+    "deletion.deleted.heading": "Kaj se izbriše",
+    "deletion.deleted.item.profile":
+        "Podatki profila — prikazano ime, telefonska številka in država, profilna fotografija (vključno z datoteko na strežniku), izbrani avatar, jezik in tema vmesnika.",
+    "deletion.deleted.item.auth":
+        "Prijava — uporabnik v storitvi Firebase Authentication, torej e-pošta in geslo oziroma povezani Google ali Apple račun. Pri prijavi z Applom dodatno prekličemo dostopni žeton pri Applu.",
+    "deletion.deleted.item.gameName":
+        "Ime za igro — ime, ki je prikazano za mizo v spletni beli.",
+    "deletion.deleted.item.push":
+        "Potisna obvestila — vse naročnine brskalnika in žetoni naprav, zato obvestila takoj prenehajo.",
+    "deletion.deleted.item.blok":
+        "Blok beležka — shranjena zgodovina rezultatov, tako na strežniku kot lokalno na napravi, s katere brišeš.",
+    "deletion.deleted.item.blocks":
+        "Blokirani uporabniki — seznam se izbriše v obe smeri.",
+    "deletion.deleted.item.reliability":
+        "Karma in zapisi o zapuščanju partij v spletni beli.",
+    "deletion.deleted.item.pairPhone":
+        "Kontaktna telefonska številka na vseh parih, ki si jih prijavil.",
+    "deletion.deleted.item.pairRequests":
+        "Oglasi \"iščem para\", ki si jih objavil, skupaj z imenom in kontaktno številko v njih.",
+    "deletion.deleted.item.presets":
+        "Shranjeni pari in shranjene predloge cenikov. Shranjen par, ki ga deliš s solastnikom, preide nanj, saj je tudi on vpisal polovico tega imena.",
+    "deletion.deleted.item.device":
+        "Podatki na napravi, s katere brišeš — predpomnilnik podatkov, čakalna vrsta za delo brez povezave in shranjene natakarske seje.",
+
+    "deletion.kept.heading": "Kaj ostane in zakaj",
+    "deletion.kept.intro":
+        "Izbris je anonimizacija: oseba izgine, skupna zgodovina igre pa ostane nedotaknjena. Po izbrisu tvoje ime ni nikjer več prikazano — namesto njega piše \"Izbrisan uporabnik\".",
+    "deletion.kept.item.uid":
+        "Prazen zapis računa z naključnim identifikatorjem in naslovom profila (slug). Ohrani se trajno: le tako stare povezave do tvojega profila vrnejo urejeno \"strani ni\", namesto da bi ta naslov podedoval nekdo drug z enako zapisanim imenom.",
+    "deletion.kept.item.tournaments":
+        "Turnirji, ki si jih organiziral, in pari, ki si jih prijavil — brez tvojega imena in telefonske številke. Rezultati drugih igralcev se ne smejo spremeniti zato, ker si ti odšel.",
+    "deletion.kept.item.gameResults":
+        "Rezultati odigranih partij spletne bele, vezani na tisti prazni identifikator. Za mizo so štirje igralci in njihova statistika se ne sme spremeniti.",
+    "deletion.kept.item.reports":
+        "Prijave vsebine — hranijo se, dokler niso rešene, saj je prav to zapis, ki ne sme izginiti, ko prijavljena stran izbriše račun.",
+    "deletion.kept.item.contact":
+        "Sporočila, poslana prek kontaktnega obrazca — IP-naslov izbrišemo najpozneje 30 dni po prejemu, celotno sporočilo pa najpozneje 12 mesecev po prejemu.",
+    "deletion.kept.item.logs":
+        "Strežniški dnevniki (IP-naslov in identifikator zahteve) — kratkoročno, zaradi varnosti in odpravljanja težav.",
+    "deletion.kept.item.guest":
+        "Gostujoča identiteta, če si poleg računa igral tudi kot gost. Ta je samostojna in ni del računa, ki ga brišeš, zato ostane na napravi; odstraniš jo z brisanjem podatkov strani oziroma z odstranitvijo aplikacije.",
+
+    "deletion.timing.heading": "Kdaj se izbris izvede",
+    "deletion.timing.body":
+        "Izbris, sprožen v aplikaciji, se izvede takoj, znotraj iste zahteve — ni čakalne dobe in ni možnosti obnovitve. Varnostne kopije baze hranimo največ 14 dni in se v tem roku samodejno prepišejo, zato izbrisani podatki izginejo tudi iz njih.",
+
+    "deletion.more.heading": "Več informacij",
+    "deletion.more.body":
+        "Celoten seznam podatkov, ki jih zbiramo, nameni in pravne podlage obdelave ter tvoje pravice so opisani v pravilniku o zasebnosti.",
+    "deletion.more.privacyLabel": "Pravilnik o zasebnosti",
 }

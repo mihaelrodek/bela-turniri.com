@@ -210,6 +210,46 @@ HTTP POST.
 
 ---
 
+## 10. The games domains (bela.games + belot.games)
+
+Both serve the **same** games site from the **same** containers — equal
+front doors, neither redirecting to the other — while `bela-turniri.com`
+keeps everything above unchanged. The operational checklist (DNS, CORS,
+Firebase authorized domains, verification curls) lives in
+`DEPLOY.md → "Druge domene: bela.games i belot.games"`. What matters for
+SEO:
+
+- **One canonical: `https://bela.games/`.** Both domains serve the same
+  static shell (`dist/index.games.html`, built from `dist/index.html` by the
+  `bela-games-shell` plugin in `frontend/vite.config.ts`), and that shell's
+  `<link rel="canonical">` and `og:url` name `bela.games` even when it is
+  served on `belot.games`. Identical content on two hostnames is duplicate
+  content; the canonical tag is what consolidates it instead of splitting
+  the ranking signal between twins.
+- **Crawling is allowed on both.** `frontend/public/robots.games.txt` (served
+  as `/robots.txt` on both games domains) blocks only `/prijava`,
+  `/registracija` and `/api/`. `Disallow: /` on belot.games would be
+  self-defeating: a crawler must be able to fetch the page to read the
+  canonical pointing away from it.
+- **One sitemap, canonical URLs only.** `frontend/public/sitemap.games.xml`
+  lists `/`, `/igra`, `/blok` on `bela.games`. It is served on both hosts and
+  referenced by one absolute `Sitemap:` line in robots.txt. Submit it in
+  Search Console under the **bela.games** property; verify the belot.games
+  property too (that is what makes the cross-host reference legitimate), but
+  do not submit a sitemap there — it owns no canonical URLs.
+- **Expect "Duplicate, Google chose a different canonical"** for belot.games
+  URLs in Search Console's Pages report. That is the design working.
+- **No prerendering here.** The bot → `/api/preview/*` rewrites are
+  bela-turniri.com-only: they render Croatian tournament pages, which do not
+  exist on these domains. Crawlers and unfurlers get the static games shell,
+  whose `<head>` (title, description, OG card, JSON-LD WebSite +
+  Organization) is already correct and needs no server render.
+- **No GA4 on these domains yet** — the inline snippet in
+  `frontend/index.html` gates on the bela-turniri.com hostname. See the GA4
+  step in DEPLOY.md for the two ways to add it.
+
+---
+
 ## Reality check
 
 After completing 1-7, expect:

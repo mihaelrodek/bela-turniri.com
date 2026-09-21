@@ -19,7 +19,7 @@
 
 import { createRemoteJWKSet, jwtVerify } from "jose"
 import { createHash } from "node:crypto"
-import { LIMITS, isAvatarPreset } from "@bela/protocol"
+import { LIMITS, isAvatarPreset, isOffensiveName, validatePlayerName } from "@bela/protocol"
 import type { UserInfo } from "@bela/protocol"
 import { avatarPresetForUid } from "./avatars.js"
 import type { Config } from "./config.js"
@@ -31,6 +31,50 @@ const JWKS_URL =
     "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
 
 export const FALLBACK_NAME = "Igrač"
+
+/**
+ * FNV-1a, 32-bit — same tiny non-cryptographic hash `avatars.ts` uses to pick
+ * a stable face for a uid, reused here so a name derived from a source the
+ * player did NOT just type (a Firebase claim, an old profile row) that turns
+ * out unusable gets a stable, harmless stand-in instead of a login failure.
+ */
+function hash32(input: string): number {
+    let h = 0x811c9dc5
+    for (let i = 0; i < input.length; i++) {
+        h ^= input.charCodeAt(i)
+        h = Math.imul(h, 0x01000193)
+    }
+    return h >>> 0
+}
+
+/**
+ * "Igrač 4821" — a neutral stand-in for a name that arrived from somewhere
+ * other than the player typing it just now (a Firebase display name, an old
+ * `gameName`/`displayName` row written before this filter existed) and turned
+ * out empty or offensive under `isOffensiveName`.
+ *
+ * MUST NEVER fail a login (README §4 "Auth" / moderation task, 2026-09-20):
+ * unlike `profile.setName` and a guest's typed `hello`, there is no form here
+ * for the player to fix and resubmit, so the only honest options are "let a
+ * bad name through" or "replace it" — this is the replace. Deterministic per
+ * uid (same 4-digit tag every time, same style as `avatarPresetForUid`) so a
+ * given player is not renamed on every reconnect.
+ */
+export function fallbackPlayerName(uid: string): string {
+    const digits = String(hash32(uid) % 10_000).padStart(4, "0")
+    return `${FALLBACK_NAME} ${digits}`
+}
+
+/** A name resolved from a source the player did not just type — replaced
+ *  with a stable, neutral stand-in when it is empty/unusable (blank,
+ *  punctuation/emoji only) or offensive, since there is nobody to hand a
+ *  rejection to at this point. `validatePlayerName` also trims/strips
+ *  control characters, which is a free extra guard against old data written
+ *  before either rule existed. */
+function safeResolvedName(name: string, uid: string): string {
+    const result = validatePlayerName(name)
+    return result.ok ? result.name : fallbackPlayerName(uid)
+}
 
 export interface HelloCredentials {
     guest?: { name: string; secret: string; avatarPreset?: string | undefined } | undefined
@@ -71,7 +115,11 @@ export function userFromClaims(claims: Record<string, unknown>): UserInfo {
     const name = str(claims["name"]) ?? str(localPart) ?? FALLBACK_NAME
     return {
         uid,
-        name: name.slice(0, LIMITS.playerNameMax),
+        // `name` is Google's own claim (or the email local-part) — never
+        // something the player just typed into this app — so an
+        // empty/offensive value is swapped for a neutral fallback rather than
+        // failing the sign-in (moderation task, 2026-09-20).
+        name: safeResolvedName(name, uid).slice(0, LIMITS.playerNameMax),
         avatarUrl: str(claims["picture"]),
     }
 }
@@ -79,7 +127,11 @@ export function userFromClaims(claims: Record<string, unknown>): UserInfo {
 export function devUser(devName: string): UserInfo {
     const trimmed = devName.trim().slice(0, 60)
     const name = (trimmed.length > 0 ? trimmed : FALLBACK_NAME).slice(0, LIMITS.playerNameMax)
-    return { uid: `dev:${slugify(name)}`, name, avatarUrl: null }
+    const uid = `dev:${slugify(name)}`
+    // Dev-only anonymous login (`GAME_DEV_ALLOW_ANON`), never reachable in
+    // production — still filtered defensively so a dev build never becomes
+    // the one place an unfiltered name reaches a seat.
+    return { uid, name: safeResolvedName(name, uid).slice(0, LIMITS.playerNameMax), avatarUrl: null }
 }
 
 /**
@@ -118,7 +170,15 @@ export function withAppProfile(
         // token's (2026-09-09). A player who typed a name for the card table
         // meant it for the card table; the account name is what the rest of
         // the app calls them.
-        name: (profile.gameName ?? profile.displayName ?? user.name).slice(0, LIMITS.playerNameMax),
+        //
+        // Neither `gameName` nor `displayName` was just typed INTO THIS
+        // CONNECTION: `gameName` is a stored row that may predate the
+        // offensive-name filter (`profile.setName` only started rejecting new
+        // writes 2026-09-20), and `displayName` is synced from the Firebase
+        // SDK and was never checked at all. So this is a `safeResolvedName`
+        // fallback, same as the token claim, not a rejection.
+        name: safeResolvedName(profile.gameName ?? profile.displayName ?? user.name, user.uid)
+            .slice(0, LIMITS.playerNameMax),
         avatarUrl: profile.avatarUrl ?? user.avatarUrl,
     }
 }
@@ -139,6 +199,17 @@ export function createAuthenticator(cfg: Config, profiles: ProfileLookup = creat
                     const guest = creds.guest
                     if (!guest || typeof guest.name !== "string" || !guest.name.trim() || guest.name.trim().length > 60 || typeof guest.secret !== "string" || !/^[a-f0-9]{64}$/.test(guest.secret)) {
                         throw new ProtocolError("UNAUTHENTICATED", "Unesite ime igrača.")
+                    }
+                    // This name WAS just typed, on the identity screen
+                    // (`GameIdentityGate.tsx`) — unlike a claim or a stored
+                    // row, there is a form right here to send it back to, so
+                    // it is rejected rather than quietly swapped for a
+                    // fallback (moderation task, 2026-09-20). The client
+                    // validates the same way before it ever sends this, so a
+                    // well-behaved client never sees this refusal — it exists
+                    // for a client that skipped or bypassed that check.
+                    if (isOffensiveName(guest.name)) {
+                        throw new ProtocolError("BAD_REQUEST", "Ime igrača sadrži neprikladan sadržaj. Odaberi drugo ime.")
                     }
                     // The secret is a per-device random, so its hash is a
                     // stable uid — which is the only thing a guest has to hang

@@ -1,6 +1,71 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Release signing
+// ─────────────────────────────────────────────────────────────────────────────
+// Resolved from, in order:
+//   1. <android project root>/keystore.properties  (git-ignored; see below)
+//   2. the environment: BELA_KEYSTORE_FILE / BELA_KEYSTORE_PASSWORD /
+//      BELA_KEY_ALIAS / BELA_KEY_PASSWORD  (CI secrets)
+//   3. nothing — then NO signingConfig is created and `release` stays
+//      unsigned, so `assembleDebug`, `lint` and a CI build with no secrets
+//      all still work. `bundleRelease` then produces an unsigned artifact
+//      Play will reject, which is the loud-but-harmless failure mode.
+//
+// keystore.properties (never commit, never check the .jks in):
+//   storeFile=/absolute/path/to/bela-games-upload.jks
+//   storePassword=...
+//   keyAlias=upload
+//   keyPassword=...
+//
+// storeFile may be absolute or relative to this android project root.
+def keystorePropsFile = rootProject.file('keystore.properties')
+def releaseSigning = [:]
+if (keystorePropsFile.exists()) {
+    def props = new Properties()
+    keystorePropsFile.withInputStream { props.load(it) }
+    releaseSigning = [
+        storeFile    : props['storeFile'],
+        storePassword: props['storePassword'],
+        keyAlias     : props['keyAlias'],
+        keyPassword  : props['keyPassword'],
+    ]
+    logger.lifecycle("release signing: using ${keystorePropsFile}")
+} else if (System.getenv('BELA_KEYSTORE_FILE')) {
+    releaseSigning = [
+        storeFile    : System.getenv('BELA_KEYSTORE_FILE'),
+        storePassword: System.getenv('BELA_KEYSTORE_PASSWORD'),
+        keyAlias     : System.getenv('BELA_KEY_ALIAS'),
+        keyPassword  : System.getenv('BELA_KEY_PASSWORD'),
+    ]
+    logger.lifecycle('release signing: using BELA_KEYSTORE_* environment variables')
+}
+def releaseKeystore = releaseSigning.storeFile ? rootProject.file(releaseSigning.storeFile) : null
+def hasReleaseSigning = releaseKeystore != null && releaseKeystore.exists()
+if (releaseKeystore != null && !hasReleaseSigning) {
+    logger.warn("release signing: ${releaseKeystore} does not exist — release build will be UNSIGNED")
+}
+if (!hasReleaseSigning) {
+    logger.lifecycle('release signing: no keystore configured — release build will be unsigned (fine for debug/CI)')
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Versioning
+// ─────────────────────────────────────────────────────────────────────────────
+// VERSION CODE BUMP RULE: versionCode must strictly increase for EVERY
+// artifact uploaded to Play — including a re-upload of the same versionName
+// after a rejected review. Play refuses a code it has seen before, forever.
+// So: bump `belaVersionCode` below by exactly 1 per upload, and move
+// `belaVersionName` only when the user-visible version changes (semver,
+// x.y.z). Never reuse, never go backwards, never "reset for the games app" —
+// the two applicationIds have independent Play listings but sharing one
+// counter here costs nothing and removes a whole class of mistake.
+// CI/local override without editing the file:
+//   ./gradlew bundleRelease -PbelaVersionCode=12 -PbelaVersionName=1.2.0
+def appVersionCode = (project.findProperty('belaVersionCode') ?: '1').toString().toInteger()
+def appVersionName = (project.findProperty('belaVersionName') ?: '1.0.0').toString()
+
 android {
     namespace = "com.belaturniri.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -11,8 +76,8 @@ android {
         applicationId "com.belaturniri.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,10 +85,35 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Declared only when a keystore was actually resolved, so a machine
+    // without one does not fail configuration on a missing storeFile.
+    if (hasReleaseSigning) {
+        signingConfigs {
+            release {
+                storeFile releaseKeystore
+                storePassword releaseSigning.storePassword
+                keyAlias releaseSigning.keyAlias
+                keyPassword releaseSigning.keyPassword
+                // Play App Signing re-signs the delivered APKs with its own
+                // key; v1+v2 on the upload artifact keeps `bundletool
+                // build-apks --local-testing` and sideloaded debugging happy.
+                enableV1Signing true
+                enableV2Signing true
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // minify stays OFF for now (Capacitor + the plugin reflection
+            // surface has never been exercised under R8 in this project), but
+            // proguard-rules.pro is real and kept correct so flipping this to
+            // true is a one-line change rather than a debugging session.
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
@@ -45,6 +135,17 @@ dependencies {
     // (see node_modules/@capacitor-firebase/messaging/android/build.gradle).
     implementation "com.google.firebase:firebase-messaging:25.0.1"
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    // MUST be explicit. LiveGameNotification uses NotificationCompat
+    // .ProgressStyle and NotificationCompat.Builder#setRequestPromotedOngoing /
+    // #setShortCriticalText (Android 16 Live Updates), which exist in
+    // androidx.core 1.17.0 but NOT in 1.13.0 — and 1.13.0 is what the app's
+    // COMPILE classpath resolves to without this line: capacitor-android
+    // declares androidx.core as `implementation` (not `api`), so the only
+    // compile-scope path to it is appcompat 1.7.1's own api dependency, which
+    // pins 1.13.0. Runtime would have had 1.17.0 and compilation would have
+    // failed on the newer symbols. Same version as everything else:
+    // rootProject.ext.androidxCoreVersion in variables.gradle.
+    implementation "androidx.core:core:$androidxCoreVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "androidx.window:window-java:1.4.0"

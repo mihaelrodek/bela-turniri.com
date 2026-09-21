@@ -19,6 +19,7 @@ import { ConsentNotice } from "../components/auth/ConsentGate"
 import { SocialAuthButtons } from "../components/auth/SocialAuthButtons"
 import { nextFromState, pickSafeNext } from "../utils/safeNextPath"
 import { t, useTranslation } from "../i18n"
+import { homePath } from "../site"
 
 /** Translate Firebase auth error codes into user-friendly messages. */
 function authErrorMessage(err: unknown): string {
@@ -65,7 +66,7 @@ export default function LoginPage() {
     // onto a phishing origin.
     const redirectTo = pickSafeNext(
         [searchParams.get("next"), nextFromState(location.state)],
-        "/turniri",
+        homePath,
     )
 
     /**

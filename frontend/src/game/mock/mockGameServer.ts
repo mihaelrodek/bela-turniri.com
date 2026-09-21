@@ -1,7 +1,6 @@
 import { DEFAULTS, LIMITS } from "@bela/protocol"
 import { heuristicBot } from "../../../../game/packages/bots/src/heuristicBot"
 import type {
-    ChatMessage,
     ClientMessage,
     ClientMessageType,
     ErrorCode,
@@ -721,7 +720,6 @@ class MockServer {
     private nameChangedAt: number | null = null
     private roomId: string | null = null
     private mySeat: Seat | null = null
-    private chatSeq = 0
 
     constructor(handlers: GameTransportHandlers) {
         this.handlers = handlers
@@ -1183,17 +1181,6 @@ class MockServer {
                     reaction: msg.reaction,
                     at: Date.now(),
                 })
-                return
-            }
-            case "chat.send": {
-                this.chatSeq += 1
-                const chat: ChatMessage = {
-                    id: `mock-chat-${this.chatSeq}`,
-                    from: this.me,
-                    text: msg.text.slice(0, 300),
-                    at: Date.now(),
-                }
-                this.emit({ t: "chat.msg", msg: chat })
                 return
             }
         }

@@ -34,6 +34,32 @@ describe("guest identity", () => {
         await expect(auth.authenticate({ token: "invalid", guest })).rejects.toThrow()
         await expect(auth.authenticate({ devName: "Ana" })).rejects.toThrow()
     })
+
+    it("rejects an offensive guest name — it was just typed, so there is a form to send it back to (moderation, 2026-09-20)", async () => {
+        for (const name of ["pička", "p i c k a", "KURAC"]) {
+            await expect(auth.authenticate({ guest: { ...guest, name } })).rejects.toMatchObject({ code: "BAD_REQUEST" })
+        }
+        // A name that merely CONTAINS an allowlisted real surname alongside an
+        // ordinary word must still pass.
+        await expect(auth.authenticate({ guest: { ...guest, name: "Ivo Picula" } })).resolves.toMatchObject({ name: "Ivo Picula" })
+    })
+
+    it("replaces an offensive name from a source the guest did NOT just type with a neutral fallback, rather than failing the login", async () => {
+        // A stored `gameName` row can predate the filter (written before
+        // 2026-09-20), or a `displayName` synced from elsewhere can carry
+        // anything — either way there is no form here to reject it with, so
+        // sign-in still succeeds and the seat wears a generated name instead.
+        const withBadStoredName = createAuthenticator(loadConfig({}, { devAllowAnon: false }), {
+            get: async () => ({ displayName: null, avatarUrl: null, gameName: "pička", avatarPreset: null }),
+            setGameName: async () => ({ ok: false, error: "UNAVAILABLE" }),
+        })
+        const user = await withBadStoredName.authenticate({ guest: { ...guest, name: "Ana" } })
+        expect(user.name).not.toBe("pička")
+        expect(user.name).toMatch(/^Igrač \d{4}$/)
+        // Deterministic per uid, so the seat does not get a new name on every reconnect.
+        const again = await withBadStoredName.authenticate({ guest: { ...guest, name: "Ana" } })
+        expect(again.name).toBe(user.name)
+    })
     it("lets a guest create a room and recover the same seat after reconnecting", async () => {
         const server = await startTestServer({ env: { GAME_LOG_LEVEL: "error" } })
         const clients: TestClient[] = []

@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom"
 import { FiVolume2 } from "react-icons/fi"
 import { useTranslation } from "../i18n"
 import { usePrefersReducedMotion } from "../game/hooks/usePrefersReducedMotion"
-import { WHATS_NEW_FAB } from "../components/navChrome"
+import { WHATS_NEW_FAB, WHATS_NEW_FAB_RIGHT } from "../components/navChrome"
 import { open, useHasUnseenWhatsNew } from "./store"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -37,7 +37,10 @@ export default function WhatsNewFab() {
     return (
         <Box
             position="fixed"
-            right={{ base: `${WHATS_NEW_FAB.right.base}px`, md: `${WHATS_NEW_FAB.right.md}px` }}
+            /* `WHATS_NEW_FAB_RIGHT`, not the raw gutter: with the WebView
+               full-bleed on both platforms a landscape cutout would otherwise
+               eat the button. */
+            right={WHATS_NEW_FAB_RIGHT}
             /* Clear of BOTH bottom chromes (2026-09-10): the mobile tab bar
                plus a gap on phones, and the site footer on desktop — sitting
                level with either one read as part of it. */
