@@ -39,7 +39,7 @@ import { hrCore, type CoreDictionary, type Dictionary, type LazyNamespaces } fro
    LAZY LOADING (namespaces): four namespaces are route-scoped and are not in
    the entry chunk either — see `namespaceLoaders` / `loadNamespace` below.
 
-   ADDING A LANGUAGE: create `./en/` with the same namespace files typed
+   ADDING A LANGUAGE: create `./xx/` with the same namespace files typed
    against `hr`, then register a loader in `localeLoaders`, the four
    route-scoped ones in `namespaceLoaders`, and an entry in `LOCALE_LABELS`
    below. Nothing else changes — `Locale`, `LOCALES`, the storage round-trip
@@ -54,6 +54,7 @@ import { hrCore, type CoreDictionary, type Dictionary, type LazyNamespaces } fro
  *  locale immediately, before its chunk has arrived. */
 const localeLoaders = {
     sl: () => import("./sl").then((mod) => mod.sl),
+    en: () => import("./en").then((mod) => mod.en),
 } as const
 
 export type Locale = "hr" | keyof typeof localeLoaders
@@ -70,6 +71,7 @@ export const DEFAULT_LOCALE: Locale = "hr"
 export const LOCALE_LABELS: Record<Locale, { name: string; code: string; flag: string }> = {
     hr: { name: "Hrvatski", code: "HR", flag: "🇭🇷" },
     sl: { name: "Slovenščina", code: "SL", flag: "🇸🇮" },
+    en: { name: "English", code: "EN", flag: "🇬🇧" },
 }
 
 const STORAGE_KEY = "bela:locale"
@@ -128,18 +130,22 @@ const namespaceLoaders: NamespaceLoaders = {
     admin: {
         hr: () => import("./hr/admin").then((mod) => mod.admin),
         sl: () => import("./sl/admin").then((mod) => mod.admin),
+        en: () => import("./en/admin").then((mod) => mod.admin),
     },
     legal: {
         hr: () => import("./hr/legal").then((mod) => mod.legal),
         sl: () => import("./sl/legal").then((mod) => mod.legal),
+        en: () => import("./en/legal").then((mod) => mod.legal),
     },
     game: {
         hr: () => import("./hr/game").then((mod) => mod.game),
         sl: () => import("./sl/game").then((mod) => mod.game),
+        en: () => import("./en/game").then((mod) => mod.game),
     },
     blok: {
         hr: () => import("./hr/blok").then((mod) => mod.blok),
         sl: () => import("./sl/blok").then((mod) => mod.blok),
+        en: () => import("./en/blok").then((mod) => mod.blok),
     },
 }
 
@@ -238,7 +244,8 @@ function loadDictionaryFor(locale: Locale): void {
 }
 
 /** First supported locale among the browser's preferred languages, matched by
- *  base subtag ("sl-SI" → "sl"). `DEFAULT_LOCALE` when none match. */
+ *  base subtag ("sl-SI" → "sl", "en-US" → "en"). `DEFAULT_LOCALE` when none
+ *  match. */
 function detectBrowserLocale(): Locale {
     try {
         const candidates = navigator.languages?.length ? navigator.languages : [navigator.language]
@@ -472,10 +479,10 @@ export function useTranslation(): { t: (key: TKey, params?: TParams) => string; 
 }
 
 /* ─────────────────────────── plurals ───────────────────────────
- * Croatian and Slovenian do not agree on plural categories, and neither
- * behaves like English. Croatian has three (one / few / other); Slovenian
- * has four, because it kept the dual: 1 turnir, 2 turnirja, 3-4 turnirji,
- * 5+ turnirjev. Getting this wrong is instantly visible to a native
+ * The three shipped languages do not agree on plural categories. Croatian
+ * has three (one / few / other); Slovenian has four, because it kept the
+ * dual: 1 turnir, 2 turnirja, 3-4 turnirji, 5+ turnirjev; English has only
+ * two (one / other). Getting this wrong is instantly visible to a native
  * speaker, so every count-dependent string goes through here rather than
  * through ad-hoc ternaries at the call site.
  *
@@ -495,6 +502,15 @@ export function pluralCategory(locale: Locale, count: number): PluralCategory {
     const n = Math.abs(Math.trunc(count))
     const mod10 = n % 10
     const mod100 = n % 100
+
+    if (locale === "en") {
+        // CLDR en: one = i is 1 and v is 0 (an integer 1), everything else
+        // "other". Counts in this app are always integers, so the decimal
+        // clauses of the full rule cannot apply. `.two`/`.few` leaves exist in
+        // en dictionaries only because the type demands them (they repeat the
+        // `.other` wording) — they are never selected here.
+        return n === 1 ? "one" : "other"
+    }
 
     if (locale === "sl") {
         // CLDR sl: one = n%100 is 1, two = n%100 is 2, few = n%100 is 3..4.

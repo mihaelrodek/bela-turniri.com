@@ -21,6 +21,17 @@ export const forms = {
     "auth.password": "Lozinka",
     "auth.orDivider": "ili",
     "auth.invalidEmail": "Neispravan format email adrese.",
+    // Password show/hide toggle — the icon button's accessible name AND its
+    // `aria-pressed` state read the same pair (src/auth/validation.ts owns
+    // no copy; this lives here like every other auth string).
+    "auth.password.show": "Prikaži lozinku",
+    "auth.password.hide": "Sakrij lozinku",
+    // Client-side field validation (src/auth/validation.ts) — shown inline
+    // under the field, distinct from the Firebase-error banner below.
+    "auth.validation.emailRequired": "Upiši email adresu.",
+    "auth.validation.passwordRequired": "Upiši lozinku.",
+    "auth.validation.nameInvalid": "Ime smije sadržavati samo slova, razmak, crticu, apostrof i točku (do 50 znakova).",
+    "auth.validation.passwordTooLong": "Lozinka je predugačka (najviše 128 znakova).",
     // Social sign-in failures a user can actually hit — shared by both pages
     // (src/auth/authErrors.ts). A cancelled sign-in shows nothing at all.
     "auth.error.popupBlocked": "Preglednik je blokirao skočni prozor. Dopusti skočne prozore i pokušaj ponovno.",
@@ -37,13 +48,13 @@ export const forms = {
 
     // --- LoginPage.tsx -------------------------------------------------------
     "login.heading": "Prijava",
+    "login.subtitle": "Prijavi se i nastavi gdje si stao.",
     "login.googleButton": "Nastavi s Googleom",
     "login.appleButton": "Prijavi se s Appleom",
     "login.submit": "Prijavi se",
     "login.forgotPassword": "Zaboravljena lozinka?",
     "login.noAccount": "Nemaš račun?",
     "login.registerLink": "Registriraj se",
-    "login.validation.emailPassword": "Unesi email i lozinku.",
     "login.validation.emailForReset": "Upiši email u polje iznad i ponovi.",
     "login.resetSent": "Poslali smo ti link za promjenu lozinke. Provjeri email.",
     "login.error.invalidCredential": "Pogrešan email ili lozinka.",
@@ -53,17 +64,17 @@ export const forms = {
 
     // --- RegisterPage.tsx ------------------------------------------------------
     "register.heading": "Registracija",
+    "register.subtitle": "Kreiraj račun za par minuta.",
     "register.googleButton": "Registriraj se s Googleom",
     "register.appleButton": "Registriraj se s Appleom",
     "register.nameLabel": "Ime",
     "register.nameOptional": "(opcionalno)",
     "register.namePlaceholder": "npr. Marko",
-    "register.passwordHelper": "Najmanje 6 znakova.",
+    "register.passwordHelper": "Najmanje 6 znakova. Preporučamo 8+ radi sigurnosti.",
     "register.confirmPasswordLabel": "Potvrdi lozinku",
     "register.submit": "Kreiraj račun",
     "register.hasAccount": "Već imaš račun?",
     "register.loginLink": "Prijavi se",
-    "register.validation.required": "Email i lozinka su obavezni.",
     "register.validation.weakPassword": "Lozinka mora imati barem 6 znakova.",
     "register.validation.passwordMismatch": "Lozinke se ne podudaraju.",
     "register.error.emailInUse": "Već postoji račun s tom email adresom. Probaj se prijaviti.",

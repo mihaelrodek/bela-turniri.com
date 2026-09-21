@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Brand name, unchanged across locales; declared here only because adding
+         this values-en/ folder makes lint check every default-locale string for
+         a translation (package_name/custom_url_scheme are non-translatable
+         technical values, marked as such in values/strings.xml instead). -->
+    <string name="app_name">Bela Turniri</string>
+    <string name="title_activity_main">Bela Turniri</string>
+    <string name="notification_channel_name">Notifications</string>
+
+    <!-- N4.4 live game notification, English. See values/strings.xml for the
+         hr source and LiveGameNotification.kt for how these are used. -->
+    <string name="live_channel_name">Live game</string>
+    <string name="live_notif_title">Us %1$d : %2$d Them</string>
+    <string name="live_notif_text_your_turn">Your turn</string>
+    <string name="live_notif_text_other_turn">Player %1$d\'s turn</string>
+    <string name="live_notif_win">Victory!</string>
+    <string name="live_notif_lose">Defeat</string>
+    <string name="live_notif_public_title">Game in progress</string>
+
+    <!-- N5.3 widget, English. See values/strings.xml for the hr source. -->
+    <string name="widget_title">Upcoming tournaments</string>
+    <string name="widget_empty">No upcoming tournaments</string>
+    <string name="widget_description">Shows the next three upcoming tournaments.</string>
+
+    <!-- N5.4 static app shortcuts, English. The short labels are what fits
+         under a launcher icon, the long ones show in the long-press sheet. -->
+    <string name="shortcut_blok_short">Score pad</string>
+    <string name="shortcut_blok_long">Open score pad</string>
+    <string name="shortcut_new_tournament_short">New</string>
+    <string name="shortcut_new_tournament_long">New tournament</string>
+    <string name="shortcut_play_short">Play</string>
+    <string name="shortcut_play_long">Play</string>
+</resources>

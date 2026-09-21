@@ -9,7 +9,7 @@
          12+ device-to-device transfer, hence dataExtractionRules; and
          fullBackupContent keeps the same exclusions honest on API 23-30.
          Full reasoning in res/xml/data_extraction_rules.xml.
-         localeConfig: per-app language picker (API 33+), hr + sl. -->
+         localeConfig: per-app language picker (API 33+), hr + sl + en. -->
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"

@@ -35,6 +35,7 @@ import { fetchTournaments, fetchTournamentsCount } from "../api/tournaments"
 import { qk } from "../queryClient"
 import { useUserLocation } from "../hooks/useUserLocation"
 import { haversineKm } from "../utils/distance"
+import { intlTag } from "../utils/format"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 import { useSearchHotkey } from "../hooks/useSearchHotkey"
 import { showError } from "../toaster"
@@ -550,7 +551,7 @@ export default function TournamentsPage() {
         }
 
         return {
-            visible: sortTournaments(base, sortMode, locale === "sl" ? "sl-SI" : "hr-HR"),
+            visible: sortTournaments(base, sortMode, intlTag(locale)),
             missingLocationCount: missing,
         }
     }, [

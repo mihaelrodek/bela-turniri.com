@@ -79,9 +79,9 @@ public class MessageService {
      *  key missing from the requested bundle, or no request context at all. */
     public static final Locale DEFAULT_LOCALE = Locale.forLanguageTag("hr");
 
-    /** Language tags with a bundle on the classpath. Adding "en" later = drop
-     *  in {@code messages_en.properties} and add it here. */
-    public static final Set<String> SUPPORTED_LANGUAGES = Set.of("hr", "sl");
+    /** Language tags with a bundle on the classpath. Adding a language = drop
+     *  in {@code messages_xx.properties} and add it here. */
+    public static final Set<String> SUPPORTED_LANGUAGES = Set.of("hr", "sl", "en");
 
     private static final String BASE_PATH = "/i18n/messages";
 

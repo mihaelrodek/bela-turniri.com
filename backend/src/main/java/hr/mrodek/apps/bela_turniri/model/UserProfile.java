@@ -72,7 +72,7 @@ public class UserProfile {
     private String colorMode;
 
     /**
-     * Per-user language preference — a BCP-47 base tag ("hr", "sl"). Null
+     * Per-user language preference — a BCP-47 base tag ("hr", "sl", "en"). Null
      * means the user hasn't picked one; the frontend then falls back to the
      * browser language and finally to Croatian.
      *

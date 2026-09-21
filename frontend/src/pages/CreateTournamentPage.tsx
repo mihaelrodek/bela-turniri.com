@@ -26,7 +26,7 @@ import {
     FiX,
 } from "react-icons/fi"
 import DatePicker, { registerLocale } from "react-datepicker"
-import { hr, sl } from "date-fns/locale"
+import { hr, sl, enGB } from "date-fns/locale"
 import "react-datepicker/dist/react-datepicker.css"
 import "../datepicker.css"
 
@@ -65,13 +65,19 @@ import {
 import { invalidateTournamentLists } from "./tournament/cache"
 import type { RewardType, TournamentDetails } from "../types/tournaments"
 
-// Register both calendar locales once (month/day names, week-starts-Monday,
-// etc.). The visible FORMAT is forced via the dateFormat prop on each
+// Register every calendar locale once (month/day names, week-starts-Monday,
+// etc.), under the SAME key as the app's own `Locale` values — the
+// `locale={locale}` prop below passes the active UI locale straight through,
+// so a language missing here would silently fall back to date-fns' built-in
+// en-US. The visible FORMAT is forced via the dateFormat prop on each
 // DatePicker so it never falls back to the OS region; which locale's NAMES
 // are used is decided per render from the app's active language — a Slovenian
-// reader was getting Croatian month names before this.
+// reader was getting Croatian month names before this. English uses en-GB so
+// the week still starts on Monday and the reading order matches the fixed
+// dd/MM/yyyy format (and `utils/format.ts`).
 registerLocale("hr", hr)
 registerLocale("sl", sl)
+registerLocale("en", enGB)
 
 /**
  * The wizard replaced the single long scroll this page used to be. Three

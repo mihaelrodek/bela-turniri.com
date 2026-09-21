@@ -1,0 +1,280 @@
+import type { AdminDict } from "../hr/admin"
+
+/* English `admin`. Typed as the Croatian namespace, so a dropped or
+   misspelled key fails `tsc` instead of silently falling back at runtime.
+   Register: terse dashboard English, informal second person ("you") where
+   the copy addresses the admin directly — see EN-CONTRACT.md for voice and
+   glossary. */
+
+export const admin: AdminDict = {
+    "analytics.title": "Online game analytics",
+    "analytics.description": "Private, global statistics for all online rooms and games. Data collection started when this analytics feature was introduced.",
+    "analytics.loading": "Loading analytics…",
+    "analytics.error": "Couldn't load analytics.",
+    "analytics.roomsCreated": "Rooms created",
+    "analytics.gamesStarted": "Games started",
+    "analytics.completed": "Completed",
+    "analytics.abandoned": "Abandoned",
+    "analytics.inProgress": "In progress",
+    "analytics.completionRate": "Completed {value}%",
+    "analytics.targets": "Categories",
+    "analytics.targetRow": "{started} started · {completed} completed · {abandoned} abandoned",
+    "analytics.trumps": "Trumps and call success",
+    "analytics.trumpRow": "{calls} times · {share}% of all · {success}% made it · {falls} failures",
+    "analytics.positions": "Call order",
+    "analytics.position": "{position}. to call",
+    "analytics.positionRow": "{calls} calls · {success}% made it · {falls} failures",
+    "analytics.details": "Additional metrics",
+    "analytics.deals": "Deals played",
+    "analytics.avgDeals": "Avg. deals / game",
+    "analytics.avgDuration": "Average duration",
+    "analytics.minutes": "{value} min",
+    "analytics.declarationPoints": "Declaration points",
+    "analytics.stiglja": "Capots",
+    "analytics.belot": "Belots",
+    "analytics.autoPlayed": "Auto-played moves",
+    "analytics.tableMix": "Table mix",
+    "analytics.humans": "Players only",
+    "analytics.mixed": "Players and bots",
+    "analytics.bots": "Bots only",
+    "analytics.visibility": "Room visibility",
+    "analytics.public": "Public",
+    "analytics.private": "Private",
+    /* Who played — read from recorded completed games, not from analytics
+       events, so it has its own request and its own loading state. */
+    "analytics.players": "Who played",
+    "analytics.playersCount.one": "{n} player",
+    "analytics.playersCount.two": "{n} players",
+    "analytics.playersCount.few": "{n} players",
+    "analytics.playersCount.other": "{n} players",
+    "analytics.playersLoading": "Loading players…",
+    "analytics.playersEmpty": "No completed games recorded yet.",
+    "analytics.playersCapped": "Showing the top {shown} by number of games.",
+    "analytics.playerGames": "{games} games",
+    "analytics.playerRecord": "{wins} wins · {losses} losses",
+    "analytics.playerLast": "last {date}",
+    "analytics.playerAbandons": "{abandons} abandons",
+    "analytics.playerKarma": "karma {karma}/{max}",
+    "analytics.anonymous": "Guests and bots",
+    "analytics.guestSeats": "Guest seats: {seats} ({wins} wins)",
+    "analytics.botSeats": "Bot seats: {seats}",
+    "analytics.guestsNote": "Guests aren't saved with an identity, so they can only be counted, not named.",
+    /* ─── CjenikTab ─────────────────────────────────────────── */
+    "cjenik.loading": "Loading price list…",
+    // Visitor-side empty state (someone who cannot edit). Informal second
+    // person, like every other string in the app.
+    "cjenik.empty.title": "The price list hasn't been created yet",
+    "cjenik.empty.description": "The organizer is still working on the price list — check back later.",
+    // Organiser-side empty state: they can fix it, so it says what to do.
+    "cjenik.ownerEmpty.title": "The price list is still empty",
+    "cjenik.ownerEmpty.description": "Add the drinks served at the tournament — these prices go on the per-match bills.",
+    "cjenik.heading": "Drink price list",
+    "cjenik.loadTemplateButton": "Load preset",
+    "cjenik.saveAsTemplateButton": "Save as preset",
+    "cjenik.templatesMenu": "Presets",
+    "cjenik.templatesMenu.saveFirst": "A preset is saved from the saved price list — save your changes first.",
+    "cjenik.presetSection.heading": "Quick-add from preset",
+    "cjenik.presetSection.hint": "Click a drink to add it, then enter its price.",
+    "cjenik.presetSection.alreadyAdded": "Already in the price list",
+    "cjenik.nameInput.placeholder": "Name (e.g. Beer)",
+    "cjenik.priceInput.placeholder": "Price",
+    "cjenik.removeButton.aria": "Remove",
+    // The leading "+" moved into a real icon on the button.
+    "cjenik.addButton": "Add drink",
+    "cjenik.saveButton": "Save",
+    "cjenik.discardButton": "Discard",
+    "cjenik.unsavedBadge": "Unsaved",
+    "cjenik.saveFailed": "Couldn't save the price list.",
+    "cjenik.editButton": "Edit",
+    "cjenik.doneButton": "Done",
+    "cjenik.doneButton.dirtyHint": "Save or discard your changes before leaving edit mode.",
+    // Unit only — the count itself is rendered beside it by CounterChip.
+    "cjenik.drinkCount.one": "drink",
+    "cjenik.drinkCount.two": "drinks",
+    "cjenik.drinkCount.few": "drinks",
+    "cjenik.drinkCount.other": "drinks",
+
+    /* ─── CjenikTab: Load Template Dialog ───────────────────── */
+    "dialog.loadTemplate.title": "Load preset",
+    "dialog.loadTemplate.loading": "Loading presets…",
+    "dialog.loadTemplate.empty": "You don't have any saved presets. Go to your profile to create one, or use \"Save as preset\" for the current price list.",
+    "dialog.loadTemplate.closeButton": "Cancel",
+
+    /* ─── CjenikTab: Save as Template Dialog ─────────────────── */
+    "dialog.saveAsTemplate.title": "Save as preset",
+    "dialog.saveAsTemplate.newTemplate.label": "New preset:",
+    "dialog.saveAsTemplate.newTemplate.placeholder": "e.g. Beer bar",
+    "dialog.saveAsTemplate.newTemplate.createButton": "Create",
+    "dialog.saveAsTemplate.newTemplate.alreadyExists": "A preset with that name already exists.",
+    "dialog.saveAsTemplate.existingTemplates.label": "…or overwrite an existing one:",
+    "dialog.saveAsTemplate.existingTemplates.loading": "Loading…",
+    "dialog.saveAsTemplate.closeButton": "Cancel",
+
+    /* ─── CjenikTab: Confirmation Dialogs ──────────────────── */
+    "confirm.importTemplate.title": "Replace the current price list?",
+    "confirm.importTemplate.description": "Loading the preset \"{templateName}\" will replace all items in the current price list.",
+    "confirm.importTemplate.confirmButton": "Load preset",
+    "confirm.overwriteTemplate.title": "Overwrite preset?",
+    "confirm.overwriteTemplate.description": "The preset \"{templateName}\" will be overwritten with the current price list.",
+    "confirm.overwriteTemplate.confirmButton": "Overwrite",
+
+    /* ─── AdminDashboardTab: Main Section ──────────────────── */
+    "dashboard.heading": "Dashboard — attach pairs",
+    "dashboard.description": "Select a tournament, then click \"Attach to user\" next to a pair to link it to a registered player. Once attached, the pair appears on the selected user's profile and a Presets entry with that pair name is created automatically.",
+    "dashboard.tournament.label": "Tournament",
+    "dashboard.tournament.placeholder": "Search tournaments by name, location or slug…",
+    "dashboard.tournament.noResults": "No results.",
+    "dashboard.tournament.owner": "Owner: {owner}",
+    "dashboard.tournament.ownerNameFallback": "(no name)",
+    "dashboard.tournament.ownerLegacy": "— (legacy)",
+
+    /* ─── AdminDashboardTab: Unclaimed Pairs Section ──────────── */
+    "dashboard.pairs.heading": "Unattached pairs · {tournamentName}",
+    "dashboard.pairs.description": "Only pairs not yet linked to a registered user are shown.",
+    "dashboard.pairs.empty": "No unattached pairs in this tournament.",
+    // Wins and losses decline independently, so each is its own plural family
+    // and `record` only joins the two already-formatted halves.
+    "dashboard.pairs.wins.one": "{n} win",
+    "dashboard.pairs.wins.two": "{n} wins",
+    "dashboard.pairs.wins.few": "{n} wins",
+    "dashboard.pairs.wins.other": "{n} wins",
+    "dashboard.pairs.losses.one": "{n} loss",
+    "dashboard.pairs.losses.two": "{n} losses",
+    "dashboard.pairs.losses.few": "{n} losses",
+    "dashboard.pairs.losses.other": "{n} losses",
+    "dashboard.pairs.record": "{wins} · {losses}{eliminated}",
+    "dashboard.pairs.record.eliminated": " · eliminated",
+    "dashboard.pairs.attachButton": "Attach to user",
+
+    /* ─── AdminDashboardTab: Tournament Ownership Section ──────── */
+    "dashboard.ownership.heading": "Tournament ownership",
+    "dashboard.ownership.description": "Transfer the tournament to another registered user — they become the owner and can edit details, manage pairs, generate rounds, set winners, etc.",
+    "dashboard.ownership.currentLabel": "CURRENT OWNER",
+    "dashboard.ownership.currentFallback": "(no name)",
+    "dashboard.ownership.currentLegacy": "— (legacy / no owner)",
+    "dashboard.ownership.uid": "UID: {uid}",
+    "dashboard.ownership.transferButton": "Transfer ownership",
+
+    /* ─── AdminDashboardTab: Tournament Status Section ──────────── */
+    "dashboard.status.heading": "Tournament status (override)",
+    "dashboard.status.description": "Manually set the tournament status. Used to correct mistaken clicks (e.g. an accidental \"Finish tournament\") or to backfill tournaments that finished outside the app (DRAFT → FINISHED). The status changes without checking pairs / rounds. Reverting from FINISHED clears the winner and podium — rounds and matches are not deleted.",
+    "dashboard.status.currentLabel": "CURRENT STATUS",
+    "dashboard.status.unknown": "— (unknown)",
+    "dashboard.status.buttonTitle": "Set status to {status}",
+    "dashboard.status.buttonTitle.current": "Already in this status",
+
+    /* ─── AdminDashboardTab: Reset Tournament Section ──────────── */
+    "dashboard.reset.heading": "Reset tournament",
+    "dashboard.reset.description": "Returns the tournament to \"draft\" (DRAFT), deletes all rounds and matches, but keeps the pairs (wins / losses reset to zero, the \"has extra life\" status isn't cleared). The organizer can immediately add / change pairs and restart the tournament. The winner and podium are cleared.",
+    "dashboard.reset.button": "Reset tournament",
+    "dashboard.reset.button.disabled": "Legacy tournament without a UUID — reset not possible",
+    "dashboard.reset.button.title": "Reset tournament to DRAFT and delete rounds",
+
+    /* ─── AdminDashboardTab: Reset Confirmation Dialog ─────────── */
+    "confirm.resetTournament.title": "Reset tournament?",
+    "confirm.resetTournament.tournamentLabel": "TOURNAMENT",
+    "confirm.resetTournament.delete.heading": "This deletes:",
+    "confirm.resetTournament.delete.items": "• all rounds and matches\n• the winner (winnerName) and podium (2nd/3rd place)\n• pair wins / losses (reset to 0)\n• pair elimination status (everyone active again)",
+    "confirm.resetTournament.keep.heading": "This keeps:",
+    "confirm.resetTournament.keep.items": "• pairs (names, entry fee, \"has extra life\" flag)\n• tournament settings (prices, location, contact, poster)",
+    "confirm.resetTournament.cancelButton": "Cancel",
+    "confirm.resetTournament.confirmButton": "Reset",
+
+    /* ─── AdminDashboardTab: Status Change Confirmation Dialog ──── */
+    "confirm.statusChange.title": "Change tournament status",
+    "confirm.statusChange.tournamentLabel": "TOURNAMENT",
+    "confirm.statusChange.fromFinished.heading": "Reverting from FINISHED",
+    "confirm.statusChange.fromFinished.message": "The winner (winnerName) and podium (2nd/3rd place) are cleared. Rounds and matches stay untouched — for a full reset use \"Reset tournament\" on the tournament page.",
+    "confirm.statusChange.toFinished.heading": "Setting to FINISHED",
+    "confirm.statusChange.toFinished.message": "The winner isn't set automatically. Open the tournament page and set winnerName + podium if needed.",
+    "confirm.statusChange.cancelButton": "Cancel",
+    "confirm.statusChange.confirmButton": "Confirm",
+
+    /* ─── AdminDashboardTab: Attach Pair Dialog ────────────────── */
+    "dialog.attachPair.title": "Attach pair to user",
+    "dialog.attachPair.pairLabel": "PAIR",
+    "dialog.attachPair.userSearch.placeholder": "Search by first and last name…",
+    "dialog.attachPair.userFallback": "(no name)",
+    "dialog.attachPair.userProfile": "/profil/{slug}",
+    "dialog.attachPair.attachButton": "Attach",
+    "dialog.attachPair.closeButton": "Close",
+
+    /* ─── AdminDashboardTab: Transfer Tournament Dialog ─────────── */
+    "dialog.transferTournament.title": "Transfer tournament ownership",
+    "dialog.transferTournament.tournamentLabel": "TOURNAMENT",
+    "dialog.transferTournament.currentOwner": "Current owner: {owner}",
+    "dialog.transferTournament.userSearch.placeholder": "Search by first and last name…",
+    "dialog.transferTournament.userFallback": "(no name)",
+    "dialog.transferTournament.userProfile": "/profil/{slug}",
+    "dialog.transferTournament.ownerBadge": "owner",
+    "dialog.transferTournament.transferButton": "Transfer",
+    "dialog.transferTournament.transferButton.current": "Already owner",
+    "dialog.transferTournament.closeButton": "Close",
+
+    /* ─── AdminPlayersListTab ──────────────────────────────────── */
+    "playersList.heading": "Player list",
+    "playersList.description": "All registered players — click \"Open profile\" to go to the user's page.",
+    "playersList.search.placeholder": "Search by first and last name or slug…",
+    "playersList.loading.error": "Couldn't load the player list.",
+    "playersList.empty": "No results.",
+    "playersList.summary": "{filteredCount} of {totalCount} players",
+    "playersList.summary.all": "Total: {totalCount} players",
+    "playersList.userFallback": "(no name)",
+    "playersList.userProfile": "/profil/{slug}",
+    "playersList.slugMissing": "Slug not set for this user",
+    "playersList.slugMissing.button": "No slug",
+    "playersList.openProfileButton": "Open profile",
+
+    /* ─── AdminContactMessagesTab ──────────────────────────────── */
+    "contactMessages.heading": "Messages",
+    "contactMessages.description": "Messages sent through the contact form. Replies go manually to the sender's email.",
+    "contactMessages.filterOpen": "Unresolved",
+    "contactMessages.filterAll": "All",
+    "contactMessages.loading.error": "Couldn't load messages.",
+    "contactMessages.empty": "No messages.",
+    "contactMessages.subjectFallback": "(no subject)",
+    "contactMessages.mailSubjectPrefix": "Re: ",
+    "contactMessages.statusHandled": "Resolved",
+    "contactMessages.statusOpen": "Open",
+    "contactMessages.markHandled": "Mark resolved",
+    "contactMessages.unmarkHandled": "Move back to unresolved",
+    "contactMessages.toast.handled": "Message marked as resolved",
+    "contactMessages.toast.unhandled": "Message moved back to unresolved",
+    // Header badge — how many messages still need a reply.
+    "contactMessages.unhandledCount.one": "{n} unresolved message",
+    "contactMessages.unhandledCount.two": "{n} unresolved messages",
+    "contactMessages.unhandledCount.few": "{n} unresolved messages",
+    "contactMessages.unhandledCount.other": "{n} unresolved messages",
+
+    /* ─── AdminDashboardTab: "Prijave" (content moderation) ─────
+       The other side of `components/ReportDialog.tsx`. Reasons are the same
+       machine codes the user picks in the dialog, but phrased here as a
+       queue row label rather than a sentence the user chooses. */
+    "reports.heading": "Reports",
+    "reports.description": "Content reports submitted by users. Close each one with \"Dismiss\" or \"Resolved\".",
+    "reports.filterOpen": "Open",
+    "reports.filterResolved": "Resolved",
+    "reports.loadFailed": "Couldn't load reports.",
+    "reports.empty": "No reports.",
+    "reports.targetType.TOURNAMENT": "Tournament",
+    "reports.targetType.PAIR": "Pair",
+    "reports.targetType.PROFILE": "Profile",
+    "reports.reason.SPAM": "Spam",
+    "reports.reason.OFFENSIVE": "Offensive",
+    "reports.reason.PERSONAL_DATA": "Personal data",
+    "reports.reason.OTHER": "Other",
+    "reports.resolution.DISMISSED": "Dismissed",
+    "reports.resolution.ACTIONED": "Resolved",
+    "reports.reporter": "UID: {uid}",
+    "reports.noteShown": "Note: {note}",
+    "reports.notePlaceholder": "Internal note (optional)…",
+    "reports.dismiss": "Dismiss",
+    "reports.action": "Resolved",
+    "reports.toast.resolved": "Report closed",
+    "reports.toast.failed": "Failed to close report",
+    // Badge on the section heading — how many reports are still pending.
+    "reports.openCount.one": "{n} open report",
+    "reports.openCount.two": "{n} open reports",
+    "reports.openCount.few": "{n} open reports",
+    "reports.openCount.other": "{n} open reports",
+}

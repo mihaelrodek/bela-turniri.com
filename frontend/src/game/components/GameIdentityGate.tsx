@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type ReactNode } from "react"
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
 import { Badge, Box, Button, Heading, HStack, Input, Text, VStack } from "@chakra-ui/react"
 import { FiCheck } from "react-icons/fi"
 import { Link, useLocation } from "react-router-dom"
@@ -9,7 +9,32 @@ import AvatarPicker from "../../components/avatars/AvatarPicker"
 import BelaAvatar from "../../components/avatars/BelaAvatar"
 import { AVATAR_IDS, type AvatarId } from "../../components/avatars/avatarArt"
 import { readGuest, saveGuest, subscribeGuestHydration, getGuestHydrationReady, type GuestIdentity } from "../hooks/guestIdentity"
-import SuitSpinner from "../../components/SuitSpinner"
+import { PageLoading } from "../../components/SuitSpinner"
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
+
+/* The landing card's row of five faces (2026-09-21, user request — second
+   pass: NOT faces circling a centre, but five in a horizontal strip taking
+   turns being the big one in the middle). Each face owns a slot −2…+2; every
+   `STRIP_STEP_MS` the whole strip moves one place and the transition does the
+   rest: the face arriving in the middle grows, the one leaving shrinks.
+
+   SEVEN faces ride the strip, five are visible: the two outermost slots (±3)
+   are transparent waiting places. A face leaving on the left fades out INTO
+   −3 while the next one fades in FROM +3 in the same move, so the right-hand
+   end is never empty (2026-09-21, reported: the first version hid the
+   wrapping face for the whole move and the last place stood empty for it).
+   The jump from −3 round to +3 happens at opacity 0, where nobody sees it. */
+const STRIP_FACE = 92
+const STRIP_STEP_MS = 2600
+const STRIP_SLOTS: Record<number, { x: number; scale: number; opacity: number }> = {
+    [-3]: { x: -162, scale: 0.3, opacity: 0 },
+    [-2]: { x: -128, scale: 0.43, opacity: 1 },
+    [-1]: { x: -80, scale: 0.57, opacity: 1 },
+    0: { x: 0, scale: 1, opacity: 1 },
+    1: { x: 80, scale: 0.57, opacity: 1 },
+    2: { x: 128, scale: 0.43, opacity: 1 },
+    3: { x: 162, scale: 0.3, opacity: 0 },
+}
 
 /** A face to start from, so nobody ever looks at an empty slot. Random rather
  *  than fixed: the first preset would otherwise be what half the tables wear. */
@@ -42,7 +67,18 @@ export default function GameIdentityGate({ children }: { children: ReactNode }) 
     // request): a guest gets the name-and-face form, everybody else goes to
     // sign-in. Nothing about the form is shown until "guest" is chosen.
     const [choosingGuest, setChoosingGuest] = useState(false)
-    if (loading || !hydrated) return <SuitSpinner />
+    // The seven faces of the landing strip (five visible at a time): the
+    // visitor's own pick first, then six others. Fixed for the life of the page so the strip never reshuffles.
+    const [strip] = useState<AvatarId[]>(() => [avatar, ...AVATAR_IDS.filter((id) => id !== avatar).slice(0, 6)])
+    const [active, setActive] = useState(0)
+    const reducedMotion = usePrefersReducedMotion()
+    const stripRunning = !reducedMotion && !choosingGuest && !user && !guest
+    useEffect(() => {
+        if (!stripRunning) return
+        const id = window.setInterval(() => setActive((current) => (current + 1) % strip.length), STRIP_STEP_MS)
+        return () => window.clearInterval(id)
+    }, [stripRunning, strip.length])
+    if (loading || !hydrated) return <PageLoading />
     if (user || guest) return children
     if (!choosingGuest) {
         /* The front door (2026-09-21, user request: "da je jasnije da se može
@@ -52,32 +88,49 @@ export default function GameIdentityGate({ children }: { children: ReactNode }) 
            on top is the one already picked for this visitor (`avatar`), with
            four table-mates around it, so the page shows what sitting down
            looks like before anything is asked. */
-        const others = AVATAR_IDS.filter((id) => id !== avatar).slice(0, 4)
         return <Box maxW="440px" mx="auto" py={{ base: "5", md: "10" }}>
             <VStack align="stretch" gap="5" p={{ base: "5", md: "6" }} rounded="2xl" bg="bg.panel" borderWidth="1px" borderColor="border.subtle" shadow="card">
-                <HStack justify="center" align="end" gap="0" aria-hidden="true">
-                    {others.slice(0, 2).map((id, i) => (
-                        <Box key={id} mr="-2.5" mb="1" rounded="full" borderWidth="2px" borderColor="bg.panel" zIndex={i}>
-                            <BelaAvatar id={id} size={i === 0 ? "40px" : "52px"} />
-                        </Box>
-                    ))}
-                    <Box position="relative" zIndex={3} rounded="full" borderWidth="3px" borderColor="brand.solid" bg="bg.panel">
-                        <BelaAvatar id={avatar} size="92px" />
-                        <Badge position="absolute" bottom="-2" left="50%" transform="translateX(-50%)" size="sm" variant="solid" colorPalette="brand" rounded="full">
-                            {t("game.guest.youBadge")}
-                        </Badge>
-                    </Box>
-                    {others.slice(2, 4).map((id, i) => (
-                        <Box key={id} ml="-2.5" mb="1" rounded="full" borderWidth="2px" borderColor="bg.panel" zIndex={2 - i}>
-                            <BelaAvatar id={id} size={i === 0 ? "52px" : "40px"} />
-                        </Box>
-                    ))}
-                </HStack>
+                <Box position="relative" mx="auto" w="full" maxW="348px" h={`${STRIP_FACE + 14}px`} aria-hidden="true">
+                    {strip.map((id, i) => {
+                        // Slot of face `i` when face `active` is in the middle.
+                        const raw = (((i - active) % strip.length) + strip.length) % strip.length
+                        const slot = raw > 3 ? raw - strip.length : raw
+                        const place = STRIP_SLOTS[slot] ?? STRIP_SLOTS[0]
+                        const main = slot === 0
+                        return (
+                            <Box
+                                key={id}
+                                position="absolute"
+                                top="0"
+                                left="50%"
+                                ml={`-${STRIP_FACE / 2}px`}
+                                rounded="full"
+                                borderWidth="3px"
+                                borderColor={main ? "brand.solid" : "bg.panel"}
+                                bg="bg.panel"
+                                zIndex={4 - Math.abs(slot)}
+                                opacity={place.opacity}
+                                style={{ transform: `translateX(${place.x}px) scale(${place.scale})` }}
+                                css={{
+                                    transformOrigin: "50% 60%",
+                                    transition: reducedMotion
+                                        ? "none"
+                                        : "transform 700ms cubic-bezier(0.22, 1, 0.36, 1), opacity 500ms ease, border-color 400ms ease",
+                                }}
+                            >
+                                <BelaAvatar id={id} size={`${STRIP_FACE}px`} />
+                            </Box>
+                        )
+                    })}
+                    <Badge position="absolute" bottom="0" left="50%" transform="translateX(-50%)" zIndex={5} size="sm" variant="solid" colorPalette="brand" rounded="full">
+                        {t("game.guest.youBadge")}
+                    </Badge>
+                </Box>
                 <VStack gap="1.5" textAlign="center">
                     <Heading size="xl">{t("game.guest.heroTitle")}</Heading>
                     <Text color="fg.muted">{t("game.guest.heroSubtitle")}</Text>
                 </VStack>
-                <Button colorPalette="brand" size="xl" onClick={() => setChoosingGuest(true)}>
+                <Button colorPalette="brand" size="xl" onClick={() => { setAvatar(strip[active] ?? avatar); setChoosingGuest(true) }}>
                     {t("game.guest.playNow")}
                 </Button>
                 <HStack justify="center" gap="4" wrap="wrap" fontSize="sm" color="fg.muted">

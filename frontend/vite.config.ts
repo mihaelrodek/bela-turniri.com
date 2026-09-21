@@ -244,7 +244,14 @@ function gamesShell(): Plugin {
         // Same picture, served from this domain: the file is in public/ and
         // therefore exists on both hosts, and an og:image on the same origin
         // as og:url is what every unfurler expects.
-        out = swap(out, MAIN_OG_CARD, `${GAMES_ORIGIN}/games/og-card.png`, 3, "the OG card URL")
+        // `-v2` in the name on purpose (2026-09-21 redesign): WhatsApp, Viber and
+        // Facebook cache a preview image by its URL for weeks, so a new picture
+        // under the old name would simply never be fetched. Bump the suffix the
+        // next time the card changes. JPEG, not PNG: the card carries card art
+        // and a gradient (558 KB as PNG, ~150 KB as JPEG) and WhatsApp drops
+        // previews whose image is too heavy.
+        out = swap(out, MAIN_OG_CARD, `${GAMES_ORIGIN}/games/og-card-v2.jpg`, 3, "the OG card URL")
+        out = swap(out, `<meta property="og:image:type" content="image/png" />`, `<meta property="og:image:type" content="image/jpeg" />`, 1, "the OG image type")
 
         // The games brand has its own logo files in public/games/ — replace
         // those files to rebrand, this transform only points at them.

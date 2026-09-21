@@ -2,7 +2,7 @@ import { Box, Button, HStack } from "@chakra-ui/react"
 import { LOCALES, LOCALE_LABELS, setLocale, useLocale, type Locale } from "../i18n"
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Language switcher — HR / SL. Picking one calls `setLocale()` (src/i18n),
+   Language switcher — HR / SL / EN. Picking one calls `setLocale()` (src/i18n),
    which re-renders every `useTranslation()` call site immediately and is also
    read by `api/http.ts`'s request interceptor (`X-Locale`), so server-produced
    strings (error envelopes, validation text) switch with it.
@@ -11,7 +11,12 @@ import { LOCALES, LOCALE_LABELS, setLocale, useLocale, type Locale } from "../i1
    watches the locale and writes it, the same split ThemeSync uses for the
    colour mode. That keeps this component free of auth/query concerns.
 
-   Shape: a plain inline row of flag+code toggles, the active one solid.
+   Shape: a plain inline row of flag+code toggles, the active one solid, built
+   by mapping `LOCALES` — never a hard-coded pair, so registering a language in
+   `src/i18n/index.ts` is all it takes to make it appear here. The row wraps,
+   because the narrowest host (the guest hamburger on a small phone) runs out
+   of width somewhere past three chips and a clipped language would be
+   unreachable.
    Deliberately NOT a Menu any more — it now lives *inside* the navbar's user
    menu (and the guest menu), and nesting a portalled Menu inside another open
    overlay makes it render underneath and fight the parent's outside-click
@@ -27,7 +32,7 @@ export default function LanguagePicker() {
     }
 
     return (
-        <HStack gap="1.5">
+        <HStack gap="1.5" flexWrap="wrap">
             {LOCALES.map((locale) => (
                 <Button
                     key={locale}

@@ -33,7 +33,7 @@ public record UserProfileDto(
 
         /**
          * Per-user language preference — a supported BCP-47 base tag ("hr",
-         * "sl"). Written through {@code PATCH /user/me/profile/locale} (and
+         * "sl", "en"). Written through {@code PATCH /user/me/profile/locale} (and
          * accepted on PUT for symmetry with colorMode); unsupported values are
          * rejected server-side. Null means the user hasn't picked one.
          */

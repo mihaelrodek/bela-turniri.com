@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { Badge, Box, Button, Flex, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Spinner, Text, VStack, VisuallyHidden, chakra } from "@chakra-ui/react"
+import { Badge, Box, Button, Flex, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Text, VStack, VisuallyHidden, chakra } from "@chakra-ui/react"
 import { FiLogIn, FiLogOut, FiPlus, FiSearch, FiSettings, FiUsers } from "react-icons/fi"
 import type { RoomStatus, RoomSummary, TargetScore } from "@bela/protocol"
 import type { CreateGameOptions } from "../components/CreateGameDialog"
@@ -16,6 +16,7 @@ import PlayerAvatar from "../components/PlayerAvatar"
 import ConfirmDialog from "../../components/ConfirmDialog"
 import GameSettingsSheet from "../components/GameSettingsSheet"
 import RoomListItem from "../components/RoomListItem"
+import { PageLoading } from "../../components/SuitSpinner"
 import { preloadDeck } from "../cards/madjarice/preload"
 import { useGamePrefs } from "../hooks/useGamePrefs"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
@@ -397,12 +398,6 @@ export default function GameLobbyPage() {
                     </Button>
                     <HStack gap="2" flexShrink={0}>
                         <IconButton aria-label={t("game.settings.title")} variant="outline" rounded="full" onClick={() => setSettingsOpen(true)}><FiSettings /></IconButton>
-                        {!connected && (
-                            <Badge size="sm" variant="subtle" colorPalette="orange">
-                                <Spinner size="xs" />
-                                {slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}
-                            </Badge>
-                        )}
                     </HStack>
                 </Flex>
 
@@ -501,7 +496,20 @@ export default function GameLobbyPage() {
                     </HStack>
                 </Flex>
 
-                {rooms.length === 0 ? (
+                {/* Not connected = the list is not known yet, so say THAT, in the
+                    middle of the page, with the turning logo (2026-09-21, user
+                    request). It used to be a small orange badge in the header
+                    row — which shoved the settings gear to the left while it
+                    was there — above a confident "Nema otvorenih soba", which
+                    was simply untrue: nobody had asked the server yet. Rooms
+                    already on screen stay while a dropped connection comes
+                    back; only the empty state is replaced. */}
+                {!connected && rooms.length === 0 ? (
+                    <PageLoading
+                        minH="36vh"
+                        label={slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}
+                    />
+                ) : rooms.length === 0 ? (
                     <EmptyState
                         icon={FiUsers}
                         title={t("game.lobby.empty.title")}

@@ -1,7 +1,8 @@
-import { getLocale } from "../i18n"
+import { getLocale, type Locale } from "../i18n"
 import { isGamesSite } from "../site"
 import { releasesHr } from "./releases.hr"
 import { releasesSl } from "./releases.sl"
+import { releasesEn } from "./releases.en"
 import type { ReleaseArea } from "./latestVersion"
 
 export type { ReleaseArea }
@@ -22,12 +23,12 @@ export type { ReleaseArea }
    accumulate as plain, append-only data.
 
    `releases.hr.ts` is still the source of truth in the same sense as the
-   real dictionaries — write Croatian first, then a faithful Slovenian
-   translation in `releases.sl.ts` — just without the compiler enforcing it,
-   since prose doesn't type-check key by key. Newest release first in both
-   files.
+   real dictionaries — write Croatian first, then a faithful translation in
+   `releases.sl.ts` and `releases.en.ts` — just without the compiler enforcing
+   it, since prose doesn't type-check key by key. Newest release first in
+   every file, and every file holds the same releases in the same order.
 
-   This module (and the two locale files behind it) is imported ONLY from
+   This module (and the locale files behind it) is imported ONLY from
    `WhatsNewDialog.tsx`, which `main.tsx` mounts via `React.lazy` — so none of
    this prose reaches the initial bundle. `store.ts`'s `hasUnseen()` needs the
    newest version tag before the dialog has ever opened (the FAB's badge dot
@@ -119,6 +120,9 @@ function filterForSite(releases: Release[]): Release[] {
  *  cached at module load, so a language switch is picked up the next time
  *  the dialog opens. */
 export function getReleases(): Release[] {
-    const releases = getLocale() === "sl" ? releasesSl : releasesHr
+    const byLocale: Partial<Record<Locale, Release[]>> = { sl: releasesSl, en: releasesEn }
+    // `hr` is the fallback for a locale whose notes have not been written yet,
+    // exactly as `translate()` falls back for a missing dictionary key.
+    const releases = byLocale[getLocale()] ?? releasesHr
     return filterForSite(releases)
 }

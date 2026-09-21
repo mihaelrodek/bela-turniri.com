@@ -8,6 +8,7 @@
     The list must mirror the res/values-* translations that actually exist:
       values/      → hr (default, Croatian — the source of truth)
       values-sl/   → sl (Slovenian)
+      values-en/   → en (English)
     Adding a values-xx/ folder means adding xx here, and vice versa; a locale
     listed with no resources falls back to the default and looks like a bug.
 
@@ -17,4 +18,5 @@
 <locale-config xmlns:android="http://schemas.android.com/apk/res/android">
     <locale android:name="hr" />
     <locale android:name="sl" />
+    <locale android:name="en" />
 </locale-config>

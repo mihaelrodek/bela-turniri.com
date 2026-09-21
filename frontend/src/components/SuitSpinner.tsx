@@ -1,4 +1,4 @@
-import { chakra } from "@chakra-ui/react"
+import { Center, Text, VStack, chakra } from "@chakra-ui/react"
 import { keyframes } from "@emotion/react"
 import { useTranslation } from "../i18n"
 
@@ -100,5 +100,21 @@ export default function SuitSpinner({ size = "md", label }: {
                 ))}
             </chakra.svg>
         </chakra.span>
+    )
+}
+
+/** A whole-page wait: the mark, big, in the MIDDLE of the screen (2026-09-21,
+ *  reported — a bare `<SuitSpinner />` returned from a gate rendered as a
+ *  small mark in the page's top-left corner, where nobody looks). `label`
+ *  puts a line of text under it; without one only the accessible name says
+ *  what is happening. */
+export function PageLoading({ label, minH = "60vh" }: { label?: string; minH?: string }) {
+    return (
+        <Center minH={minH} w="full">
+            <VStack gap="4">
+                <SuitSpinner size="xl" label={label} />
+                {label && <Text color="fg.muted">{label}</Text>}
+            </VStack>
+        </Center>
     )
 }

@@ -22,20 +22,36 @@
    calendar want "" so an absent time collapses instead of showing a dash).
 
    The Intl locale follows the active UI language rather than being pinned:
-   the app ships Croatian and Slovenian, and a Slovenian speaker reading
-   Croatian month names next to translated copy looks like a bug. `getLocale`
-   is read at call time, not at module load, so a language switch takes
-   effect on the next render — which every consumer does anyway, since they
-   also call `t()`. Currency stays EUR: both countries use it.
+   the app ships Croatian, Slovenian and English, and a Slovenian speaker
+   reading Croatian month names next to translated copy looks like a bug.
+   `getLocale` is read at call time, not at module load, so a language switch
+   takes effect on the next render — which every consumer does anyway, since
+   they also call `t()`. Currency stays EUR for every locale: the app's
+   audience is in the euro area whatever language it reads the site in.
+
+   English maps to en-GB, not en-US, on purpose. The English UI is for
+   visitors to Croatian/Slovenian tournaments, so the *conventions* must stay
+   European — 22 Apr 2026 rather than Apr 22, 2026, a 24-hour clock rather
+   than "7:00 pm", and "€12.50" with the amount before the symbol the way an
+   Irish/British euro locale writes it — while the words become English.
    ────────────────────────────────────────────────────────────────────── */
 
 import { getLocale } from "../i18n"
 
 /** UI locale ("hr") to the BCP-47 tag Intl wants ("hr-HR"). */
-const INTL_TAGS: Record<string, string> = { hr: "hr-HR", sl: "sl-SI" }
+const INTL_TAGS: Record<string, string> = { hr: "hr-HR", sl: "sl-SI", en: "en-GB" }
 
-function intlTag(): string {
-    return INTL_TAGS[getLocale()] ?? "hr-HR"
+/**
+ * The BCP-47 tag for a UI language — the active one by default. Also the
+ * collation locale for name sorting (`sortTournaments` in
+ * components/listingShared.ts), which is why it takes an argument: that call
+ * site already holds the locale from `useTranslation()` and must pass it so
+ * the value is part of its `useMemo` dependency list. Exported so no call
+ * site has to keep its own locale→tag ternary — one used to, and it silently
+ * sorted every non-Slovenian language with Croatian collation.
+ */
+export function intlTag(locale?: string): string {
+    return INTL_TAGS[locale ?? getLocale()] ?? "hr-HR"
 }
 
 /** Two-digit zero pad — the building block of every manual date string here. */

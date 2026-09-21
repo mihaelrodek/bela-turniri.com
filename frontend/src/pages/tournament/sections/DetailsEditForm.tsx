@@ -15,7 +15,7 @@ import {
 } from "@chakra-ui/react"
 import { FiDollarSign, FiGift, FiImage, FiInfo, FiPhone, FiSettings, FiX } from "react-icons/fi"
 import DatePicker, { registerLocale } from "react-datepicker"
-import { hr, sl } from "date-fns/locale"
+import { hr, sl, enGB } from "date-fns/locale"
 import "react-datepicker/dist/react-datepicker.css"
 import "../../../datepicker.css"
 
@@ -30,13 +30,21 @@ import { PHONE_COUNTRIES, sanitizePhone } from "../../../utils/phone"
 import { POSTER_ACCEPT, POSTER_MAX_MB } from "../../../hooks/useTournamentEditForm"
 import type { TournamentForm } from "../../../utils/tournamentForm"
 
-/* Register both calendar locales once. The month/day names and the
+/* Register every calendar locale once, under the SAME key as the app's own
+   `Locale` values — the `locale={locale}` prop below passes the active UI
+   locale straight through, so a language without a registration here would
+   silently fall back to date-fns' built-in en-US. The month/day names and the
    week-starts-Monday rule come from date-fns; the visible FORMAT is forced by
    the `dateFormat` prop below so it never falls back to the OS region. Which
-   of the two is used is decided per render from the app's active locale — a
-   Slovenian reader was getting Croatian month names before this. */
+   one is used is decided per render from the app's active locale — a
+   Slovenian reader was getting Croatian month names before this.
+
+   English uses en-GB, not en-US: it keeps Monday as the first day of the week
+   and the day-before-month reading order the rest of the app formats with
+   (see `utils/format.ts`), which is what the fixed `dd/MM/yyyy` above needs. */
 registerLocale("hr", hr)
 registerLocale("sl", sl)
+registerLocale("en", enGB)
 
 /**
  * "Uredi turnir" — the inline edit form on the Detalji section.

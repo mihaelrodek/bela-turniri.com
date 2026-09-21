@@ -37,7 +37,7 @@
 #            MainActivity.java (registerPlugin Foldable + BelaLiveActivity),
 #            FoldablePlugin, BelaLiveActivityPlugin, LiveGameState,
 #            LiveGameNotification, BelaMessagingService, res/ (icons, splash,
-#            values-sl, shortcuts.xml, widget layouts).
+#            values-sl/values-en, shortcuts.xml, widget layouts).
 #
 # So: copy, then patch identity. Everything generated (builds, Pods, Gradle
 # caches, the synced web assets, the Cordova shims, Xcode user state) is left

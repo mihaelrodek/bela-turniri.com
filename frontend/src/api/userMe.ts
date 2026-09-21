@@ -36,7 +36,10 @@ export type UserProfile = {
     avatarPreset?: string | null
     /** "light" or "dark"; null until the user picks one. */
     colorMode?: "light" | "dark" | null
-    /** BCP-47 base tag ("hr" | "sl"); null until the user picks one. */
+    /** BCP-47 base tag ("hr" | "sl" | "en"); null until the user picks one.
+     *  Deliberately `string` rather than the `Locale` union: the column may
+     *  hold a value written by an older or newer client, and `LocaleSync`
+     *  runs it through `isLocale()` before applying it. */
     locale?: string | null
     /**
      * "Ime za igru" — the name this user wears at the card table, null when
