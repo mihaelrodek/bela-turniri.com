@@ -7,10 +7,6 @@ import type { GameStatRecord, PlayerGameStats } from "@bela/protocol"
 export const STAT_TARGET_SCORES = ["163", "501", "701", "1001"] as const
 export type StatTargetScore = (typeof STAT_TARGET_SCORES)[number]
 
-/** Finished games that earn one karma point back — mirrors the backend's
- *  `GameReliabilityService.GAMES_PER_RECOVERY`. */
-export const KARMA_RECOVERY_GAMES = 3
-
 const EMPTY_RECORD: GameStatRecord = { games: 0, wins: 0, losses: 0, winRate: 0 }
 
 /** `stats.global`, defaulted to zero so callers never have to null-check. */

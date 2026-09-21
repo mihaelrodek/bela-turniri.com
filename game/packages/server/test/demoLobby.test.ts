@@ -41,6 +41,7 @@ function identity(n: number, tempo?: DemoIdentity["tempo"]): DemoIdentity {
             byTargetScore: {},
         },
         karma: 10,
+        reliability: { recentAbandons: 0, recentGames: 12, totalAbandons: 1, windowDays: 30 },
         tempo: tempo ?? { fastMs: [5, 10], slowMs: [15, 20], slowChance: 0.2 },
     }
 }
@@ -112,10 +113,14 @@ describe("a fake person on the wire", () => {
             // badge on the whole lobby would give it away.
             expect(user.guest).toBeUndefined()
         }
-        // Empty statistics or karma is its own tell (DEMO-LOBBY.md §3).
-        const first = state.seats[0].occupant as { user: { gameStats: unknown; karma: number } }
+        // Empty statistics or karma is its own tell (DEMO-LOBBY.md §3). The
+        // same applies to the breakdown behind the karma: an empty popover on
+        // a fake person's seat would be the tell now that real players carry
+        // `reliability` too.
+        const first = state.seats[0].occupant as { user: { gameStats: unknown; karma: number; reliability: unknown } }
         expect(first.user.gameStats).toBeTruthy()
         expect(first.user.karma).toBe(10)
+        expect(first.user.reliability).toEqual({ recentAbandons: 0, recentGames: 12, totalAbandons: 1, windowDays: 30 })
 
         expect(JSON.stringify(state)).not.toContain("BOT")
         expect(JSON.stringify(summary)).not.toContain("BOT")
@@ -127,11 +132,16 @@ describe("a fake person on the wire", () => {
         const handle = lobby.createDemoRoom(OPTIONS, person, {})!
         person.gameStats.global.wins = 99
         person.karma = 7
+        // `reliability` is not booked by the director like `gameStats`/`karma`
+        // are, but `demoUserInfo` reads it fresh off the identity on every
+        // serialisation same as the others — proven here the same way.
+        person.reliability = { recentAbandons: 3, recentGames: 20, totalAbandons: 5, windowDays: 30 }
         const occupant = roomOf(lobby, handle).toState().seats[0].occupant as {
-            user: { gameStats: { global: { wins: number } }; karma: number }
+            user: { gameStats: { global: { wins: number } }; karma: number; reliability: { recentAbandons: number } }
         }
         expect(occupant.user.gameStats.global.wins).toBe(99)
         expect(occupant.user.karma).toBe(7)
+        expect(occupant.user.reliability.recentAbandons).toBe(3)
     })
 
     it("stays a PLAYER while the game is running", () => {

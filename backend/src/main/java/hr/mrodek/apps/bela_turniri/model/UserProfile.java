@@ -86,23 +86,31 @@ public class UserProfile {
     private String locale;
 
     /**
-     * Reliability score for online Bela, on a 0..10 scale. It starts at 10,
-     * loses one point per confirmed mid-game abandonment, and recovers one
-     * point per three completed games. The event ledger is the audit source;
-     * these columns are the fast, per-user values used by the game server.
+     * LEGACY (2026-09-21) — no longer the source of truth and no longer read
+     * or written by anything. Karma is now DERIVED on every read as
+     * {@code 10 − abandons in the last 30 days} from
+     * {@code game_reliability_events} (see {@code GameReliabilityService}), so
+     * a stored score could only ever be stale: nothing fires when an event
+     * ages out of the window, so "keeping it in sync" would be a lie told at
+     * write time. The column stays (NOT NULL, CHECK 0..10, default 10) because
+     * dropping it buys nothing and an applied changeset is cheaper left alone.
      */
     @Column(name = "game_karma", nullable = false)
     private int gameKarma = 10;
 
-    /** Number of confirmed mid-game abandonments, never reset automatically. */
+    /**
+     * Number of confirmed mid-game abandonments, never reset automatically.
+     * Still written on every abandonment and still shown — it is the LIFETIME
+     * figure beside the 30-day one, not an input to karma.
+     */
     @Column(name = "game_abandons", nullable = false)
     private long gameAbandons = 0;
 
     /**
-     * Finished online games counted since the last karma point was earned
-     * back (0..2). Persisted rather than derived so the recovery rule
-     * survives a restart and never has to re-read the whole result history;
-     * held at 0 while karma is full.
+     * LEGACY (2026-09-21) — dead with the recovery rule it served. Finishing
+     * games no longer earns karma back (time does), so nothing counts towards
+     * anything any more. Kept, like {@link #gameKarma}, only because removing
+     * a column is a migration nobody needs.
      */
     @Column(name = "game_completed_since_recovery", nullable = false)
     private int gameCompletedSinceRecovery = 0;

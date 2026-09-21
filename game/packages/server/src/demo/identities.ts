@@ -27,7 +27,7 @@
    ────────────────────────────────────────────────────────────────────── */
 
 import { AVATAR_PRESETS, DEFAULTS, KARMA_MAX, LIMITS, validatePlayerName } from "@bela/protocol"
-import type { GameStatRecord, PlayerGameStats } from "@bela/protocol"
+import type { GameStatRecord, PlayerGameStats, PlayerReliability } from "@bela/protocol"
 import { DEMO_FIRST_NAMES, DEMO_NICKNAMES, DEMO_SURNAMES } from "./names.js"
 import { DEMO_UID_PREFIX } from "./types.js"
 import type { DemoClock, DemoIdentity, DemoTempo } from "./types.js"
@@ -268,6 +268,24 @@ function makeKarma(rng: () => number): number {
     return KARMA_MAX - 2
 }
 
+/**
+ * `PlayerReliability` consistent with `karma` (2026-09-21 redesign: karma =
+ * `KARMA_MAX` minus abandons in the rolling window), so the popup a fake
+ * person's karma opens is never empty and never contradicts the number
+ * beside it — the whole point of a demo lobby is that nothing gives it away.
+ *
+ * `recentGames` (finished, eligible games in the same window) is drawn
+ * independently — it says nothing about `karma`, only that this person has
+ * been active — and `totalAbandons` (lifetime) is never less than
+ * `recentAbandons`: the rolling window is a subset of "ever".
+ */
+function makeReliability(rng: () => number, karma: number): PlayerReliability {
+    const recentAbandons = KARMA_MAX - karma
+    const recentGames = randInt(rng, 8, 60)
+    const totalAbandons = recentAbandons + randInt(rng, 0, 4)
+    return { recentAbandons, recentGames, totalAbandons, windowDays: 30 }
+}
+
 /* ──────────────────────────────── pool ───────────────────────────────── */
 
 interface PoolEntry {
@@ -309,13 +327,15 @@ export function createIdentityPool(rng: () => number, size = 90, clock?: DemoClo
 
         takenNames.add(key)
         takenUids.add(uid)
+        const karma = makeKarma(rng)
         entries.push({
             identity: {
                 uid,
                 name,
                 avatarPreset: pick(rng, AVATAR_PRESETS) ?? "kralj",
                 gameStats: makeGameStats(rng),
-                karma: makeKarma(rng),
+                karma,
+                reliability: makeReliability(rng, karma),
                 tempo: makeTempo(rng),
             },
             inUse: false,

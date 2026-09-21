@@ -48,7 +48,6 @@ public class GameStatsService {
     @Inject GameResultRepository resultRepo;
     @Inject GameResultPlayerRepository playerRepo;
     @Inject EntityManager em;
-    @Inject GameReliabilityService gameReliability;
 
     /**
      * Record one finished game.
@@ -95,9 +94,11 @@ public class GameStatsService {
             // from each other, so they can never disagree later.
             row.setWon(winnerTeam.equals(p.team()));
             playerRepo.persist(row);
-            if (!Boolean.TRUE.equals(p.isBot()) && !Boolean.TRUE.equals(p.isGuest())) {
-                gameReliability.recordCompleted(p.uid());
-            }
+            // Nothing else to do per seat: since 2026-09-21 a finished game
+            // earns no karma back (the "+1 per three games" recovery rule is
+            // retired). The row just written is itself what the karma popup
+            // counts as a game played in the window — see
+            // GameReliabilityService.
         }
         return true;
     }

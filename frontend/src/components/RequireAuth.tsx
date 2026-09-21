@@ -1,8 +1,9 @@
 import React from "react"
 import { Navigate, useLocation } from "react-router-dom"
-import { Box, HStack, Spinner, Text } from "@chakra-ui/react"
+import { Box, HStack, Text } from "@chakra-ui/react"
 import { useAuth } from "../auth/authContextValue"
 import { useTranslation } from "../i18n"
+import SuitSpinner from "./SuitSpinner"
 
 /**
  * Wrap a route element to require authentication. Anonymous visitors get
@@ -24,7 +25,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
     if (loading) {
         return (
             <HStack justify="center" py="16">
-                <Spinner />
+                <SuitSpinner />
                 <Text color="fg.muted">{t("common.checkingAuth")}</Text>
             </HStack>
         )

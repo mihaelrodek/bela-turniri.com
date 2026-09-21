@@ -2,7 +2,7 @@ import { Suspense, useEffect, useState, type ComponentType } from 'react'
 import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { homePath, isFullSiteOnlyPath, isGamesSite, mainSiteUrl } from './site'
 import { isNative } from './platform'
-import { Container, Flex, Spinner, Text } from '@chakra-ui/react'
+import { Container, Flex, Text } from '@chakra-ui/react'
 import NavBar from './components/NavBar'
 import MobileTabBar from './components/MobileTabBar'
 import PushBootstrap from './components/PushBootstrap'
@@ -49,6 +49,8 @@ import LoginPage from "./pages/LoginPage"
 import RegisterPage from "./pages/RegisterPage"
 import ProfileRedirect from "./pages/ProfileRedirect"
 import NotFoundPage from "./pages/NotFoundPage"
+import SuitSpinner from './components/SuitSpinner'
+import { useTranslation } from './i18n'
 
 /* ──────────────────────────────────────────────────────────────────────────
    Lazy-loaded routes. These either pull in big deps (Leaflet on /karta and
@@ -114,10 +116,11 @@ const BlokOutbox = lazyWithReload(() => import('./blok/BlokOutbox'))
  *  matches roughly what a page's first screenful occupies so the layout
  *  doesn't jump when the real page finally mounts. */
 function RouteLoading() {
+    const { t } = useTranslation()
     return (
         <Flex direction="column" align="center" justify="center" minH="60vh" gap="3">
-            <Spinner size="lg" colorPalette="blue" />
-            <Text fontSize="sm" color="fg.muted">Učitavanje…</Text>
+            <SuitSpinner size="lg" />
+            <Text fontSize="sm" color="fg.muted">{t("common.loading")}</Text>
         </Flex>
     )
 }

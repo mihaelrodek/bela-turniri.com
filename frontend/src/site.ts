@@ -118,3 +118,24 @@ export function isFullSiteOnlyPath(pathname: string): boolean {
 export function mainSiteUrl(path: string): string {
     return `${MAIN_ORIGIN}${path.startsWith("/") ? path : `/${path}`}`
 }
+
+/**
+ * Point the document's icon links at this product's files.
+ *
+ * In a BUILD the games shell (`dist/index.games.html`, the `gamesShell` plugin
+ * in vite.config.ts) already names `/games/*`, and this is a no-op. It exists
+ * for every case where the games site is served from the MAIN `index.html`:
+ * `npm run dev:games` (the plugin is build-only, so the tab showed the
+ * bela-turniri icon — reported 2026-09-21), the native games app, and a games
+ * host that somehow got the main shell. Called once from main.tsx.
+ */
+export function applyBrandIcons(): void {
+    if (!isGamesSite || typeof document === "undefined") return
+    const set = (selector: string, href: string) => {
+        const el = document.head.querySelector<HTMLLinkElement>(selector)
+        if (el && el.getAttribute("href") !== href) el.setAttribute("href", href)
+    }
+    set('link[rel="icon"][sizes="any"]', "/games/favicon.ico")
+    set('link[rel="icon"][type="image/svg+xml"]', "/games/favicon.svg")
+    set('link[rel="apple-touch-icon"]', "/games/apple-touch-icon.png")
+}

@@ -9,7 +9,6 @@ import {
     HStack,
     Input,
     Portal,
-    Spinner,
     Text,
     VStack,
 } from "@chakra-ui/react"
@@ -29,6 +28,7 @@ import {
     type BlokLinkTargetDto,
 } from "../blokLinkApi"
 import type { BlokLink } from "../types"
+import SuitSpinner from "../../components/SuitSpinner"
 
 /** §7.1's bounds on the typed name, checked here so the button can say why. */
 const NAME_MIN = 2
@@ -390,7 +390,7 @@ export default function BlokLinkDialog({
 function Loading() {
     return (
         <HStack justify="center" py="6">
-            <Spinner size="md" color="brand.solid" />
+            <SuitSpinner />
         </HStack>
     )
 }

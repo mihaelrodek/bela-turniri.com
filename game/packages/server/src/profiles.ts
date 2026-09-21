@@ -22,7 +22,7 @@
    ────────────────────────────────────────────────────────────────────── */
 
 import { KARMA_MAX, LIMITS, isAvatarPreset } from "@bela/protocol"
-import type { PlayerGameStats, GameStatRecord } from "@bela/protocol"
+import type { PlayerGameStats, GameStatRecord, PlayerReliability } from "@bela/protocol"
 import type { Config } from "./config.js"
 import { log } from "./log.js"
 
@@ -51,6 +51,14 @@ export interface AppProfile {
      * than a made-up "10/10".
      */
     karma?: number | null
+    /**
+     * What `karma` is made of (2026-09-21 redesign: karma = KARMA_MAX minus
+     * abandons in a rolling `windowDays`-day window, nothing earned back by
+     * playing). Null when the backend sent none of `recentAbandons` /
+     * `recentGames` / `totalAbandons` (older backend) — same "show nothing
+     * rather than invent a number" rule as `karma` itself.
+     */
+    reliability?: PlayerReliability | null
 }
 
 /** Why a `setGameName` did not go through. */
@@ -122,9 +130,53 @@ function parseGameStats(value: unknown): PlayerGameStats | null {
     return { global, byTargetScore }
 }
 
+/** A finite, non-negative, rounded count — or null when `value` is not a usable number. */
+function parseCount(value: unknown): number | null {
+    if (typeof value !== "number" || !Number.isFinite(value)) return null
+    return Math.max(0, Math.round(value))
+}
+
+/**
+ * `PlayerReliability` from the internal profile body's `recentAbandons` /
+ * `recentGames` / `totalAbandons` / `windowDays` (KARMA-CONTRACT.md). Null
+ * when NONE of the three counts is a usable number — an older backend that
+ * only ever sent `karma` looks exactly like that, and the client must show
+ * nothing rather than a fabricated all-zero trail. `windowDays` defaults to
+ * 30 on its own (it is meaningless without the counts, but missing it alone
+ * must not blank out counts the backend did send).
+ */
+function parseReliability(raw: {
+    recentAbandons?: unknown
+    recentGames?: unknown
+    totalAbandons?: unknown
+    windowDays?: unknown
+}): PlayerReliability | null {
+    const recentAbandons = parseCount(raw.recentAbandons)
+    const recentGames = parseCount(raw.recentGames)
+    const totalAbandons = parseCount(raw.totalAbandons)
+    if (recentAbandons === null && recentGames === null && totalAbandons === null) return null
+    return {
+        recentAbandons: recentAbandons ?? 0,
+        recentGames: recentGames ?? 0,
+        totalAbandons: totalAbandons ?? 0,
+        windowDays: parseCount(raw.windowDays) ?? 30,
+    }
+}
+
 function parseProfile(body: unknown): AppProfile | null {
     if (typeof body !== "object" || body === null) return null
-    const raw = body as { displayName?: unknown; avatarUrl?: unknown; gameName?: unknown; avatarPreset?: unknown; gameStats?: unknown; karma?: unknown }
+    const raw = body as {
+        displayName?: unknown
+        avatarUrl?: unknown
+        gameName?: unknown
+        avatarPreset?: unknown
+        gameStats?: unknown
+        karma?: unknown
+        recentAbandons?: unknown
+        recentGames?: unknown
+        totalAbandons?: unknown
+        windowDays?: unknown
+    }
     const displayName = typeof raw.displayName === "string" && raw.displayName.trim().length > 0
         ? raw.displayName.trim().slice(0, 60)
         : null
@@ -139,15 +191,17 @@ function parseProfile(body: unknown): AppProfile | null {
     // would go blank instead of falling back to initials.
     const avatarPreset = isAvatarPreset(raw.avatarPreset) ? raw.avatarPreset : null
     const gameStats = parseGameStats(raw.gameStats)
-    // Karma stays OUT of the emptiness test below: the backend answers with a
-    // karma for every uid, including guests with no profile row, so counting
-    // it would turn every "no profile" miss into a hit and cache it for the
-    // long TTL. A seat with nothing else to say still gets none.
+    // Karma (and its `reliability` breakdown) stay OUT of the emptiness test
+    // below: the backend answers with a karma for every uid, including
+    // guests with no profile row, so counting it would turn every "no
+    // profile" miss into a hit and cache it for the long TTL. A seat with
+    // nothing else to say still gets none.
     const karma = typeof raw.karma === "number" && Number.isFinite(raw.karma)
         ? Math.max(0, Math.min(KARMA_MAX, Math.round(raw.karma)))
         : null
+    const reliability = parseReliability(raw)
     if (displayName === null && avatarUrl === null && gameName === null && avatarPreset === null && gameStats === null) return null
-    return { displayName, avatarUrl, gameName, avatarPreset, gameStats, karma }
+    return { displayName, avatarUrl, gameName, avatarPreset, gameStats, karma, reliability }
 }
 
 export function createProfileLookup(cfg: Config): ProfileLookup {

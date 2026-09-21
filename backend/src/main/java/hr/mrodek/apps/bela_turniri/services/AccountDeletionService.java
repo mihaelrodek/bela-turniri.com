@@ -60,7 +60,11 @@ import java.util.List;
  *   <tr><td>{@code game_reliability_events}</td>
  *       <td>rows DELETED (2026-09-20) — karma and abandon history is a
  *           behavioural record of the person, not of any match, and the
- *           derived score is only ever read for a live uid.</td></tr>
+ *           derived score is only ever read for a live uid. Still exactly
+ *           right after the 2026-09-21 redesign: karma is now computed from
+ *           these rows alone, so deleting them IS deleting the score (the
+ *           legacy {@code user_profiles.game_karma} column is no longer read
+ *           by anything).</td></tr>
  *   <tr><td>{@code processed_operations}</td>
  *       <td>rows DELETED (2026-09-20) — the idempotency ledger stores the
  *           REPLAYED RESPONSE BODY of each queued mutation, which can hold

@@ -168,7 +168,15 @@
 
     <!-- Karma rescaled from 0..100 to a plain 0..10 ("10/10" at the start,
          -1 per abandoned game, +1 per three finished ones) plus the
-         persisted recovery counter that rule needs. -->
+         persisted recovery counter that rule needs. The recovery half of that
+         rule was retired on 2026-09-21 (see the next include); the scale and
+         the columns stay. -->
     <include file="db/changelog/game_karma_scale.xml" relativeToChangelogFile="false"/>
+
+    <!-- Karma redesigned into a rolling 30-day window and DERIVED on every
+         read (10 - abandons in the window, floor 0; finishing games no longer
+         earns anything back). Index-only changeset: the two stored columns
+         from the previous rule stay where they are, unread. -->
+    <include file="db/changelog/game_reliability_window.xml" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

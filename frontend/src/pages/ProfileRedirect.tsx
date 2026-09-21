@@ -1,8 +1,9 @@
 import { useEffect } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Box, Spinner, Text, VStack } from "@chakra-ui/react"
+import { Box, Text, VStack } from "@chakra-ui/react"
 import { useAuth } from "../auth/authContextValue"
 import { useTranslation } from "../i18n"
+import SuitSpinner from "../components/SuitSpinner"
 
 /**
  * Sits at /profil and forwards to /profil/{my-slug} once the slug from
@@ -35,7 +36,7 @@ export default function ProfileRedirect() {
 
     return (
         <VStack py="10" gap="3">
-            <Spinner />
+            <SuitSpinner />
             <Box>
                 <Text fontSize="sm" color="fg.muted">{t("forms.profileRedirect.opening")}</Text>
             </Box>

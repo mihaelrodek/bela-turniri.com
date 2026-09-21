@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+    <!--
+      Karma stops being a stored score and becomes a derived one:
+      10 - (abandons in the last 30 days), floor 0, recomputed on every read.
+      That turns two reads that used to be a single-row lookup into counting
+      queries, so they get their indexes here.
+
+      game_reliability_events already has
+      idx_game_reliability_events_user_time (user_uid, occurred_at) from
+      2026-09-18 — exactly the shape the window count needs, so nothing is
+      added for it; this comment exists so the next reader does not go looking.
+
+      game_result_players has idx_game_result_players_uid (uid) from
+      2026-09-08-game-stats, but the window count also has to reach
+      game_results.played_at for every one of those rows. An index on
+      played_at makes the other side of that join a range scan instead of a
+      sequential read once the table grows.
+
+      No column changes: user_profiles.game_karma and
+      game_completed_since_recovery are deliberately LEFT IN PLACE, unread and
+      unwritten (see UserProfile's field comments). Dropping them would be an
+      irreversible migration in exchange for nothing.
+    -->
+    <changeSet id="2026-09-21-game-reliability-window-index" author="mrodek">
+        <createIndex tableName="game_results" indexName="idx_game_results_played_at">
+            <column name="played_at"/>
+        </createIndex>
+        <rollback>
+            <dropIndex tableName="game_results" indexName="idx_game_results_played_at"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

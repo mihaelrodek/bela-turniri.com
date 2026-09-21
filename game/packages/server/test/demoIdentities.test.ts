@@ -115,6 +115,24 @@ describe("createIdentityPool", () => {
         expect(veterans).toBeGreaterThan(0)
     })
 
+    it("gives everyone a reliability breakdown consistent with their karma (2026-09-21)", () => {
+        const pool = createIdentityPool(seeded(17), 90)
+        let anyAbandons = false
+        for (const id of pool.all()) {
+            const r = id.reliability
+            // karma = KARMA_MAX − recentAbandons is the whole rule — the demo
+            // popup must not contradict the number beside it.
+            expect(r.recentAbandons).toBe(KARMA_MAX - id.karma)
+            expect(r.recentGames).toBeGreaterThanOrEqual(8)
+            expect(r.recentGames).toBeLessThanOrEqual(60)
+            // Lifetime can never be less than the rolling window's slice of it.
+            expect(r.totalAbandons).toBeGreaterThanOrEqual(r.recentAbandons)
+            expect(r.windowDays).toBe(30)
+            if (r.recentAbandons > 0) anyAbandons = true
+        }
+        expect(anyAbandons).toBe(true)
+    })
+
     it("gives everyone their own tempo, always inside the turn deadline", () => {
         const pool = createIdentityPool(seeded(13), 90)
         const signatures = new Set<string>()

@@ -723,7 +723,7 @@ class MockServer {
 
     constructor(handlers: GameTransportHandlers) {
         this.handlers = handlers
-        this.me = { uid: "mock-me", name: t("game.mock.youName"), avatarUrl: null, gameStats: MOCK_STATS, karma: 10 }
+        this.me = { uid: "mock-me", name: t("game.mock.youName"), avatarUrl: null, gameStats: MOCK_STATS, karma: 10, reliability: { recentAbandons: 0, recentGames: 20, totalAbandons: 0, windowDays: 30 } }
         if (!seeded) {
             seeded = true
             this.seedRooms()
@@ -767,7 +767,7 @@ class MockServer {
                 user: { uid: "mock-host", name: t("game.mock.otherName"), avatarUrl: null, gameStats: {
                     global: { games: 47, wins: 29, losses: 18, winRate: 0.617 },
                     byTargetScore: { "1001": { games: 21, wins: 12, losses: 9, winRate: 0.571 } },
-                }, karma: 8 },
+                }, karma: 8, reliability: { recentAbandons: 2, recentGames: 25, totalAbandons: 5, windowDays: 30 } },
                 ready: true,
                 connected: true,
             },

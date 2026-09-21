@@ -356,7 +356,7 @@ export default function GameLobbyPage() {
                             request): alone on its own row under the stat tiles
                             it read as a stray sixth tile. It is a fact about
                             the PLAYER, so it sits with the player. */}
-                        <Box flexShrink={0}><SeatKarmaPill karma={socket.me?.karma} /></Box>
+                        <Box flexShrink={0}><SeatKarmaPill karma={socket.me?.karma} reliability={socket.me?.reliability} /></Box>
                     </HStack>
                     <VisuallyHidden>
                         <Heading as="h1">{t("game.lobby.heading")}</Heading>

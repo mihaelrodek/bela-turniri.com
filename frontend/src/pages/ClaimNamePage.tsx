@@ -7,7 +7,6 @@ import {
     Card,
     Heading,
     HStack,
-    Spinner,
     Text,
     VStack,
 } from "@chakra-ui/react"
@@ -18,6 +17,7 @@ import {
 } from "../api/presetClaim"
 import { useAuth } from "../auth/authContextValue"
 import { useTranslation } from "../i18n"
+import SuitSpinner from "../components/SuitSpinner"
 
 /**
  * Landing page for the preset share URL: /claim-name/{token}.
@@ -99,7 +99,7 @@ export default function ClaimNamePage() {
     if (loading || authLoading) {
         return (
             <VStack py="16" gap="3">
-                <Spinner />
+                <SuitSpinner />
                 <Text color="fg.muted" fontSize="sm">{t("common.loading")}</Text>
             </VStack>
         )

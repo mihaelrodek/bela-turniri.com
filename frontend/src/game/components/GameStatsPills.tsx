@@ -2,9 +2,9 @@ import type { MouseEvent } from "react"
 import { Box, chakra, HStack, Popover, Portal, SimpleGrid, Text, VStack } from "@chakra-ui/react"
 import { FiShield } from "react-icons/fi"
 import { KARMA_MAX } from "@bela/protocol"
-import type { GameStatRecord, PlayerGameStats } from "@bela/protocol"
-import { useTranslation } from "../../i18n"
-import { KARMA_RECOVERY_GAMES, STAT_TARGET_SCORES, overallRecord, targetRecord, winPercent, type StatTargetScore } from "../util/gameStats"
+import type { GameStatRecord, PlayerGameStats, PlayerReliability } from "@bela/protocol"
+import { useTranslation, usePlural } from "../../i18n"
+import { STAT_TARGET_SCORES, overallRecord, targetRecord, winPercent, type StatTargetScore } from "../util/gameStats"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Shared stat-pill formatting (2026-09-20, user request) — RoomPanel's seat
@@ -45,13 +45,30 @@ export function SeatStatPill({ stats }: { stats: PlayerGameStats }) {
  *  worth a glance.
  *
  *  The chip is a button: a tap opens a small popover saying what karma is
- *  (`game.karma.explain`, taken from the backend's `GameReliabilityService`
- *  rules). Its click never bubbles, so it is safe inside a clickable card. */
-export function SeatKarmaPill({ karma }: { karma: number | null | undefined }) {
+ *  made of. `reliability` (2026-09-21 karma redesign, `PlayerReliability`) is
+ *  optional and separate from `karma` on purpose — an older server sends the
+ *  bare number and nothing else, so the popover falls back to JUST the
+ *  explanation rather than rendering an "X od Y" line it cannot back up.
+ *  When present, the trail is shown, not erased: a rolling-window line
+ *  ("napustio X od Y partija u zadnjih Z dana", or a friendlier zero-abandon
+ *  sentence) plus the lifetime abandon count, then the explanation. Its click
+ *  never bubbles, so it is safe inside a clickable card. */
+export function SeatKarmaPill({ karma, reliability }: {
+    karma: number | null | undefined
+    reliability?: PlayerReliability | null
+}) {
     const { t } = useTranslation()
+    const plural = usePlural()
     if (typeof karma !== "number" || !Number.isFinite(karma)) return null
     const value = Math.max(0, Math.min(KARMA_MAX, Math.round(karma)))
     const low = value < KARMA_MAX
+    // Pre-composed, already-declined phrases — passed as PLAIN STRING params
+    // into the sentence keys below, never a bare {n} dropped into a fixed
+    // noun (KARMA-CONTRACT.md). `total` is recentAbandons + recentGames, the
+    // denominator the popup shows ("X od Y").
+    const total = reliability ? reliability.recentAbandons + reliability.recentGames : 0
+    const windowPhrase = reliability ? plural("game.karma.lastDays", reliability.windowDays) : ""
+    const durationPhrase = reliability ? plural("game.karma.daysDuration", reliability.windowDays) : ""
     return (
         <Popover.Root positioning={{ placement: "bottom" }} lazyMount unmountOnExit>
             <Popover.Trigger asChild>
@@ -72,8 +89,24 @@ export function SeatKarmaPill({ karma }: { karma: number | null | undefined }) {
                     <Popover.Content maxW="280px">
                         <Popover.Arrow><Popover.ArrowTip /></Popover.Arrow>
                         <Popover.Body fontSize="sm" color="fg.soft">
-                            <Text fontWeight="semibold" color="fg" mb="1">{t("game.room.karma", { value, max: KARMA_MAX })}</Text>
-                            {t("game.karma.explain", { max: KARMA_MAX, recovery: KARMA_RECOVERY_GAMES })}
+                            <VStack align="stretch" gap="1.5">
+                                <Text fontWeight="semibold" color="fg">{t("game.room.karma", { value, max: KARMA_MAX })}</Text>
+                                {reliability && (
+                                    <Text>
+                                        {reliability.recentAbandons > 0
+                                            ? t("game.karma.abandonedLine", {
+                                                abandoned: reliability.recentAbandons,
+                                                games: plural("game.karma.gamesOf", total),
+                                                window: windowPhrase,
+                                            })
+                                            : t("game.karma.noAbandonsLine", { window: windowPhrase })}
+                                    </Text>
+                                )}
+                                {reliability && (
+                                    <Text>{t("game.karma.totalAbandonsLine", { count: reliability.totalAbandons })}</Text>
+                                )}
+                                <Text>{t("game.karma.explain", { max: KARMA_MAX, window: durationPhrase || plural("game.karma.daysDuration", 30) })}</Text>
+                            </VStack>
                         </Popover.Body>
                     </Popover.Content>
                 </Popover.Positioner>

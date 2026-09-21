@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react"
-import { Box, Button, Dialog, Portal, Spinner, Text, VStack } from "@chakra-ui/react"
+import { Box, Button, Dialog, Portal, Text, VStack } from "@chakra-ui/react"
 import { fetchMyTournaments, fetchTournamentDetails } from "../api/tournaments"
 import type { TournamentCard, TournamentDetails } from "../types/tournaments"
 import { useTranslation } from "../i18n"
 import { formatDateTime } from "../utils/format"
 import { showError } from "../toaster"
+import SuitSpinner from "./SuitSpinner"
 
 /* ──────────────────────────────────────────────────────────────────────────
    LoadTournamentTemplateDialog — "Učitaj iz predloška" on the create-tournament
@@ -80,7 +81,7 @@ export default function LoadTournamentTemplateDialog({
 
                             {loading && (
                                 <Box display="flex" justifyContent="center" py="6">
-                                    <Spinner size="md" />
+                                    <SuitSpinner />
                                 </Box>
                             )}
 

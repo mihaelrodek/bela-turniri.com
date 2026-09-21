@@ -1180,35 +1180,47 @@ nije kritičan, partija za igrače nije pogođena.
 Prikaz: nova kartica na profilu (`frontend/src/pages/profile/`), uz postojeće
 `TournamentsCard`/`MyPairsCard` uzorak. hr + sl i18n, obavezno.
 
-### 8.6 Karma (pouzdanost) — NORMATIVNO (2026-09-20)
-Karma je **mali cijeli broj 0..10** i prikazuje se uvijek kao `x/10`. Pravila
-su namjerno takva da ih igrač može ispričati u jednoj rečenici:
+### 8.6 Karma (pouzdanost) — NORMATIVNO (2026-09-21 redizajn)
+Karma je **mali cijeli broj 0..10** i prikazuje se uvijek kao `x/10`. Formula
+je namjerno takva da je igrač može ispričati u jednoj rečenici:
 
-| Događaj | Promjena |
-|---|---|
-| Novi igrač | počinje s **10/10** |
-| Napuštena partija u tijeku (`ABANDONED`, tek nakon isteka reconnect gracea) | **−1**, pod je 0 |
-| Tri završene partije koje se broje (§8.1) | **+1**, strop je 10 |
+```
+karma = KARMA_MAX − (partija napuštenih u posljednjih windowDays dana), pod je 0
+```
 
-Ranija skala bila je 0..100 (−15 / +3) i nikome nije značila ništa; migracija
-`db/changelog/game_karma_scale.xml` (`2026-09-20-game-karma-scale`) postojeće
-vrijednosti preračunava s `CEIL(stara/10)`, mijenja default stupca na 10 i
-dodaje `CHECK (game_karma BETWEEN 0 AND 10)`.
+KLIZNI prozor (`windowDays`, 30): svako napuštanje (`ABANDONED`, tek nakon
+isteka reconnect gracea) teži na broj točno `windowDays` dana od svog
+`occurred_at`, pa samo otpadne — nema kalendarskog reseta i nema "prijave"
+koja bi ga uklonila ranije. **Nema više pozitivnih bodova**: dovršavanje
+partija (§8.1) više ništa ne vraća — stari "svake tri završene +1" i brojač
+`user_profiles.game_completed_since_recovery` koji ga je pratio su ukinuti.
+Trag se i dalje PRIKAZUJE, samo se ne briše: karma nosi sa sobom razlog broja,
+ne samo sam broj.
 
-Vlasnik pravila je backend `GameReliabilityService` (`MAX_KARMA`,
-`ABANDON_PENALTY`, `GAMES_PER_RECOVERY`); Node je i ovdje samo prijavitelj
-(`statsReporter.reportGameAbandonment` → `POST /internal/game-reliability-events`,
-idempotentno po `eventId`). Oporavak broji `user_profiles.game_completed_since_recovery`
-(0..2), koji se puni iz `GameStatsService` kad se zapiše završena partija i drži
-se na 0 dok je karma puna — puna karma ne skuplja kredit unaprijed.
+Vlasnik pravila je backend `GameReliabilityService`; Node je i ovdje samo
+prijavitelj (`statsReporter.reportGameAbandonment` →
+`POST /internal/game-reliability-events`, idempotentno po `eventId`).
 
-**Wire:** `GET /internal/profiles/{uid}` vraća i `karma` (uvijek, 10 za uid bez
-profila), `profiles.ts` ga parsira, `auth.ts withAppProfile` ga spaja u
-`UserInfo.karma` (`@bela/protocol`, **opcionalno** polje uz `KARMA_MAX = 10`, pa
-stariji klijent/server ne puca). Vidi se samo članovima sobe, kao `gameStats` —
-`RoomOccupant` u lobi listi ga nema.
+**Wire:** `GET /internal/profiles/{uid}` (interni endpoint koji ovaj
+poslužitelj čita) vraća, uz `karma` (uvijek, 10 za uid bez profila), i
+`recentAbandons`, `recentGames` (dovršene, ubrojive partije u istom prozoru),
+`totalAbandons` (otkad postoji račun, nikad se ne resetira) i `windowDays`
+(30) — kao brojevi, uz `karma`. `profiles.ts` ih parsira obrambeno (konačni,
+ne-negativni, zaokruženi brojevi; `windowDays` pada na 30 kad nedostaje) u
+`AppProfile.reliability: PlayerReliability | null` — `null` kad backend nije
+poslao nijedan od tri broja (stariji backend), tako da klijent ne izmišlja
+nulu koju ne može jamčiti. `auth.ts withAppProfile` ga spaja u
+`UserInfo.reliability` (`@bela/protocol`, **opcionalno** polje uz
+`UserInfo.karma` i `KARMA_MAX = 10`, pa stariji klijent/server ne puca). Vidi
+se samo članovima sobe, kao `karma`/`gameStats` — `RoomOccupant` u lobi listi
+ga nema.
+
+**Demo lutke** (`demo/identities.ts`, `GAME_DEMO_LOBBY`, DEMO-LOBBY.md) nose vlastiti
+`reliability` konzistentan s izvučenom `karma` (`recentAbandons = KARMA_MAX −
+karma`) — bez toga bi popup uz njihovu karmu bio prazan, što je samo po sebi
+odaja (DEMO-LOBBY.md §3).
 
 **Prikaz:** `RoomPanel` uz svako sjedalo (`SeatKarmaPill`, štit + `9/10`,
 narančasto ispod 10, ništa kad server nije poslao karmu — botovi, gosti) i
-`profile/GameStatsCard` (`x/10` + jedna rečenica pravila,
-`profile.gameStats.karmaHint`). hr + sl i18n obavezno.
+`profile/GameStatsCard` (`x/10` + popover s razlogom, iz `reliability`). hr +
+sl i18n obavezno.

@@ -1,4 +1,4 @@
-import { useRef } from "react"
+import { useLayoutEffect, useRef } from "react"
 import { Box, Grid, VisuallyHidden, useBreakpointValue } from "@chakra-ui/react"
 import { keyframes } from "@emotion/react"
 import type { Card } from "@bela/protocol"
@@ -53,11 +53,39 @@ import { CARD_WIDTH, HAND_CARD_SIZE, SLOT_GAP, type HandCardSize } from "./handL
  *  never restarted an animation, but it made every hand re-serialise eight
  *  keyframe blocks for nothing. */
 const DEAL_IN = keyframes({
-    from: { transform: "translateY(26px) scale(0.85)", opacity: 0 },
-    to: { transform: "translateY(0) scale(1)", opacity: 1 },
+    // Slid up from below the tray with a slight tilt, a hair past its place and
+    // back (2026-09-21, user request: the old 26 px / 260 ms rise was over
+    // before anybody saw it and the hand read as static). Still one movement.
+    "0%": { transform: "translateY(44px) rotate(-5deg) scale(0.9)", opacity: 0 },
+    "70%": { transform: "translateY(-4px) rotate(0.6deg) scale(1.01)", opacity: 1 },
+    "100%": { transform: "translateY(0) rotate(0deg) scale(1)", opacity: 1 },
 })
 /** Stagger between two cards dealing in. */
-const DEAL_STEP_MS = 35
+const DEAL_STEP_MS = 60
+const DEAL_MS = 420
+
+/** The two TALON cards turning face up (2026-09-21): lifted a little, turned
+ *  over about their own vertical axis, then set down into the slot the sort
+ *  gave them. The gold ring fades with it so the eye finds the NEW cards among
+ *  eight — without it the resort hides which two arrived. Resting style equals
+ *  the last frame, as every keyframe in this app must. */
+const TALON_IN = keyframes({
+    "0%": { transform: "perspective(700px) translateY(-16px) rotateY(88deg) scale(1.05)", opacity: 0.35 },
+    "55%": { transform: "perspective(700px) translateY(-12px) rotateY(0deg) scale(1.05)", opacity: 1 },
+    "100%": { transform: "perspective(700px) translateY(0) rotateY(0deg) scale(1)", opacity: 1 },
+})
+const TALON_RING = keyframes({
+    "0%": { boxShadow: "0 0 0 0 transparent" },
+    "35%": { boxShadow: "0 0 0 2px var(--chakra-colors-gold), 0 6px 18px color-mix(in srgb, var(--chakra-colors-gold) 35%, transparent)" },
+    "100%": { boxShadow: "0 0 0 0 transparent" },
+})
+const TALON_MS = 520
+/** The cards already in hand start sliding first; the talon lands after them. */
+const TALON_DELAY_MS = 140
+const TALON_STEP_MS = 110
+/** A card moving to another slot when the hand is re-sorted around the talon. */
+const MOVE_MS = 380
+const MOVE_EASING = "cubic-bezier(0.22, 1, 0.36, 1)"
 const TALON_SLOT = Symbol("talon-slot")
 type HandSlot = Card | typeof TALON_SLOT
 type StableHandSlot = HandSlot | null
@@ -170,6 +198,11 @@ export default function Hand({
         bidding: phase === "BIDDING",
         slots: [],
     })
+    /* Which cards came out of the TALON this deal — they turn face up
+       (`TALON_IN`) instead of dealing in from below. Decided at the one render
+       where bidding ends, remembered for the node's lifetime, and cleared with
+       the next deal. */
+    const talonCardsRef = useRef(new Map<Card, number>())
     const bidding = phase === "BIDDING"
     const previousCards = layoutRef.current.slots.filter(
         (slot): slot is Card => slot !== null && slot !== TALON_SLOT,
@@ -180,7 +213,10 @@ export default function Hand({
     if (bidding) {
         // A NEW deal starts the stagger over: the pinned delays above belong
         // to the cards of the deal that just ended.
-        if (introducesCards) dealDelayRef.current.clear()
+        if (introducesCards) {
+            dealDelayRef.current.clear()
+            talonCardsRef.current.clear()
+        }
         slots = [
             ...sortHandForDisplay(cards),
             ...Array.from(
@@ -195,6 +231,17 @@ export default function Hand({
         // received the cards still in hand — before falling back to sorting
         // whatever `cards` holds right now (today's behaviour).
         const held = new Set(cards)
+        // Bidding just ended with six cards on the table: whatever is new is
+        // the talon. (A reconnect or a refresh has no six to compare with, so
+        // nothing is marked and the whole hand simply deals in.)
+        if (layoutRef.current.bidding && previousCards.length > 0) {
+            let order = 0
+            for (const card of sortHandForDisplay(cards)) {
+                if (!previousCards.includes(card) && !talonCardsRef.current.has(card)) {
+                    talonCardsRef.current.set(card, order++)
+                }
+            }
+        }
         const stored = layoutKey !== null ? readStoredLayout(layoutKey) : null
         const storedCoversHeld = stored !== null && cards.every((card) => stored.includes(card))
         const fullDeal = storedCoversHeld ? sortHandForDisplay(stored) : sortHandForDisplay(cards)
@@ -218,6 +265,44 @@ export default function Hand({
         )
     }
     layoutRef.current = { bidding, slots }
+
+    /* The re-sort around the talon MOVES the six cards already in hand, and a
+       grid does that in one frame — they teleported (2026-09-21, user request:
+       "previše statično"). FLIP: every card's wrapper is measured after each
+       render; one whose SLOT INDEX changed is put back where it was with a
+       transform and released, so it slides to its new place. Keyed on the
+       index, not on the rectangle, so a resize, a breakpoint change or the
+       `--hand-k` zoom settling never sets the hand sliding. The distance is
+       divided by the grid's `zoom`, because a transform inside a zoomed box is
+       in unzoomed pixels while the rectangles are not. */
+    const gridRef = useRef<HTMLDivElement | null>(null)
+    const cardNodes = useRef(new Map<Card, HTMLElement>())
+    const lastPlace = useRef(new Map<Card, { index: number; x: number; y: number }>())
+    useLayoutEffect(() => {
+        const grid = gridRef.current
+        if (!grid) return
+        const origin = grid.getBoundingClientRect()
+        const zoom = Number.parseFloat(getComputedStyle(grid).zoom) || 1
+        const next = new Map<Card, { index: number; x: number; y: number }>()
+        slots.forEach((slot, index) => {
+            if (slot === null || slot === TALON_SLOT) return
+            const node = cardNodes.current.get(slot)
+            if (!node) return
+            const rect = node.getBoundingClientRect()
+            const place = { index, x: rect.left - origin.left, y: rect.top - origin.top }
+            next.set(slot, place)
+            const before = lastPlace.current.get(slot)
+            if (!before || before.index === index || reducedMotion) return
+            const dx = (before.x - place.x) / zoom
+            const dy = (before.y - place.y) / zoom
+            if (dx === 0 && dy === 0) return
+            node.animate(
+                [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0, 0)" }],
+                { duration: MOVE_MS, easing: MOVE_EASING },
+            )
+        })
+        lastPlace.current = next
+    })
 
     return (
         <Box
@@ -248,6 +333,7 @@ export default function Hand({
         >
             {cards.length === 0 && <VisuallyHidden>{t("game.hand.empty")}</VisuallyHidden>}
             <Grid
+                ref={gridRef}
                 className="fold-game-hand-grid"
                 templateColumns={`repeat(${columns}, ${cardWidth}px)`}
                 alignItems="end"
@@ -278,15 +364,25 @@ export default function Hand({
                                   // after bidding) mounts fresh and deals in.
                                   ...(reducedMotion
                                       ? {}
-                                      : {
-                                            animation: `${DEAL_IN} 260ms cubic-bezier(0.16,1,0.3,1) backwards`,
-                                            animationDelay: `${dealDelay(card, index)}ms`,
-                                        }),
+                                      : talonCardsRef.current.has(card)
+                                        ? {
+                                              animation: `${TALON_IN} ${TALON_MS}ms cubic-bezier(0.22,1,0.36,1) backwards, ${TALON_RING} 1100ms ease-out backwards`,
+                                              animationDelay: `${TALON_DELAY_MS + (talonCardsRef.current.get(card) ?? 0) * TALON_STEP_MS}ms`,
+                                          }
+                                        : {
+                                              animation: `${DEAL_IN} ${DEAL_MS}ms cubic-bezier(0.22,1,0.36,1) backwards`,
+                                              animationDelay: `${dealDelay(card, index)}ms`,
+                                          }),
                               }
                             : {}
                     return (
                         <Box
                             key={card ?? (slot === TALON_SLOT ? `talon-${index}` : `empty-${index}`)}
+                            ref={(node: HTMLElement | null) => {
+                                if (card === null) return
+                                if (node) cardNodes.current.set(card, node)
+                                else cardNodes.current.delete(card)
+                            }}
                             flexShrink={0}
                             // Every card owns the same full-width slot in the
                             // fixed grid — four columns on a phone, eight from

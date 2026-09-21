@@ -214,7 +214,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                                     {occupant?.kind === "PLAYER" && (occupant.user.gameStats || occupant.user.karma != null) && (
                                         <VStack ms="auto" flexShrink={0} gap="1" align="center">
                                             {occupant.user.gameStats && <SeatStatPill stats={occupant.user.gameStats} />}
-                                            <SeatKarmaPill karma={occupant.user.karma} />
+                                            <SeatKarmaPill karma={occupant.user.karma} reliability={occupant.user.reliability} />
                                         </VStack>
                                     )}
                                     <HStack justify="end" gap="2">

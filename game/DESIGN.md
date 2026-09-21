@@ -801,14 +801,17 @@ podjele stvarno odlučuje partiju („izjednačen" iz BOT.md); inače bot pasira
 slabu ruku. Mus (djelitelj) i dalje bira najjaču boju po `suitStrength`.
 Testovi u `heuristicBot.test.ts` (nisu pokrenuti).
 
-## Karma ispod postotka + objašnjenje (2026-09-20)
+## Karma ispod postotka + objašnjenje (2026-09-20, pravilo redizajnirano 2026-09-21)
 
-- `SeatKarmaPill` (`GameStatsPills.tsx`) je sada gumb koji otvara Popover s
-  objašnjenjem (`game.karma.explain`, hr + sl) — pravila su iz backendovog
-  `GameReliabilityService`: start 10/10, napuštanje partije u tijeku uz barem
-  još jednog čovjeka −1 (nakon isteka roka za povratak), svake 3 završene +1
-  (`KARMA_RECOVERY_GAMES` u `util/gameStats.ts` zrcali backend). Klik ne
-  propagira, pa je siguran unutar kartice sjedala.
+- `SeatKarmaPill` (`GameStatsPills.tsx`) je gumb koji otvara Popover s
+  objašnjenjem (`game.karma.explain`, hr + sl) — pravilo je iz backendovog
+  `GameReliabilityService` (2026-09-21 redizajn): `karma = 10 − (partija
+  napuštenih u posljednjih 30 dana)`, KLIZNI prozor po napuštanju, bez ikakvog
+  vraćanja bodova za dovršene partije (stari "svake 3 završene +1" i
+  `KARMA_RECOVERY_GAMES` su ukinuti). Popover prikazuje trag iza broja
+  (`UserInfo.reliability`: "napustio X od Y partija u zadnjih 30 dana" +
+  broj napuštanja otkad račun postoji), ne samo goli broj. Klik ne propagira,
+  pa je siguran unutar kartice sjedala.
 - Sjedalo u `RoomPanel`: pilula rezultata (0–0 · 0%) i karma su složene
   okomito, karma centrirana ispod postotka.
 - Lobby zaglavlje (`GameLobbyPage`): karma se prikazuje i uz vlastite
@@ -1047,3 +1050,24 @@ uz „smanjeno kretanje" (sustav ili postavka igre) bez animacije.
 „Dodaj bota" u demo sobi dodaje **pravog, vidljivog bota** koji se može maknuti
 (ispravak isti dan; prije je tiho sjedala lažna osoba). Botovi koje je posjetitelj
 dodao odlaze s njim kad zadnji pravi igrač napusti čekaonicu.
+
+### Ruka: dijeljenje, talon i presortiranje (2026-09-21)
+
+Ruka je bila „previše statična". Tri blage animacije, sve u `Hand.tsx`, sve
+ugašene uz `prefers-reduced-motion` ili postavku „smanji animacije":
+
+- **Prvih šest karata** (`DEAL_IN`, 420 ms, razmak 60 ms): dolaze odozdo s blagim
+  nagibom i sjedaju uz jedva vidljiv prebačaj. Prije je to bilo 26 px / 260 ms i
+  nitko to nije stigao vidjeti.
+- **Dvije karte iz talona** (`TALON_IN` + `TALON_RING`, 520 ms): malo se podignu,
+  okrenu oko svoje okomite osi i spuste na mjesto koje im je dao sort; zlatni
+  prsten koji blijedi pokazuje KOJE su dvije nove. Kreću 140 ms nakon što su se
+  stare karte počele micati, jedna za drugom.
+- **Presortiranje** (FLIP, 380 ms): šest karata koje su već u ruci klize na novo
+  mjesto umjesto da preskoče. Okidač je promjena INDEKSA utora, ne pravokutnika,
+  pa promjena veličine prozora ili `--hand-k` zuma ne pokreće ništa; pomak se
+  dijeli sa `zoom` mreže.
+
+Koje su karte „iz talona" odlučuje se u jednom renderu — onom u kojem licitacija
+završi, a na stolu je bilo šest karata. Nakon osvježavanja stranice tog trenutka
+nema, pa se cijela ruka jednostavno podijeli odozdo.

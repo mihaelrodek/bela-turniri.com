@@ -9,7 +9,6 @@ import {
     IconButton,
     Menu,
     Skeleton,
-    Spinner,
     Text,
     VStack,
 } from "@chakra-ui/react"
@@ -47,6 +46,7 @@ import { InvoicesCard } from "./profile/InvoicesCard"
 import { GameStatsCard } from "./profile/GameStatsCard"
 import { BlokHistoryCard } from "./profile/BlokHistoryCard"
 import { buildProfileSections, SIDEBAR_MAX_H, type ProfileSectionDef, type ProfileSectionKey } from "./profile/sections"
+import SuitSpinner from "../components/SuitSpinner"
 
 /* The three admin consoles are reachable only by an admin, only on their own
    profile, and only after clicking the tab — so their (sizeable) code is
@@ -647,7 +647,7 @@ function TabChunkLoading() {
     const { t } = useTranslation()
     return (
         <Flex align="center" justify="center" py="12" gap="3">
-            <Spinner size="md" colorPalette="blue" />
+            <SuitSpinner />
             <Text fontSize="sm" color="fg.muted">{t("common.loading")}</Text>
         </Flex>
     )

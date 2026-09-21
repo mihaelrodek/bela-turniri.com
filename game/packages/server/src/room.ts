@@ -89,9 +89,13 @@ export interface DemoRoomContext {
  * Built fresh on every serialisation rather than copied into the seat, so the
  * record the director books after a finished game (`identity.gameStats`,
  * `identity.karma` are mutable by contract) shows up on the next frame instead
- * of at the next time they sit down. `guest` is ABSENT — a signed-in Google
- * user's `UserInfo` has no such field (`auth.ts` sets it only for guests), and
- * a "gost" badge on half the lobby would give the whole thing away.
+ * of at the next time they sit down. `identity.reliability` is NOT mutable —
+ * a fake person's karma is never earned back by playing, so it is drawn once
+ * alongside `karma` (`demo/identities.ts` `makeReliability`) and just rides
+ * along here, same as the mutable fields. `guest` is ABSENT — a signed-in
+ * Google user's `UserInfo` has no such field (`auth.ts` sets it only for
+ * guests), and a "gost" badge on half the lobby would give the whole thing
+ * away.
  */
 export function demoUserInfo(identity: DemoIdentity): UserInfo {
     return {
@@ -101,6 +105,7 @@ export function demoUserInfo(identity: DemoIdentity): UserInfo {
         avatarPreset: identity.avatarPreset,
         gameStats: identity.gameStats,
         karma: identity.karma,
+        reliability: identity.reliability,
     }
 }
 

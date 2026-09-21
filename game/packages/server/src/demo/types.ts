@@ -28,7 +28,7 @@
    person leaves) are untouched.
    ────────────────────────────────────────────────────────────────────── */
 
-import type { GameEndRule, PlayerGameStats, Seat, TargetScore } from "@bela/protocol"
+import type { GameEndRule, PlayerGameStats, PlayerReliability, Seat, TargetScore } from "@bela/protocol"
 
 /** A fake person. Stable for the life of the process, so the same "Dado" shows
  *  up again an hour later with the same face and a record that only moved by
@@ -43,6 +43,14 @@ export interface DemoIdentity {
     gameStats: PlayerGameStats
     /** 0..KARMA_MAX. */
     karma: number
+    /**
+     * What `karma` is made of (2026-09-21 redesign), for the same popup a
+     * real player's karma opens. Built once alongside `karma` so the two
+     * never disagree — a fake person's karma is never earned back by
+     * playing, so nothing here needs to move as games are booked against
+     * them (unlike `gameStats`, which does).
+     */
+    reliability: PlayerReliability
     /** How this person plays the CLOCK, not the cards (the cards are the bot's). */
     readonly tempo: DemoTempo
 }

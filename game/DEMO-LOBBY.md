@@ -32,12 +32,19 @@
 Novo **interno** stanje sjedala `kind: "DEMO"` (nosi `DemoIdentity`). Prema
 klijentu se serijalizira **točno kao pravi igrač** (`kind: "PLAYER"`,
 `connected: true`, `ready: true`, `UserInfo` s `uid: demo:…`, imenom, licem,
-`gameStats`, `karma`). Kartama upravlja postojeći bot (`isBotControlled`), a
-vrijeme razmišljanja dolazi iz `DemoTempo`, ne iz `botThinkMin/Max`.
+`gameStats`, `karma`, `reliability`). Kartama upravlja postojeći bot
+(`isBotControlled`), a vrijeme razmišljanja dolazi iz `DemoTempo`, ne iz
+`botThinkMin/Max`.
 
 `DEMO` **nije** `PLAYER`: ne ulazi u statistiku, karmu, napuštanja, Live
 Activity ni analitiku (`isDemoUid`). Ali se **broji kao čovjek** tamo gdje bi
 soba inače bila raspuštena ili obrisana zbog „premalo ljudi".
+
+`identity.karma` i `identity.reliability` (2026-09-21) su izgrađeni
+ZAJEDNO i konzistentno (`demo/identities.ts` `makeKarma` +
+`makeReliability`: `recentAbandons = KARMA_MAX − karma`) — popup uz karmu
+lažne osobe mora imati isti trag kao popup uz karmu pravog igrača, nikad
+prazan popover uz puni broj.
 
 ### 2.2 Životni ciklus sobe (jedan za sve)
 
@@ -149,9 +156,10 @@ ekranu ne izgleda drukčije od pravog igrača:
   `AVATAR_PRESETS` (`@bela/protocol`). Bez valjanog presetа klijent pada na
   inicijale imena (`PlayerAvatar`/`SeatAvatar`), što ne bi bilo "isto kao
   pravi igrač".
-- `user.gameStats` i `user.karma`: moraju biti popunjeni (ne `null`/`undefined`)
-  da bi se prikazale `SeatStatPill`/`SeatKarmaPill` — bez njih par u sobi ne
-  pokazuje statistiku, što je točno "prazna statistika" iz §3 na koju
+- `user.gameStats`, `user.karma` i `user.reliability`: moraju biti popunjeni
+  (ne `null`/`undefined`) da bi se prikazale `SeatStatPill`/`SeatKarmaPill` i
+  njen popover — bez njih par u sobi ne pokazuje statistiku (ili karma-popup
+  ostane prazan), što je točno "prazna statistika ili karma" iz §3 na koju
   upozorava ovaj dokument.
 - `game.state.turnDeadline` / `turnDurationMs` moraju biti popunjeni za
   potez lažne osobe baš kao za ljudski (klijent gasi prsten SAMO za

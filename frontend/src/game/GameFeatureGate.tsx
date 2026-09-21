@@ -1,7 +1,8 @@
 import type { ReactNode } from "react"
-import { Center, Spinner } from "@chakra-ui/react"
+import { Center } from "@chakra-ui/react"
 import GameComingSoonPage from "./GameComingSoonPage"
 import { useGameEnabled } from "./hooks/useGameEnabled"
+import SuitSpinner from "../components/SuitSpinner"
 
 /**
  * The ONE place the online-bela kill switch is acted on.
@@ -38,7 +39,7 @@ export default function GameFeatureGate({ children }: { children: ReactNode }) {
     if (enabled === null) {
         return (
             <Center minH="40vh">
-                <Spinner />
+                <SuitSpinner size="lg" />
             </Center>
         )
     }

@@ -272,8 +272,31 @@ export const profile = {
     "gameStats.losses.other": "{n} poraza",
     "gameStats.winRate": "Postotak pobjeda",
     "gameStats.karma": "Karma",
-    "gameStats.karmaHint": "Svi kreću s {max}/{max}. Napuštena partija je −1, tri odigrane vraćaju +1.",
+    /* Karma redizajn (2026-09-21, KARMA-CONTRACT.md) — nema više bodova
+       unatrag za odigrane partije. `{window}` je već gotova, sklonjena fraza
+       ("30 dana"), sastavljena preko `usePlural()` s `gameStats.daysDuration`
+       ispod — nikad goli broj u fiksnu imenicu. */
+    "gameStats.karmaHint": "Svi kreću s {max}/{max}. Napuštanje partije s još barem jednim igračem oduzima 1 bod na {window}, a zatim samo otpadne. Igranjem se ništa ne vraća.",
     "gameStats.abandons": "Napuštanja",
+    /* Isti "X od Y u zadnjih Z dana" redak kao u sobi (`game.karma.*` u
+       lazy-loadanom `game` namespaceu) — dupliciran ovdje pod `profile`
+       namjerno: profilna stranica ne učitava `game` namespace (samo /igra to
+       radi preko `loadNamespace`), pa referenca na `game.karma.*` odavde bi
+       do prvog odlaska na /igra prikazivala sirov ključ. */
+    "gameStats.abandonedLine": "Napušteno {abandoned} od {games} u {window}",
+    "gameStats.noAbandonsLine": "Nijedna napuštena partija u {window}",
+    "gameStats.gamesOf.one": "{n} partije",
+    "gameStats.gamesOf.two": "{n} partije",
+    "gameStats.gamesOf.few": "{n} partije",
+    "gameStats.gamesOf.other": "{n} partija",
+    "gameStats.lastDays.one": "zadnji {n} dan",
+    "gameStats.lastDays.two": "zadnjih {n} dana",
+    "gameStats.lastDays.few": "zadnjih {n} dana",
+    "gameStats.lastDays.other": "zadnjih {n} dana",
+    "gameStats.daysDuration.one": "{n} dan",
+    "gameStats.daysDuration.two": "{n} dana",
+    "gameStats.daysDuration.few": "{n} dana",
+    "gameStats.daysDuration.other": "{n} dana",
     "gameStats.categoryStats": "{wins}/{n} ({winRate}%)",
     "gameStats.targetScore.163": "Brza 163",
     "gameStats.targetScore.501": "Do 501",

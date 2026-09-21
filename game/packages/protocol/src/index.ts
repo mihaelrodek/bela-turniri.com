@@ -167,13 +167,32 @@ export interface UserInfo {
      * than inventing a number.
      */
     karma?: number | null
+    /**
+     * What the karma number is made of (2026-09-21), for the popup beside it.
+     * Same audience and same optionality as `karma`.
+     */
+    reliability?: PlayerReliability | null
 }
 
 /**
- * Full karma. Everyone starts here; one abandoned game costs a point and
- * three finished games give one back (backend `GameReliabilityService`).
+ * Full karma. Karma is `KARMA_MAX` minus the games abandoned in the last
+ * `windowDays` days (floor 0): every abandonment weighs on the number for
+ * exactly that long and then drops off by itself. Nothing is earned back by
+ * playing (backend `GameReliabilityService`, 2026-09-21 redesign).
  */
 export const KARMA_MAX = 10
+
+/** The facts behind a karma value. All counts are whole, non-negative. */
+export interface PlayerReliability {
+    /** Games abandoned inside the rolling window — what karma is cut by. */
+    recentAbandons: number
+    /** Eligible games FINISHED inside the same window, for context. */
+    recentGames: number
+    /** Games abandoned since the account exists. Never resets. */
+    totalAbandons: number
+    /** Length of the rolling window in days (30). */
+    windowDays: number
+}
 
 export interface GameStatRecord {
     games: number

@@ -102,12 +102,40 @@ export function GameStatsCard() {
                                     value={`${reliability.karma}/${reliability.maxKarma}`}
                                     accent={reliability.karma < reliability.maxKarma ? "orange" : "teal"}
                                 />
+                                {/* Lifetime count — the "lifetime line" from the
+                                    karma redesign (KARMA-CONTRACT.md), already a
+                                    label + bare number like every other tile
+                                    here, so it needs no plural family. */}
                                 <StatTile label={t("profile.gameStats.abandons")} value={reliability.abandons} />
                             </HStack>
+                            {/* Rolling-window line (2026-09-21 karma redesign) —
+                                same "X od Y u zadnjih Z dana" the room's karma
+                                popover shows, mirrored here under `profile.*`
+                                because this page never loads the `game` lazy
+                                namespace. Optional-chained: an older backend
+                                that hasn't shipped `recentAbandons`/`recentGames`/
+                                `windowDays` yet just skips this line rather than
+                                rendering `undefined`. */}
+                            {reliability.recentAbandons != null && reliability.recentGames != null && reliability.windowDays != null && (
+                                <Text fontSize="xs" color="fg.muted">
+                                    {reliability.recentAbandons > 0
+                                        ? t("profile.gameStats.abandonedLine", {
+                                            abandoned: reliability.recentAbandons,
+                                            games: plural("profile.gameStats.gamesOf", reliability.recentAbandons + reliability.recentGames),
+                                            window: plural("profile.gameStats.lastDays", reliability.windowDays),
+                                        })
+                                        : t("profile.gameStats.noAbandonsLine", {
+                                            window: plural("profile.gameStats.lastDays", reliability.windowDays),
+                                        })}
+                                </Text>
+                            )}
                             {/* The rule in one line: a number nobody can explain
                                 is the reason this was reworked (2026-09-20). */}
                             <Text fontSize="xs" color="fg.muted">
-                                {t("profile.gameStats.karmaHint", { max: reliability.maxKarma })}
+                                {t("profile.gameStats.karmaHint", {
+                                    max: reliability.maxKarma,
+                                    window: plural("profile.gameStats.daysDuration", reliability.windowDays ?? 30),
+                                })}
                             </Text>
                         </VStack>
                     )}

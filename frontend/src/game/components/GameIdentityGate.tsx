@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore, type ReactNode } from "react"
-import { Box, Button, Heading, HStack, Input, Spinner, Text, VStack } from "@chakra-ui/react"
+import { Box, Button, Heading, HStack, Input, Text, VStack } from "@chakra-ui/react"
 import { Link, useLocation } from "react-router-dom"
 import { useAuth } from "../../auth/authContextValue"
 import { LIMITS, validatePlayerName } from "@bela/protocol"
@@ -8,6 +8,7 @@ import AvatarPicker from "../../components/avatars/AvatarPicker"
 import BelaAvatar from "../../components/avatars/BelaAvatar"
 import { AVATAR_IDS, type AvatarId } from "../../components/avatars/avatarArt"
 import { readGuest, saveGuest, subscribeGuestHydration, getGuestHydrationReady, type GuestIdentity } from "../hooks/guestIdentity"
+import SuitSpinner from "../../components/SuitSpinner"
 
 /** A face to start from, so nobody ever looks at an empty slot. Random rather
  *  than fixed: the first preset would otherwise be what half the tables wear. */
@@ -40,7 +41,7 @@ export default function GameIdentityGate({ children }: { children: ReactNode }) 
     // request): a guest gets the name-and-face form, everybody else goes to
     // sign-in. Nothing about the form is shown until "guest" is chosen.
     const [choosingGuest, setChoosingGuest] = useState(false)
-    if (loading || !hydrated) return <Spinner />
+    if (loading || !hydrated) return <SuitSpinner />
     if (user || guest) return children
     if (!choosingGuest) {
         return <Box maxW="420px" mx="auto" py="8">

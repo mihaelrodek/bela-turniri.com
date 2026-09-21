@@ -67,6 +67,10 @@ describe("createProfileLookup", () => {
             // `karma` is the sixth field since 2026-09-20; a body without it
             // reads as null ("the backend did not say"), never as a full 10.
             karma: null,
+            // `reliability` (2026-09-21): a body with none of `recentAbandons`
+            // / `recentGames` / `totalAbandons` reads as null too — the
+            // "older backend" case, see the dedicated test below.
+            reliability: null,
         })
         expect(second).toEqual(first)
         expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -87,6 +91,58 @@ describe("createProfileLookup", () => {
         const user = withAppProfile(CLAIMS_USER, profile)
         expect(user.gameStats?.global).toMatchObject({ wins: 5, losses: 4 })
         expect(user.gameStats?.byTargetScore["501"]).toMatchObject({ wins: 3, losses: 1 })
+    })
+
+    it("carries the reliability breakdown beside karma into the room user", async () => {
+        // `karma`/`reliability` alone would look EMPTY to `parseProfile` (they
+        // are deliberately kept out of the emptiness test, see its comment),
+        // so — like every other test here — this body needs a real profile
+        // field too; `displayName` stands in for whatever the account row has.
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+            displayName: "Mihael",
+            karma: 8,
+            recentAbandons: 2,
+            recentGames: 14,
+            totalAbandons: 5,
+            windowDays: 30,
+        }), { status: 200, headers: { "Content-Type": "application/json" } })))
+
+        const profile = await createProfileLookup(cfg()).get("firebase-uid-1")
+        expect(profile?.reliability).toEqual({ recentAbandons: 2, recentGames: 14, totalAbandons: 5, windowDays: 30 })
+        const user = withAppProfile(CLAIMS_USER, profile)
+        expect(user.karma).toBe(8)
+        expect(user.reliability).toEqual({ recentAbandons: 2, recentGames: 14, totalAbandons: 5, windowDays: 30 })
+    })
+
+    it("parses reliability defensively: negative/fractional counts clamp, missing windowDays defaults to 30", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+            displayName: "Mihael",
+            karma: 9,
+            recentAbandons: -3,
+            recentGames: 4.6,
+            totalAbandons: 1.2,
+            // windowDays intentionally absent
+        }), { status: 200, headers: { "Content-Type": "application/json" } })))
+
+        const profile = await createProfileLookup(cfg()).get("firebase-uid-1")
+        expect(profile?.reliability).toEqual({ recentAbandons: 0, recentGames: 5, totalAbandons: 1, windowDays: 30 })
+    })
+
+    it("older backend sends no reliability fields: reliability is null, karma still passes", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(
+            JSON.stringify({ displayName: "Mihael", karma: 10 }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+        )))
+
+        const profile = await createProfileLookup(cfg()).get("firebase-uid-1")
+        expect(profile?.karma).toBe(10)
+        expect(profile?.reliability).toBeNull()
+
+        const user = withAppProfile(CLAIMS_USER, profile)
+        expect(user.karma).toBe(10)
+        // Omitted entirely, same "never send a null the client has to skip"
+        // rule as `avatarPreset`/`gameStats`/`karma` itself.
+        expect(user).not.toHaveProperty("reliability")
     })
 
     it("coalesces concurrent lookups for the same uid", async () => {

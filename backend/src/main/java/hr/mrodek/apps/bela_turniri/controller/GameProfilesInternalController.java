@@ -1,5 +1,6 @@
 package hr.mrodek.apps.bela_turniri.controller;
 
+import hr.mrodek.apps.bela_turniri.dtos.GameReliabilityDto;
 import hr.mrodek.apps.bela_turniri.dtos.SetGameNameRequest;
 import hr.mrodek.apps.bela_turniri.dtos.GameStatsDto;
 import hr.mrodek.apps.bela_turniri.model.GameName;
@@ -64,6 +65,7 @@ public class GameProfilesInternalController {
     @Inject InternalTokenGuard guard;
     @Inject AvatarPresetService avatarPresets;
     @Inject GameStatsService gameStats;
+    @Inject GameReliabilityService reliability;
 
     /**
      * What the game server needs to render a seat: nothing more.
@@ -89,10 +91,24 @@ public class GameProfilesInternalController {
      * @param karma       reliability on the 0..10 scale, so the lobby can show
      *                    it next to a seat. Always present: a uid with no
      *                    profile row yet is simply at full karma, which is
-     *                    also what a brand-new row would hold.
+     *                    also what a brand-new row would hold. DERIVED since
+     *                    2026-09-21 — {@code 10 − recentAbandons}.
+     * @param recentAbandons games this player abandoned in the last
+     *                    {@code windowDays} days: the whole of karma, and the
+     *                    X in the popup's "napustio X od Y partija".
+     * @param recentGames finished eligible games in the same window, so the
+     *                    caller can render the Y ({@code recentAbandons +
+     *                    recentGames}) without a second request.
+     * @param totalAbandons lifetime abandonments, never reset — shown beside
+     *                    the window figure so the trail is visible rather
+     *                    than erased.
+     * @param windowDays  length of the rolling window (30), sent rather than
+     *                    assumed so the game client's label follows the rule.
      */
     public record GameProfileResponse(String displayName, String avatarUrl, String gameName,
-                                      String avatarPreset, GameStatsDto gameStats, int karma) {}
+                                      String avatarPreset, GameStatsDto gameStats, int karma,
+                                      int recentAbandons, int recentGames, long totalAbandons,
+                                      int windowDays) {}
 
     /**
      * The accepted name plus the two instants the caller needs to render
@@ -117,6 +133,10 @@ public class GameProfilesInternalController {
         // definition has no profile row — still gets their name back.
         String gameName = gameNames.nameFor(uid);
         GameStatsDto stats = gameStats.statsFor(uid);
+        // Derived, not read off the profile row: the same call answers for a
+        // uid with no row at all (full karma, zeros), which is exactly the
+        // "unknown player" case this endpoint already returns nulls for.
+        GameReliabilityDto rel = reliability.forUser(uid);
         return profiles.findByUid(uid)
                 .map(p -> {
                     String avatarUrl = p.getAvatar() != null && p.getAvatar().getId() != null
@@ -128,10 +148,15 @@ public class GameProfilesInternalController {
                             gameName,
                             avatarPresets.presetFor(p, avatarUrl),
                             stats,
-                            p.getGameKarma());
+                            rel.karma(),
+                            rel.recentAbandons(),
+                            rel.recentGames(),
+                            rel.abandons(),
+                            rel.windowDays());
                 })
                 .orElseGet(() -> new GameProfileResponse(null, null, gameName, null, stats,
-                        GameReliabilityService.MAX_KARMA));
+                        rel.karma(), rel.recentAbandons(), rel.recentGames(),
+                        rel.abandons(), rel.windowDays()));
     }
 
     /**

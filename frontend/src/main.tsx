@@ -34,8 +34,11 @@ import WhatsNewFab from "./whatsNew/WhatsNewFab"
 import WhatsNewDialogMount from "./whatsNew/WhatsNewDialogMount"
 import { installSeed } from "./shell/seed"
 import App from "./App"
+import { applyBrandIcons } from "./site"
 import "./platform/foldable.css"
 import "./platform/noCallout.css"
+
+applyBrandIcons()
 
 
 // Everything below the query provider. Built once as an element so the two

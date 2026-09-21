@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { Box, Button, Flex, HStack, Spinner, Text, useBreakpointValue } from "@chakra-ui/react"
+import { Box, Button, Flex, HStack, Text, useBreakpointValue } from "@chakra-ui/react"
 import { FiArrowLeft } from "react-icons/fi"
 import type { Card, RoomState, Seat, Suit } from "@bela/protocol"
 import { trickWinner } from "@bela/engine"
@@ -47,6 +47,7 @@ import { playHaptic } from "../util/haptics"
 import { installAudioUnlock, playSound, primeAudio } from "../util/sounds"
 import { useKeepAwake } from "../hooks/useKeepAwake"
 import { useTableScale } from "../hooks/useTableScale"
+import SuitSpinner from "../../components/SuitSpinner"
 
 /* ──────────────────────────────────────────────────────────────────────────
    GameRoomPage (/igra/soba/:roomId) — the room, and then the table.
@@ -858,7 +859,7 @@ export default function GameRoomPage() {
                         </>
                     ) : !accessCodeOpen ? (
                         <>
-                            <Spinner />
+                            <SuitSpinner size="lg" />
                             <Text color="fg.muted">{t("game.room.joining")}</Text>
                             {slowConnection && <Text fontSize="sm" color="live">{t("game.connection.slow")}</Text>}
                         </>

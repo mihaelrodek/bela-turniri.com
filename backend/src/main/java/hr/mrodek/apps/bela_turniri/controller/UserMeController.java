@@ -167,7 +167,13 @@ public class UserMeController {
         return gameStatsService.statsFor(currentUser.requireUid());
     }
 
-    /** Current user's reliable-play score and confirmed abandonment count. */
+    /**
+     * Current user's karma, derived on the spot: {@code 10 −} the games they
+     * abandoned in the last 30 days, floor 0. The response also carries the
+     * two window figures ({@code recentAbandons}, {@code recentGames}), the
+     * lifetime {@code abandons} and {@code windowDays}, so the profile can
+     * explain the number instead of just showing it.
+     */
     @GET
     @Path("/game-reliability")
     public GameReliabilityDto gameReliability() {

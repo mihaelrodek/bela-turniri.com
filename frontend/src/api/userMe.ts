@@ -61,9 +61,20 @@ export type GameStatsDto = {
 
 export type GameReliabilityDto = {
     karma: number
+    /** Lifetime abandon count — existing field, never resets. */
     abandons: number
     /** The scale's top ("x/maxKarma"), so the label is never hard-coded. */
     maxKarma: number
+    /**
+     * Karma redesign (2026-09-21, KARMA-CONTRACT.md): games abandoned inside
+     * the rolling window, eligible games FINISHED in the same window, and the
+     * window's length in days. All three optional on the TYPE — not because
+     * a current backend omits them, but because an older, not-yet-upgraded
+     * one would, and `GameStatsCard` must not crash reading a stale response.
+     */
+    recentAbandons?: number
+    recentGames?: number
+    windowDays?: number
 }
 
 export async function getProfile(): Promise<UserProfile> {

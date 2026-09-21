@@ -3,8 +3,12 @@ package hr.mrodek.apps.bela_turniri.repository;
 import hr.mrodek.apps.bela_turniri.model.GameResultPlayer;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class GameResultPlayerRepository implements AppRepository<GameResultPlayer, Long> {
@@ -60,6 +64,58 @@ public class GameResultPlayerRepository implements AppRepository<GameResultPlaye
                     ((Number) row[0]).intValue(),
                     ((Number) row[1]).longValue(),
                     row[2] == null ? 0L : ((Number) row[2]).longValue()));
+        }
+        return out;
+    }
+
+    /**
+     * Finished games this user actually played inside a time window.
+     *
+     * <p>Used by the karma popup (2026-09-21): "napustio X od Y partija u
+     * zadnjih 30 dana", where Y is this count plus the abandons. Every row
+     * here belongs to an ELIGIBLE game by construction — the game server only
+     * reports games that count (game/README.md §8.1), so there is no
+     * eligibility filter to apply and none can be invented here.
+     *
+     * <p>A bot seat carries a NULL uid and can never match, so no
+     * {@code is_bot} filter is needed.
+     */
+    public long countGamesSince(String uid, OffsetDateTime since) {
+        if (uid == null || uid.isBlank()) return 0;
+        return getEntityManager().createQuery("""
+                        select count(p)
+                        from GameResultPlayer p
+                        join p.gameResult g
+                        where p.uid = :uid
+                          and g.playedAt > :since
+                        """, Long.class)
+                .setParameter("uid", uid)
+                .setParameter("since", since)
+                .getSingleResult();
+    }
+
+    /**
+     * The same count for many uids in ONE query, so a caller holding a list of
+     * seats never fans out into a query per player. Uids with no games in the
+     * window are absent from the map and read as zero.
+     */
+    public Map<String, Long> countGamesSinceByUid(Collection<String> uids, OffsetDateTime since) {
+        if (uids == null || uids.isEmpty()) return Map.of();
+        List<Object[]> rows = getEntityManager().createQuery("""
+                        select p.uid, count(p)
+                        from GameResultPlayer p
+                        join p.gameResult g
+                        where p.uid in :uids
+                          and g.playedAt > :since
+                        group by p.uid
+                        """, Object[].class)
+                .setParameter("uids", uids)
+                .setParameter("since", since)
+                .getResultList();
+
+        Map<String, Long> out = new HashMap<>(rows.size());
+        for (Object[] row : rows) {
+            out.put((String) row[0], ((Number) row[1]).longValue());
         }
         return out;
     }

@@ -47,7 +47,47 @@ export const game = {
     "room.statsTitle": "Ukupno",
     /* Karma = pouzdanost igrača, 0..10. Kratica uz sjedalo u lobiju. */
     "room.karma": "Karma {value}/{max}",
-    "karma.explain": "Karma pokazuje koliko se na igrača možeš osloniti. Svi kreću s {max}/{max}. Napuštanje partije koja je u tijeku, uz još barem jednog igrača, oduzima 1 bod (nakon što istekne vrijeme za povratak za stol), a svake {recovery} završene partije vraćaju 1 bod. Karmu vide ostali igrači u sobi.",
+    /* Karma redizajn (2026-09-21): nema više bodova unatrag za odigrane
+       partije — `KARMA_RECOVERY_GAMES` i njegov `{recovery}` parametar su
+       povučeni. Umjesto toga svako napuštanje vrijedi točno `{window}`
+       (prozor od 30 dana, `PlayerReliability.windowDays`) i onda samo
+       otpadne. `{window}` je već gotova fraza ("30 dana"/"30 dni"), sastavljena
+       preko `usePlural()`/`game.karma.daysDuration` u pozivnoj komponenti —
+       ne prosljeđuje se goli broj u fiksnu imenicu (v. KARMA-CONTRACT.md). */
+    "karma.explain": "Karma pokazuje koliko se na igrača možeš osloniti. Svi kreću s {max}/{max}. Napuštanje partije koja je u tijeku, uz još barem jednog igrača, oduzima 1 bod — nakon što istekne vrijeme za povratak za stol. Svako napuštanje vrijedi {window}, a zatim samo otpadne. Igranjem se ništa ne vraća. Karmu vide ostali igrači u sobi.",
+    /* Redak s brojkama iza karme (2026-09-21): "Napustio X od Y partija u
+       zadnjih Z dana". `{games}` i `{window}` su već sklonjene fraze
+       (`karma.gamesOf` / `karma.lastDays`, ispod) — `{abandoned}` ostaje gola
+       brojka jer iza nje u ovoj rečenici ne slijedi imenica koju treba
+       sklanjati ("od Y partija" veže se uz Y, ne uz X). */
+    "karma.abandonedLine": "Napušteno {abandoned} od {games} u {window}",
+    /* Nula napuštanja u prozoru dobiva svoju rečenicu umjesto "0 od Y" — 0
+       ne pripada nijednoj CLDR kategoriji broja i "Napustio 0 od…" zvuči
+       kruto. */
+    "karma.noAbandonsLine": "Nijedna napuštena partija u {window}",
+    /* Doživotni zbroj — natpis:broj format, imenica se ne sklanja po broju
+       (isto kao "profile.gameStats.abandons" iznad broja u pločici). */
+    "karma.totalAbandonsLine": "Ukupno napuštenih partija: {count}",
+    /* "od {n} partija" — genitiv nakon "od": 1-4 "partije", 5+ "partija".
+       `.two` ostaje ovdje samo zato da `GameDict` ima taj list (hrvatski
+       `pluralCategory` ga nikad ne bira — vidi `translatePlural`), isto kao
+       `profile.gameStats.games.two` iznad. */
+    "karma.gamesOf.one": "{n} partije",
+    "karma.gamesOf.two": "{n} partije",
+    "karma.gamesOf.few": "{n} partije",
+    "karma.gamesOf.other": "{n} partija",
+    /* "(u) zadnjih {n} dana" — pridjev ostaje "zadnjih" u svim kategorijama
+       (isti pristup kao `pages.tournaments.relativeDays.inDays`), imenica
+       "dan" sklonjena ispravno. */
+    "karma.lastDays.one": "zadnji {n} dan",
+    "karma.lastDays.two": "zadnjih {n} dana",
+    "karma.lastDays.few": "zadnjih {n} dana",
+    "karma.lastDays.other": "zadnjih {n} dana",
+    /* Gola trajanja ("vrijedi X dana") za objašnjenje karme. */
+    "karma.daysDuration.one": "{n} dan",
+    "karma.daysDuration.two": "{n} dana",
+    "karma.daysDuration.few": "{n} dana",
+    "karma.daysDuration.other": "{n} dana",
     "room.statsTarget": "{target} {wins}–{losses} · {percent}%",
     "bot.label": "Bot",
     "rules.title": "Pravila podjele",
