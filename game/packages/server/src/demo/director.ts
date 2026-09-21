@@ -1080,9 +1080,43 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
         cast: pool.size,
     })
 
+    /* ── status line ────────────────────────────────────────────────────
+       One INFO line a minute, so `docker compose logs game | grep demo.status`
+       answers "what are the fake people doing right now" without a debugger:
+       how many rooms, how many of them playing, where the real people are. */
+    function statusLine(): void {
+        if (stopped) return
+        try {
+            const live = liveRooms()
+            const playing = live.filter(isPlaying)
+            const withHumans = live.filter(hasHuman)
+            log.info("demo.status", {
+                rooms: live.length,
+                wantRooms: effectiveTotal(),
+                playing: playing.length,
+                wantPlaying: targetPlaying,
+                waiting: live.length - playing.length,
+                watchable: playing.filter((r) => r.handle.options.allowSpectators).length,
+                private: live.filter((r) => r.handle.options.private).length,
+                targets: live.map((r) => r.handle.options.targetScore).sort((a, b) => a - b).join(","),
+                seated: live.map((r) => occupiedCount(r)).join(""),
+                roomsWithHumans: withHumans.length,
+                spectators: live.reduce((sum, r) => sum + r.handle.spectatorCount(), 0),
+                realRooms: lobby.realRoomCount(),
+                castInUse: pool.inUseCount(),
+                cast: pool.size,
+                timers: timers.size,
+            })
+        } catch (err) {
+            log.warn("demo status failed", { err })
+        }
+        schedule(60_000, statusLine)
+    }
+
     boot()
     redrawTargets()
     sweep()
+    schedule(60_000, statusLine)
 
     return {
         stop(): void {

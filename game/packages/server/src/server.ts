@@ -75,11 +75,16 @@ function resolveRates(overrides: Partial<RateLimits> = {}): RateLimits {
 }
 
 /**
- * Where `director.ts` lives, as a STRING the bundler and the type checker both
- * have to leave alone: the module is written (and, before launch, deleted)
- * independently of this file, so `await import(DIRECTOR_MODULE)` must compile
- * whether or not it is on disk today. The cast below is the only place its
- * shape is asserted, and a miss is an ordinary startup error, never a crash.
+ * The director is loaded with a LITERAL dynamic import, on purpose.
+ *
+ * The server ships as ONE bundled file (`esbuild --bundle`, see package.json).
+ * A bundler only follows an import whose path it can read: the first version
+ * imported through a string variable to keep the type checker quiet while the
+ * module did not exist yet, esbuild left it out of `dist/index.js`, and in
+ * production the import failed and no fake player ever appeared — while every
+ * test, which runs the sources, passed (found 2026-09-21). With the literal the
+ * module is inside the bundle but still evaluated lazily, so a server started
+ * without the flag never runs a line of it.
  */
 const DIRECTOR_MODULE = "./demo/director.js"
 
@@ -92,7 +97,7 @@ async function startDemoLobby(lobby: Lobby, config: DemoDirectorConfig): Promise
         msg: "DEMO LOBBY ENABLED — fake players are visible to everyone; disable before launch and before any store submission",
     })
     try {
-        const mod = (await import(DIRECTOR_MODULE)) as { startDemoDirector?: StartDemoDirector }
+        const mod: { startDemoDirector?: StartDemoDirector } = await import("./demo/director.js")
         const start = mod.startDemoDirector
         if (typeof start !== "function") {
             log.error("demo.director.missing", { module: DIRECTOR_MODULE })
