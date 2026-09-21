@@ -748,9 +748,15 @@ www.bela.games {
     redir https://bela.games{uri} permanent
 }
 
-www.belot.games {
-    redir https://belot.games{uri} permanent
-}
+# belot.games is NOT live yet (owner, 2026-09-21: "zasad necu"). With no DNS,
+# Caddy would retry the certificate for it forever and flood the log, so it is
+# left out until the domain is bought. To switch it on: uncomment this block,
+# add `belot.games` to the `bela.games { … }` site line below, point DNS at the
+# server (DNS-only, grey cloud) and redeploy — DEPLOY.md, "Druge domene".
+#
+# www.belot.games {
+#     redir https://belot.games{uri} permanent
+# }
 
 # ─── Future alias domains ─────────────────────────────────────────────────
 # A domain bought only to funnel traffic (as opposed to a third EQUAL twin,
@@ -765,7 +771,7 @@ www.belot.games {
 #         redir https://bela.games{uri} permanent
 #     }
 
-bela.games, belot.games {
+bela.games {
     encode zstd gzip
 
     import maintenance

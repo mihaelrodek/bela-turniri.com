@@ -5,139 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DEPLOY.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEPLOY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SEO_SETUP.md" beforeDir="false" afterPath="$PROJECT_DIR$/SEO_SETUP.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/AccountDeletionService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/AccountDeletionService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.prod.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.prod.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/proguard-rules.pro" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/proguard-rules.pro" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/AndroidManifest.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/belaturniri/app/BelaLiveActivityPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/belaturniri/app/BelaLiveActivityPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/belaturniri/app/BelaMessagingService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/belaturniri/app/BelaMessagingService.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/belaturniri/app/LiveGameNotification.kt" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/belaturniri/app/LiveGameNotification.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/belaturniri/app/MainActivity.java" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/belaturniri/app/MainActivity.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/belaturniri/app/widget/TournamentsWidgetWorker.kt" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/belaturniri/app/widget/TournamentsWidgetWorker.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/values-night/colors.xml" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/values-night/colors.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/values-sl/strings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/values-sl/strings.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/values/colors.xml" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/values/colors.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/values/strings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/values/strings.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/values/styles.xml" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/values/styles.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/capacitor.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/capacitor.config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App.xcodeproj/project.pbxproj" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App.xcodeproj/project.pbxproj" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/App.entitlements" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/App.entitlements" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/AppDelegate.swift" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/AppDelegate.swift" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_1024x1024.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_120x120.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_152x152.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_167x167.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_180x180.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_20x20.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_29x29.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_40x40.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_58x58.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_76x76.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_80x80.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/appicon_87x87.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/BelaActivityAttributes.swift" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/BelaActivityAttributes.swift" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/BelaLiveActivityPlugin.swift" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/BelaLiveActivityPlugin.swift" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/GuestKeychainPlugin.swift" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/GuestKeychainPlugin.swift" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Info.plist" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Info.plist" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/SceneDelegate.swift" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/SceneDelegate.swift" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/BelaActivity-dropin/BelaActivityLiveActivity.swift" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/BelaActivity/BelaActivityLiveActivity.swift" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/ios/BelaActivity-dropin/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/public/sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/sw.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/App.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/actionBar.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/actionBar.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/blokHistoryApi.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/blokHistoryApi.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/components/RoundEntrySheet.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/components/RoundEntrySheet.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/pages/BlokPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/pages/BlokPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/CookieConsent.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/CookieConsent.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ErrorBoundary.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ErrorBoundary.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/FirstRunInstallPrompt.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/FirstRunInstallPrompt.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/PairsSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/PairsSection.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/PwaNativeGestures.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/PwaNativeGestures.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/SiteFooter.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/SiteFooter.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/StatusBarSafeArea.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/StatusBarSafeArea.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/TournamentSidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/TournamentSidebar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/navChrome.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/navChrome.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/firebaseAuthModule.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/firebaseAuthModule.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/GameComingSoonPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/GameComingSoonPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/chatEnabled.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/ActiveRoomWidget.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/ActiveRoomWidget.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/BelotShowcase.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/BelotShowcase.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/Chat.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/DeclarationsReveal.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/DeclarationsReveal.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/GameIdentityGate.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/GameIdentityGate.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/GameRoomExitGuard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/GameRoomExitGuard.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/GameSettingsSheet.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/GameSettingsSheet.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/JoinByCodeDialog.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/JoinByCodeDialog.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/RoomPanel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/RoomPanel.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/TableHeader.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/TableHeader.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/TrickHistory.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/TrickHistory.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/gameConnection.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/gameConnection.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/hooks/useLiveActivity.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/hooks/useLiveActivity.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/mock/mockGameServer.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/mock/mockGameServer.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/pages/GameLobbyPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/pages/GameLobbyPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/pages/GameRoomPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/pages/GameRoomPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/forms.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/forms.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/game.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/legal.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/legal.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/forms.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/forms.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/game.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/legal.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/legal.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/ContactPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/ContactPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/CreateTournamentPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/CreateTournamentPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/LoginPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/LoginPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/MapPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/MapPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/NotFoundPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/NotFoundPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/PrivacyPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/PrivacyPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/PublicProfilePage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/RegisterPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/RegisterPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/SharedBlokPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/SharedBlokPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TermsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TermsPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/profile/DeleteAccountCard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/profile/DeleteAccountCard.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/profile/sections.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/profile/sections.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/platform/NativeShell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/platform/NativeShell.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/platform/liveActivityPlugin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/platform/liveActivityPlugin.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/whatsNew/WhatsNewFab.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/whatsNew/WhatsNewFab.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/vite.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/vite.config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/BOT.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/BOT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/DESIGN.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/DESIGN.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/evaluate.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/evaluate.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/test/evaluate.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/test/evaluate.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/test/heuristicBot.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/test/heuristicBot.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/protocol/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/protocol/src/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/auth.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/auth.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/chat.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/ids.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/ids.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/server.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/server.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/ws.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/ws.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/test/connection.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/connection.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/test/dealAcks.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/dealAcks.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/test/game.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/game.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/test/gameName.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/gameName.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/test/guest.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/guest.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/test/rejoinTrick.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/rejoinTrick.test.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -162,23 +31,23 @@
 }</component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="2.1262470583031177" />
-      <entry key="MS500" value="5.746498412175584" />
-      <entry key="S2" value="17.8117096516409" />
-      <entry key="S5" value="31.436070398881224" />
-      <entry key="S10" value="40.43611561079342" />
-      <entry key="S30" value="48.82543813372952" />
-      <entry key="S60" value="51.319605742781526" />
-      <entry key="M2" value="52.63555950230421" />
-      <entry key="M5" value="53.44827696694549" />
-      <entry key="M10" value="53.72414983322959" />
-      <entry key="M15" value="53.860363542143546" />
-      <entry key="M30" value="56.24745290123764" />
-      <entry key="H1" value="76.73926303163972" />
-      <entry key="H2" value="146.96812869558414" />
-      <entry key="H4" value="266.0627729940153" />
-      <entry key="D1" value="555.261029175377" />
-      <entry key="W1" value="847.8031907003124" />
+      <entry key="MS100" value="1.9382264440266808" />
+      <entry key="MS500" value="5.262444604674209" />
+      <entry key="S2" value="15.76032831661896" />
+      <entry key="S5" value="28.19532719564796" />
+      <entry key="S10" value="41.66815778363545" />
+      <entry key="S30" value="64.09020956546674" />
+      <entry key="S60" value="73.68971842873941" />
+      <entry key="M2" value="79.45489038423781" />
+      <entry key="M5" value="83.28085189946462" />
+      <entry key="M10" value="84.62290366181661" />
+      <entry key="M15" value="85.07799045712633" />
+      <entry key="M30" value="85.53701262069939" />
+      <entry key="H1" value="85.78599591473856" />
+      <entry key="H2" value="88.13412583477839" />
+      <entry key="H4" value="118.86402177432916" />
+      <entry key="D1" value="477.9557695459445" />
+      <entry key="W1" value="892.653912424491" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -186,37 +55,37 @@
       <entry key="S2" value="0.0" />
       <entry key="S5" value="0.0" />
       <entry key="S10" value="0.0" />
-      <entry key="S30" value="3.5987756399044127E-265" />
-      <entry key="S60" value="8.47745874592659E-133" />
-      <entry key="M2" value="1.301865319608019E-66" />
-      <entry key="M5" value="6.705401482371945E-27" />
-      <entry key="M10" value="1.158041486693093E-13" />
-      <entry key="M15" value="2.993358156301604E-9" />
-      <entry key="M30" value="7.737380879351489E-5" />
-      <entry key="H1" value="0.012439756943027203" />
-      <entry key="H2" value="0.15773240403318173" />
-      <entry key="H4" value="0.5616625319637945" />
-      <entry key="D1" value="1.61846845013512" />
-      <entry key="W1" value="1.9404289460623165" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="1.6405837186011853E-175" />
+      <entry key="M5" value="1.847556472002132E-70" />
+      <entry key="M10" value="1.922253171291786E-35" />
+      <entry key="M15" value="9.040997073424359E-24" />
+      <entry key="M30" value="4.2522892501148875E-12" />
+      <entry key="H1" value="2.9162604375756587E-6" />
+      <entry key="H2" value="0.002415061130634476" />
+      <entry key="H4" value="0.06949908010099859" />
+      <entry key="D1" value="1.1424963947944036" />
+      <entry key="W1" value="1.8462507615108454" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="2.0715341988963027" />
-      <entry key="MS500" value="5.704442095921279" />
-      <entry key="S2" value="17.775743182628275" />
-      <entry key="S5" value="31.409520441626544" />
-      <entry key="S10" value="40.41871623736611" />
-      <entry key="S30" value="48.81834158127737" />
-      <entry key="S60" value="51.31586361065231" />
-      <entry key="M2" value="52.63363720845991" />
-      <entry key="M5" value="53.44749538285839" />
-      <entry key="M10" value="53.723756891988806" />
-      <entry key="M15" value="53.860100921638455" />
-      <entry key="M30" value="56.24739379802731" />
-      <entry key="H1" value="76.75160566752905" />
-      <entry key="H2" value="147.12573483582352" />
-      <entry key="H4" value="266.6242850654244" />
-      <entry key="D1" value="556.8794329585328" />
-      <entry key="W1" value="849.7436060016748" />
+      <entry key="MS100" value="1.8814150270135446" />
+      <entry key="MS500" value="5.228087176328904" />
+      <entry key="S2" value="15.735215857773648" />
+      <entry key="S5" value="28.17699135037008" />
+      <entry key="S10" value="41.654186950881474" />
+      <entry key="S30" value="64.08273029981365" />
+      <entry key="S60" value="73.68535504124573" />
+      <entry key="M2" value="79.45251929736186" />
+      <entry key="M5" value="83.27985288466077" />
+      <entry key="M10" value="84.62239525634762" />
+      <entry key="M15" value="85.07764950655354" />
+      <entry key="M30" value="85.53684112939442" />
+      <entry key="H1" value="85.78591280683266" />
+      <entry key="H2" value="88.13649589781265" />
+      <entry key="H4" value="118.93348068822617" />
+      <entry key="D1" value="479.09821669788863" />
+      <entry key="W1" value="894.5001496901102" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
