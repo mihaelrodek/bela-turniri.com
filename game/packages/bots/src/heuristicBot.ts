@@ -367,12 +367,6 @@ function chooseLead(view: PlayerView, legal: readonly Card[], trump: Suit): Card
     const chase = stigljaLead(view, legal)
     if (chase !== null) return chase
 
-    // Opponents provably out of trump and a plain card nothing can beat: a
-    // certain trick, cashed NOW while I still have the lead — a suit left
-    // "for later" is a suit that falls with the deal (BOT.md §15.20).
-    const sure = sureWinnerToCash(view, legal)
-    if (sure !== null) return sure
-
     // As the caller's partner, on lead with the bela: the king says "bela",
     // the queen says "bela and the nine" (BOT.md §11).
     const bela = belaLead(view, legal)
@@ -427,6 +421,14 @@ function chooseLead(view: PlayerView, legal: readonly Card[], trump: Suit): Card
     // the caller's own sequencing (ace/nine before the jack) still opens.
     const run = stigljaTrumpRun(view, legal)
     if (run !== null) return run
+
+    // Opponents provably out of trump and a plain card nothing can beat: a
+    // certain trick, cashed NOW while I still have the lead — a suit left
+    // "for later" is a suit that falls with the deal (BOT.md §15.20). Below
+    // the štihak run on purpose: while all eight tricks are still on, the
+    // trump goes first (a free discard for the partner), the masters after.
+    const sure = sureWinnerToCash(view, legal)
+    if (sure !== null) return sure
 
     // Nothing left of my own to win with: the deal is handed to the partner
     // whose ace a declaration has shown — top card first, so I never end up

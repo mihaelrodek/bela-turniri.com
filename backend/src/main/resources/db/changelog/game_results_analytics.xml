@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      2026-09-22: analytics must see EVERY finished game with a real person in
+      it, not only the ones that count for the competitive record.
+
+      Until now the Node reporter dropped an ineligible game (§8.1: both teams
+      need a human) before it ever reached the backend. The consequence the
+      owner saw on the dashboard: a person who played with three bots, or
+      against the demo lobby's fake people, produced no row anywhere — "Tko je
+      igrao" showed 0 players on a site people had actually played on. And a
+      guest was stored with no identifier at all, so guests could be counted
+      but never listed.
+
+      Two additions, no semantic change to anything already stored:
+
+        * game_results.eligible — §8.1's verdict, now CARRIED instead of acted
+          on. Every competitive read (profile stats, karma window) filters on
+          it, so the personal record keeps exactly the meaning it had; the
+          admin analytics reads without the filter and finally sees everything.
+        * game_result_players.player_name / player_kind — the seat's display
+          name as shown at the table, and what occupied it. `player_name` is
+          the ONLY handle a guest ever has (they have no uid by design), so it
+          is what makes a guest listable rather than merely countable.
+
+      Backfill of existing rows:
+        * eligible = true — every row already in the table arrived through the
+          old reporter, which only sent eligible games. Marking them true is
+          not a guess, it is the old invariant written down.
+        * player_kind = 'BOT' when is_bot, else 'PLAYER' when uid is present,
+          else 'GUEST' (a uid-less human seat is a guest — the write path
+          rejects any other combination).
+        * player_name stays NULL for old rows: nobody recorded it and it
+          cannot be reconstructed. Old guest seats therefore keep appearing
+          only in the aggregate guest counters, never as named rows.
+
+      Both columns are NULLABLE with a DEFAULT rather than NOT NULL: an older
+      game server that has not been redeployed yet keeps posting the old body,
+      and it must keep working (the intake derives `eligible` from the old
+      rule when the field is absent).
+
+      Index: game_result_players(player_name) — the admin list groups guests
+      by the name they played under, and that grouping must not seq-scan the
+      whole table as it grows. A plain index rather than a partial one on
+      `uid IS NULL`: Liquibase's <createIndex> has no portable WHERE, and the
+      saving would be small anyway since most rows carry a name.
+
+      columnExists / MARK_RAN so a database where these were added by hand is
+      a no-op rather than a startup failure.
+    -->
+
+    <changeSet id="2026-09-22-game-results-analytics" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="game_results" columnName="eligible"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="game_results">
+            <!-- §8.1's verdict. Default true so an older reporter, which only
+                 ever sent eligible games, keeps producing correct rows. -->
+            <column name="eligible" type="boolean" defaultValueBoolean="true"/>
+        </addColumn>
+
+        <addColumn tableName="game_result_players">
+            <!-- Display name at the table. NULL for rows written before this
+                 changeset; the reporter always sends one now. -->
+            <column name="player_name" type="varchar(64)"/>
+            <column name="player_kind" type="varchar(8)"/>
+        </addColumn>
+
+        <sql>
+            UPDATE game_results SET eligible = TRUE WHERE eligible IS NULL;
+
+            UPDATE game_result_players
+               SET player_kind = CASE
+                       WHEN is_bot THEN 'BOT'
+                       WHEN uid IS NOT NULL THEN 'PLAYER'
+                       ELSE 'GUEST'
+                   END
+             WHERE player_kind IS NULL;
+
+            ALTER TABLE game_result_players
+                ADD CONSTRAINT ck_game_result_players_kind
+                    CHECK (player_kind IS NULL
+                           OR player_kind IN ('PLAYER', 'GUEST', 'BOT', 'DEMO'));
+        </sql>
+
+        <createIndex tableName="game_result_players"
+                     indexName="idx_game_result_players_guest_name">
+            <column name="player_name"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

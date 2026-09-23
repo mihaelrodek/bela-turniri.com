@@ -36,11 +36,12 @@ public class GameResultRepository implements AppRepository<GameResult, Long> {
                                          String winnerTeam,
                                          int scoreA,
                                          int scoreB,
-                                         Short dealsCount) {
+                                         Short dealsCount,
+                                         boolean eligible) {
         int inserted = getEntityManager().createNativeQuery("""
                         insert into game_results
-                            (uuid, played_at, target_score, winner_team, score_a, score_b, deals_count)
-                        values (:uuid, :playedAt, :targetScore, :winnerTeam, :scoreA, :scoreB, :dealsCount)
+                            (uuid, played_at, target_score, winner_team, score_a, score_b, deals_count, eligible)
+                        values (:uuid, :playedAt, :targetScore, :winnerTeam, :scoreA, :scoreB, :dealsCount, :eligible)
                         on conflict (uuid) do nothing
                         """)
                 .setParameter("uuid", uuid)
@@ -50,9 +51,50 @@ public class GameResultRepository implements AppRepository<GameResult, Long> {
                 .setParameter("scoreA", scoreA)
                 .setParameter("scoreB", scoreB)
                 .setParameter("dealsCount", dealsCount)
+                .setParameter("eligible", eligible)
                 .executeUpdate();
         if (inserted == 0) return Optional.empty();
         return findIdByUuid(uuid);
+    }
+
+    /**
+     * Two admin-analytics counters about the COMPANY a real person kept,
+     * folded into one query because they read the same rows.
+     *
+     * <ul>
+     *   <li>{@code demoGames} — recorded games with at least one DEMO seat: a
+     *       real person played against the demo lobby's fake people. Before
+     *       2026-09-22 these were never reported at all, which is half of why
+     *       the dashboard showed nobody.</li>
+     *   <li>{@code botOnlyGames} — recorded games that §8.1 rejected and that
+     *       held no fake person: a real person alone with bots. Defined by
+     *       what the game was NOT eligible for rather than by counting bots,
+     *       so it cannot drift away from the eligibility rule.</li>
+     * </ul>
+     *
+     * <p>Counted over recorded games, so both are 0 for any database whose
+     * rows all predate the change — nothing false is ever reported.
+     *
+     * @return {@code [demoGames, botOnlyGames]}
+     */
+    public long[] companyGameTally() {
+        Object[] row = getEntityManager().createQuery("""
+                        select sum(case when exists (
+                                     select 1 from GameResultPlayer d
+                                     where d.gameResult = g and d.playerKind = 'DEMO')
+                                   then 1 else 0 end),
+                               sum(case when g.eligible = false and not exists (
+                                     select 1 from GameResultPlayer d
+                                     where d.gameResult = g and d.playerKind = 'DEMO')
+                                   then 1 else 0 end)
+                        from GameResult g
+                        """, Object[].class)
+                .getSingleResult();
+        return new long[]{ asLong(row[0]), asLong(row[1]) };
+    }
+
+    private static long asLong(Object value) {
+        return value == null ? 0L : ((Number) value).longValue();
     }
 
     /** Row id for a reported game uuid, if it has been recorded. */

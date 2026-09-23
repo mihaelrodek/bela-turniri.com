@@ -22,6 +22,15 @@
      GAME_DEMO_ROOMS       "8-12"  — band the number of demo rooms wanders in
      GAME_DEMO_PLAYING     "5-6"   — how many of them are mid-game
      GAME_DEMO_WATCHABLE   "2"     — how many of THOSE allow spectators
+     GAME_REPLAY_BOT_SAMPLE
+                           0..1, default 0. Fraction of BOT-ONLY / DEMO-ONLY
+                           finished games (no real person at the table) whose
+                           full replay is recorded anyway, as a baseline to
+                           measure human games against (README §8.8). At 0 —
+                           the default — such a table is not reported at all,
+                           exactly as before. Note the sampled games DO become
+                           ordinary `game_results` rows (`eligible: false`),
+                           so they show up in the admin bot-only counter.
      GAME_RESULTS_TOKEN    shared secret sent as `X-Internal-Token` when
                            reporting a finished game's stats. No safe default:
                            unset means stats reporting is skipped entirely
@@ -45,6 +54,11 @@ export interface Config {
     backendInternalUrl: string
     /** Shared secret for `X-Internal-Token`; `null` = stats reporting is disabled. */
     gameResultsToken: string | null
+    /**
+     * Fraction (0..1) of games with NO real person at the table whose replay
+     * is recorded as baseline data (README §8.8). 0 = never, the default.
+     */
+    replayBotSample: number
     /**
      * PRE-LAUNCH ONLY (game/DEMO-LOBBY.md). Non-null = the demo director runs
      * and fake players are visible to everyone. `null` in every other case, and
@@ -109,6 +123,18 @@ function envInt(v: string | undefined, fallback: number): number {
     if (v === undefined || v.trim() === "") return fallback
     const n = Number.parseInt(v, 10)
     return Number.isFinite(n) ? n : fallback
+}
+
+/**
+ * A probability in `[0, 1]`. Anything unparseable — a typo, an empty string,
+ * `"true"` — reads as 0: the conservative direction, since this one governs
+ * whether extra rows are written to the database at all.
+ */
+function envFraction(v: string | undefined): number {
+    if (v === undefined || v.trim() === "") return 0
+    const n = Number.parseFloat(v.trim())
+    if (!Number.isFinite(n)) return 0
+    return Math.min(1, Math.max(0, n))
 }
 
 function envList(v: string | undefined): string[] | null {
@@ -190,6 +216,7 @@ export function loadConfig(env: EnvLike = process.env, overrides: Partial<Config
         // requires an explicit shared secret.
         gameResultsToken: env["GAME_RESULTS_TOKEN"]?.trim()
             || (devAllowAnon ? "dev-secret-change-me" : null),
+        replayBotSample: envFraction(env["GAME_REPLAY_BOT_SAMPLE"]),
         demo: loadDemoConfig(env),
     }
     return { ...base, ...overrides }

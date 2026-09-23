@@ -1,6 +1,6 @@
 import { Badge, Box, HStack, Text, VStack } from "@chakra-ui/react"
 import { Link as RouterLink } from "react-router-dom"
-import { FiAward, FiChevronRight, FiClock, FiMapPin, FiNavigation, FiUsers } from "react-icons/fi"
+import { FiAward, FiChevronRight, FiClock, FiMapPin, FiNavigation, FiTarget, FiUsers } from "react-icons/fi"
 import { useTranslation } from "../i18n"
 import { formatDistanceKm } from "../utils/distance"
 import { DateTile, Meta } from "./rowPrimitives"
@@ -9,10 +9,60 @@ import {
     shortLocation,
     useDateParts,
     useListingStatus,
+    useRulesLine,
     useTournamentPrefetch,
     type ListingTournament,
     type ListingVariant,
+    type RulesLine,
 } from "./listingShared"
+
+/**
+ * Compact rules chip line, row flavour — same parts as `ListingCard`'s
+ * `RulesChipLine` (`useRulesLine()` in `listingShared.ts`), but the whole
+ * line truncates as ONE unit (`truncate` + `minW="0"` on the wrapping Text)
+ * instead of only the last chip: a list row is one line tall and has far
+ * less width to spend than a card, especially on a 360px phone, so the row
+ * would rather clip the whole tail ("1001 · Prolaz · Zvan…") than fight to
+ * keep every chip's separator visible.
+ */
+function RulesChipLine({ rules }: { rules: RulesLine }) {
+    // Target score stays its own flex-fixed, bold-mono span (same emphasis
+    // as the card); everything else joins into one truncating tail so the
+    // row clips gracefully as a unit instead of per-chip.
+    const rest: string[] = []
+    if (rules.endRule) rest.push(rules.endRule)
+    if (rules.declarations) rest.push(rules.declarations)
+    if (rules.bela) rest.push(rules.bela)
+    if (rules.direction) rest.push(rules.direction)
+    if (rules.targetScore == null && rest.length === 0) return null
+
+    return (
+        <HStack gap="1" fontSize="2xs" fontWeight="medium" color="fg.soft" minW="0">
+            {rules.targetScore != null && (
+                <>
+                    <Box flexShrink="0" display="inline-flex" color="fg.soft">
+                        <FiTarget size={11} />
+                    </Box>
+                    <Text
+                        as="span"
+                        flexShrink="0"
+                        fontFamily="mono"
+                        fontVariantNumeric="tabular-nums"
+                        fontWeight="bold"
+                    >
+                        {rules.targetScore}
+                    </Text>
+                </>
+            )}
+            {rest.length > 0 && (
+                <Text as="span" minW="0" truncate>
+                    {rules.targetScore != null ? "· " : ""}
+                    {rest.join(" · ")}
+                </Text>
+            )}
+        </HStack>
+    )
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
    ListingRow — one tournament in the "Popis" (list) view.
@@ -38,6 +88,7 @@ export default function ListingRow({
     const { t } = useTranslation()
     const dateParts = useDateParts()
     const listingStatus = useListingStatus()
+    const rulesLine = useRulesLine()
 
     const parts = dateParts(item.startAt)
     const status = listingStatus(item, variant)
@@ -47,6 +98,7 @@ export default function ListingRow({
     const repassage = positiveAmount(item.repassagePrice)
     const winner = (item.winnerName ?? "").trim()
     const place = shortLocation(item.location)
+    const rules = rulesLine(item)
 
     const prefetch = useTournamentPrefetch()
     const idOrSlug = item.slug ?? item.uuid
@@ -152,6 +204,12 @@ export default function ListingRow({
                             </Text>
                         </HStack>
                     </HStack>
+
+                    {/* Game-rules chip line — its own line under the meta row
+                        (2026-09-22). Absent entirely when the tournament has
+                        none of the underlying fields set — see
+                        `useRulesLine()` in `listingShared.ts`. */}
+                    {rules && <RulesChipLine rules={rules} />}
                 </VStack>
 
                 {/* Desktop: kotizacija anchored opposite the title, so the eye

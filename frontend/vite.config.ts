@@ -430,6 +430,18 @@ export default defineConfig({
                     proxy.on("error", () => {})
                 },
             },
+            // Nav "Igraj" live-room count pull (useGameStats.ts). Plain HTTP,
+            // no auth, no websocket — the game server answers it at `/stats`
+            // (see game/packages/server/src/server.ts). Caddy performs the
+            // identical rewrite in prod (`/game-stats.json` → game:8285/stats).
+            "/game-stats.json": {
+                target: "http://localhost:8285",
+                changeOrigin: true,
+                rewrite: () => "/stats",
+                configure: (proxy) => {
+                    proxy.on("error", () => {})
+                },
+            },
             // Realtime channel. The client always talks to the stable public
             // URL /ws/live/{uuid}; websockets-next registers its routes UNDER
             // quarkus.http.root-path (=/api), so the backend actually serves

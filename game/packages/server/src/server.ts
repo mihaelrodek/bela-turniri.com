@@ -170,6 +170,20 @@ export async function createServer(options: ServerOptions = {}): Promise<GameSer
             res.end(body)
             return
         }
+        // Public, unauthenticated, no websocket: the nav "Igraj" live-room
+        // pull polls this directly (Caddy proxies `/api/game-stats.json` to
+        // it, see the root Caddyfile). `no-store` because Caddy already adds
+        // its own short `max-age` for browsers/edge caches to absorb bursts —
+        // this process should never itself think a stale count is fine.
+        if (req.method === "GET" && path === "/stats") {
+            const body = JSON.stringify(lobby.stats())
+            res.writeHead(200, {
+                "content-type": "application/json; charset=utf-8",
+                "cache-control": "no-store",
+            })
+            res.end(body)
+            return
+        }
         res.writeHead(404, { "content-type": "application/json; charset=utf-8" })
         res.end(JSON.stringify({ ok: false, error: "not_found" }))
     })

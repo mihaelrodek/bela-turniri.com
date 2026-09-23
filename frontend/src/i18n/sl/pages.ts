@@ -53,6 +53,15 @@ export const pages: PagesDict = {
     "tournaments.filters.priceToPlaceholder": "do",
     "tournaments.filters.radiusLabel": "V krogu:",
     "tournaments.filters.radiusAll": "Vse",
+    // "Igra se do" (501/701/1001, večizbor) in "Napovedi" tri-stanje
+    // (vseeno / veljajo / ne veljajo) — 2026-09-22. Besedišče usklajeno z
+    // `tournament.ts`, kjer je "declarations" že prevedeno kot "Napovedi",
+    // ne "Zvanja".
+    "tournaments.filters.targetScoreLabel": "Igra se do",
+    "tournaments.filters.declarationsLabel": "Napovedi",
+    "tournaments.filters.declarationsAll": "Vseeno",
+    "tournaments.filters.declarationsEnabled": "Veljajo",
+    "tournaments.filters.declarationsDisabled": "Ne veljajo",
     "tournaments.filters.clearAll": "Počisti vse",
     "tournaments.filters.clearAllTitleActive": "Počisti vse filtre",
     "tournaments.filters.clearAllTitleInactive": "Ni aktivnih filtrov",

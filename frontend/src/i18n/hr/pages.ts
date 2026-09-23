@@ -80,6 +80,13 @@ export const pages = {
     // Na krajnjoj desnoj poziciji („Sve“) filter po udaljenosti je isključen.
     "tournaments.filters.radiusLabel": "U krugu od:",
     "tournaments.filters.radiusAll": "Sve",
+    // "Igra se do" chipovi (501/701/1001, višestruki odabir) i "Zvanja"
+    // tro-stanje (svejedno / vrijede / ne vrijede) — 2026-09-22.
+    "tournaments.filters.targetScoreLabel": "Igra se do",
+    "tournaments.filters.declarationsLabel": "Zvanja",
+    "tournaments.filters.declarationsAll": "Svejedno",
+    "tournaments.filters.declarationsEnabled": "Vrijede",
+    "tournaments.filters.declarationsDisabled": "Ne vrijede",
     "tournaments.filters.clearAll": "Očisti sve",
     "tournaments.filters.clearAllTitleActive": "Očisti sve filtere",
     "tournaments.filters.clearAllTitleInactive": "Nema aktivnih filtera",

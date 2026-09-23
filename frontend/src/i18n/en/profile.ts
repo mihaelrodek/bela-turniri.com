@@ -256,7 +256,7 @@ export const profile: ProfileDict = {
        points for games played. `{window}` arrives pre-formatted, built via
        `usePlural()` with `gameStats.daysDuration` below — never a bare number
        glued to a fixed noun. */
-    "gameStats.karmaHint": "Everyone starts at {max}/{max}. Abandoning a game with at least one other player still in it costs 1 point for {window}, then it just falls off. Playing never gives points back.",
+    "gameStats.karmaHint": "Karma shows how often you leave games and how much table-mates can count on you. 8–10 green, 5–7 yellow, 0–4 red. Each abandoned running game costs 1 point for {window}, then drops off by itself; playing does not raise it.",
     "gameStats.abandons": "Abandons",
     /* Same "X of Y in the last Z days" line as in the room (`game.karma.*` in
        the lazy-loaded `game` namespace) — duplicated here under `profile` on

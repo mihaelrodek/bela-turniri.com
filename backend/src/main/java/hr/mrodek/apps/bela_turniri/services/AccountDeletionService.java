@@ -76,6 +76,12 @@ import java.util.List;
  *   <tr><td>{@code tournaments}</td>
  *       <td>{@code created_by_uid} KEPT — an orphaned tournament still needs
  *           an owner uid for admin overrides to key on.</td></tr>
+ *   <tr><td>{@code game_replays}</td>
+ *       <td>row KEPT, document ANONYMISED (2026-09-23): the leaving user's
+ *           seats have their {@code uid} and {@code name} set to JSON null
+ *           inside the replay. A replay is a four-person record and the bot's
+ *           only research material for those hands — see
+ *           {@link #anonymiseGameReplays}.</td></tr>
  *   <tr><td>{@code contact_messages}, {@code game_results},
  *           {@code content_reports}</td>
  *       <td>KEPT. The first has its own retention job, the second is match
@@ -183,6 +189,7 @@ public class AccountDeletionService {
         }
 
         anonymisePairPresets(uid);
+        anonymiseGameReplays(uid);
 
         Resources oldAvatar = null;
         if (profile != null && !alreadyDeleted) {
@@ -261,6 +268,52 @@ public class AccountDeletionService {
         em.createNativeQuery(
                         "update user_pair_presets set archive_request_by_uid = null"
                                 + " where archive_request_by_uid = :uid")
+                .setParameter("uid", uid)
+                .executeUpdate();
+    }
+
+    /**
+     * "Zapisi partija" (game/README.md §8.8): strip the leaving user out of
+     * every stored replay they appear in.
+     *
+     * <h2>Anonymise, not delete — and why that is the simpler correct answer</h2>
+     * A replay is a FOUR-PERSON record, exactly like a tournament match: three
+     * other people played that game, and it is also the only research material
+     * the bot has for those hands. Deleting the whole document would erase
+     * their play to remove one person's identity — the same trade this class
+     * already refuses everywhere else (see the table in the class javadoc).
+     *
+     * <p>So the seat stays and the person goes: {@code uid} and {@code name}
+     * are set to JSON {@code null} on every seat of theirs, inside the
+     * document, in one statement. What is left is "seat 2, team A, a player" —
+     * the cards, the bidding and the tricks, attached to nobody. The {@code uid}
+     * is a pseudonymous Firebase id and the {@code name} is user-chosen, and
+     * those two are the only fields in the whole document that identify
+     * anybody; nothing else in it is personal data at all.
+     *
+     * <p>One statement, no index: account deletion is rare, retention keeps
+     * this table bounded, and a GIN index maintained on every recorded game
+     * to speed up a once-in-a-while sweep would be a poor trade.
+     *
+     * <p>Native SQL because this is a jsonb rewrite — HQL has no way to
+     * express it, and there is no repository method any other caller would
+     * want. {@code jsonb_agg} preserves array order, so the seats stay in
+     * seat order.
+     */
+    private void anonymiseGameReplays(String uid) {
+        em.createNativeQuery("""
+                        update game_replays r
+                           set replay = jsonb_set(r.replay, '{seats}', (
+                                   select jsonb_agg(
+                                              case when seat->>'uid' = :uid
+                                                   then seat || jsonb_build_object('uid', null, 'name', null)
+                                                   else seat end
+                                              order by ord)
+                                   from jsonb_array_elements(r.replay -> 'seats') with ordinality as t(seat, ord)))
+                         where exists (
+                                   select 1 from jsonb_array_elements(r.replay -> 'seats') s
+                                    where s->>'uid' = :uid)
+                        """)
                 .setParameter("uid", uid)
                 .executeUpdate();
     }

@@ -300,6 +300,61 @@ export function useListingStatus(): (item: ListingTournament, variant: ListingVa
     }
 }
 
+/* ── Rules line — card/row "1001 · Prolaz · Zvanja · Bez bele · Desno" ──────
+   Added 2026-09-22. One compact fact line, reused by `ListingCard` and
+   `ListingRow`. The four/five chips are built here (translated, in display
+   order); each component renders its own JSX from the parts so the mono
+   score styling and the truncation behaviour can differ between the card
+   and the row.
+
+   Declarations and bela are treated ASYMMETRICALLY on purpose:
+     - declarations always shows a chip, either the positive "Zvanja" (the
+       bare tile-label word, reused from `tournament.tile.declarations`) or
+       the negative "Bez zvanja" — the two states are equally common and
+       equally worth a glance;
+     - bela only shows a chip for the NEGATIVE case ("Bez bele"). Allowing
+       bela is the default and the overwhelmingly common case, so a positive
+       chip would just be noise on nearly every card; only the exception
+       (bela disabled) earns a chip.
+   Same asymmetry choice is documented again at the DetailsSection call site
+   that composes the merged "Zvanja i bela" tile from the same two keys. */
+export type RulesLine = {
+    targetScore: number | null
+    endRule: string | null
+    declarations: string | null
+    bela: string | null
+    direction: string | null
+}
+
+export function useRulesLine(): (item: ListingTournament) => RulesLine | null {
+    const { t } = useTranslation()
+    return (item: ListingTournament) => {
+        const hasAny =
+            typeof item.targetScore === "number" ||
+            !!item.gameEndRule ||
+            !!item.dealDirection ||
+            item.declarationsEnabled != null ||
+            item.allowBela != null
+        if (!hasAny) return null
+        return {
+            targetScore: typeof item.targetScore === "number" ? item.targetScore : null,
+            endRule: item.gameEndRule
+                ? t(`tournament.rule.end.${item.gameEndRule}`)
+                : null,
+            declarations:
+                item.declarationsEnabled == null
+                    ? null
+                    : item.declarationsEnabled
+                        ? t("tournament.tile.declarations")
+                        : t("tournament.rule.declarations.disabled"),
+            bela: item.allowBela === false ? t("tournament.rule.bela.disabled") : null,
+            direction: item.dealDirection
+                ? t(`tournament.rule.direction.${item.dealDirection}`)
+                : null,
+        }
+    }
+}
+
 /**
  * Prefetch a tournament's detail data into the react-query cache so opening
  * it (click / tap) renders instantly instead of showing a spinner + refetch.

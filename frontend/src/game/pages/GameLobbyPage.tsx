@@ -10,6 +10,7 @@ import { useDocumentHead } from "../../hooks/useDocumentHead"
 import { useTranslation } from "../../i18n"
 import { showError } from "../../toaster"
 import CreateGameDialog from "../components/CreateGameDialog"
+import GamesSiteBanner from "../components/GamesSiteBanner"
 import JoinByCodeDialog from "../components/JoinByCodeDialog"
 import { MyGameStatsPills, SeatKarmaPill } from "../components/GameStatsPills"
 import PlayerAvatar from "../components/PlayerAvatar"
@@ -354,6 +355,12 @@ export default function GameLobbyPage() {
     return (
         <Box maxW="1040px" mx="auto" pb={{ base: `calc(${MOBILE_TABBAR_CLEARANCE} + 96px)`, md: "8" }}>
             <VStack gap="6" align="stretch">
+                {/* Points bela-turniri.com visitors at bela.games — the
+                    dedicated site for THIS SAME lobby (2026-09-23, owner
+                    request). Renders nothing on bela.games/belot.games
+                    itself (see GamesSiteBanner). Sits above the profile row
+                    so it is the first thing a visitor sees. */}
+                <GamesSiteBanner />
                 {/* ONE header row (2026-09-21, user request). The profile row
                     and the big "Igre" title used to be two stacked rows that
                     together ate the top third of a phone screen for a word

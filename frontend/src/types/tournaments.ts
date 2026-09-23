@@ -21,6 +21,16 @@ export type TournamentCard = {
     repassagePrice?: number | null;
     winnerName?: string | null;
     registeredPairs?: number | null;
+
+    // Game rules — added 2026-09-22 so the listing card/row can show a
+    // compact rules line (target score, end rule, declarations, bela, deal
+    // direction) without a second fetch. Mirrors TournamentDetails; all
+    // nullable, same as there.
+    targetScore?: TournamentTargetScore | null;
+    gameEndRule?: TournamentGameEndRule | null;
+    dealDirection?: TournamentDealDirection | null;
+    declarationsEnabled?: boolean | null;
+    allowBela?: boolean | null;
 };
 
 export type TournamentDetails = {

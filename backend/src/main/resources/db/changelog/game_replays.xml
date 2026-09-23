@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      2026-09-23: "ZAPISI PARTIJA" — the full replay of a finished online game,
+      stored as one JSON document (game/README.md §8.8, game/BOT.md).
+
+      WHY. The bot is tuned against hand-written scenarios and self-play, both
+      of which only ever show it positions somebody already thought of. The
+      owner's request: keep whole games people actually played, so a bad
+      decision can be found after the fact and turned into a scenario test.
+
+      ONE ROW PER GAME, one-to-one with `game_results`:
+
+        * `game_result_id` is UNIQUE and ON DELETE CASCADE. Unique because the
+          reporter sends the replay INSIDE the result POST — same request,
+          same idempotency key (`game_results.uuid`), so a retry can never
+          produce a second replay for the same game. Cascade because a replay
+          of a deleted result is an orphan with no meaning; it also makes
+          `ops/reset-game-stats.sh` correct without naming a third table in
+          the TRUNCATE (it names it anyway, so the intent is readable).
+
+        * `replay` is jsonb, not a normalised deal/trick/play tree. Exactly
+          the `blok_sessions.payload` reasoning: the document is written once,
+          read whole, and never queried by a field inside a deal. Three more
+          tables would have bought zero queries. Anything a LISTING needs —
+          when, which bot, how big — is a real column.
+
+        * `bot_version` is denormalised OUT of the document on purpose: it is
+          the one field the export filters and groups by ("all games played
+          by the 2026-09-23 bot"), and a b-tree on a real column beats a jsonb
+          expression index for a question asked that often.
+
+        * `size_bytes` is what the reporter sent, recorded so the owner can
+          see the archive's growth without summing `length(replay::text)`
+          over the whole table.
+
+      NO GIN INDEX, deliberately. Nothing searches INSIDE the JSON: the export
+      is "give me the last N replays" and the analysis happens outside the
+      database. A GIN index on a document this size would cost write time and
+      a lot of space for a query nobody makes. `created_at` gets a plain
+      b-tree, which is what both readers actually use — the newest-first
+      export and the retention sweep.
+
+      RETENTION. `GameReplayRetentionJob` deletes rows older than
+      `game.replays.retention-days` (default 180) nightly. The replays are
+      research material with a shelf life — a game played against a bot that
+      no longer exists teaches nothing — and this is also what keeps the
+      table's size a known quantity rather than an open-ended one.
+
+      PRIVACY. The document holds seat names, the cards and the arithmetic of
+      the game, nothing else: no tokens, no e-mail addresses, no room codes.
+      A `DEMO` seat's internal uid never leaves the game server. Account
+      deletion NULLs the uid and the name of the leaving player's seats inside
+      the JSON (`AccountDeletionService`), so a deleted account leaves the
+      cards behind and takes the person with it.
+    -->
+
+    <changeSet id="2026-09-23-game-replays" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="game_replays"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="game_replays">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- One replay per recorded game; see the note above. -->
+            <column name="game_result_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <!-- The whole document (README §8.8). -->
+            <column name="replay" type="jsonb">
+                <constraints nullable="false"/>
+            </column>
+            <!-- `@bela/bots`' BOT_VERSION, lifted out for grouping. -->
+            <column name="bot_version" type="varchar(32)"/>
+            <!-- Serialised size as sent, for growth monitoring. -->
+            <column name="size_bytes" type="int"/>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="game_replays"
+                             columnNames="game_result_id"
+                             constraintName="uq_game_replays_game_result"/>
+
+        <addForeignKeyConstraint baseTableName="game_replays"
+                                 baseColumnNames="game_result_id"
+                                 constraintName="fk_game_replays_game_result"
+                                 referencedTableName="game_results"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <!-- Both readers scan by age: the newest-first admin export and the
+             nightly retention sweep. -->
+        <createIndex tableName="game_replays" indexName="idx_game_replays_created_at">
+            <column name="created_at"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

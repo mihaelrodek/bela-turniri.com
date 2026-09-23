@@ -77,7 +77,24 @@ export const common = {
        namespace would paint as a raw key until that chunk arrived. */
     "nav.igraj": "Igraj",
     "nav.new": "Novo",
+    /* Broj aktivnih soba online bele, pored "Igraj" u navigaciji (nav pill na
+       desktopu, brojčana značka na mobilnom sredinjem gumbu) — vidi
+       hooks/useGameStats.ts. Nula ili nepoznato zadržava običan "Novo" badge
+       (`nav.new` iznad), pa ovaj par ne treba `.zero` slučaj. */
+    "nav.liveRooms.one": "{n} soba",
+    "nav.liveRooms.two": "{n} sobe",
+    "nav.liveRooms.few": "{n} sobe",
+    "nav.liveRooms.other": "{n} soba",
+    /* aria-label/title na mobilnoj bedžici (round accent dugme) — puna
+       rečenica, zato posebna obitelj umjesto ponovne upotrebe `nav.liveRooms`. */
+    "nav.liveRoomsAria.one": "{n} aktivna soba",
+    "nav.liveRoomsAria.two": "{n} aktivne sobe",
+    "nav.liveRoomsAria.few": "{n} aktivne sobe",
+    "nav.liveRoomsAria.other": "{n} aktivnih soba",
     "nav.blok": "Blok",
+    /* Desktop-only chip pointing at bela.games (components/NavBar.tsx
+       GamesSiteLinkChip, 2026-09-23, owner request) — the label is the
+       domain itself, so it stays identical across all three locales. */
     "nav.logout": "Odjavi se",
     "nav.profileMenuAriaLabel": "Profil meni",
     "nav.avatarAlt": "Profilna slika",

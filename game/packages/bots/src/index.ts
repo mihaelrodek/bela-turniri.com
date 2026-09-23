@@ -20,6 +20,22 @@ export interface Bot {
     chooseCard(view: PlayerView, legal: Card[], rng: () => number): Card
 }
 
+/**
+ * WHICH BOT PLAYED THIS GAME.
+ *
+ * Stamped into every recorded replay (`game_replays.bot_version`, README §8.8)
+ * so a measurement taken next month can say WHICH bot it is measuring. Without
+ * it a replay archive is one undifferentiated pile and "did the change help?"
+ * is unanswerable.
+ *
+ * BUMP IT — an ISO date, the day of the change — in the SAME commit as any
+ * change to `heuristicBot.ts`, `evaluate.ts` or a BOT.md rule that alters a
+ * decision. A tweak that provably cannot change a move (a comment, a rename,
+ * a test) does not need a bump. Bumping too often costs nothing; not bumping
+ * silently merges two different bots into one bucket.
+ */
+export const BOT_VERSION = "2026-09-23"
+
 /** The single bot. Stateless and pure, so every seat can share one instance;
  *  the factory exists only so callers never hard-code which module it is. */
 export function createBot(): Bot {

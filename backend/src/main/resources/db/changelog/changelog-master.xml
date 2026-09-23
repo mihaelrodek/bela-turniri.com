@@ -179,4 +179,18 @@
          from the previous rule stay where they are, unread. -->
     <include file="db/changelog/game_reliability_window.xml" relativeToChangelogFile="false"/>
 
+    <!-- Analytics now record EVERY finished game with a real person in it,
+         not only §8.1-eligible ones: `game_results.eligible` carries that
+         verdict (every competitive read filters on it, so personal records
+         and karma keep their meaning) and `game_result_players.player_name` /
+         `player_kind` finally make a guest listable by name. -->
+    <include file="db/changelog/game_results_analytics.xml" relativeToChangelogFile="false"/>
+
+    <!-- "Zapisi partija" (game/README.md §8.8): the FULL replay of a finished
+         game — every deal's 32 dealt cards, bidding, declarations and tricks —
+         as one jsonb document per game, so the bot can be studied against
+         games real people played. One row per `game_results` row, deleted
+         with it, and swept nightly by `game.replays.retention-days`. -->
+    <include file="db/changelog/game_replays.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>

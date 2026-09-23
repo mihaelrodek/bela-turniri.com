@@ -110,6 +110,11 @@ export const tournament = {
     "tile.dealDirection": "Smjer kartanja",
     "tile.declarations": "Zvanja",
     "tile.allowBela": "Bela",
+    /* Merged tile (2026-09-22): "Zvanja" and "Bela" used to be two separate
+       tiles (the second shown only when declarations were off); now they
+       share one tile, value composed from rule.declarations.* + rule.bela.*
+       — see DetailsSection.tsx. */
+    "tile.declarationsAndBela": "Zvanja i bela",
     "tile.rewards": "Nagrade",
     "tile.additionalOptions": "Dodatne opcije",
 
@@ -153,6 +158,14 @@ export const tournament = {
     "rule.declarations.disabled": "Bez zvanja",
     "rule.yes": "Da",
     "rule.no": "Ne",
+    /* Bela chip/tile fragment (2026-09-22). Used standalone (capitalised) on
+       the listing card/row's rules chip, and lower-cased into the merged
+       "Zvanja i bela" detail tile's value — see DetailsSection.tsx and
+       listingShared.ts's `useRulesLine`. Only `.disabled` is ever shown as
+       its own chip: allowing bela is the default, so only the exception is
+       worth a glance. */
+    "rule.bela.enabled": "Bela da",
+    "rule.bela.disabled": "Bez bele",
 
     // ═══════════════════════ Detalji tab — edit mode ═══════════════════════
     "edit.sectionBasic": "Osnovno",
@@ -228,11 +241,15 @@ export const tournament = {
     "pairs.paid": "Plaćeno",
     "pairs.unpaid": "Nije plaćeno",
     "pairs.approve": "Odobri",
+    // aria-label / tooltip for the inline decision buttons on a pending
+    // row — the bare "Odobri" / "Ukloni" say too little out of context.
+    "pairs.approveTitle": "Odobri par",
+    "pairs.rejectTitle": "Odbij par",
     "pairs.pay": "Plati",
     "pairs.markUnpaid": "Označi neplaćeno",
     "pairs.markPaidTitle": "Označi kao plaćeno",
     "pairs.markUnpaidTitle": "Označi kao neplaćeno",
-    "pairs.removePair": "Ukloni par",
+    "pairs.removePair": "Ukloni",
     "pairs.addPair": "Dodaj par",
     "pairs.addPairTitle": "Dodaj novi par",
     "pairs.atCapacityTitle": "Maksimalan broj parova ({max})",
@@ -670,7 +687,7 @@ export const tournament = {
        rječniku — ista se komponenta otvara i s profila igrača, pa njezin
        tekst ne smije biti razdvojen na dva mjesta. */
     "report.tournamentItem": "Prijavi turnir",
-    "report.pairItem": "Prijavi par",
+    "report.pairItem": "Prijavi",
 }
 
 /** Contract every other locale's `tournament` namespace must satisfy. */

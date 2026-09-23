@@ -1084,6 +1084,13 @@ Perzistencija živi u **glavnoj aplikaciji** (Postgres, Quarkus backend), ne u
 **izvjestitelj**: na `GAME_OVER` javlja gotovu partiju backendu preko
 internog, ne-javnog endpointa; ne drži ništa perzistentno sam.
 
+> **Dva različita pravila, ne miješati ih (2026-09-22):** §8.1 kaže što se
+> **broji u statistiku** (igračev omjer pobjeda/poraza i karma), §8.7 kaže što
+> se **zabilježi za analitiku**. Node od 2026-09-22 javlja backendu *svaku*
+> gotovu partiju u kojoj je sjedio barem jedan pravi čovjek, a §8.1-verdikt
+> nosi u polju `eligible`; backend ga sprema na `game_results.eligible` i svaki
+> natjecateljski upit filtrira po njemu.
+
 ### 8.1 Pravilo brojanja — NORMATIVNO
 **Partija se broji u statistiku samo ako OBA tima imaju barem jednog
 čovjeka.** Ekvivalentno: ne broji se ako je jedan cijeli tim (oba sjedala)
@@ -1092,8 +1099,14 @@ bota, zadani tijek kad netko sam pokrene igru) i simetrični slučaj obrnuto.
 Par čovjek+bot naspram dva čovjeka **se broji** — igrač je stvarno igrao
 protiv pravih ljudi, bot-partner ne obezvrjeđuje to. Ovu odluku donosi
 **Node server** (`gameRoom.ts`/`room.ts` u trenutku `GAME_OVER`, zna točno
-tko je čovjek/bot po sjedalu) — backend ne filtrira ništa, prima samo ono što
-vrijedi zabilježiti.
+tko je čovjek/bot po sjedalu) — backend ga ne preispituje, nego ga sprema kao
+`eligible` i po njemu filtrira sve natjecateljske upite (`statsFor`,
+`countGamesSince*` za karmu).
+
+**Što se NE mijenja:** gost (čovjek bez računa) je i dalje čovjek za §8.1,
+demo lutka (`kind: "DEMO"`) i bot nisu. Partija 1 čovjek + 3 bota je i dalje
+`eligible: false` i ne ulazi ni u čiji omjer ni u karmu — od 2026-09-22 se
+samo **zabilježi** (§8.7) umjesto da nestane.
 
 ### 8.2 Kategorije
 Kategorija = `targetScore` partije: `163 | 501 | 701 | 1001`. Globalna
@@ -1114,7 +1127,9 @@ game_results (
   winner_team   CHAR(1) NOT NULL CHECK (winner_team IN ('A','B')),
   score_a       INTEGER NOT NULL,
   score_b       INTEGER NOT NULL,
-  deals_count   SMALLINT
+  deals_count   SMALLINT,
+  -- 2026-09-22, changeset `2026-09-22-game-results-analytics`:
+  eligible      BOOLEAN DEFAULT TRUE       -- §8.1-verdikt koji javlja Node
 )
 
 game_result_players (
@@ -1125,6 +1140,9 @@ game_result_players (
   uid              VARCHAR(128),           -- NULL za bota
   is_bot           BOOLEAN NOT NULL,
   won              BOOLEAN NOT NULL,       -- team = winner_team, denormalizirano radi jednostavnog upita
+  -- 2026-09-22, isti changeset:
+  player_name      VARCHAR(64),            -- ime kako je pisalo iznad sjedala; jedini "identitet" gosta
+  player_kind      VARCHAR(8),             -- PLAYER | GUEST | BOT | DEMO
   UNIQUE (game_result_id, seat)
 )
 -- index: game_result_players(uid), game_result_players(uid, ...) preko join na game_results.target_score
@@ -1149,14 +1167,25 @@ Tijelo (Node šalje ovo TOČNO nakon `GAME_OVER`, samo ako §8.1 kaže da se bro
   "winnerTeam": "A",
   "scoreA": 1041, "scoreB": 789,
   "dealsCount": 10,
+  "eligible": true,
   "players": [
-    { "seat": 0, "team": "A", "uid": "firebase-uid-1", "isBot": false },
-    { "seat": 1, "team": "B", "uid": "firebase-uid-2", "isBot": false },
-    { "seat": 2, "team": "A", "uid": null, "isBot": true },
-    { "seat": 3, "team": "B", "uid": "firebase-uid-3", "isBot": false }
+    { "seat": 0, "team": "A", "uid": "firebase-uid-1", "isBot": false, "name": "Ivan",  "kind": "PLAYER" },
+    { "seat": 1, "team": "B", "uid": null, "isBot": false, "isGuest": true, "name": "Gost123", "kind": "GUEST" },
+    { "seat": 2, "team": "A", "uid": null, "isBot": true,  "name": "Bot Marko", "kind": "BOT" },
+    { "seat": 3, "team": "B", "uid": "firebase-uid-3", "isBot": false, "name": "Ana", "kind": "PLAYER" }
   ]
 }
 ```
+Od 2026-09-23 tijelo može nositi i neobavezno polje **`replay`** — puni zapis
+partije (§8.8). Isti zahtjev, isti `resultId`, isti token; ako ga nema,
+partija se bilježi kao i dosad.
+
+`eligible`, `name` i `kind` su dodani 2026-09-22 i na backendu su
+**opcionalni**: stariji game server ih ne šalje, pa backend izvede `eligible`
+iz starog pravila (oba tima imaju ne-bot sjedalo), a `kind` iz
+`isBot`/`isGuest`/`uid`. `uid`/`isBot`/`isGuest` ostaju u tijelu radi
+kompatibilnosti unatrag. `DEMO` sjedalo šalje `isBot: true` i `uid: null` —
+uid lažne osobe (`demo:`) **nikad** ne napušta Node proces.
 Backend: upsert na `uuid` (ON CONFLICT DO NOTHING, isti obrazac kao
 `IdempotencyService` — retry s istim `resultId` ne smije duplo zabrojiti,
 Node ne pamti je li POST prošao ako veza padne usred odgovora).
@@ -1224,3 +1253,128 @@ odaja (DEMO-LOBBY.md §3).
 narančasto ispod 10, ništa kad server nije poslao karmu — botovi, gosti) i
 `profile/GameStatsCard` (`x/10` + popover s razlogom, iz `reliability`). hr +
 sl i18n obavezno.
+
+### 8.7 Zapis za analitiku — NORMATIVNO (2026-09-22)
+**Javlja se svaka gotova partija u kojoj je sjedio barem jedan pravi čovjek**
+(`kind: "PLAYER"` ili `"GUEST"`), bez obzira na §8.1. Preskače se samo stol na
+kojem nema nijednog pravog čovjeka — sami botovi i/ili demo lutke.
+
+Zašto: do 2026-09-22 `statsReporter` je partiju koja nije `eligible` bacio
+**prije** nego što bi ikamo stigla, pa čovjek koji je igrao s tri bota ili
+protiv demo lobija nije postojao nigdje. Vlasnik je zato na admin ploči vidio
+„Tko je igrao: 0“ i „Mjesta gostiju: 0“ na stranici na kojoj su ljudi stvarno
+igrali. Drugi dio istog kvara: gost se slao kao `uid: null, isGuest: true`, pa
+se spremao bez ijednog identifikatora — moglo ga se prebrojati, ali ne i
+imenovati.
+
+**Wire (§8.4):** `eligible: boolean` na partiji, `name: string` i
+`kind: "PLAYER" | "GUEST" | "BOT" | "DEMO"` po sjedalu. `name` je ime kako je
+pisalo iznad sjedala za stolom (ime bota, ime lažne osobe, ime gosta, igračevo
+in-game ime) i za gosta je to **jedini** trag po kojem ga se može imenovati.
+`resultId` ostaje isti idempotentni ključ.
+
+**Podjela odgovornosti na backendu, bez iznimke:**
+
+| Čitanje | Filtrira `eligible`? |
+| --- | --- |
+| `GameStatsService.statsFor` → profil, `GET /user/me/game-stats` | **da** |
+| `GameResultPlayerRepository.countGamesSince(ByUid)` → karma prozor (§8.6) | **da** |
+| `topPlayers` / `topGuests` → admin popis „Tko je igrao“ | ne (uz `rankedGames`/`rankedWins` kao ubrojivi podskup) |
+| `countDistinctPlayers`, `anonymousSeatTally`, `companyGameTally` → admin brojači | ne |
+
+Admin popis grupira **račune po `uid`**, a **goste po `player_name`** — gost
+nema identifikator, pa se dvoje ljudi s istim imenom stapa u jedan red i UI to
+izričito piše. Sjedala gostiju zabilježena prije ovog datuma nemaju ime i
+ostaju samo u zbirnom brojaču.
+
+### 8.8 Zapisi partija (replay) — NORMATIVNO (2026-09-23)
+
+**Svaka partija koja se javlja backendu (§8.7) nosi sa sobom i svoj puni
+zapis** — sve što se u njoj dogodilo, kao jedan JSON dokument. Zahtjev
+vlasnika: „neka se sprema kao json negdje u tablicu“, da se botova igra može
+proučavati na partijama koje su ljudi stvarno odigrali.
+
+**Zašto.** Bot se ugađa na ručno napisanim scenarijima i na simulaciji protiv
+samoga sebe — oboje pokazuje samo pozicije kojih se netko već sjetio. Arhiva
+odigranih partija je jedini izvor pozicija koje nitko nije osmislio.
+
+**Što se bilježi:** ono što §8.7 javlja, dakle svaka gotova partija u kojoj je
+sjedio barem jedan pravi čovjek. Stol na kojem nema nikoga pravog (sami botovi
+i/ili demo lutke) **se ne bilježi** — takva partija je bot protiv samoga sebe i
+ne uči ga ničemu novom. Jedina iznimka je `GAME_REPLAY_BOT_SAMPLE` (udio 0..1,
+zadano **0**): namjerno uzorkovanje takvih partija kao *baseline* za usporedbu.
+Uzorkovana partija postaje običan `game_results` redak s `eligible: false`, pa
+se vidi i u admin brojaču „sami botovi“.
+
+**Gdje se hvataju karte.** Engine ih ne čuva: `GameState.history` je samo
+`DealScore[]`, a `startDeal` za sljedeću podjelu radi potpuno novi state — ruke
+i štihovi prethodne podjele nigdje ne prežive. Zato ih bilježi
+`packages/server/src/replay.ts` (`ReplayRecorder`), kojemu `GameRoom.apply()`
+predaje svaku redukciju kao `(before, after, events)`. Ruke se hvataju na
+`HAND_COMPLETED` — jedini trenutak u kojem postoje sve 32 karte, a nijedna još
+nije odigrana — a talon se čita iz `before.stock` istim hodom kojim ga engine
+dijeli (2 karte po sjedalu od sjedala iza djelitelja). Snimač je ograničen:
+najviše `MAX_RECORDED_DEALS` (64) podjela, pa `truncated: true`.
+
+**Oblik dokumenta** (`version: 1`):
+
+```jsonc
+{
+  "version": 1,
+  "botVersion": "2026-09-23",          // BOT_VERSION iz @bela/bots
+  "settings": { "targetScore": 501, "gameEndRule": "prolaz",
+                "noDeclarations": false, "allowBela": true, "trickReview": "off" },
+  "seats": [ { "seat": 0, "team": "A", "kind": "PLAYER", "uid": "…", "name": "Ivan" }, … ],
+  "deals": [ {
+      "dealNo": 1, "dealer": 0,
+      "hands":  { "0": [ …8 karata… ], "1": […], "2": […], "3": […] },  // svih 32
+      "talon":  { "0": [ …2 karte… ], … },                              // druga runda dijeljenja
+      "bidding": [ { "seat": 1, "action": "PASS" },
+                   { "seat": 2, "action": "CALL", "trump": "HERC", "forced": false } ],
+      "declarations": [ { "seat": 2, "kind": "SEQUENCE", "cards": […], "points": 20 } ],
+      "declarationsScoringTeam": "A", "belaDeclared": null, "belaRefused": null,
+      "belot": null,
+      "tricks": [ { "no": 1, "leader": 1,
+                    "plays": [ { "seat": 1, "card": "JHERC" }, … ], "winner": 0 } ],
+      "dealScore": { … },                 // null ako je podjelu prekinuo `dosta`
+      "runningScore": { "A": 62, "B": 100 }
+  } ],
+  "winner": "A", "scoreA": 501, "scoreB": 300, "dealsCount": 6,
+  "playedAt": "2026-09-23T20:00:00.000Z", "durationMs": 412345
+}
+```
+
+Ruke se bilježe **u cijelosti, i one koje igrač nikad nije vidio**. Partija je
+gotova, dokument nikad ne ide igraču (samo admin izvoz), a zapis s kartama
+samo jednog sjedala ne bi odgovorio ni na jedno pitanje zbog kojeg postoji.
+U dokumentu nema tokena, e-maila ni koda sobe; `demo:` uid nikad ne izlazi iz
+Node procesa.
+
+**Veličina.** Odigrana partija do 501 u 6 podjela ≈ **13 KB** kompaktnog JSON-a
+(~2 KB po podjeli), partija do 1001 ≈ 25-30 KB.
+
+**Prijenos (§8.4).** `replay` je **neobavezno polje istog POST-a** — jedan
+zahtjev, jedan ključ idempotencije (`resultId`), jedan token. Ako serijalizirani
+zapis prijeđe **512 KB**, šalje se bez njega i loguje se `warn`
+(`stats.replay.tooLarge`) — rezultat je važniji od arhive. Stariji backend
+polje jednostavno ignorira (Quarkusov Jackson ne puca na nepoznata polja), a od
+2026-09-23 ga `GameResultReportRequest` i izričito prima.
+
+**Backend.** Tablica `game_replays` (changeset `2026-09-23-game-replays`):
+`game_result_id` UNIQUE FK → `game_results` ON DELETE CASCADE, `replay jsonb`,
+`bot_version`, `size_bytes`, `created_at`. Sprema se u **istoj transakciji** kao
+i rezultat (`GameStatsService.record`); partija bez zapisa je sasvim normalna
+partija. Nema GIN indeksa — ništa se ne pretražuje *unutar* dokumenta.
+Čuvanje: `GameReplayRetentionJob` svaku noć briše zapise partija starijih od
+`game.replays.retention-days` (zadano 180); statistika ostaje zauvijek.
+
+**Izvoz (samo admin):** `GET /api/admin/game-replays?since=&until=&limit=`
+vraća JSON Lines (`application/x-ndjson`), jedan zapis po retku, najnovije
+prvo (`limit` zadano 500, najviše 5000); `GET /api/admin/game-replays/{resultId}`
+vraća jedan dokument. Vidi `DEPLOY.md` za `curl` i `game/BOT.md` za to kako se
+zapis pretvara u scenarij-test.
+
+**Brisanje računa.** Zapis se ne briše — partija je zapis četvero ljudi i
+jedini materijal za te ruke. `AccountDeletionService` unutar dokumenta postavlja
+`uid` i `name` na `null` na svim sjedalima odlazećeg korisnika (jsonb update);
+ostaje „sjedalo 2, tim A, igrač“ bez ičijeg identiteta.

@@ -13,6 +13,14 @@
 #                            from (GameStatsService reads it on every request;
 #                            there is no aggregate table anywhere, so clearing
 #                            the rows makes every card read 0-0 by itself).
+#   game_replays             the FULL JSON replay of each finished game
+#                            (game/README.md §8.8) - every deal's 32 dealt
+#                            cards, the bidding and all eight tricks, kept so
+#                            the bot can be studied against real games. Its FK
+#                            to game_results is ON DELETE CASCADE, so it is
+#                            named in the SAME TRUNCATE as the other two:
+#                            TRUNCATE refuses a table that another table
+#                            references unless every one of them is named.
 #   game_results             the finished games those seats belong to. Cleared
 #                            in the SAME statement as the seats: the FK is
 #                            ON DELETE CASCADE, so one TRUNCATE naming both
@@ -116,6 +124,7 @@ counts_sql() {
     cat <<'SQL'
 SELECT 'game_results'                                  AS tablica, count(*) AS redaka FROM game_results
 UNION ALL SELECT 'game_result_players',                          count(*) FROM game_result_players
+UNION ALL SELECT 'game_replays',                                 count(*) FROM game_replays
 UNION ALL SELECT 'game_analytics_events',                        count(*) FROM game_analytics_events
 UNION ALL SELECT 'game_reliability_events',                      count(*) FROM game_reliability_events
 UNION ALL SELECT 'user_profiles.game_abandons > 0',              count(*) FROM user_profiles WHERE game_abandons <> 0
@@ -139,7 +148,7 @@ if [[ "$APPLY" -eq 0 ]]; then
     cat <<EOF
 
 🔍 DRY RUN - ništa nije obrisano.
-   Obrisalo bi se: game_result_players + game_results, game_analytics_events$( [[ "$KEEP_KARMA" -eq 0 ]] && echo ", game_reliability_events" || true )
+   Obrisalo bi se: game_result_players + game_replays + game_results, game_analytics_events$( [[ "$KEEP_KARMA" -eq 0 ]] && echo ", game_reliability_events" || true )
 $( [[ "$KEEP_KARMA" -eq 0 ]] && echo "   Resetiralo bi se: user_profiles.game_abandons -> 0, game_karma -> 10, game_completed_since_recovery -> 0" || true )
    Ne dira: turnire, parove, profile kao takve, blok, push pretplate, imena za igru.
 
@@ -170,10 +179,11 @@ fi
 # and ON_ERROR_STOP makes the first failure roll the lot back, so the database
 # is never left with games cleared but karma still counting them.
 {
-    # game_result_players first in the list is cosmetic - TRUNCATE naming both
-    # tables in one statement handles the FK between them regardless of order;
-    # naming them together is what makes TRUNCATE legal here at all.
-    echo "TRUNCATE TABLE game_result_players, game_results RESTART IDENTITY;"
+    # The order inside the list is cosmetic - TRUNCATE naming all three
+    # tables in one statement handles the FKs between them regardless of
+    # order; naming them TOGETHER is what makes TRUNCATE legal here at all
+    # (game_result_players and game_replays both reference game_results).
+    echo "TRUNCATE TABLE game_result_players, game_replays, game_results RESTART IDENTITY;"
     echo "TRUNCATE TABLE game_analytics_events RESTART IDENTITY;"
     if [[ "$KEEP_KARMA" -eq 0 ]]; then
         echo "TRUNCATE TABLE game_reliability_events RESTART IDENTITY;"

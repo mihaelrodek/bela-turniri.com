@@ -62,7 +62,13 @@ export const game = {
        otpadne. `{window}` je već gotova fraza ("30 dana"/"30 dni"), sastavljena
        preko `usePlural()`/`game.karma.daysDuration` u pozivnoj komponenti —
        ne prosljeđuje se goli broj u fiksnu imenicu (v. KARMA-CONTRACT.md). */
-    "karma.explain": "Karma je ocjena pouzdanosti od 0 do {max}. Svi kreću s {max}. Ako napustiš partiju koja je u tijeku i ne vratiš se u roku za povratak, gubiš 1 bod (ne računa se ako si za stolom bio samo s botovima). Bod se sam vraća nakon {window}. Igranjem se karma ne može popraviti. Tvoju karmu vide igrači s kojima sjediš u sobi.",
+    "karma.explain": "Karma pokazuje koliko često napuštaš partije i koliko se suigrači mogu osloniti na tebe da ćeš igru odigrati do kraja. Ocjena ide od 0 do {max}; svi kreću s {max}. Svako napuštanje partije u tijeku (kad se ne vratiš u roku za povratak, a za stolom nisu ostali samo botovi) skida 1 bod na {window}, a onda sam otpadne. Igranjem se karma ne diže — dovoljno je ne napuštati. Karmu vide igrači s kojima sjediš u sobi.",
+    "karma.tier.good": "Pouzdan",
+    "karma.tier.fair": "Ponekad napušta",
+    "karma.tier.poor": "Često napušta",
+    "karma.tierHint.good": "Gotovo uvijek odigra partiju do kraja. Suigrači se mogu osloniti na tebe.",
+    "karma.tierHint.fair": "U zadnje vrijeme napustio nekoliko partija. Suigrači to vide, pa odigraj do kraja i ocjena se sama vraća.",
+    "karma.tierHint.poor": "Često napušta partije u tijeku. Suigrači se na to teško mogu osloniti; ocjena se vraća sama ako se partije igraju do kraja.",
     /* Redak s brojkama iza karme (2026-09-21): "Napustio X od Y partija u
        zadnjih Z dana". `{games}` i `{window}` su već sklonjene fraze
        (`karma.gamesOf` / `karma.lastDays`, ispod) — `{abandoned}` ostaje gola
@@ -605,6 +611,20 @@ export const game = {
     "lobby.filter.hasSeats": "Ima mjesta",
     "lobby.filter.targetAria": "Prikaži samo igre do {target} bodova",
     "lobby.filter.public": "Javne",
+
+    /* ─── Banner prema bela.games (2026-09-23, korisnikov zahtjev) ────────
+       /igra na bela-turniri.com prikazuje ISTO predvorje kao bela.games, pa
+       ništa nije govorilo da postoji posebna stranica za igranje. Vidi
+       game/components/GamesSiteBanner.tsx — prikazuje se samo kad
+       `!isGamesSite`. `stripText`/`stripLink` su skupljena jedna linija
+       nakon odbacivanja hero kartice.
+       DODANO NA KRAJ — ne premještaj i ne briši ključeve iznad. */
+    "gamesSite.title": "Bela Online ima svoju stranicu",
+    "gamesSite.titleShort": "Igraj online na bela.games",
+    "gamesSite.subtitle":
+        "Igraj belu online s prijateljima ili botovima na bela.games — bez računa, u pregledniku i na mobitelu.",
+    "gamesSite.cta": "Prebaci se na bela.games",
+    "gamesSite.ctaShort": "bela.games",
 }
 
 /** Ugovor koji svaki drugi jezik mora zadovoljiti za `game`. */

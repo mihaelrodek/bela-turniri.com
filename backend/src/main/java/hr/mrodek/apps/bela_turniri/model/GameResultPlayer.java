@@ -60,4 +60,26 @@ public class GameResultPlayer {
     /** Denormalised {@code team = gameResult.winnerTeam}. */
     @Column(name = "won", nullable = false)
     private boolean won;
+
+    /**
+     * The seat's display name exactly as the table showed it: the account's
+     * in-game name, the guest's chosen name, the bot's name, or the demo
+     * person's fake name.
+     *
+     * <p>This is the ONLY handle a guest ever has — a guest seat carries no
+     * uid by design — so it is what makes guests listable in the admin
+     * analytics instead of merely countable. NULL for rows written before
+     * 2026-09-22 and for an older reporter that does not send it.
+     */
+    @Column(name = "player_name", length = 64)
+    private String playerName;
+
+    /**
+     * {@code PLAYER | GUEST | BOT | DEMO}. Distinguishes the two things a
+     * {@code is_bot = true} row can be (a bot, or a demo lobby fake person)
+     * and the two things a human seat can be (a signed-in account, or a
+     * guest). NULL only for rows that predate the column.
+     */
+    @Column(name = "player_kind", length = 8)
+    private String playerKind;
 }

@@ -59,18 +59,32 @@ lobby ne krene s osam partija na 0:0.
 20–70 s. Na roku se, kroz isti `structural()` mutex, dogodi točno jedno:
 **dođe četvrti** i partija krene nakon uobičajene kratke stanke (dopušteno i
 kad to digne broj partija JEDAN iznad trenutnog cilja; tvrda granica je
-`max + 1` pojasa), ili **netko ode** pa soba padne na dva (kasnije može opet
-gore, s NOVIM rokom). Omjer je otprilike 65/35 u korist četvrtog kad ima
-mjesta. Sobe s jednim ili dva sjedeća smiju čekati dulje, ali ne zauvijek:
-soba koja nakon 6–10 min još nije krenula ili se napuni i krene ili se
-zatvori pa je zamijeni nova — popis se mora vidljivo mijenjati.
+`max + 1` pojasa), ili **netko ode** pa soba padne na dva. Ta stolica onda
+ostaje prazna **20–45 s** (`fillPauseUntil`) prije nego što je popunjavanje
+smije opet dirati — soba koja se vrati na tri u istoj sekundi nikad nije ni
+IZGLEDALA kao da je pala, a to je točno ono protiv čega je rok napisan.
+Kasnije smije opet gore, s NOVIM rokom. Omjer je otprilike 65/35 u korist
+četvrtog kad ima mjesta. Nitko se ne diže iz sobe kojoj već otkucava početak
+(`startPending`) ni iz one koja se namjerno puni (`rushing`), a soba koja se
+puni ne smije ostati zaključana u tom stanju: `rushUntil` je vraća pod
+obična pravila. Sobe s jednim ili dva sjedeća smiju čekati dulje, ali ne
+zauvijek: soba koja nakon 6–10 min još nije krenula ili se napuni i krene ili
+se zatvori pa je zamijeni nova — popis se mora vidljivo mijenjati.
 
 Kako su početci sad vođeni VREMENOM, prosjek se drži s druge strane: dok je
 partija **više** nego što cilj traži, nitko se ne gura na tri (novi dolasci
-samo dižu sobu s jedan na dva), a gotove partije se brže raziđu.
+samo dižu sobu s jedan na dva), a gotove partije se brže raziđu. Kad ih je
+**manje**, redatelj je nestrpljiv: kraj partije odmah gurne populacijski
+korak, razmak između koraka padne na 2–6 s, a soba koja pokriva manjak puni
+se u NIZU (`rushFill`, stolica svakih 1,5–5 s) umjesto jedan čovjek po
+koraku. Nikad više takvih nizova nego što je sam manjak i nikad preko stropa
+pojasa — inače tri partije koje završe zajedno ostave lobby na tri stola
+punu minutu.
 
 Soba u kojoj sjedi PRAVI čovjek zadržava svoj ljudski tempo (puni se jedan po
-jedan, 3–12 s) — na nju se ovo ne odnosi.
+jedan, 3–12 s) — na nju se ovo ne odnosi, i **nitko lažan iz nje ne ustaje**
+dok čovjek sjedi i čeka: prazno mjesto se popunjava (`stepHumanFill`), nikad
+se ne otvara.
 
 ### 2.3 Pravi igrač
 

@@ -46,7 +46,13 @@ export const game: GameDict = {
     "room.statsOverall": "Vse {wins}–{losses} · {percent}%",
     "room.statsTitle": "Skupaj",
     "room.karma": "Karma {value}/{max}",
-    "karma.explain": "Karma je ocena zanesljivosti od 0 do {max}. Vsi začnejo z {max}. Če zapustiš partijo, ki teče, in se ne vrneš v času za vrnitev, izgubiš 1 točko (ne šteje, če si bil za mizo samo z boti). Točka se sama vrne po {window}. Z igranjem karme ni mogoče popraviti. Tvojo karmo vidijo igralci, s katerimi sediš v sobi.",
+    "karma.explain": "Karma kaže, kako pogosto zapuščaš partije in koliko se soigralci lahko zanesejo, da boš igro odigral do konca. Ocena gre od 0 do {max}; vsi začnejo z {max}. Vsaka zapustitev partije v teku (ko se ne vrneš v času za vrnitev in za mizo niso ostali samo boti) odvzame 1 točko za {window}, nato sama odpade. Z igranjem se karma ne dviga — dovolj je, da ne zapuščaš. Karmo vidijo igralci, s katerimi sediš v sobi.",
+    "karma.tier.good": "Zanesljiv",
+    "karma.tier.fair": "Včasih zapusti",
+    "karma.tier.poor": "Pogosto zapusti",
+    "karma.tierHint.good": "Skoraj vedno odigra partijo do konca. Soigralci se lahko zanesejo nate.",
+    "karma.tierHint.fair": "V zadnjem času je zapustil nekaj partij. Soigralci to vidijo — odigraj do konca in ocena se sama vrne.",
+    "karma.tierHint.poor": "Pogosto zapušča partije v teku. Soigralci se na to težko zanesejo; ocena se vrne sama, če se partije igrajo do konca.",
     "karma.abandonedLine": "Zapuščeno {abandoned} od {games} v {window}",
     "karma.noAbandonsLine": "Nobena zapuščena partija v {window}",
     "karma.totalAbandonsLine": "Skupaj zapuščenih partij: {count}",
@@ -537,4 +543,13 @@ export const game: GameDict = {
     "lobby.filter.hasSeats": "Prosti sedeži",
     "lobby.filter.targetAria": "Pokaži samo igre do {target} točk",
     "lobby.filter.public": "Javne",
+
+    /* ─── Pasica proti bela.games (2026-09-23) ─────────────────────────────
+       DODANO NA KONEC — ne premikaj in ne briši ključev zgoraj. */
+    "gamesSite.title": "Bela Online ima svojo stran",
+    "gamesSite.titleShort": "Igraj online na bela.games",
+    "gamesSite.subtitle":
+        "Igraj belo online s prijatelji ali boti na bela.games — brez računa, v brskalniku in na mobitelu.",
+    "gamesSite.cta": "Preklopi na bela.games",
+    "gamesSite.ctaShort": "bela.games",
 }

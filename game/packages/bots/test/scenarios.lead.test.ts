@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest"
 import type { Card, PlayerView, Seat, WonTrick } from "@bela/engine"
 import { heuristicBot } from "../src/heuristicBot"
+import { sureWinnerToCash } from "../src/evaluate"
 import { view } from "./helpers"
 
 const noRng = (): number => 0.5
@@ -530,8 +531,9 @@ describe("heuristicBot.chooseCard — cash a certain suit while I still have the
             played: allTrumps,
             trick: { leader: 0, turn: 0, cards: [] },
         })
-        // No other master in hand (the KARA king is under an outstanding ace):
-        // the solo heart ace is not picked by `sureWinnerToCash`.
-        expect(heuristicBot.chooseCard(v, hand, noRng)).not.toBe("AHERC")
+        // The rule itself leaves the solo ace alone; whether the ORDINARY book
+        // then cashes it is §5.3's business (it may — `shouldSpendAce`), so the
+        // assertion is on the rule, not on the final card.
+        expect(sureWinnerToCash(v, hand)).toBeNull()
     })
 })

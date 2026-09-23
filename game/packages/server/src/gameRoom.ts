@@ -48,6 +48,7 @@ import { reportGameAbandoned, reportGameCompleted, reportGameStarted } from "./a
 import type { LiveActivitySnapshot } from "./liveActivity.js"
 import { log } from "./log.js"
 import type { Room } from "./room.js"
+import { ReplayRecorder } from "./replay.js"
 import { reportGameResult } from "./statsReporter.js"
 import type { Connection } from "./ws.js"
 
@@ -83,6 +84,13 @@ export class GameRoom {
     private readonly startedAt: number
     private autoPlayedActions: number
     private analyticsTerminalReported: boolean
+    /**
+     * The full record of this game, kept alongside the state because the
+     * engine does not keep it: hands and tricks are discarded when the next
+     * deal starts (`replay.ts`). Bounded, in-memory, and read exactly once —
+     * at GAME_OVER, to travel with the stats report (README §8.8).
+     */
+    private readonly replay: ReplayRecorder
 
     constructor(room: Room, timings: Timings) {
         this.room = room
@@ -107,6 +115,9 @@ export class GameRoom {
         // seat)` — the only place the redaction can be enforced — has nothing
         // but the state to read it from. It changes no rule of play.
         this.state = newGame({ targetScore: room.targetScore, gameEndRule: room.gameEndRule, seed: newSeed(), noDeclarations: room.noDeclarations, allowBela: room.allowBela, trickReview: room.trickReview })
+        // After `newGame`, because deal 1 is already dealt by then and the
+        // recorder opens its first deal from the state it is handed.
+        this.replay = new ReplayRecorder(this.state, this.startedAt)
     }
 
     /** Stable id for lifecycle reports belonging to this one started game. */
@@ -210,8 +221,14 @@ export class GameRoom {
 
     private apply(action: GameAction, autoPlayed: boolean): void {
         if (autoPlayed && action.type !== "NEXT_DEAL") this.autoPlayedActions += 1
-        const result = reduce(this.state, action)
+        const before = this.state
+        const result = reduce(before, action)
         this.state = result.state
+        // Before the broadcasts, and never inside a try/catch of its own: the
+        // recorder is pure bookkeeping over data the reducer already produced,
+        // so if it can throw at all, the replay is wrong and we want to see it
+        // in a test rather than ship a silently empty archive.
+        this.replay.observe(before, result.state, result.events)
         // Not when the same action also ENDED the game: on "dosta" a pair can
         // go out on its declarations alone (README §1.7), and arming the
         // display window then made `schedule()` park the GAME_OVER
@@ -367,7 +384,7 @@ export class GameRoom {
             // see their guards), so this is exactly-once, not per-broadcast.
             this.analyticsTerminalReported = true
             reportGameCompleted(this.analyticsRunId, this.room, st, this.startedAt, this.autoPlayedActions)
-            reportGameResult(this.room, st, this.analyticsRunId)
+            reportGameResult(this.room, st, this.analyticsRunId, this.replay.build(this.room, st))
             this.room.liveActivity?.endAll(this.room, this.liveSnapshot())
             this.room.onGameOver(st.winner)
             return

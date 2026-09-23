@@ -23,9 +23,16 @@ import java.util.UUID;
  * (game/README.md §8).
  *
  * <p>The backend is a recorder, not a judge: the reporting server decides
- * whether a game is eligible at all (§8.1 — it counts only when BOTH teams
- * contain at least one human, which the game server knows per seat and the
- * backend does not). Everything that arrives here is meant to be counted.
+ * whether a game is eligible (§8.1 — it counts only when BOTH teams contain
+ * at least one human, which the game server knows per seat and the backend
+ * does not) and hands that verdict over in {@link #eligible}.
+ *
+ * <p>Since 2026-09-22 (§8.7) it reports every finished game that had at least
+ * one real person at the table, eligible or not, so the admin analytics can
+ * see games played against bots and against the demo lobby's fake people.
+ * {@code eligible} is what keeps the two apart: the competitive reads
+ * (profile statistics, the karma window) filter on it, the analytics reads
+ * deliberately do not.
  *
  * <p>{@link #uuid} is the idempotency key, minted once per game by the
  * reporter and resent verbatim on a retry. It is UNIQUE, and that index is
@@ -73,6 +80,18 @@ public class GameResult {
     /** Number of deals played. Informational; the reporter may omit it. */
     @Column(name = "deals_count")
     private Short dealsCount;
+
+    /**
+     * §8.1's verdict: does this game count for the competitive record?
+     *
+     * <p>Nullable in the schema (an older game server posts a body without
+     * it, and every row written before 2026-09-22 predates the column), so
+     * every query that filters on it uses {@code eligible = true} — a NULL
+     * never matches, and the changeset backfills the old rows to TRUE rather
+     * than leaving the reads to guess.
+     */
+    @Column(name = "eligible")
+    private Boolean eligible;
 
     /**
      * The four seats. {@code CascadeType.ALL} + {@code orphanRemoval} mirror

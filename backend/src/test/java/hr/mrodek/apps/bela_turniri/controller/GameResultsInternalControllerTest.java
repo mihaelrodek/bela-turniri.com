@@ -1,6 +1,7 @@
 package hr.mrodek.apps.bela_turniri.controller;
 
 import hr.mrodek.apps.bela_turniri.dtos.GameStatsDto;
+import hr.mrodek.apps.bela_turniri.repository.GameReplayRepository;
 import hr.mrodek.apps.bela_turniri.services.GameStatsService;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
@@ -39,6 +40,7 @@ class GameResultsInternalControllerTest {
     private final String uidB = "test-uid-b-" + UUID.randomUUID();
 
     @Inject GameStatsService gameStats;
+    @Inject GameReplayRepository replays;
     @Inject EntityManager em;
 
     @AfterEach
@@ -169,6 +171,65 @@ class GameResultsInternalControllerTest {
         given().when().get("/user/me/game-stats").then().statusCode(401);
     }
 
+    /* ===================== replay (game/README.md §8.8) ===================== */
+
+    /**
+     * The replay rides INSIDE the result POST, so it inherits the result's
+     * idempotency key and its transaction. Round-trip: sent as part of the
+     * body, stored as jsonb, read back through the admin export unchanged.
+     */
+    @Test
+    void storesTheReplayThatRidesAlongWithTheResult() {
+        String resultId = UUID.randomUUID().toString();
+        post(payloadWithReplay(resultId, REPLAY)).then().statusCode(200).body("recorded", is(true));
+
+        assertEquals(1, countReplays(resultId), "one replay row per recorded game");
+
+        var row = QuarkusTransaction.requiringNew()
+                .call(() -> replays.findByResultUuid(UUID.fromString(resultId)))
+                .orElseThrow();
+        // jsonb normalises whitespace and key order, so compare the PARSED
+        // document rather than its text — the claim is that nothing was lost,
+        // not that Postgres stored our exact bytes.
+        assertEquals(json(REPLAY), json(row.replay()));
+        // botVersion is lifted out into its own column: the export groups by it.
+        assertEquals("2026-09-23", row.botVersion());
+        // Size is measured on the COMPACT document Jackson hands over, not on
+        // the whitespace of the literal above.
+        int compact = json(REPLAY).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        assertEquals(Integer.valueOf(compact), row.sizeBytes());
+    }
+
+    /** A retry must not produce a second replay any more than a second result. */
+    @Test
+    void aReplayedReportDoesNotStoreTheReplayTwice() {
+        String resultId = UUID.randomUUID().toString();
+        post(payloadWithReplay(resultId, REPLAY)).then().statusCode(200).body("recorded", is(true));
+        post(payloadWithReplay(resultId, REPLAY)).then().statusCode(200).body("recorded", is(false));
+        assertEquals(1, countReplays(resultId));
+    }
+
+    /**
+     * An older game server sends no replay at all, and the reporter drops an
+     * oversized one rather than losing the game. Either way the result is
+     * recorded exactly as before — the archive is optional, the statistics
+     * are not.
+     */
+    @Test
+    void aReportWithoutAReplayIsStillRecorded() {
+        String resultId = UUID.randomUUID().toString();
+        post(payload(resultId, 501, "A", uidA)).then().statusCode(200).body("recorded", is(true));
+        assertEquals(1, countResults(resultId));
+        assertEquals(0, countReplays(resultId));
+    }
+
+    /** The export is admin-only; an anonymous caller never sees a single card. */
+    @Test
+    void theReplayExportIsNotPublic() {
+        given().when().get("/admin/game-replays").then().statusCode(401);
+        given().when().get("/admin/game-replays/" + UUID.randomUUID()).then().statusCode(401);
+    }
+
     /* ===================== shape validation ===================== */
 
     @Test
@@ -224,6 +285,61 @@ class GameResultsInternalControllerTest {
                             {"seat":2,"team":"A","uid":null,"isBot":true},
                             {"seat":3,"team":"B","uid":null,"isBot":true}]}
                 """.formatted(resultId, targetScore, winnerTeam, targetScore, humanUid, uidB + "-opp");
+    }
+
+    /**
+     * A minimal but SHAPE-REAL replay (game/README.md §8.8): one deal, the
+     * hands abbreviated to keep the literal readable, everything else exactly
+     * as the game server writes it. The backend stores the document verbatim
+     * and never validates its interior, so a full 32-card deal would prove
+     * nothing extra here — `game/packages/server/test/gameReplay.test.ts`
+     * is where the contents are checked.
+     */
+    private static final String REPLAY = """
+            {"version":1,"botVersion":"2026-09-23",
+             "settings":{"targetScore":501,"gameEndRule":"prolaz","noDeclarations":false,
+                         "allowBela":true,"trickReview":"off"},
+             "seats":[{"seat":0,"team":"A","kind":"PLAYER","uid":"u0","name":"Ivan"},
+                      {"seat":1,"team":"B","kind":"GUEST","uid":null,"name":"Gost"},
+                      {"seat":2,"team":"A","kind":"BOT","uid":null,"name":"Bot Nina"},
+                      {"seat":3,"team":"B","kind":"BOT","uid":null,"name":"Bot Mia"}],
+             "deals":[{"dealNo":1,"dealer":0,
+                       "hands":{"0":["AHERC"],"1":["KHERC"],"2":["QHERC"],"3":["JHERC"]},
+                       "talon":{"0":["AHERC"],"1":["KHERC"],"2":["QHERC"],"3":["JHERC"]},
+                       "bidding":[{"seat":1,"action":"CALL","trump":"HERC","forced":false}],
+                       "declarations":[],"declarationsScoringTeam":null,
+                       "belaDeclared":null,"belaRefused":null,"belot":null,
+                       "tricks":[{"no":1,"leader":1,
+                                  "plays":[{"seat":1,"card":"KHERC"},{"seat":2,"card":"QHERC"},
+                                           {"seat":3,"card":"JHERC"},{"seat":0,"card":"AHERC"}],
+                                  "winner":0}],
+                       "dealScore":null,"runningScore":{"A":501,"B":300}}],
+             "winner":"A","scoreA":501,"scoreB":300,"dealsCount":1,
+             "playedAt":"2026-09-23T20:00:00.000Z","durationMs":123456}
+            """;
+
+    /** The ordinary §8.4 body with a {@code replay} field spliced in. */
+    private String payloadWithReplay(String resultId, String replay) {
+        String base = payload(resultId, 501, "A", uidA);
+        return base.replaceFirst("\\{", "{\"replay\":" + java.util.regex.Matcher.quoteReplacement(replay) + ",");
+    }
+
+    private static com.fasterxml.jackson.databind.JsonNode json(String raw) {
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().readTree(raw);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private long countReplays(String resultId) {
+        return QuarkusTransaction.requiringNew().call(() -> ((Number) em.createNativeQuery("""
+                        select count(*) from game_replays r
+                        join game_results g on g.id = r.game_result_id
+                        where g.uuid = cast(:u as uuid)
+                        """)
+                .setParameter("u", resultId)
+                .getSingleResult()).longValue());
     }
 
     private GameStatsDto statsFor(String uid) {

@@ -106,6 +106,15 @@ const THREE_DEADLINE_MIN_MS = 20_000
 const THREE_DEADLINE_MAX_MS = 70_000
 /** At the deadline: this often the fourth turns up, otherwise somebody leaves. */
 const THREE_FOURTH_CHANCE = 0.65
+/**
+ * After a deadline resolved by somebody LEAVING, the room is left alone for
+ * this long. Without it the population loop can seat a replacement a fraction
+ * of a second later, and a watcher never sees the room drop off three at all —
+ * which is precisely the "they are obviously waiting for a real person" look
+ * the deadline exists to kill (DEMO-LOBBY.md §2.2: "kasnije može opet gore").
+ */
+const THREE_COOLOFF_MIN_MS = 20_000
+const THREE_COOLOFF_MAX_MS = 45_000
 
 /** A waiting room that has never started by now fills up or is replaced. */
 const STALE_ROOM_MIN_MS = 6 * 60_000
@@ -113,6 +122,10 @@ const STALE_ROOM_MAX_MS = 10 * 60_000
 /** The rush that empties a stale room's chairs, one person at a time. */
 const RUSH_FILL_MIN_MS = 1_500
 const RUSH_FILL_MAX_MS = 5_000
+/** A rush that has not resolved by now never will: the sweep hands the room
+ *  back to the ordinary rules. Three chairs at 5 s plus a 6 s start beat with
+ *  room to spare for the structural mutex. */
+const RUSH_MAX_MS = 45_000
 
 /** A LOBBY room of four fake people that has not started by now is broken. */
 const START_WATCHDOG_MS = 30_000
@@ -211,6 +224,14 @@ interface DirectedRoom {
     /** A stale room is being filled to four on purpose; the three-seat
      *  deadline must not fight it by pulling somebody back out. */
     rushing: boolean
+    /** …but only until here. `rushing` suppresses BOTH the three-seat deadline
+     *  and the stale recycler, so a chain that dies quietly (the fourth chair
+     *  emptied again while the start beat was in flight) would otherwise park
+     *  the room at three for good. The sweep clears an expired rush. */
+    rushUntil: number
+    /** Somebody just gave up on this room: the population loop's idle top-up
+     *  leaves it alone until then, so the chair stays visibly empty. */
+    fillPauseUntil: number
     timers: Set<TimerRec>
 }
 
@@ -518,6 +539,8 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             threeTimer: null,
             staleAt: now + randInt(rng, STALE_ROOM_MIN_MS, STALE_ROOM_MAX_MS),
             rushing: false,
+            rushUntil: 0,
+            fillPauseUntil: 0,
             timers: new Set(),
         }
         holder.room = room
@@ -588,10 +611,13 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             ok = false
         }
         room.startPending = false
+        // Either way the rush is over: a started room does not need one, and a
+        // room that refused to start must go back to the ordinary rules rather
+        // than keep the deadline and the recycler switched off.
+        endRush(room)
         if (ok) {
             room.phase = "playing"
             room.fullSince = null
-            room.rushing = false
             room.threeTimer = null
             armReactions(room)
         }
@@ -682,6 +708,11 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             schedule(randInt(rng, 800, 6_000), () => emitReaction(room), room)
         }
         armDeparture(room)
+        // A table just left the playing set. Waiting for the next beat of the
+        // population loop (up to 40 s away) is what made three games finishing
+        // together show a half-empty lobby for a minute; nudge it now instead.
+        // Deliberately NOT tied to this room: the room is on its way out.
+        schedule(randInt(rng, 1_000, 3_000), () => structuralStep())
     }
 
     function onHumanSeated(room: DirectedRoom | undefined, seat: Seat): void {
@@ -835,10 +866,17 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
                 syncPhase(room)
                 if (room.disposed || room.phase !== "filling") return
                 if (room.humanSeats.size > 0) {
+                    endRush(room)
                     maybeStartForHuman(room)
                     return
                 }
-                if (occupiedCount(room) < 4) return
+                if (occupiedCount(room) < 4) {
+                    // The fourth chair emptied again while the beat was in
+                    // flight. Back to the ordinary rules, deadline included.
+                    endRush(room)
+                    armThreeDeadline(room)
+                    return
+                }
                 structural(() => {
                     tryStart(room)
                 })
@@ -941,8 +979,14 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             if (occupiedCount(room) !== 3) return
             // With no headroom there is only one believable outcome left, and
             // it is the one that also relieves the pressure: somebody leaves.
-            if (wantsFourth && startHeadroom()) addPerson(room)
-            else removePerson(room)
+            if (wantsFourth && startHeadroom()) {
+                addPerson(room)
+                return
+            }
+            removePerson(room)
+            // …and the chair they vacated stays empty for a while. A room that
+            // is back at three within a second never LOOKED like it dropped.
+            room.fillPauseUntil = clock.now() + randInt(rng, THREE_COOLOFF_MIN_MS, THREE_COOLOFF_MAX_MS)
         })
     }
 
@@ -960,16 +1004,35 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
                 closeRoom(room)
                 return
             }
-            room.rushing = true
-            room.threeTimer = null
+            beginRush(room)
             rushFill(room)
         })
     }
 
+    /** Switches the deadline and the recycler off while a chain is filling. */
+    function beginRush(room: DirectedRoom): void {
+        room.rushing = true
+        room.rushUntil = clock.now() + RUSH_MAX_MS
+        room.threeTimer = null
+    }
+
+    /** …and back on. Every exit from a chain goes through here, so a room can
+     *  never be left with the ordinary rules disabled. */
+    function endRush(room: DirectedRoom): void {
+        room.rushing = false
+        room.rushUntil = 0
+    }
+
     /** The stale room's remaining chairs, one person at a time. */
     function rushFill(room: DirectedRoom): void {
-        if (room.disposed || room.phase !== "filling" || room.humanSeats.size > 0) return
+        if (room.disposed) return
+        if (room.phase !== "filling" || room.humanSeats.size > 0) {
+            endRush(room)
+            return
+        }
         if (occupiedCount(room) >= 4) {
+            // The start beat owns the rush from here: `tryStart` ends it
+            // whichever way the start goes.
             armStartBeat(room)
             return
         }
@@ -978,8 +1041,20 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             () => {
                 if (room.disposed) return
                 syncPhase(room)
-                if (room.phase !== "filling" || room.humanSeats.size > 0) return
+                if (room.phase !== "filling" || room.humanSeats.size > 0) {
+                    endRush(room)
+                    return
+                }
                 structural(() => {
+                    // The chain may not be the thing that breaks the ceiling:
+                    // between marking the room and this chair, other tables
+                    // may have started. Hand it back to the ordinary rules
+                    // rather than deal a game the band has no room for.
+                    if (occupiedCount(room) === 3 && !startHeadroom()) {
+                        endRush(room)
+                        armThreeDeadline(room)
+                        return
+                    }
                     addPerson(room)
                     rushFill(room)
                 })
@@ -1156,10 +1231,26 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
         if (playing < targetPlaying) {
             // Push the fullest waiting room over the line first — this is the
             // ONLY thing holding the playing/waiting ratio.
-            const fullest = [...waiting].sort((a, b) => occupiedCount(b) - occupiedCount(a))[0]
-            if (fullest) {
-                structural(() => addPerson(fullest))
+            const byFullest = [...waiting].sort((a, b) => occupiedCount(b) - occupiedCount(a))
+            // One person per loop tick is too slow to answer several games
+            // ending within a few seconds of each other: the lobby then spends
+            // a minute showing three tables in play against a band of five or
+            // six (DEMO-LOBBY.md §1). A room covering a DEFICIT therefore
+            // fills as a CHAIN — the same `rushFill` a stale room uses, one
+            // chair every 1.5–5 s. Marking a room is bookkeeping, not a
+            // structural action, so the mutex is untouched: each chain still
+            // takes its own instants. Never more chains than the deficit
+            // itself, so the ratio is caught up to rather than overshot.
+            let catching = waiting.filter((r) => r.rushing).length + pendingStartCount()
+            for (const room of byFullest) {
+                if (playing + catching >= targetPlaying) break
+                if (room.rushing || room.disposed || room.phase !== "filling") continue
+                beginRush(room)
+                rushFill(room)
+                catching += 1
             }
+            const fullest = byFullest[0]
+            if (fullest && !fullest.rushing) structural(() => addPerson(fullest))
             return
         }
 
@@ -1167,7 +1258,11 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
         // They sit at two or three for minutes, and sometimes somebody leaves.
         const roll = rng()
         if (roll < 0.25) {
-            const leavers = waiting.filter((r) => occupiedCount(r) >= 2)
+            // Never out of a table that is ABOUT to deal. Pulling a chair from
+            // under a start beat leaves the room back at three with a fresh
+            // deadline, and a watcher sees a room that has been three-of-four
+            // for minutes — the exact thing §2.2 was written against.
+            const leavers = waiting.filter((r) => occupiedCount(r) >= 2 && !r.startPending && !r.rushing)
             const room = pickFrom(rng, leavers)
             if (room) {
                 structural(() => removePerson(room))
@@ -1181,7 +1276,8 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
         // now a countdown to a start (`armThreeDeadline`) and that is exactly
         // what the lobby has too much of.
         const cap = playing > targetPlaying ? 2 : 3
-        const fillable = waiting.filter((r) => occupiedCount(r) < cap)
+        const now = clock.now()
+        const fillable = waiting.filter((r) => occupiedCount(r) < cap && now >= r.fillPauseUntil)
         const room = pickFrom(rng, fillable)
         if (room) {
             structural(() => addPerson(room))
@@ -1195,9 +1291,16 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
         const seat = pickFrom(rng, freeSeats(room))
         if (seat === null) return
         const person = pool.acquire(clock.now())
-        if (!person) return
+        // Nobody free in the cast, or the room refused the chair: the room is
+        // still wherever it was, and if that is three it needs its deadline
+        // rather than a wait for the next sweep.
+        if (!person) {
+            armThreeDeadline(room)
+            return
+        }
         if (!trySit(room, person, seat)) {
             pool.release(person, "left", clock.now())
+            armThreeDeadline(room)
             return
         }
         if (occupiedCount(room) >= 4) armStartBeat(room)
@@ -1223,10 +1326,18 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
             return
         }
         releaseSeat(room, seat, "left")
+        // A room that drops from four to three is on the clock like any other
+        // room at three — otherwise it waits out a whole sweep first.
+        armThreeDeadline(room)
     }
 
     function loop(): void {
-        schedule(gapMs(rng), () => {
+        // A lobby that is SHORT of tables is impatient: the 4–40 s idle rhythm
+        // is right for a lobby that has what it wants, and far too slow to put
+        // a finished table back in play. Still never a grid, just a tighter
+        // band — and the structural mutex is untouched either way.
+        const hungry = liveRooms().filter(isPlaying).length < targetPlaying
+        schedule(hungry ? randInt(rng, 2_000, 6_000) : gapMs(rng), () => {
             structuralStep()
             loop()
         })
@@ -1263,6 +1374,10 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
                 }
 
                 if (room.phase === "filling" && room.humanSeats.size === 0 && !hasHuman(room)) {
+                    // A rush that never resolved (the chain stopped, the start
+                    // beat found an empty chair) would otherwise hold the
+                    // deadline AND the recycler off for the room's whole life.
+                    if (room.rushing && now > room.rushUntil) endRush(room)
                     // Backstop for the three-seat deadline: every path that
                     // reaches three arms one itself, but a room that got there
                     // some other way (a human left it at three, a handle moved
@@ -1273,16 +1388,19 @@ export const startDemoDirector = ((deps: DemoDirectorDeps): DemoDirectorHandle =
                     if (now > room.staleAt) recycleStale(room)
                 }
 
-                // A human parked in a lobby seat: after a minute and a half of
-                // silence the room is allowed a little churn again, rarely.
+                // A human parked in a lobby seat: their table is NOT churned.
+                // Nobody fake walks out on a real person who is still sitting
+                // there waiting (DEMO-LOBBY.md §2.3 — a human's room keeps its
+                // own pacing, and §1 promises them team-mates, not a revolving
+                // door). If a seat of theirs ever does open up, `stepHumanFill`
+                // is what fills it again.
                 if (
                     room.phase === "filling" &&
                     room.humanSeats.size > 0 &&
                     now - room.lastHumanActivityAt > HUMAN_IDLE_MS &&
-                    rng() < 0.2
+                    freeSeats(room).length > 0
                 ) {
-                    structural(() => removePerson(room))
-                    schedule(randInt(rng, 6_000, 20_000), () => structural(() => addPerson(room)), room)
+                    armHumanFill(room)
                 }
             }
             sweep()

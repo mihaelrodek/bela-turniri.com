@@ -195,6 +195,10 @@ services:
       # Same value as the `game` service's GAME_RESULTS_TOKEN below.
       GAME_RESULTS_TOKEN: ${GAME_RESULTS_TOKEN}
 
+      # How many days of full game replays to keep (game/README.md §8.8).
+      # Only the replay documents expire; the statistics are permanent.
+      GAME_REPLAYS_RETENTION_DAYS: ${GAME_REPLAYS_RETENTION_DAYS:-180}
+
       # Web Push (VAPID). If unset the backend boots but /push/public-key
       # returns ready=false and the frontend hook silently no-ops.
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
@@ -269,6 +273,11 @@ services:
       BACKEND_INTERNAL_URL: http://backend:8085/api
       # Same value as the backend service's GAME_RESULTS_TOKEN above.
       GAME_RESULTS_TOKEN: ${GAME_RESULTS_TOKEN}
+      # Fraction 0..1 of BOT-ONLY / DEMO-ONLY games whose replay is recorded
+      # anyway, as a baseline (game/README.md §8.8). 0 = never, the default:
+      # a bot playing itself teaches the bot nothing. Sampled games become
+      # ordinary `eligible: false` rows in the admin analytics.
+      GAME_REPLAY_BOT_SAMPLE: ${GAME_REPLAY_BOT_SAMPLE:-0}
     networks:
       - bela_internal
 

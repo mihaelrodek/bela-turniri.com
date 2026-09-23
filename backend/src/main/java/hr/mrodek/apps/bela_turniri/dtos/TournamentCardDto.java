@@ -25,4 +25,14 @@ public class TournamentCardDto {
     private BigDecimal repassagePrice;
     private String winnerName;
     private Integer registeredPairs;
+
+    // Game rules — added 2026-09-22 so the listing card/row can show a
+    // compact rules line without a second fetch. Same fields as
+    // TournamentDetailsResponse; MapStruct auto-maps them by name from
+    // Tournaments since no explicit @Mapping entry is needed.
+    private Integer targetScore;
+    private String gameEndRule;
+    private String dealDirection;
+    private Boolean declarationsEnabled;
+    private Boolean allowBela;
 }

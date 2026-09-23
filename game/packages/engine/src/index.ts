@@ -18,7 +18,7 @@
    ────────────────────────────────────────────────────────────────────── */
 
 export * from "./types"
-export { teamOf, nextSeat, partnerOf, opponentTeam } from "./seats"
+export { seatFrom, teamOf, nextSeat, partnerOf, opponentTeam } from "./seats"
 export {
     cardSuit,
     cardRank,

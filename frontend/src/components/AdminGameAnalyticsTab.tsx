@@ -42,12 +42,38 @@ function Row({ title, detail }: { title: string; detail: string }) {
  * on the first line, right-aligned, so the list can be scanned by the number
  * it is sorted by.
  */
+function KindChip({ kind }: { kind: AdminGamePlayerDto["kind"] }) {
+    const { t } = useTranslation()
+    const guest = kind === "GUEST"
+    return (
+        <Text
+            as="span"
+            flexShrink={0}
+            fontSize="2xs"
+            fontWeight="bold"
+            textTransform="uppercase"
+            letterSpacing="0.04em"
+            rounded="sm"
+            px="1.5"
+            py="0.5"
+            bg={guest ? "bg.muted" : "brand.subtle"}
+            color={guest ? "fg.muted" : "brand.fg"}
+        >
+            {t(guest ? "admin.analytics.kindGuest" : "admin.analytics.kindAccount")}
+        </Text>
+    )
+}
+
 function PlayerRow({ player }: { player: AdminGamePlayerDto }) {
     const { t } = useTranslation()
+    const guest = player.kind === "GUEST"
     return (
         <VStack align="stretch" gap="0.5" bg="bg.subtle" rounded="md" px="3" py="2" minW="0">
             <HStack justify="space-between" gap="3" minW="0">
-                <Text fontWeight="semibold" truncate>{player.name}</Text>
+                <HStack gap="1.5" minW="0">
+                    <Text fontWeight="semibold" truncate>{player.name}</Text>
+                    <KindChip kind={player.kind} />
+                </HStack>
                 <Text flexShrink={0} fontWeight="bold" fontFamily="mono" fontVariantNumeric="tabular-nums">
                     {t("admin.analytics.playerGames", { games: player.games })}
                 </Text>
@@ -55,11 +81,24 @@ function PlayerRow({ player }: { player: AdminGamePlayerDto }) {
             <Text fontSize="xs" color="fg.muted" fontVariantNumeric="tabular-nums">
                 {t("admin.analytics.playerRecord", { wins: player.wins, losses: player.losses })}
                 {" · "}
+                {t("admin.analytics.playerRanked", {
+                    games: player.rankedGames,
+                    wins: player.rankedWins,
+                    losses: player.rankedLosses,
+                })}
+                {" · "}
                 {t("admin.analytics.playerLast", { date: formatDateTime(player.lastPlayedAt, "—") })}
-                {" · "}
-                {t("admin.analytics.playerAbandons", { abandons: player.abandons })}
-                {" · "}
-                {t("admin.analytics.playerKarma", { karma: player.karma, max: player.maxKarma })}
+                {/* A guest has no account, so there is no karma or abandon
+                    history to show — printing "10/10" there would invent a
+                    reliability record nobody earned. */}
+                {!guest && (
+                    <>
+                        {" · "}
+                        {t("admin.analytics.playerAbandons", { abandons: player.abandons })}
+                        {" · "}
+                        {t("admin.analytics.playerKarma", { karma: player.karma, max: player.maxKarma })}
+                    </>
+                )}
             </Text>
         </VStack>
     )
@@ -106,7 +145,12 @@ function PlayersSection() {
                         // hidden because nothing here is wider than the column.
                         <Box maxH="420px" overflowY="auto" overflowX="hidden">
                             <Rows>
-                                {data.players.map((player) => <PlayerRow key={player.uid} player={player} />)}
+                                {/* Guests have no uid, so their row is keyed by
+                                    the name it is grouped by — which is unique
+                                    within the list for exactly the same reason. */}
+                                {data.players.map((player) => (
+                                    <PlayerRow key={player.uid ?? `guest:${player.name}`} player={player} />
+                                ))}
                             </Rows>
                         </Box>
                     )}
@@ -123,7 +167,17 @@ function PlayersSection() {
                         <Text fontSize="sm" color="fg.muted" fontVariantNumeric="tabular-nums">
                             {t("admin.analytics.botSeats", { seats: data.botSeats })}
                         </Text>
+                        <Text fontSize="sm" color="fg.muted" fontVariantNumeric="tabular-nums">
+                            {t("admin.analytics.demoSeats", { seats: data.demoSeats })}
+                        </Text>
+                        <Text fontSize="sm" color="fg.muted" fontVariantNumeric="tabular-nums">
+                            {t("admin.analytics.demoGames", { games: data.demoGames })}
+                        </Text>
+                        <Text fontSize="sm" color="fg.muted" fontVariantNumeric="tabular-nums">
+                            {t("admin.analytics.botOnlyGames", { games: data.botOnlyGames })}
+                        </Text>
                         <Text fontSize="xs" color="fg.muted">{t("admin.analytics.guestsNote")}</Text>
+                        <Text fontSize="xs" color="fg.muted">{t("admin.analytics.rankedNote")}</Text>
                     </Box>
                 </VStack>
             )}

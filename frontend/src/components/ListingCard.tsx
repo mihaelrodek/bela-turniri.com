@@ -1,6 +1,6 @@
 import { Box, Flex, HStack, Image, Skeleton, Text, VStack } from "@chakra-ui/react"
 import { Link as RouterLink } from "react-router-dom"
-import { FiClock, FiMapPin, FiNavigation } from "react-icons/fi"
+import { FiClock, FiMapPin, FiNavigation, FiTarget } from "react-icons/fi"
 import { useTranslation } from "../i18n"
 import { formatDistanceKm } from "../utils/distance"
 import { LISTING_CARD_POSTER_SIZES, posterSrcSet } from "../utils/imageUrl"
@@ -11,9 +11,11 @@ import {
     shortLocation,
     useDateParts,
     useListingStatus,
+    useRulesLine,
     useTournamentPrefetch,
     type ListingTournament,
     type ListingVariant,
+    type RulesLine,
     type StatusKind,
 } from "./listingShared"
 
@@ -106,6 +108,58 @@ function Poster({ item, priority }: { item: ListingTournament; priority: boolean
     )
 }
 
+/**
+ * Compact rules chip line — "1001 · Prolaz · Zvanja · Bez bele · Desno".
+ * Renders `useRulesLine()`'s parts as one non-wrapping row: the target score
+ * gets a small target icon and the mono/bold treatment ("prominent"), every
+ * other chip is plain `fg.soft` text, and `·` separators sit between them.
+ * Only the LAST chip is allowed to truncate — the row is a fixed-width slot
+ * in both the card and the row, so a long trailing chip (unlikely, since
+ * every label here is one short word) shrinks rather than pushing the row's
+ * own overflow:hidden into clipping something in the middle instead.
+ *
+ * Returns null (renders nothing) when `rules` is null — see
+ * `useRulesLine()` in `listingShared.ts` for when that happens (a
+ * tournament with none of the four/five fields set, e.g. an older row).
+ */
+function RulesChipLine({ rules }: { rules: RulesLine }) {
+    const chips: { text: string; mono?: boolean }[] = []
+    if (rules.targetScore != null) chips.push({ text: String(rules.targetScore), mono: true })
+    if (rules.endRule) chips.push({ text: rules.endRule })
+    if (rules.declarations) chips.push({ text: rules.declarations })
+    if (rules.bela) chips.push({ text: rules.bela })
+    if (rules.direction) chips.push({ text: rules.direction })
+    if (chips.length === 0) return null
+
+    return (
+        <HStack gap="1" fontSize="2xs" fontWeight="medium" color="fg.soft" minW="0" overflow="hidden" wrap="nowrap">
+            {rules.targetScore != null && (
+                <Box flexShrink="0" display="inline-flex" color="fg.soft">
+                    <FiTarget size={11} />
+                </Box>
+            )}
+            {chips.map((chip, idx) => (
+                <HStack key={idx} gap="1" minW="0" flexShrink={idx === chips.length - 1 ? "1" : "0"}>
+                    {idx > 0 && (
+                        <Text as="span" color="fg.subtle" flexShrink="0">
+                            ·
+                        </Text>
+                    )}
+                    <Text
+                        as="span"
+                        fontFamily={chip.mono ? "mono" : undefined}
+                        fontVariantNumeric={chip.mono ? "tabular-nums" : undefined}
+                        fontWeight={chip.mono ? "bold" : "medium"}
+                        truncate={idx === chips.length - 1}
+                    >
+                        {chip.text}
+                    </Text>
+                </HStack>
+            ))}
+        </HStack>
+    )
+}
+
 export default function ListingCard({
     item,
     variant,
@@ -119,6 +173,7 @@ export default function ListingCard({
     const { t } = useTranslation()
     const dateParts = useDateParts()
     const listingStatus = useListingStatus()
+    const rulesLine = useRulesLine()
 
     const parts = dateParts(item.startAt)
     const status = listingStatus(item, variant)
@@ -129,6 +184,7 @@ export default function ListingCard({
     const winner = (item.winnerName ?? "").trim()
     const place = shortLocation(item.location)
     const fill = fillRatio(item)
+    const rules = rulesLine(item)
 
     // Warm the detail cache on intent, not on click: onMouseEnter covers
     // desktop hover, onPointerDown fires on the touch-down of a tap — both
@@ -401,6 +457,13 @@ export default function ListingCard({
                             </Box>
                         </Box>
                     )}
+
+                    {/* Game-rules chip line — below the capacity bar / winner
+                        chip, above the kotizacija footer (2026-09-22, owner
+                        placement). Absent entirely on older tournaments with
+                        none of the underlying fields set — see
+                        `useRulesLine()`. */}
+                    {rules && <RulesChipLine rules={rules} />}
 
                     {/* ── Footer: kotizacija, large and in the brand colour ── */}
                     <Flex

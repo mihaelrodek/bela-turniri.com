@@ -6,18 +6,21 @@ import {
 import { Link as RouterLink, useLocation, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
 import { CardsIcon } from "./MobileTabBar"
 import {
-    FiCalendar, FiEdit3, FiHome, FiLogOut, FiMap, FiMenu, FiMoon, FiSun, FiUser, FiVolume2,
+    FiCalendar, FiEdit3, FiExternalLink, FiHome, FiLogOut, FiMap, FiMenu, FiMoon, FiSun, FiUser, FiVolume2,
 } from "react-icons/fi"
 import { useAuth } from "../auth/authContextValue"
 import { useColorMode } from "../color-mode-hooks"
-import { homePath, isGamesSite, siteName, brand } from "../site"
+import { GAMES_BRAND_NAME, GAMES_ORIGIN, homePath, isGamesSite, siteName, brand } from "../site"
 import { updateColorMode } from "../api/userMe"
+import { useGameEnabled } from "../game/hooks/useGameEnabled"
+import { useGameStats } from "../game/hooks/useGameStats"
 import { useInstallPrompt, type InstallPromptState } from "../hooks/useInstallPrompt"
 import { useInvalidateMyProfile, useMyProfile } from "../hooks/useMyProfile"
-import { useTranslation } from "../i18n"
+import { useTranslation, usePlural } from "../i18n"
 import UserAvatar from "./avatars/UserAvatar"
 import { InstallAppButton } from "./InstallAppButton"
 import LanguagePicker from "./LanguagePicker"
+import LiveDot from "./LiveDot"
 import { NAVBAR_H } from "./navChrome"
 import { open as openWhatsNew, useHasUnseenWhatsNew } from "../whatsNew/store"
 import { usePrefetchRoute } from "../hooks/usePrefetchRoute"
@@ -63,7 +66,7 @@ const BAR_H = {
  * would have gone the wrong way in dark and read as a hole in the capsule.
  */
 function NavButton({
-                       to, exact, icon, accent, isNew, children, onClick,
+                       to, exact, icon, accent, isNew, liveBadge, children, onClick,
                    }: {
     to: string
     exact?: boolean
@@ -80,6 +83,13 @@ function NavButton({
      */
     accent?: boolean
     isNew?: boolean
+    /**
+     * Rendered instead of the NOVO badge when present (still hidden while
+     * active, same as `isNew`) — the "Igraj · 3 sobe" live-room pill. `null`
+     * or `undefined` falls back to the ordinary `isNew` badge, so a caller
+     * only has to pass this for the one destination that has live data.
+     */
+    liveBadge?: React.ReactNode
     children: React.ReactNode
     onClick?: () => void
 }) {
@@ -117,7 +127,7 @@ function NavButton({
                 {icon && <Box as="span" display="inline-flex" flexShrink="0" aria-hidden="true">{icon}</Box>}
                 <Box as="span" position="relative" display="inline-flex" alignItems="center">
                     {children}
-                    {isNew && !isActive && <NewBadge ml="1.5" />}
+                    {!isActive && (liveBadge ?? (isNew && <NewBadge ml="1.5" />))}
                 </Box>
             </RouterLink>
         </Button>
@@ -496,6 +506,34 @@ function UserMenu({ tourAnchor, compact }: { tourAnchor?: string; compact?: bool
 }
 
 /**
+ * Small outline chip pointing at bela.games — the dedicated site for the
+ * SAME online-bela lobby this build also renders at /igra (2026-09-23, owner
+ * request). Desktop-only: `GamesSiteBanner` on the lobby page itself already
+ * carries this on mobile, where the right cluster has no room for a second
+ * pill next to the auth button. Kept visually quieter than `NavCapsule`'s
+ * pills — outline, not filled — so it doesn't compete with the actual nav.
+ */
+function GamesSiteLinkChip() {
+    return (
+        <Button asChild size="sm" variant="outline" rounded="full" color="fg.muted" borderColor="border.subtle">
+            <chakra.a
+                href={GAMES_ORIGIN}
+                target="_blank"
+                rel="noopener noreferrer"
+                display="inline-flex"
+                alignItems="center"
+                gap="1"
+            >
+                {/* The app's own mark + product name (2026-09-23, owner) —
+                    "bela.games" read as a bare domain; this reads as a product. */}
+                <Image src="/games/symbol.svg" alt="" boxSize="18px" rounded="sm" />
+                {GAMES_BRAND_NAME} <FiExternalLink size={13} />
+            </chakra.a>
+        </Button>
+    )
+}
+
+/**
  * Right-hand cluster. Signed in: just the avatar pill (everything else is
  * inside its menu). Signed out: "Prijava" plus the guest hamburger.
  *
@@ -541,6 +579,15 @@ function GamesSwitch() {
         { to: "/igra", label: t("common.nav.igraj"), icon: <CardsIcon size={16} />, active: !onBlok },
         { to: "/blok", label: t("common.nav.blok"), icon: <FiEdit3 size={15} />, active: onBlok },
     ]
+    // Same live-room pull as NavBar's desktop capsule (useGameStats.ts, one
+    // shared poller — mounting this alongside the desktop capsule never
+    // starts a second interval). Games-site visitors only ever see this
+    // switch, never the capsule, so it gets its own compact rendering rather
+    // than reusing NavButton's pill markup.
+    const gameEnabled = useGameEnabled()
+    const gameStats = useGameStats(gameEnabled)
+    const plural = usePlural()
+    const liveRooms = gameStats?.rooms ?? 0
     return (
         <HStack
             as="nav"
@@ -573,6 +620,14 @@ function GamesSwitch() {
                     <RouterLink to={item.to} aria-current={item.active ? "page" : undefined}>
                         {item.icon}
                         {item.label}
+                        {item.to === "/igra" && liveRooms > 0 && (
+                            <HStack as="span" gap="1" display="inline-flex" alignItems="center">
+                                <LiveDot />
+                                <Box as="span" fontFamily="mono" fontVariantNumeric="tabular-nums" fontSize="xs">
+                                    {plural("common.nav.liveRooms", liveRooms)}
+                                </Box>
+                            </HStack>
+                        )}
                     </RouterLink>
                 </chakra.a>
             ))}
@@ -765,6 +820,33 @@ export default function NavBar() {
        MobileTabBar's buildTabs. */
     const navItems = buildNavItems(t)
 
+    /**
+     * Live-room count for the "Igraj" pill (owner, 2026-09-22). `useGameStats`
+     * shares ONE poller across every consumer (this bar, MobileTabBar, and —
+     * on the games domains — GamesSwitch below), so mounting several of them
+     * at once never starts a second 30s loop. `useGameEnabled` gates it: no
+     * fetch at all while the feature is off or the kill switch hasn't
+     * resolved yet.
+     *
+     * `undefined` (not `null`/0) when there is nothing to show, so
+     * `NavButton`'s `liveBadge ?? (isNew && <NewBadge/>)` falls through to
+     * today's NOVO badge exactly as before — the pill only replaces it once
+     * there is a real count to show.
+     */
+    const gameEnabled = useGameEnabled()
+    const gameStats = useGameStats(gameEnabled)
+    const plural = usePlural()
+    const liveRooms = gameStats?.rooms ?? 0
+    const liveRoomsBadge = liveRooms > 0 ? (
+        <HStack as="span" gap="1" ml="1.5" display="inline-flex" alignItems="center">
+            <Box as="span" aria-hidden="true" color="fg.muted" fontWeight="normal">·</Box>
+            <LiveDot />
+            <Box as="span" fontFamily="mono" fontVariantNumeric="tabular-nums" fontWeight="normal">
+                {plural("common.nav.liveRooms", liveRooms)}
+            </Box>
+        </HStack>
+    ) : undefined
+
     // Bridge for the legacy `bela:profile-updated` window event that
     // PublicProfilePage dispatches after an avatar upload/removal: turn it into
     // a cache invalidation so every consumer of qk.profile repaints (the avatar
@@ -891,6 +973,7 @@ export default function NavBar() {
                                 icon={item.icon}
                                 accent={item.accent}
                                 isNew={item.isNew}
+                                liveBadge={item.to === "/igra" ? liveRoomsBadge : undefined}
                             >
                                 {item.label}
                             </NavButton>
@@ -905,6 +988,12 @@ export default function NavBar() {
                         justify="end"
                         gap="1.5"
                     >
+                        {/* bela.games pointer — only the full site has a
+                            twin to point at, and only here (md+): the mobile
+                            top bar has no spare width for a second pill next
+                            to the auth control, so /igra's own
+                            GamesSiteBanner carries this there instead. */}
+                        {!isGamesSite && <GamesSiteLinkChip />}
                         <AuthArea tourAnchor={isMobile ? undefined : "help-install"} />
                     </HStack>
                 </Box>

@@ -248,7 +248,7 @@ export const profile: ProfileDict = {
     "gameStats.losses.other": "{n} porazov",
     "gameStats.winRate": "Procent zmag",
     "gameStats.karma": "Karma",
-    "gameStats.karmaHint": "Vsi začnejo z {max}/{max}. Zapustitev partije z vsaj še enim igralcem odvzame 1 točko za {window}, nato pa sama odpade. Z igranjem se nič ne vrne.",
+    "gameStats.karmaHint": "Karma kaže, kako pogosto zapuščaš partije in koliko se soigralci lahko zanesejo nate. 8–10 zeleno, 5–7 rumeno, 0–4 rdeče. Vsaka zapustitev partije v teku odvzame 1 točko za {window}, nato sama odpade; z igranjem se ne dviga.",
     "gameStats.abandons": "Zapustitve",
     "gameStats.abandonedLine": "Zapuščeno {abandoned} od {games} v {window}",
     "gameStats.noAbandonsLine": "Nobena zapuščena partija v {window}",

@@ -188,6 +188,47 @@
         respond @game_flag_file `{"enabled":true}` 200
         respond `{"enabled":false}` 200
     }
+
+    # /game-stats.json — the nav "Igraj" live-room count pull
+    # (frontend/src/game/hooks/useGameStats.ts, 2026-09-22). Public, no auth,
+    # no websocket: it proxies to the game server's `GET /stats` (see
+    # game/packages/server/src/server.ts, backed by `Lobby.stats()`).
+    #
+    # Polled by every visitor's tab every ~30s while it's visible, so it
+    # gets its own rate-limit zone (same 120/1m shape as the render/preview
+    # zones in `api_proxy` below) and a short PUBLIC max-age so Caddy and the
+    # browser absorb bursts instead of the game server seeing one request per
+    # visitor per poll.
+    #
+    # Same kill-switch branching as /game-status.json just above, but
+    # inverted: when the flag file is ABSENT the game feature is off and the
+    # `game` container isn't guaranteed to be up, so the all-zero shape is
+    # answered directly here rather than proxied — the nav badge for a
+    # disabled feature must never depend on an upstream that may not be
+    # listening. `@game_flag_missing` re-checks the same file rather than
+    # negating `@game_flag_file` by name, because Caddyfile matcher negation
+    # (`not { … }`) takes an inline matcher set, not a reference to another
+    # named matcher.
+    @game_flag_missing {
+        not file {
+            root /game-flag
+            try_files /ENABLED
+        }
+    }
+    handle /game-stats.json {
+        rate_limit {
+            zone game_stats_{args[0]} {
+                key    {remote_host}
+                events 120
+                window 1m
+            }
+        }
+        header Cache-Control "public, max-age=10"
+        header Content-Type "application/json"
+        respond @game_flag_missing `{"rooms":0,"playing":0,"waiting":0,"players":0}` 200
+        rewrite * /stats
+        reverse_proxy game:8285
+    }
 }
 
 # ─── 0d. Block the non-public backend surface ─────────────────────────────
@@ -529,7 +570,7 @@ bela-turniri.com, www.bela-turniri.com {
 
     import maintenance /maintenance.html
     import well_known /well-known
-    import game_status
+    import game_status main
     import hidden_api
     import api_proxy main
 
@@ -782,7 +823,7 @@ bela.games {
     # (placeholder `games.bela.app`), claiming BOTH games domains — see
     # ops/well-known-games/.
     import well_known /well-known-games
-    import game_status
+    import game_status games
     import hidden_api
     import api_proxy games
 

@@ -42,6 +42,20 @@ export interface CreateRoomInput {
     minWinRatePercent?: WinRateRequirement
 }
 
+/** Shape of `GET /stats` (see `Lobby.stats()`). */
+export interface LobbyStats {
+    /** Live rooms, real and demo alike. */
+    rooms: number
+    /** Rooms with `status === "PLAYING"`, real and demo alike. */
+    playing: number
+    /** Rooms with `status === "LOBBY"` and a free seat, real and demo alike. */
+    waiting: number
+    /** Seated `PLAYER` + `DEMO` — what a visitor would perceive as "people". */
+    players: number
+    /** Seated `PLAYER` only — real accounts, excludes `DEMO` and `BOT`. */
+    humans: number
+}
+
 /** Bail-out after this many collisions — practically unreachable at `MAX_ROOMS` scale. */
 const MAX_CODE_ATTEMPTS = 50
 
@@ -75,6 +89,39 @@ export class Lobby implements RoomHost, DemoLobbyApi {
 
     size(): number {
         return this.rooms.size
+    }
+
+    /**
+     * Snapshot for the public, unauthenticated `GET /stats` endpoint (nav
+     * "Igraj" live-room pull, 2026-09-22). Runs on every visitor's poll, so
+     * it stays a single pass over `this.rooms` with no allocation beyond the
+     * returned object.
+     *
+     * DEMO ROOMS ARE COUNTED, ON PURPOSE. The whole point of the demo lobby
+     * is to be indistinguishable from real activity (DEMO-LOBBY.md), and the
+     * owner wants the nav pull to look busy from minute one — excluding demo
+     * rooms here would defeat that. `players` therefore counts every seated
+     * `PLAYER` *and* `DEMO` (via `Room.humanSeats()`, same helper the wire
+     * state uses), never a `BOT`.
+     *
+     * `humans` is the strict subset — real accounts only, `Room.
+     * realHumanSeats()`, the same helper `statsReporter.ts` uses for game
+     * eligibility. It is not surfaced in the nav today but is kept alongside
+     * `players` so the product can switch the pull to "real humans only"
+     * later without another server round-trip.
+     */
+    stats(): LobbyStats {
+        let playing = 0
+        let waiting = 0
+        let players = 0
+        let humans = 0
+        for (const room of this.rooms.values()) {
+            if (room.status === "PLAYING") playing++
+            else if (room.status === "LOBBY" && room.nextSeatForNewcomer() !== null) waiting++
+            players += room.humanSeats().length
+            humans += room.realHumanSeats().length
+        }
+        return { rooms: this.rooms.size, playing, waiting, players, humans }
     }
 
     get(roomId: string): Room | undefined {

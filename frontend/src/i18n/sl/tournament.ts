@@ -76,6 +76,7 @@ export const tournament: TournamentDict = {
     "tile.dealDirection": "Smer deljenja",
     "tile.declarations": "Napovedi",
     "tile.allowBela": "Bela",
+    "tile.declarationsAndBela": "Napovedi in bela",
     "tile.rewards": "Nagrade",
     "tile.additionalOptions": "Dodatne možnosti",
 
@@ -108,6 +109,8 @@ export const tournament: TournamentDict = {
     "rule.declarations.disabled": "Brez napovedi",
     "rule.yes": "Da",
     "rule.no": "Ne",
+    "rule.bela.enabled": "Bela da",
+    "rule.bela.disabled": "Brez bele",
 
     // ═══════════════════════ Podrobnosti — edit mode ═══════════════════════
     "edit.sectionBasic": "Osnovno",
@@ -179,11 +182,13 @@ export const tournament: TournamentDict = {
     "pairs.paid": "Plačano",
     "pairs.unpaid": "Ni plačano",
     "pairs.approve": "Odobri",
+    "pairs.approveTitle": "Odobri par",
+    "pairs.rejectTitle": "Zavrni par",
     "pairs.pay": "Plačaj",
     "pairs.markUnpaid": "Označi neplačano",
     "pairs.markPaidTitle": "Označi kot plačano",
     "pairs.markUnpaidTitle": "Označi kot neplačano",
-    "pairs.removePair": "Odstrani par",
+    "pairs.removePair": "Odstrani",
     "pairs.addPair": "Dodaj par",
     "pairs.addPairTitle": "Dodaj nov par",
     "pairs.atCapacityTitle": "Največje število parov ({max})",
@@ -551,5 +556,5 @@ export const tournament: TournamentDict = {
     /* PRIJAVA VSEBINE — vstopni točki s strani turnirja. Samo napisa; sam
        pogovor je v rječniku `profile`, ker ga odpira tudi profil igralca. */
     "report.tournamentItem": "Prijavi turnir",
-    "report.pairItem": "Prijavi par",
+    "report.pairItem": "Prijavi",
 }

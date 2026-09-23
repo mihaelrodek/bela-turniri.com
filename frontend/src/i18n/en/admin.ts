@@ -58,7 +58,14 @@ export const admin: AdminDict = {
     "analytics.anonymous": "Guests and bots",
     "analytics.guestSeats": "Guest seats: {seats} ({wins} wins)",
     "analytics.botSeats": "Bot seats: {seats}",
-    "analytics.guestsNote": "Guests aren't saved with an identity, so they can only be counted, not named.",
+    "analytics.demoSeats": "Demo people seats: {seats}",
+    "analytics.demoGames": "Games against demo people: {games}",
+    "analytics.botOnlyGames": "Games against bots only: {games}",
+    "analytics.kindAccount": "Account",
+    "analytics.kindGuest": "Guest",
+    "analytics.playerRanked": "ranked: {games} ({wins}-{losses})",
+    "analytics.guestsNote": "Guests have no account, so they are grouped by the name they played under — two people using the same name are one row. The guest seat count above counts seats, including older ones whose name was never stored.",
+    "analytics.rankedNote": "The list counts every recorded game, including games against bots and demo people. \"Ranked\" games are only the ones that feed a player's official record and karma (both teams must hold at least one human).",
     /* ─── CjenikTab ─────────────────────────────────────────── */
     "cjenik.loading": "Loading price list…",
     // Visitor-side empty state (someone who cannot edit). Informal second

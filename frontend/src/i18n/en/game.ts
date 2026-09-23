@@ -47,7 +47,13 @@ export const game: GameDict = {
     "room.statsTitle": "Overall",
     /* Karma = player reliability, 0..10. Short badge next to the seat in the lobby. */
     "room.karma": "Karma {value}/{max}",
-    "karma.explain": "Karma is a reliability score from 0 to {max}. Everyone starts at {max}. If you leave a game that's in progress and don't return within the return window, you lose 1 point (it doesn't count if the table was only bots). The point comes back on its own after {window}. Karma can't be repaired by playing. Players sharing your room can see your karma.",
+    "karma.explain": "Karma shows how often you leave games and how much your table-mates can count on you to play a game to the end. It runs from 0 to {max}; everyone starts at {max}. Each time you abandon a running game (you do not come back within the return time, and the table was not just bots) costs 1 point for {window}, then it drops off by itself. Playing does not raise karma — not leaving is enough. Karma is visible to the players you sit with.",
+    "karma.tier.good": "Reliable",
+    "karma.tier.fair": "Sometimes leaves",
+    "karma.tier.poor": "Often leaves",
+    "karma.tierHint.good": "Almost always plays a game to the end. Table-mates can count on you.",
+    "karma.tierHint.fair": "Has left a few games recently. Table-mates can see that — play to the end and the score recovers by itself.",
+    "karma.tierHint.poor": "Often leaves running games. Hard for table-mates to rely on; the score recovers by itself once games are played to the end.",
     "karma.abandonedLine": "Abandoned {abandoned} of {games} in {window}",
     "karma.noAbandonsLine": "No abandoned games in {window}",
     "karma.totalAbandonsLine": "Total abandoned games: {count}",
@@ -574,4 +580,13 @@ export const game: GameDict = {
     "lobby.filter.hasSeats": "Has seats",
     "lobby.filter.targetAria": "Show only games to {target} points",
     "lobby.filter.public": "Public",
+
+    /* ─── Banner pointing at bela.games (2026-09-23) ───────────────────────
+       ADDED AT THE END — don't move or delete the keys above. */
+    "gamesSite.title": "Bela Online has its own site",
+    "gamesSite.titleShort": "Play online at bela.games",
+    "gamesSite.subtitle":
+        "Play Bela online with friends or bots at bela.games — no account needed, in the browser and on your phone.",
+    "gamesSite.cta": "Switch to bela.games",
+    "gamesSite.ctaShort": "bela.games",
 }

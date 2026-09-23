@@ -1,6 +1,7 @@
 package hr.mrodek.apps.bela_turniri.dtos;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
@@ -60,6 +61,39 @@ public record GameResultReportRequest(
         @Max(value = 1000, message = "dealsCount is implausibly large")
         Integer dealsCount,
 
+        /**
+         * §8.1's verdict, as decided by the game server: does this game count
+         * for the competitive record (both teams held a human)?
+         *
+         * <p>OPTIONAL on purpose. Since 2026-09-22 (§8.7) the reporter sends
+         * every finished game that had a real person in it, and this flag is
+         * what keeps the ineligible ones out of personal records and karma.
+         * An older game server sends no flag at all and only ever posts
+         * eligible games, so {@code GameStatsService} derives the old rule
+         * from the seats when this is absent.
+         */
+        Boolean eligible,
+
+        /**
+         * The FULL replay of the game — every deal's 32 dealt cards, the
+         * bidding, the declarations and all eight tricks (game/README.md
+         * §8.8). Optional, and deliberately UNVALIDATED beyond being valid
+         * JSON: this is research material for the bot, not something any
+         * query reads a field out of, and a shape check here would have to be
+         * kept in step with a document the game server owns.
+         *
+         * <p>It rides on THIS request rather than on one of its own so the
+         * whole report keeps a single idempotency key ({@code resultId}), a
+         * single token and a single failure mode.
+         *
+         * <p>Declared explicitly so the field is accepted rather than
+         * silently dropped. Quarkus' Jackson does not fail on unknown
+         * properties, so an older backend that has not been redeployed
+         * ignores it and keeps recording results — which is exactly what
+         * should happen during a rolling deploy.
+         */
+        JsonNode replay,
+
         @NotNull(message = "players is required")
         @Size(min = 4, max = 4, message = "players must contain exactly 4 seats")
         List<@Valid PlayerDto> players
@@ -93,6 +127,23 @@ public record GameResultReportRequest(
 
             @NotNull(message = "isBot is required")
             Boolean isBot,
-            Boolean isGuest
+            Boolean isGuest,
+
+            /**
+             * The seat's display name as shown at the table. Optional (an
+             * older reporter omits it) and truncated rather than rejected if
+             * it is somehow longer than the column: losing a game because a
+             * name is two characters too long would be a poor trade.
+             */
+            String name,
+
+            /**
+             * {@code PLAYER | GUEST | BOT | DEMO}. Optional; when absent it is
+             * derived from {@code isBot}/{@code isGuest}/{@code uid}, which is
+             * exactly what the old wire shape could express.
+             */
+            @Pattern(regexp = "^(PLAYER|GUEST|BOT|DEMO)$",
+                    message = "kind must be PLAYER, GUEST, BOT or DEMO")
+            String kind
     ) {}
 }

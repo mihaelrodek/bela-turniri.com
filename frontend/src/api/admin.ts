@@ -81,16 +81,24 @@ export async function adminGetGameAnalytics(): Promise<AdminGameAnalyticsDto> {
     return data
 }
 
-/** One real account in the "who played" list. */
+/** One person in the "who played" list — an account or a named guest. */
 export type AdminGamePlayerDto = {
-    uid: string
+    /** Firebase UID, or null on a guest row (a guest has no identifier). */
+    uid: string | null
     /** In-game name, else profile display name, else a shortened uid. */
     name: string
+    /** Guest rows are grouped BY NAME, so same-named guests merge into one. */
+    kind: "PLAYER" | "GUEST"
+    /** EVERY recorded game, including games played against bots or demo people. */
     games: number
     wins: number
     losses: number
+    /** Of those, the §8.1-eligible ones — the record the player's profile shows. */
+    rankedGames: number
+    rankedWins: number
+    rankedLosses: number
     lastPlayedAt: string | null
-    /** Lifetime confirmed abandonments, never reset. */
+    /** Lifetime confirmed abandonments, never reset. Always 0 for a guest. */
     abandons: number
     karma: number
     maxKarma: number
@@ -99,7 +107,10 @@ export type AdminGamePlayerDto = {
 /**
  * Sibling of the analytics aggregate: read from the finished-games table
  * rather than the analytics event log, hence its own endpoint and query key.
- * Guests carry no stored identity, so they can only be counted as seats.
+ *
+ * Analytics view since 2026-09-22: it counts every recorded game, not only
+ * the ranked ones, and guests are listed by the name they played under
+ * instead of only appearing in the seat counters.
  */
 export type AdminGamePlayersDto = {
     totalPlayers: number
@@ -108,6 +119,11 @@ export type AdminGamePlayersDto = {
     guestSeats: number
     guestWins: number
     botSeats: number
+    demoSeats: number
+    /** Whole games in which a real person sat with at least one demo person. */
+    demoGames: number
+    /** Whole games a real person played with bots only. */
+    botOnlyGames: number
     players: AdminGamePlayerDto[]
 }
 

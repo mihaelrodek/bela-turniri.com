@@ -276,7 +276,7 @@ export const profile = {
        unatrag za odigrane partije. `{window}` je već gotova, sklonjena fraza
        ("30 dana"), sastavljena preko `usePlural()` s `gameStats.daysDuration`
        ispod — nikad goli broj u fiksnu imenicu. */
-    "gameStats.karmaHint": "Svi kreću s {max}/{max}. Napuštanje partije s još barem jednim igračem oduzima 1 bod na {window}, a zatim samo otpadne. Igranjem se ništa ne vraća.",
+    "gameStats.karmaHint": "Karma pokazuje koliko često napuštaš partije i koliko se suigrači mogu osloniti na tebe. 8–10 zeleno, 5–7 žuto, 0–4 crveno. Svako napuštanje partije u tijeku skida 1 bod na {window}, a onda sam otpadne; igranjem se ne diže.",
     "gameStats.abandons": "Napuštanja",
     /* Isti "X od Y u zadnjih Z dana" redak kao u sobi (`game.karma.*` u
        lazy-loadanom `game` namespaceu) — dupliciran ovdje pod `profile`

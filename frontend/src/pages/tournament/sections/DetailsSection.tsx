@@ -254,6 +254,16 @@ export default function DetailsSection({
                         label={tr("tournament.tile.pairs")}
                         value={`${pairCount} / ${typeof t.maxPairs === "number" ? t.maxPairs : "∞"}`}
                     />
+                    {/* "Igra se do" moved here, directly before "Kotizacija"
+                        (2026-09-22, owner request: "neka piše do koliko se
+                        igra iznad kotizacije") — it used to sit in the rules
+                        row below. Unconditional, like before: a tournament
+                        with no stored value still shows the 1001 default. */}
+                    <DetailTile
+                        icon={<FiAward size={13} />}
+                        label={tr("tournament.tile.targetScore")}
+                        value={t.targetScore ?? 1001}
+                    />
                     {typeof t.entryPrice === "number" && (
                         <DetailTile
                             icon={<FiDollarSign size={13} />}
@@ -294,7 +304,14 @@ export default function DetailsSection({
 
                 {/* Pravila turnirskih stolova. Values are always present on
                     newly-created tournaments; the fallbacks keep older API
-                    responses readable while their database migration lands. */}
+                    responses readable while their database migration lands.
+
+                    "Igra se do" moved out of this row (now beside
+                    "Kotizacija" above); "Zvanja" and "Bela" — two separate
+                    tiles until 2026-09-22, the second shown only when
+                    declarations were off — are now ONE merged tile so the
+                    row stays a clean three-across instead of growing a
+                    conditional fifth cell. */}
                 <Box
                     display="grid"
                     gridTemplateColumns={{
@@ -304,32 +321,30 @@ export default function DetailsSection({
                     gap="3"
                 >
                     <DetailTile
-                        icon={<FiAward size={13} />}
-                        label={tr("tournament.tile.targetScore")}
-                        value={t.targetScore ?? 1001}
-                    />
-                    <DetailTile
                         icon={<FiRotateCcw size={13} />}
                         label={tr("tournament.tile.gameEndRule")}
                         value={tr(`tournament.rule.end.${t.gameEndRule === "dosta" ? "dosta" : "prolaz"}`)}
                     />
+                    {/* Value composed as "{Zvanja state} · {bela state}",
+                        e.g. "Vrijede · bela da" / "Bez zvanja · bez bele" —
+                        the bela half reuses `rule.bela.enabled/disabled`
+                        (capitalised, standalone strings on the listing card's
+                        rules chip) lower-cased here to read as one sentence
+                        fragment rather than two title-cased labels stapled
+                        together. */}
                     <DetailTile
                         icon={<FiUsers size={13} />}
-                        label={tr("tournament.tile.declarations")}
-                        value={tr(`tournament.rule.declarations.${t.declarationsEnabled === false ? "disabled" : "enabled"}`)}
+                        label={tr("tournament.tile.declarationsAndBela")}
+                        value={
+                            `${tr(`tournament.rule.declarations.${t.declarationsEnabled === false ? "disabled" : "enabled"}`)}` +
+                            ` · ${tr(`tournament.rule.bela.${t.allowBela === false ? "disabled" : "enabled"}`).toLocaleLowerCase()}`
+                        }
                     />
                     <DetailTile
                         icon={<FiRotateCcw size={13} />}
                         label={tr("tournament.tile.dealDirection")}
                         value={tr(`tournament.rule.direction.${t.dealDirection === "left" ? "left" : "right"}`)}
                     />
-                    {t.declarationsEnabled === false && (
-                        <DetailTile
-                            icon={<FiInfo size={13} />}
-                            label={tr("tournament.tile.allowBela")}
-                            value={tr(`tournament.rule.${t.allowBela === false ? "no" : "yes"}`)}
-                        />
-                    )}
                 </Box>
 
                 {/* Lokacija — its own row, because the venue is the one fact

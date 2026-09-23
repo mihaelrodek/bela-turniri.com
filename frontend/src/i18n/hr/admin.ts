@@ -60,7 +60,14 @@ export const admin = {
     "analytics.anonymous": "Gosti i botovi",
     "analytics.guestSeats": "Mjesta gostiju: {seats} ({wins} pobjeda)",
     "analytics.botSeats": "Mjesta botova: {seats}",
-    "analytics.guestsNote": "Gosti se ne spremaju s identitetom pa ih se može samo prebrojati, ne i imenovati.",
+    "analytics.demoSeats": "Mjesta lažnih ljudi (demo): {seats}",
+    "analytics.demoGames": "Partije protiv lažnih ljudi (demo): {games}",
+    "analytics.botOnlyGames": "Partije samo protiv botova: {games}",
+    "analytics.kindAccount": "Račun",
+    "analytics.kindGuest": "Gost",
+    "analytics.playerRanked": "od toga rangirane: {games} ({wins}-{losses})",
+    "analytics.guestsNote": "Gosti nemaju račun pa se grupiraju po imenu pod kojim su igrali — dvoje ljudi s istim imenom broji se kao jedan red. Mjesta gostiju iznad broje sjedala, uključujući i starija za koja ime nije spremljeno.",
+    "analytics.rankedNote": "Popis broji sve zabilježene partije, i one protiv botova i lažnih ljudi. „Rangirane“ su samo one koje ulaze u igračev službeni omjer i karmu (oba tima moraju imati barem jednog čovjeka).",
     /* ─── CjenikTab ─────────────────────────────────────────── */
     "cjenik.loading": "Učitavanje cjenika…",
     // Visitor-side empty state (someone who cannot edit). Informal second

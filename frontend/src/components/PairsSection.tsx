@@ -14,7 +14,6 @@ import {
 } from "@chakra-ui/react"
 import { Link as RouterLink } from "react-router-dom"
 import {
-    FiArrowLeft,
     FiCheck,
     FiChevronDown,
     FiChevronRight,
@@ -58,10 +57,19 @@ import { usePlural, useTranslation } from "../i18n"
 
    Below lg the two panes never sit side by side — a 390px phone cannot carry
    a list and a panel at once, and a bottom sheet would fight both the pinned
-   section band at the top and MobileTabBar at the bottom. Instead the panel
-   REPLACES the list (push-to-detail, with a back arrow), so there is always
-   exactly one full-width column, the page keeps its own single scroll, and
-   nothing new has to be layered over the app chrome.
+   section band at the top and MobileTabBar at the bottom.
+
+   2026-09-22: the phone layout used to REPLACE the list with the panel
+   (push-to-detail, back arrow). That hid the roster behind every single
+   tap — an organiser checking off kotizacija at the door paid a screen
+   change per pair and lost their place in the list each time. The panel now
+   EXPANDS IN PLACE under its own row (accordion, one open at a time, the
+   chevron rotates and the row carries aria-expanded), so the surrounding
+   pairs stay on screen and a second tap closes it. The back arrow is gone
+   with the mode it belonged to. lg+ keeps the real side-by-side split: it
+   has the width for it, and a list that stays put next to a pinned panel is
+   strictly better than an accordion that reflows the column under the
+   pointer.
 
    This component is presentation only. Every mutation is a prop: the page
    owns the pair state, the offline write queue, the poll/socket refresh and
@@ -342,12 +350,53 @@ export default function PairsSection(props: PairsSectionProps) {
         setSelectedPairId(tempId)
     }
 
+    /* Removing a pair — the one destructive action, shared by the panel's
+       "Ukloni" and the inline reject on a pending row. An unsaved (temp id)
+       row is dropped outright; a saved one goes through the page's
+       ConfirmDialog, exactly as before. */
+    function handleDeletePair(p: PairShort) {
+        if (p.id <= 0) {
+            onRemoveTempPair(p.id)
+            setSelectedPairId((cur) => (cur === p.id ? null : cur))
+            return
+        }
+        onRequestDeletePair(p)
+    }
+
+    function renderDetailPanel(pair: PairShort) {
+        return (
+            <PairDetailPanel
+                key={pair.id}
+                pair={pair}
+                rank={podiumRankOf(pair)}
+                tournamentAlready={tournamentAlready}
+                tournamentLocked={tournamentLocked}
+                canEdit={canEdit}
+                savingPairs={savingPairs}
+                approvingPairId={approvingPairId}
+                buyingLifePairId={buyingLifePairId}
+                paidQueued={pendingPairPaid.has(pair.id)}
+                lifeEligible={isLifeEligible(pair)}
+                onChangePairName={onChangePairName}
+                onPairNameBlur={onPairNameBlur}
+                onApprovePair={onApprovePair}
+                onBuyExtraLife={onBuyExtraLife}
+                onTogglePaid={onTogglePaid}
+                onStagePaid={onStagePaid}
+                onDeletePair={() => handleDeletePair(pair)}
+            />
+        )
+    }
+
     /* The guided tour anchors on "a pair card": whichever row renders first,
        so the step still finds a target when every pair is pending or out. */
     const tourAnchorId = (pendingPairs[0] ?? activeRows[0] ?? eliminatedRows[0])?.id ?? null
 
-    /* ---------- One card in the LEFT list ---------- */
-    function renderPairRow(p: PairShort, eliminated: boolean, tourAnchor: boolean) {
+    /* ---------- One card in the LEFT list ----------
+       `inline` is the below-lg accordion mode: the row renders its own detail
+       panel underneath itself when it is the selected one. The lg+ split
+       passes false — there the panel lives in the right-hand pane. */
+    function renderPairRow(p: PairShort, eliminated: boolean, tourAnchor: boolean, inline: boolean) {
         const hasServerId = typeof p.id === "number" && p.id > 0
         const isPending = !!p.pendingApproval
         const selected = p.id === selectedPairId
@@ -358,6 +407,12 @@ export default function PairsSection(props: PairsSectionProps) {
         // approved pair, and only for whoever can edit the roster — the same
         // gate the panel's "Plati" sits behind.
         const canPayInRow = canEdit && !tournamentLocked && !tournamentAlready && !isPending
+        // Approve / reject, right in the pending row — same gate as the two
+        // buttons in the panel ("Odobri" is canEdit + pending; "Ukloni" is
+        // canEdit + not-yet-started), so nothing becomes reachable here that
+        // was not reachable one tap deeper.
+        const canApproveInRow = canEdit && isPending
+        const canRejectInRow = canEdit && isPending && !tournamentAlready
 
         // One status line under the name. Whatever the organiser is scanning
         // for at that moment: the approval queue first, then the running
@@ -379,17 +434,22 @@ export default function PairsSection(props: PairsSectionProps) {
                     color: paid ? "green.fg" : "red.fg",
                 }
 
-        return (
+        // Accordion semantics: a second tap on the open row closes it again.
+        // On lg+ that reads as "deselect", which is the same gesture.
+        const toggle = () => setSelectedPairId((cur) => (cur === p.id ? null : p.id))
+
+        const row = (
             <Box
                 key={p.id}
                 role="button"
                 tabIndex={0}
+                aria-expanded={selected}
                 data-tour={tourAnchor ? "detail-first-pair" : undefined}
-                onClick={() => setSelectedPairId(p.id)}
+                onClick={toggle}
                 onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault()
-                        setSelectedPairId(p.id)
+                        toggle()
                     }
                 }}
                 cursor="pointer"
@@ -446,7 +506,68 @@ export default function PairsSection(props: PairsSectionProps) {
                             {statusLine.text}
                         </Text>
                     </Box>
-                    <Box color={selected ? "blue.fg" : "fg.muted"} flexShrink={0} aria-hidden>
+                    {/* Approve / reject without opening the pair. The queue
+                        an organiser works through at the door is ČEKAJU
+                        ODOBRENJE, and every decision there used to cost a
+                        detail screen. Both stop the row's own click so the
+                        accordion does not toggle underneath the tap, and both
+                        call exactly the props the panel's buttons call —
+                        onApprovePair and the shared handleDeletePair, which
+                        keeps the ConfirmDialog on the destructive one.
+                        Approve is not confirmed: it is trivially reversible
+                        with "Ukloni", a reject is not. */}
+                    {canApproveInRow && (
+                        <IconButton
+                            aria-label={tr("tournament.pairs.approveTitle")}
+                            title={tr("tournament.pairs.approveTitle")}
+                            size="xs"
+                            variant="solid"
+                            colorPalette="green"
+                            rounded="full"
+                            boxSize={{ base: "40px", md: "28px" }}
+                            minW={{ base: "40px", md: "28px" }}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                onApprovePair(p)
+                            }}
+                            loading={approvingPairId === p.id}
+                            disabled={approvingPairId != null || !hasServerId}
+                            flexShrink={0}
+                        >
+                            <FiCheck />
+                        </IconButton>
+                    )}
+                    {canRejectInRow && (
+                        <IconButton
+                            aria-label={tr("tournament.pairs.rejectTitle")}
+                            title={tr("tournament.pairs.rejectTitle")}
+                            size="xs"
+                            variant="outline"
+                            colorPalette="red"
+                            rounded="full"
+                            boxSize={{ base: "40px", md: "28px" }}
+                            minW={{ base: "40px", md: "28px" }}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeletePair(p)
+                            }}
+                            disabled={approvingPairId === p.id}
+                            flexShrink={0}
+                        >
+                            <FiX />
+                        </IconButton>
+                    )}
+                    {/* The chevron doubles as the accordion affordance below
+                        lg, where the panel opens under this row; at lg+ the
+                        panel is a separate column, so it keeps pointing at it. */}
+                    <Box
+                        color={selected ? "blue.fg" : "fg.muted"}
+                        flexShrink={0}
+                        aria-hidden
+                        display="flex"
+                        transform={selected ? { base: "rotate(90deg)", lg: "none" } : "none"}
+                        transition="transform 0.15s"
+                    >
                         <FiChevronRight />
                     </Box>
                     {/* Kotizacija, right in the row. An ACTION, not a badge:
@@ -487,6 +608,11 @@ export default function PairsSection(props: PairsSectionProps) {
                             <FiDollarSign />
                         </IconButton>
                     )}
+                    {/* On a pending row below md the two 40px decision buttons
+                        need the width, and "Povijest mečeva" is empty anyway
+                        for a pair that has not been approved, let alone
+                        played — so that is what gives way, not the chevron
+                        the accordion depends on. It comes back at md+. */}
                     <IconButton
                         aria-label={tr("tournament.pairs.matchHistory")}
                         size="xs"
@@ -498,16 +624,34 @@ export default function PairsSection(props: PairsSectionProps) {
                         disabled={!hasServerId}
                         title={tr("tournament.pairs.matchHistory")}
                         flexShrink={0}
+                        display={
+                            canApproveInRow || canRejectInRow
+                                ? { base: "none", md: "inline-flex" }
+                                : "inline-flex"
+                        }
                     >
                         <FiInfo />
                     </IconButton>
                 </HStack>
             </Box>
         )
+
+        if (!inline) return row
+
+        return (
+            <Box key={p.id}>
+                {row}
+                {selected && <Box mt="2">{renderDetailPanel(p)}</Box>}
+            </Box>
+        )
     }
 
-    /* ---------- The LEFT column ---------- */
-    const listPane =
+    /* ---------- The LEFT column ----------
+       `inline` is threaded straight through to the rows: the below-lg copy
+       renders the open pair's panel under its own row, the lg+ copy does not
+       (its panel is the right-hand pane). Both copies stay mounted and are
+       toggled by `display`, exactly as before. */
+    const renderList = (inline: boolean) =>
         pairs.length === 0 ? (
             <Box
                 borderWidth="1px"
@@ -538,7 +682,7 @@ export default function PairsSection(props: PairsSectionProps) {
                     <Box>
                         <GroupHeading label={tr("tournament.pairs.pendingHeading")} count={pendingPairs.length} />
                         <VStack align="stretch" gap="2">
-                            {pendingPairs.map((p) => renderPairRow(p, !!p.isEliminated, p.id === tourAnchorId))}
+                            {pendingPairs.map((p) => renderPairRow(p, !!p.isEliminated, p.id === tourAnchorId, inline))}
                         </VStack>
                     </Box>
                 )}
@@ -547,7 +691,7 @@ export default function PairsSection(props: PairsSectionProps) {
                     header strip. The other two groups keep theirs. */}
                 {activeRows.length > 0 && (
                     <VStack align="stretch" gap="2">
-                        {activeRows.map((p) => renderPairRow(p, !!p.isEliminated, p.id === tourAnchorId))}
+                        {activeRows.map((p) => renderPairRow(p, !!p.isEliminated, p.id === tourAnchorId, inline))}
                     </VStack>
                 )}
 
@@ -555,7 +699,7 @@ export default function PairsSection(props: PairsSectionProps) {
                     <Box>
                         <GroupHeading label={tr("tournament.pairs.eliminatedHeading")} count={eliminatedRows.length} />
                         <VStack align="stretch" gap="2">
-                            {eliminatedRows.map((p) => renderPairRow(p, true, p.id === tourAnchorId))}
+                            {eliminatedRows.map((p) => renderPairRow(p, true, p.id === tourAnchorId, inline))}
                         </VStack>
                     </Box>
                 )}
@@ -563,36 +707,7 @@ export default function PairsSection(props: PairsSectionProps) {
         )
 
     /* ---------- The RIGHT pane ---------- */
-    const detailPane = selectedPair ? (
-        <PairDetailPanel
-            key={selectedPair.id}
-            pair={selectedPair}
-            rank={podiumRankOf(selectedPair)}
-            tournamentAlready={tournamentAlready}
-            tournamentLocked={tournamentLocked}
-            canEdit={canEdit}
-            savingPairs={savingPairs}
-            approvingPairId={approvingPairId}
-            buyingLifePairId={buyingLifePairId}
-            paidQueued={pendingPairPaid.has(selectedPair.id)}
-            lifeEligible={isLifeEligible(selectedPair)}
-            onBack={() => setSelectedPairId(null)}
-            onChangePairName={onChangePairName}
-            onPairNameBlur={onPairNameBlur}
-            onApprovePair={onApprovePair}
-            onBuyExtraLife={onBuyExtraLife}
-            onTogglePaid={onTogglePaid}
-            onStagePaid={onStagePaid}
-            onDeletePair={() => {
-                if (selectedPair.id <= 0) {
-                    onRemoveTempPair(selectedPair.id)
-                    setSelectedPairId(null)
-                    return
-                }
-                onRequestDeletePair(selectedPair)
-            }}
-        />
-    ) : (
+    const detailPane = selectedPair ? renderDetailPanel(selectedPair) : (
         <Box
             borderWidth="1px"
             borderColor="border.subtle"
@@ -868,7 +983,7 @@ export default function PairsSection(props: PairsSectionProps) {
             {/* With no pairs at all there is nothing to select, so the split
                 collapses to the single "Još nema parova" state rather than
                 pairing it with a second, redundant "Odaberi par" box. */}
-            {pairs.length === 0 && listPane}
+            {pairs.length === 0 && renderList(false)}
 
             {/* lg+: list beside panel, each pinned under the navbar so a long
                 roster scrolls without dragging the panel off screen. */}
@@ -888,7 +1003,7 @@ export default function PairsSection(props: PairsSectionProps) {
                     pr="1"
                     css={{ scrollbarGutter: "stable" }}
                 >
-                    {listPane}
+                    {renderList(false)}
                 </Box>
                 <Box
                     position="sticky"
@@ -903,12 +1018,13 @@ export default function PairsSection(props: PairsSectionProps) {
                 </Box>
             </Box>
 
-            {/* Below lg: push-to-detail — one column, never both. */}
+            {/* Below lg: one column, always the list — the open pair's panel
+                is expanded inside it, under its own row. */}
             <Box
                 className={pairs.length === 0 ? undefined : "fold-master-detail-single"}
                 display={pairs.length === 0 ? "none" : { base: "block", lg: "none" }}
             >
-                {selectedPair ? detailPane : listPane}
+                {renderList(true)}
             </Box>
         </VStack>
     )
@@ -928,7 +1044,6 @@ function PairDetailPanel({
     buyingLifePairId,
     paidQueued,
     lifeEligible,
-    onBack,
     onChangePairName,
     onPairNameBlur,
     onApprovePair,
@@ -947,7 +1062,6 @@ function PairDetailPanel({
     buyingLifePairId: number | null
     paidQueued: boolean
     lifeEligible: boolean
-    onBack: () => void
     onChangePairName: (id: number, name: string) => void
     onPairNameBlur: (p: PairShort) => void
     onApprovePair: (p: PairShort) => void
@@ -1002,16 +1116,9 @@ function PairDetailPanel({
                     in the old grid: typing marks the row dirty, blur saves a
                     still-unsaved (temp id) row. */}
                 <HStack gap="2.5" align="center">
-                    <IconButton
-                        aria-label={tr("tournament.pairs.backToList")}
-                        title={tr("tournament.pairs.backToList")}
-                        size="sm"
-                        variant="ghost"
-                        display={{ base: "inline-flex", lg: "none" }}
-                        onClick={onBack}
-                    >
-                        <FiArrowLeft />
-                    </IconButton>
+                    {/* No back arrow any more: below lg this panel is expanded
+                        under the row it belongs to, and that row (plus its
+                        chevron) is the close affordance. */}
                     <PairAvatar name={pair.name} eliminated={eliminated && !isPodium} />
                     {rank === "first" && (
                         <Box color="yellow.fg" flexShrink={0} title={tr("tournament.place.first")}>

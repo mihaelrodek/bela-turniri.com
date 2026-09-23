@@ -923,3 +923,85 @@ prolaze kroz ovo pravilo: tamo nema „dalje".
 
 Testovi: `scenarios.bidding.test.ts`, „the jack and one small trump is not a call
 by itself". Nisu pokrenuti u trenutku pisanja.
+
+## 16. Zapisi partija (2026-09-23)
+
+Od 2026-09-23 se **svaka gotova partija u kojoj je sjedio pravi čovjek sprema
+u cijelosti** — kao jedan JSON dokument u tablicu `game_replays`. Normativni
+opis oblika i prijenosa je `README.md` §8.8; ovdje je samo ono što treba znati
+kad se bot popravlja.
+
+### 16.1 Čemu služi
+
+Sve ostalo u ovom dokumentu je napisano unaprijed: pravila koja smo smislili i
+scenariji koje smo smislili uz njih. Zapisi su suprotan smjer — pozicije koje
+nitko nije osmislio, iz partija koje su ljudi stvarno odigrali. Kad netko
+prijavi „bot je ovdje odigrao glupost“, zapis je ono što od te prijave radi
+test.
+
+`botVersion` (konstanta `BOT_VERSION` u `@bela/bots`, `packages/bots/src/index.ts`)
+stoji u svakom zapisu i u vlastitom stupcu. **Podiže se — na datum promjene — u
+istom commitu kao i svaka promjena koja mijenja odluku** (`heuristicBot.ts`,
+`evaluate.ts`, pravilo iz ovog dokumenta). Bez toga se dvije različite verzije
+bota stapaju u isti uzorak i pitanje „je li promjena pomogla?“ nema odgovor.
+
+### 16.2 Što je u zapisu
+
+Po partiji: postavke sobe, četiri sjedala (`PLAYER | GUEST | BOT | DEMO`), i po
+podjeli — **sve 32 karte kako su podijeljene**, koje su dvije došle iz talona,
+cijelo zvanje aduta (tko je dalje, tko je zvao, je li bio mus), zvanja svih
+sjedala (i onih koja nisu bodovala), bela, svih osam štihova s time **tko je
+koju kartu bacio**, i obračun podjele. Točan oblik: README §8.8.
+
+Ruke su potpune, uključujući one koje igrač nikad nije vidio — partija je
+gotova, a analiza „što je ovdje trebalo odigrati?“ bez tuđih karata nije
+moguća.
+
+### 16.3 Kako se zapis izvozi
+
+```bash
+# cijela arhiva (NDJSON, jedan zapis po retku, najnovije prvo)
+curl -sS -H "Authorization: Bearer $ADMIN_ID_TOKEN" \
+  "https://bela-turniri.com/api/admin/game-replays?limit=500" > replays.ndjson
+
+# jedna partija, po resultId-u
+curl -sS -H "Authorization: Bearer $ADMIN_ID_TOKEN" \
+  "https://bela-turniri.com/api/admin/game-replays/<resultId>" > partija.json
+```
+
+Korisne pretrage nad dumpom (`jq`):
+
+```bash
+# samo partije koje je odigrao bot verzije 2026-09-23
+jq -c 'select(.botVersion == "2026-09-23")' replays.ndjson
+
+# svaka podjela u kojoj je zvač pao (`passed: false`)
+jq -c '.replay.deals[] | select(.dealScore != null and .dealScore.passed == false)' replays.ndjson
+```
+
+### 16.4 Kako se zapis pretvara u scenarij-test
+
+Testovi bota rade nad `PlayerView`-om, a ne nad zapisom: pomoćnik
+`view()` iz `packages/bots/test/helpers.ts` složi pogled iz onoga što
+scenarij treba, a sve ostalo popuni razumnim zadanim vrijednostima. Postupak je
+mehanički — iz zapisa se prepiše pozicija neposredno **prije** poteza koji se
+osporava:
+
+```ts
+// iz deals[i]: hands[seat] minus karte koje je to sjedalo već bacilo u
+// tricks[0..n-1], trump iz bidding-ova CALL-a, tricks[n].plays do spornog poteza.
+const v = view({
+    seat: 2,
+    hand: ["AKARA", "10KARA", "8PIK", "KTREF"],            // ostatak ruke u tom trenutku
+    bidding: { turn: 2, passes: [], trump: "HERC", caller: 1 },
+    trick: { leader: 1, turn: 2, cards: [{ seat: 1, card: "JHERC" }] },
+    played: ["…"],                                          // sve karte iz tricks[0..n-1]
+    score: { A: 62, B: 100 },                               // deals[i].runningScore
+})
+expect(chooseCard(heuristicBot, v, legal, makeRng("seed"))).toBe("…")
+```
+
+Zatim se u odgovarajući `scenarios.*.test.ts` doda slučaj s jednorečeničnim
+objašnjenjem **zašto** je očekivana karta ispravna — test bez tog obrazloženja
+je zabilježena greška, a ne pravilo. Pravilo se onda zapiše ovdje, u BOT.md, i
+`BOT_VERSION` se podigne.

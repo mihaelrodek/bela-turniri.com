@@ -87,6 +87,7 @@ export const tournament: TournamentDict = {
     "tile.dealDirection": "Deal direction",
     "tile.declarations": "Declarations",
     "tile.allowBela": "Bela",
+    "tile.declarationsAndBela": "Declarations and bela",
     "tile.rewards": "Prizes",
     "tile.additionalOptions": "Additional options",
 
@@ -119,6 +120,8 @@ export const tournament: TournamentDict = {
     "rule.declarations.disabled": "No declarations",
     "rule.yes": "Yes",
     "rule.no": "No",
+    "rule.bela.enabled": "Bela yes",
+    "rule.bela.disabled": "No bela",
 
     // ═══════════════════════ Details tab — edit mode ═══════════════════════
     "edit.sectionBasic": "Basics",
@@ -194,11 +197,13 @@ export const tournament: TournamentDict = {
     "pairs.paid": "Paid",
     "pairs.unpaid": "Not paid",
     "pairs.approve": "Approve",
+    "pairs.approveTitle": "Approve pair",
+    "pairs.rejectTitle": "Reject pair",
     "pairs.pay": "Pay",
     "pairs.markUnpaid": "Mark unpaid",
     "pairs.markPaidTitle": "Mark as paid",
     "pairs.markUnpaidTitle": "Mark as unpaid",
-    "pairs.removePair": "Remove pair",
+    "pairs.removePair": "Remove",
     "pairs.addPair": "Add pair",
     "pairs.addPairTitle": "Add a new pair",
     "pairs.atCapacityTitle": "Maximum number of pairs ({max})",
@@ -637,5 +642,5 @@ export const tournament: TournamentDict = {
        the `profile` dictionary — the same component opens from a player
        profile too, so its text must not be split across two places. */
     "report.tournamentItem": "Report tournament",
-    "report.pairItem": "Report pair",
+    "report.pairItem": "Report",
 }

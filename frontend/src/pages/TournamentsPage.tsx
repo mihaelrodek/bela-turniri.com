@@ -32,6 +32,7 @@ import {
     FiX,
 } from "react-icons/fi"
 import { fetchTournaments, fetchTournamentsCount } from "../api/tournaments"
+import type { TournamentTargetScore } from "../types/tournaments"
 import { qk } from "../queryClient"
 import { useUserLocation } from "../hooks/useUserLocation"
 import { haversineKm } from "../utils/distance"
@@ -94,6 +95,19 @@ const PageTour = lazy(() => import("../components/PageTour"))
 const EMPTY_CARDS: ListingTournament[] = []
 
 const FINISHED_PREVIEW_LIMIT = 6
+
+/** Chip order for the "Igra se do" filter — every value `TournamentTargetScore`
+ *  currently allows. Multi-select, OR semantics: a tournament matches when its
+ *  `targetScore` is any one of the checked chips. */
+const TARGET_SCORE_OPTIONS: readonly TournamentTargetScore[] = [501, 701, 1001]
+
+/** Tri-state "Zvanja" filter. `all` ("svejedno") does not filter at all;
+ *  `enabled`/`disabled` match `declarationsEnabled !== false` /
+ *  `=== false` respectively — the same "missing means enabled" convention
+ *  `DetailsSection.tsx` and the listing rules chip already use, since
+ *  `declarationsEnabled` defaults to `true` server-side and only legacy rows
+ *  can have it unset. */
+type DeclarationsFilter = "all" | "enabled" | "disabled"
 
 /** Below this many trimmed characters the finished-search group doesn't run
  *  at all — mirrors the backend's own `MIN_QUERY_LENGTH` so the SPA never
@@ -350,6 +364,11 @@ export default function TournamentsPage() {
        stays OFF on a return visit where the browser silently restored a
        previously-granted position. */
     const [radiusKm, setRadiusKm] = useState<number>(RADIUS_MAX_KM)
+    /* "Igra se do" chips (multi-select, OR) and the "Zvanja" tri-state —
+       added 2026-09-22, same plain useState + client-side filtering as every
+       other control here (no URL params, no persistence beyond the tab). */
+    const [targetScoreFilter, setTargetScoreFilter] = useState<TournamentTargetScore[]>([])
+    const [declarationsFilter, setDeclarationsFilter] = useState<DeclarationsFilter>("all")
 
     useEffect(() => {
         try {
@@ -431,7 +450,9 @@ export default function TournamentsPage() {
         (priceMax.trim() ? 1 : 0) +
         (repassageMin.trim() ? 1 : 0) +
         (repassageMax.trim() ? 1 : 0) +
-        (nearMeActive ? 1 : 0)
+        (nearMeActive ? 1 : 0) +
+        (targetScoreFilter.length > 0 ? 1 : 0) +
+        (declarationsFilter !== "all" ? 1 : 0)
 
     const isFiltering = search.trim().length > 0 || activeFilterCount > 0
 
@@ -443,6 +464,14 @@ export default function TournamentsPage() {
         setRepassageMin("")
         setRepassageMax("")
         setRadiusKm(RADIUS_MAX_KM)
+        setTargetScoreFilter([])
+        setDeclarationsFilter("all")
+    }
+
+    function toggleTargetScore(score: TournamentTargetScore) {
+        setTargetScoreFilter((prev) =>
+            prev.includes(score) ? prev.filter((s) => s !== score) : [...prev, score],
+        )
     }
 
     /**
@@ -533,6 +562,16 @@ export default function TournamentsPage() {
                 continue
             }
 
+            if (targetScoreFilter.length > 0) {
+                if (typeof item.targetScore !== "number" || !targetScoreFilter.includes(item.targetScore)) continue
+            }
+
+            if (declarationsFilter !== "all") {
+                const enabled = item.declarationsEnabled !== false
+                if (declarationsFilter === "enabled" && !enabled) continue
+                if (declarationsFilter === "disabled" && enabled) continue
+            }
+
             if (!me) {
                 base.push(item)
                 continue
@@ -562,6 +601,8 @@ export default function TournamentsPage() {
         priceMax,
         repassageMin,
         repassageMax,
+        targetScoreFilter,
+        declarationsFilter,
         userPos,
         radiusKm,
         sortMode,
@@ -1011,7 +1052,82 @@ export default function TournamentsPage() {
                                     </Box>
                                 </Grid>
 
-                                {/* Second row: the radius that used to be a
+                                {/* Game-rules row — "Igra se do" chips (multi-
+                                    select, OR) and the "Zvanja" tri-state,
+                                    added 2026-09-22. Own row rather than a
+                                    fourth `Grid` column: both controls are
+                                    button groups, not text inputs, and read
+                                    better full-width than squeezed into the
+                                    `minmax(180px, 1fr) auto auto` template
+                                    above. */}
+                                <Box mt="4" pt="3" borderTopWidth="1px" borderColor="border.subtle">
+                                    <Stack direction={{ base: "column", sm: "row" }} gap={{ base: "3", sm: "6" }}>
+                                        <Box minW="0">
+                                            <FilterLabel>
+                                                {tt("pages.tournaments.filters.targetScoreLabel")}
+                                            </FilterLabel>
+                                            <HStack gap="1.5" wrap="wrap">
+                                                {TARGET_SCORE_OPTIONS.map((score) => {
+                                                    const active = targetScoreFilter.includes(score)
+                                                    return (
+                                                        <Button
+                                                            key={score}
+                                                            size="xs"
+                                                            variant={active ? "solid" : "outline"}
+                                                            colorPalette={active ? "brand" : "gray"}
+                                                            bg={active ? undefined : "bg.panel"}
+                                                            fontFamily="mono"
+                                                            fontVariantNumeric="tabular-nums"
+                                                            onClick={() => toggleTargetScore(score)}
+                                                            aria-pressed={active}
+                                                        >
+                                                            {score}
+                                                        </Button>
+                                                    )
+                                                })}
+                                            </HStack>
+                                        </Box>
+                                        <Box minW="0">
+                                            <FilterLabel>
+                                                {tt("pages.tournaments.filters.declarationsLabel")}
+                                            </FilterLabel>
+                                            <HStack
+                                                gap="1"
+                                                p="1"
+                                                bg="bg.subtle"
+                                                borderWidth="1px"
+                                                borderColor="border.subtle"
+                                                rounded="lg"
+                                                display="inline-flex"
+                                                role="group"
+                                                aria-label={tt("pages.tournaments.filters.declarationsLabel")}
+                                            >
+                                                {([
+                                                    ["all", tt("pages.tournaments.filters.declarationsAll")],
+                                                    ["enabled", tt("pages.tournaments.filters.declarationsEnabled")],
+                                                    ["disabled", tt("pages.tournaments.filters.declarationsDisabled")],
+                                                ] as [DeclarationsFilter, string][]).map(([value, label]) => {
+                                                    const active = declarationsFilter === value
+                                                    return (
+                                                        <Button
+                                                            key={value}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            bg={active ? "brand.solid" : "transparent"}
+                                                            color={active ? "brand.contrast" : "fg.muted"}
+                                                            onClick={() => setDeclarationsFilter(value)}
+                                                            aria-pressed={active}
+                                                        >
+                                                            {label}
+                                                        </Button>
+                                                    )
+                                                })}
+                                            </HStack>
+                                        </Box>
+                                    </Stack>
+                                </Box>
+
+                                {/* Third row: the radius that used to be a
                                     "Blizu mene" toggle plus three chips. One
                                     slider says the same thing with fewer
                                     controls, and its right edge is where

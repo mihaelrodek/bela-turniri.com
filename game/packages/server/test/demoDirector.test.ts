@@ -810,14 +810,34 @@ describe("demo director — shutdown and defence", () => {
             return stuck
         }
         const director = startDemoDirector({ lobby, config: CONFIG, clock, rng })
-        clock.advance(5 * 60_000)
+
         // Nothing is left sitting full and unstarted: the watchdog either
-        // started it (impossible here) or closed it.
-        for (const room of lobby.live()) {
-            if (room.state === "LOBBY") {
-                expect(room.seats.filter((s) => s != null).length).toBeLessThan(4)
+        // started it (impossible here) or closed it. Measured as a DURATION,
+        // not as a snapshot — a room whose fourth person sat down a second ago
+        // is legitimately full and unstarted, and asserting on the state at one
+        // arbitrary instant only ever tested the rng.
+        const fullSince = new Map<string, number>()
+        let worst = 0
+        let closed = 0
+        for (let i = 0; i < 300; i++) {
+            clock.advance(1_000)
+            const now = clock.now()
+            const seen = new Set<string>()
+            for (const room of lobby.live()) {
+                if (room.state !== "LOBBY") continue
+                if (room.seats.filter((s) => s != null).length < 4) continue
+                seen.add(room.id)
+                const start = fullSince.get(room.id) ?? now
+                fullSince.set(room.id, start)
+                worst = Math.max(worst, now - start)
             }
+            for (const id of [...fullSince.keys()]) if (!seen.has(id)) fullSince.delete(id)
         }
+        closed = lobby.structural.filter((e) => e.kind === "close").length
+        // The watchdog fires 30–35 s after the room was armed, plus a little
+        // slack for the structural mutex deferring the close itself.
+        expect(worst).toBeLessThanOrEqual(45_000)
+        expect(closed).toBeGreaterThan(0)
         director.stop()
     })
 })
@@ -931,9 +951,13 @@ describe("demo director — guests in a real person's room", () => {
         // Three of four at most: the fourth seat stays open for two minutes.
         expect(room.freeSeats().length).toBeGreaterThanOrEqual(1)
 
-        clock.advance(4 * 60_000)
-        // After that the friend is not coming, and the table fills.
+        // After the hold the friend is not coming, and the table fills. Stop
+        // short of the 4-minute give-up: past it a guest legitimately leaves
+        // and another takes the chair (§2.4), so `sits` — a CUMULATIVE log —
+        // would count four arrivals for three chairs.
+        clock.advance(2 * 60_000)
         expect(room.sits.length).toBe(3)
+        expect(room.freeSeats().length).toBe(0)
         director.stop()
     })
 
@@ -949,11 +973,18 @@ describe("demo director — guests in a real person's room", () => {
     it("restarts the quiet period when a real person arrives", () => {
         const { clock, lobby, director } = bootDirector(4400)
         const room = lobby.openRealRoom(1)
-        clock.advance(80_000)
-        const before = room.sits.length
-        expect(before).toBeGreaterThanOrEqual(1)
+        // Wait for the FIRST guest and no further: one real person plus two
+        // guests plus the arriving second real person is a full table, and a
+        // full table can take no more guests whatever the quiet period says.
+        let before = 0
+        for (let i = 0; i < 40 && before < 1; i++) {
+            clock.advance(5_000)
+            before = room.sits.length
+        }
+        expect(before).toBe(1)
 
         lobby.realHumanArrives(room)
+        expect(room.freeSeats().length).toBe(1)
         // Fifteen seconds is the floor, so nothing may happen inside it.
         clock.advance(14_000)
         expect(room.sits.length).toBe(before)

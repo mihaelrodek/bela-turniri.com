@@ -454,7 +454,8 @@ through `pg_restore`, anything else is fed to `psql` as plain SQL.
 
 `ops/reset-game-stats.sh` wipes **only** the online-game (`game/`) statistics:
 `game_results` + `game_result_players` (every "partije / pobjede" number is
-computed from these — there is no aggregate table), `game_analytics_events`
+computed from these — there is no aggregate table), `game_replays` (the full
+JSON replay of each game — see below), `game_analytics_events`
 (the admin "Analitika igre" tab), `game_reliability_events` (the abandon
 ledger karma is derived from) and the three game counters on `user_profiles`
 (`game_abandons` → 0, legacy `game_karma` → 10,
@@ -476,6 +477,42 @@ does all the deletes in one transaction. No restart is needed afterwards: the
 game server caches profiles for ~5 minutes, so connected players see the reset
 numbers within about five minutes (or immediately on reconnect), and the
 frontend persists nothing about game statistics.
+
+### Dumping the game replays (`zapisi partija`)
+
+Every finished online game with a real person in it is stored in full — all
+32 dealt cards per deal, the bidding, the declarations and all eight tricks —
+as one JSON document (`game_replays`, game/README.md §8.8). It exists so the
+bot can be studied against games people actually played; `game/BOT.md` §16
+describes the shape and how to turn one into a scenario test.
+
+Admin-only export, JSON Lines (one complete replay per line, newest first).
+`$ADMIN_ID_TOKEN` is a Firebase ID token of an account with the `admin` claim
+— the same token the admin dashboard sends (copy it from the browser's
+network tab, or mint one; it expires after an hour):
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_ID_TOKEN" \
+  "https://bela-turniri.com/api/admin/game-replays?limit=5000&since=2026-09-01T00:00:00Z" \
+  > replays-$(date +%F).ndjson
+```
+
+`limit` defaults to 500 and is capped at 5000; a bigger archive is fetched in
+several `since` / `until` windows. One game on its own:
+`GET /api/admin/game-replays/{resultId}` (the `resultId` is `game_results.uuid`,
+and it is the first field of every export line).
+
+Retention: `GameReplayRetentionJob` deletes replays of games older than
+`game.replays.retention-days` (default 180, override with
+`GAME_REPLAYS_RETENTION_DAYS`) nightly at 04:20. **Only the replays expire** —
+`game_results` / `game_result_players` and every statistic computed from them
+are permanent. Dump before the window closes if you want to keep older games.
+
+Baseline data: the game server does NOT record bot-only or demo-only tables
+(a bot playing itself teaches it nothing). Set `GAME_REPLAY_BOT_SAMPLE` on the
+`game` service to a fraction of 0..1 to sample some of them anyway; note those
+games then also appear as ordinary `eligible: false` rows in the admin
+analytics' bot-only counter.
 
 ### `/api/q/*` is no longer public
 

@@ -1,27 +1,48 @@
-/* README §8: the Node server reports GAME_OVER to the backend only when
-   §8.1's counting rule holds. These tests exercise `reportGameResult`
-   directly against hand-built `Room`-shaped objects and a hand-built
-   terminal `GameState`, per the task's own suggestion — wiring a full
-   room + gameRoom just to reach GAME_OVER would test the engine, not this
-   module. */
+/* README §8: the Node server reports GAME_OVER to the backend. Since
+   2026-09-22 (§8.7) it reports EVERY finished game that had at least one real
+   person at the table and carries §8.1's verdict in `eligible`, instead of
+   dropping the ineligible ones on the floor. These tests exercise
+   `reportGameResult` directly against hand-built `Room`-shaped objects and a
+   hand-built terminal `GameState`, per the task's own suggestion — wiring a
+   full room + gameRoom just to reach GAME_OVER would test the engine, not
+   this module. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { DealScore, GameState, Seat } from "@bela/engine"
 import { createRng } from "@bela/engine"
 import type { TargetScore } from "@bela/protocol"
+import type { DemoIdentity } from "../src/demo/types.js"
 import type { Room, SeatSlot } from "../src/room.js"
 import { reportGameAbandonment, reportGameResult } from "../src/statsReporter.js"
 
-type SeatKind = "human" | "bot"
+type SeatKind = "human" | "guest" | "bot" | "demo"
+
+function demoIdentity(seat: number): DemoIdentity {
+    return {
+        uid: `demo:person-${seat}`,
+        name: `Lažni ${seat}`,
+        avatarPreset: "a",
+        gameStats: null,
+        karma: 10,
+        reliability: { karma: 10, recentAbandons: 0, recentGames: 0, totalAbandons: 0, windowDays: 30 },
+        tempo: "NORMAL",
+    } as unknown as DemoIdentity
+}
 
 function buildRoom(kinds: readonly [SeatKind, SeatKind, SeatKind, SeatKind], targetScore: TargetScore = 1001): Room {
     const seats: SeatSlot[] = kinds.map((kind, seat): SeatSlot => {
         if (kind === "bot") return { kind: "BOT", name: `Bot ${seat}` }
-        const uid = `uid-${seat}`
+        if (kind === "demo") return { kind: "DEMO", identity: demoIdentity(seat) }
+        const uid = kind === "guest" ? `guest:${seat}` : `uid-${seat}`
         return {
             kind: "PLAYER",
             uid,
-            user: { uid, name: `Player ${seat}`, avatarUrl: null },
+            user: {
+                uid,
+                name: kind === "guest" ? `Gost ${seat}` : `Player ${seat}`,
+                avatarUrl: null,
+                ...(kind === "guest" ? { guest: true } : {}),
+            },
             ready: true,
             connected: true,
         }
@@ -30,6 +51,12 @@ function buildRoom(kinds: readonly [SeatKind, SeatKind, SeatKind, SeatKind], tar
         targetScore,
         slotAt: (seat: Seat) => seats[seat] ?? null,
     } as unknown as Room
+}
+
+async function sentBody(fetchMock: ReturnType<typeof vi.fn>): Promise<Record<string, unknown>> {
+    await new Promise((r) => setTimeout(r, 0))
+    const init = fetchMock.mock.calls[0]![1] as RequestInit
+    return JSON.parse(init.body as string) as Record<string, unknown>
 }
 
 function dealScore(dealNo: number): DealScore {
@@ -87,22 +114,42 @@ describe("reportGameResult", () => {
         vi.unstubAllGlobals()
     })
 
-    it("reports guests as humans without persisting their browser identity", async () => {
-        const room = buildRoom(["human", "human", "bot", "bot"])
-        const guest = room.slotAt(1)
-        if (guest?.kind !== "PLAYER") throw new Error("expected player")
-        guest.user.guest = true
+    it("reports guests by their in-game name, without persisting a browser identity", async () => {
+        const room = buildRoom(["human", "guest", "bot", "bot"])
         reportGameResult(room, buildGameOverState())
-        await new Promise((r) => setTimeout(r, 0))
-        const body = JSON.parse(fetchMock.mock.calls[0]![1].body)
-        expect(body.players[1]).toEqual({ seat: 1, team: "B", uid: null, isBot: false, isGuest: true })
-        expect(body.players[0].uid).toBe("uid-0")
+        const body = await sentBody(fetchMock)
+        const players = body["players"] as Record<string, unknown>[]
+        expect(players[1]).toEqual({
+            seat: 1, team: "B", uid: null, isBot: false, isGuest: true,
+            name: "Gost 1", kind: "GUEST",
+        })
+        expect(players[0]!["uid"]).toBe("uid-0")
+        expect(players[0]!["kind"]).toBe("PLAYER")
     })
 
-    it("does not report a 1-human-3-bots game (one whole team is all bots)", async () => {
+    it("STILL reports a 1-human-3-bots game, marked not eligible (§8.7)", async () => {
         const room = buildRoom(["human", "bot", "bot", "bot"])
-        const state = buildGameOverState()
-        reportGameResult(room, state)
+        reportGameResult(room, buildGameOverState())
+        const body = await sentBody(fetchMock)
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+        expect(body["eligible"]).toBe(false)
+        const players = body["players"] as Record<string, unknown>[]
+        expect(players[1]).toEqual({ seat: 1, team: "B", uid: null, isBot: true, name: "Bot 1", kind: "BOT" })
+    })
+
+    it("reports a game against demo people, marked not eligible and kind DEMO", async () => {
+        const room = buildRoom(["human", "demo", "demo", "demo"])
+        reportGameResult(room, buildGameOverState())
+        const body = await sentBody(fetchMock)
+        expect(body["eligible"]).toBe(false)
+        const players = body["players"] as Record<string, unknown>[]
+        expect(players[1]).toEqual({ seat: 1, team: "B", uid: null, isBot: true, name: "Lažni 1", kind: "DEMO" })
+        // A fake person's uid never leaves this process.
+        expect(JSON.stringify(body)).not.toContain("demo:")
+    })
+
+    it("skips a table with no real person at all", async () => {
+        reportGameResult(buildRoom(["bot", "demo", "bot", "demo"]), buildGameOverState())
         await new Promise((r) => setTimeout(r, 0))
         expect(fetchMock).not.toHaveBeenCalled()
     })
@@ -134,11 +181,12 @@ describe("reportGameResult", () => {
         expect(body["scoreA"]).toBe(1041)
         expect(body["scoreB"]).toBe(789)
         expect(body["dealsCount"]).toBe(3)
+        expect(body["eligible"]).toBe(true)
         expect(body["players"]).toEqual([
-            { seat: 0, team: "A", uid: "uid-0", isBot: false },
-            { seat: 1, team: "B", uid: "uid-1", isBot: false },
-            { seat: 2, team: "A", uid: "uid-2", isBot: false },
-            { seat: 3, team: "B", uid: "uid-3", isBot: false },
+            { seat: 0, team: "A", uid: "uid-0", isBot: false, name: "Player 0", kind: "PLAYER" },
+            { seat: 1, team: "B", uid: "uid-1", isBot: false, name: "Player 1", kind: "PLAYER" },
+            { seat: 2, team: "A", uid: "uid-2", isBot: false, name: "Player 2", kind: "PLAYER" },
+            { seat: 3, team: "B", uid: "uid-3", isBot: false, name: "Player 3", kind: "PLAYER" },
         ])
     })
 
@@ -150,12 +198,13 @@ describe("reportGameResult", () => {
 
         expect(fetchMock).toHaveBeenCalledTimes(1)
         const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-        const body = JSON.parse(init.body as string) as { players: unknown[] }
+        const body = JSON.parse(init.body as string) as { players: unknown[]; eligible: boolean }
+        expect(body.eligible).toBe(true)
         expect(body.players).toEqual([
-            { seat: 0, team: "A", uid: "uid-0", isBot: false },
-            { seat: 1, team: "B", uid: "uid-1", isBot: false },
-            { seat: 2, team: "A", uid: null, isBot: true },
-            { seat: 3, team: "B", uid: "uid-3", isBot: false },
+            { seat: 0, team: "A", uid: "uid-0", isBot: false, name: "Player 0", kind: "PLAYER" },
+            { seat: 1, team: "B", uid: "uid-1", isBot: false, name: "Player 1", kind: "PLAYER" },
+            { seat: 2, team: "A", uid: null, isBot: true, name: "Bot 2", kind: "BOT" },
+            { seat: 3, team: "B", uid: "uid-3", isBot: false, name: "Player 3", kind: "PLAYER" },
         ])
     })
 

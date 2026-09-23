@@ -4,7 +4,72 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="" />
+    <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Caddyfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DEPLOY.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEPLOY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/AdminGamePlayersDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/AdminGamePlayersDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/GameResultReportRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/GameResultReportRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/TournamentCardDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/TournamentCardDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/GameResult.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/GameResult.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/GameResultPlayer.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/GameResultPlayer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/GameResultPlayerRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/GameResultPlayerRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/GameResultRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/GameResultRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/AccountDeletionService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/AccountDeletionService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/GameStatsService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/GameStatsService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/test/java/hr/mrodek/apps/bela_turniri/controller/GameResultsInternalControllerTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/test/java/hr/mrodek/apps/bela_turniri/controller/GameResultsInternalControllerTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.prod.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.prod.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/api/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/admin.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/AdminGameAnalyticsTab.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/AdminGameAnalyticsTab.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/ListingCard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ListingCard.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/ListingRow.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ListingRow.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/PairsSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/PairsSection.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/listingShared.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/listingShared.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/GameStatsPills.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/GameStatsPills.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/game/pages/GameLobbyPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/pages/GameLobbyPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/admin.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/common.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/game.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/pages.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/profile.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/tournament.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/tournament.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/admin.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/game.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/tournament.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/tournament.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/admin.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/game.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/tournament.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/tournament.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsSection.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/types/tournaments.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/types/tournaments.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/vite.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/vite.config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/BOT.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/BOT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/DEMO-LOBBY.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/DEMO-LOBBY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/bots/test/scenarios.lead.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/test/scenarios.lead.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/engine/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/engine/src/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/demo/director.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/demo/director.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/gameRoom.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/gameRoom.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/lobby.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/lobby.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/server.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/server.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/src/statsReporter.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/statsReporter.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/test/demoDirector.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/demoDirector.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/packages/server/test/statsReporter.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/statsReporter.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ops/reset-game-stats.sh" beforeDir="false" afterPath="$PROJECT_DIR$/ops/reset-game-stats.sh" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -28,61 +93,61 @@
 }</component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.9780969970068438" />
-      <entry key="MS500" value="5.601178987192168" />
-      <entry key="S2" value="14.783524968562354" />
-      <entry key="S5" value="26.905119083586392" />
-      <entry key="S10" value="37.38672348710632" />
-      <entry key="S30" value="48.98888999872924" />
-      <entry key="S60" value="52.77038128767268" />
-      <entry key="M2" value="54.82857750645764" />
-      <entry key="M5" value="57.012911163005285" />
-      <entry key="M10" value="64.12962685968586" />
-      <entry key="M15" value="73.1018733270544" />
-      <entry key="M30" value="94.45181573435205" />
-      <entry key="H1" value="120.57663494977251" />
-      <entry key="H2" value="166.47393995088862" />
-      <entry key="H4" value="258.7733040933183" />
-      <entry key="D1" value="770.5540641659204" />
-      <entry key="W1" value="1321.8198451853323" />
+      <entry key="MS100" value="0.06107307884175934" />
+      <entry key="MS500" value="2.057667866765719" />
+      <entry key="S2" value="4.542374198881107" />
+      <entry key="S5" value="5.363087288429661" />
+      <entry key="S10" value="5.671759759619988" />
+      <entry key="S30" value="5.888331452687516" />
+      <entry key="S60" value="5.9438786120702884" />
+      <entry key="M2" value="5.971867129454609" />
+      <entry key="M5" value="5.9887294781884" />
+      <entry key="M10" value="5.994361839216207" />
+      <entry key="M15" value="5.9962405814094355" />
+      <entry key="M30" value="5.998119968257986" />
+      <entry key="H1" value="5.9990599035902985" />
+      <entry key="H2" value="5.99967876842284" />
+      <entry key="H4" value="6.250964792969171" />
+      <entry key="D1" value="255.00008007876178" />
+      <entry key="W1" value="1158.985352029025" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="0.0" />
-      <entry key="S2" value="0.0" />
-      <entry key="S5" value="0.0" />
-      <entry key="S10" value="0.0" />
-      <entry key="S30" value="0.0" />
-      <entry key="S60" value="0.0" />
-      <entry key="M2" value="1.0046289511734696E-265" />
-      <entry key="M5" value="1.518450499223171E-106" />
-      <entry key="M10" value="1.742657519126942E-53" />
-      <entry key="M15" value="8.468710773802234E-36" />
-      <entry key="M30" value="4.11550643106116E-18" />
-      <entry key="H1" value="2.8689735823444653E-9" />
-      <entry key="H2" value="7.574923474291634E-5" />
-      <entry key="H4" value="0.012308471291015604" />
-      <entry key="D1" value="0.8561680461716143" />
-      <entry key="W1" value="1.7717044832145146" />
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0" />
+      <entry key="S2" value="1.0" />
+      <entry key="S5" value="1.0" />
+      <entry key="S10" value="1.0" />
+      <entry key="S30" value="1.0" />
+      <entry key="S60" value="1.0" />
+      <entry key="M2" value="1.0" />
+      <entry key="M5" value="1.0" />
+      <entry key="M10" value="1.0" />
+      <entry key="M15" value="1.0" />
+      <entry key="M30" value="1.0" />
+      <entry key="H1" value="1.0" />
+      <entry key="H2" value="1.0000000000495362" />
+      <entry key="H4" value="1.0000099535051572" />
+      <entry key="D1" value="1.261329038092665" />
+      <entry key="W1" value="2.49543247032686" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.937919753298572" />
-      <entry key="MS500" value="5.566770728058457" />
-      <entry key="S2" value="14.757259986122344" />
-      <entry key="S5" value="26.88444522822532" />
-      <entry key="S10" value="37.372007695958864" />
-      <entry key="S30" value="48.98238505728646" />
-      <entry key="S60" value="52.766869649270184" />
-      <entry key="M2" value="54.82675130689571" />
-      <entry key="M5" value="57.012152345577704" />
-      <entry key="M10" value="64.1292045817078" />
-      <entry key="M15" value="73.10155608105262" />
-      <entry key="M30" value="94.45161476250601" />
-      <entry key="H1" value="120.57650795040202" />
-      <entry key="H2" value="166.47392210357802" />
-      <entry key="H4" value="258.78552621084884" />
-      <entry key="D1" value="771.4101663205935" />
-      <entry key="W1" value="1323.5915318387101" />
+      <entry key="MS100" value="0.1812304138521203" />
+      <entry key="MS500" value="2.695263529085308" />
+      <entry key="S2" value="5.431533053047498" />
+      <entry key="S5" value="6.316647619771556" />
+      <entry key="S10" value="6.648165051120574" />
+      <entry key="S30" value="6.880380794889616" />
+      <entry key="S60" value="6.939892405497489" />
+      <entry key="M2" value="6.969871294675623" />
+      <entry key="M5" value="6.987930487164526" />
+      <entry key="M10" value="6.993962234055694" />
+      <entry key="M15" value="6.99597415359311" />
+      <entry key="M30" value="6.997986742159422" />
+      <entry key="H1" value="6.998993287492964" />
+      <entry key="H2" value="6.999645459580931" />
+      <entry key="H4" value="7.250958011816016" />
+      <entry key="D1" value="256.26138566770567" />
+      <entry key="W1" value="1161.4807688367143" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -96,49 +161,49 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Application.BelaTurniriApplication.executor": "Run",
-    "Maven.bela-turniri [clean].executor": "Run",
-    "Maven.bela-turniri [compile].executor": "Run",
-    "Maven.bela-turniri [install].executor": "Run",
-    "Maven.bela-turniri [test].executor": "Run",
-    "Maven.bela-turniri [validate].executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Quarkus Application.BelaTurniriApplication.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.go.formatter.settings.were.checked": "true",
-    "RunOnceActivity.go.migrated.go.modules.settings": "true",
-    "RunOnceActivity.restore.workspace.module": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "codeWithMe.voiceChat.enabledByDefault": "false",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "dart.analysis.tool.window.visible": "false",
-    "git-widget-placeholder": "main",
-    "go.import.settings.migrated": "true",
-    "ignore.virus.scanning.warn.message": "true",
-    "ignore_missing_gitignore": "true",
-    "javascript.preferred.runtime.type.id": "node",
-    "junie.onboarding.icon.badge.shown": "true",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/Users/mihaelrodek/Programming/bela-turniri.com/scripts",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_interpreter_path": "node",
-    "nodejs_package_manager_path": "npm",
-    "project.structure.last.edited": "Modules",
-    "project.structure.proportion": "0.15",
-    "project.structure.side.proportion": "0.2",
-    "settings.editor.selected.configurable": "settings.javascript.runtime",
-    "to.speed.mode.migration.done": "true",
-    "ts.external.directory.path": "/Users/mihaelrodek/Programming/bela-turniri.com/game/node_modules/typescript/lib",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Application.BelaTurniriApplication.executor&quot;: &quot;Run&quot;,
+    &quot;Maven.bela-turniri [clean].executor&quot;: &quot;Run&quot;,
+    &quot;Maven.bela-turniri [compile].executor&quot;: &quot;Run&quot;,
+    &quot;Maven.bela-turniri [install].executor&quot;: &quot;Run&quot;,
+    &quot;Maven.bela-turniri [test].executor&quot;: &quot;Run&quot;,
+    &quot;Maven.bela-turniri [validate].executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Quarkus Application.BelaTurniriApplication.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.restore.workspace.module&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;ignore_missing_gitignore&quot;: &quot;true&quot;,
+    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/mihaelrodek/Programming/bela-turniri.com/scripts&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_interpreter_path&quot;: &quot;node&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;settings.javascript.runtime&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;/Users/mihaelrodek/Programming/bela-turniri.com/game/node_modules/typescript/lib&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/scripts" />

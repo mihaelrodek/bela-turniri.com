@@ -1,10 +1,48 @@
 import { Box, Text } from "@chakra-ui/react"
+import type { BoxProps } from "@chakra-ui/react"
 import { Link as RouterLink, useLocation } from "react-router-dom"
 import { FiCalendar, FiEdit3, FiHome, FiMap } from "react-icons/fi"
-import { useTranslation } from "../i18n"
+import { useGameEnabled } from "../game/hooks/useGameEnabled"
+import { useGameStats } from "../game/hooks/useGameStats"
+import { useTranslation, usePlural } from "../i18n"
 import { isGamesSite } from "../site"
 import type { ReactNode } from "react"
+import LiveDot from "./LiveDot"
 import NewBadge from "./NewBadge"
+
+/**
+ * "Live" (app-icon-style) count badge on the centre disc's top-right
+ * shoulder, replacing `NewBadge` there once there is a real room count to
+ * show (owner, 2026-09-22). Same shoulder position `NewBadge` used
+ * (`top="-24px" left="calc(50% + 14px)"`), passed in by the caller so this
+ * stays a plain, position-agnostic pill like `NewBadge` itself.
+ */
+function LiveRoomsBadge({ count, ariaLabel, ...rest }: { count: number; ariaLabel: string } & BoxProps) {
+    return (
+        <Box
+            as="span"
+            role="img"
+            aria-label={ariaLabel}
+            title={ariaLabel}
+            display="inline-flex"
+            alignItems="center"
+            gap="1"
+            px="1.5"
+            h="14px"
+            rounded="full"
+            bg="bg.opaque"
+            borderWidth="1.5px"
+            borderColor="bg.canvas"
+            boxShadow="0 1px 4px rgba(0, 0, 0, 0.35)"
+            {...rest}
+        >
+            <LiveDot size="5px" />
+            <Box as="span" fontSize="9px" fontFamily="mono" fontWeight="700" lineHeight="1" color="fg" fontVariantNumeric="tabular-nums">
+                {count}
+            </Box>
+        </Box>
+    )
+}
 
 /**
  * Mobile-only bottom tab bar.
@@ -128,11 +166,21 @@ function isActive(pathname: string, tab: TabDef): boolean {
 export default function MobileTabBar() {
     const { pathname } = useLocation()
     const { t } = useTranslation()
+    const plural = usePlural()
     const TABS = buildTabs(t)
     // The tab that gets the raised disc: "Igraj", wherever it lands in the
     // (possibly filtered) list — derived rather than a hard-coded index so
     // the shape follows the tabs when bela.games trims the array down to two.
     const centreIndex = TABS.findIndex((tab) => tab.to === "/igra")
+
+    // Live-room count for the centre disc's badge (owner, 2026-09-22). Called
+    // unconditionally, ABOVE the `isGamesSite` early return below (rules of
+    // hooks) — harmless there too, since `useGameStats` only starts its
+    // (shared, single) poller once something actually subscribes, and this
+    // component returns null before rendering anything on the games sites.
+    const gameEnabled = useGameEnabled()
+    const gameStats = useGameStats(gameEnabled)
+    const liveRooms = gameStats?.rooms ?? 0
 
     // ── Liquid Glass treatment ────────────────────────────────────────
     // iOS 26 Safari renders its bottom URL/toolbar with a translucent
@@ -304,8 +352,22 @@ export default function MobileTabBar() {
                                     bar — a green circle you had to press to
                                     find out what it did. */}
                                 {/* On the disc's top-right shoulder, not floating
-                                    above the bar over the page content. */}
-                                {tab.isNew && !active && <NewBadge position="absolute" top="-24px" left="calc(50% + 14px)" zIndex="1" />}
+                                    above the bar over the page content. Live
+                                    room count replaces the NOVO badge once
+                                    there is a real number to show; NOVO stays
+                                    the fallback for 0/unknown. */}
+                                {!active && liveRooms > 0 ? (
+                                    <LiveRoomsBadge
+                                        count={liveRooms}
+                                        ariaLabel={plural("common.nav.liveRoomsAria", liveRooms)}
+                                        position="absolute"
+                                        top="-24px"
+                                        left="calc(50% + 14px)"
+                                        zIndex="1"
+                                    />
+                                ) : (
+                                    tab.isNew && !active && <NewBadge position="absolute" top="-24px" left="calc(50% + 14px)" zIndex="1" />
+                                )}
                                 <Text
                                     fontSize="11px"
                                     lineHeight="1"

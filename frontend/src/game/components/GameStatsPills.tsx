@@ -61,7 +61,8 @@ export function SeatKarmaPill({ karma, reliability }: {
     const plural = usePlural()
     if (typeof karma !== "number" || !Number.isFinite(karma)) return null
     const value = Math.max(0, Math.min(KARMA_MAX, Math.round(karma)))
-    const low = value < KARMA_MAX
+    const tier = karmaTier(value)
+    const tone = KARMA_TONES[tier]
     // Pre-composed, already-declined phrases — passed as PLAIN STRING params
     // into the sentence keys below, never a bare {n} dropped into a fixed
     // noun (KARMA-CONTRACT.md). `total` is recentAbandons + recentGames, the
@@ -72,9 +73,9 @@ export function SeatKarmaPill({ karma, reliability }: {
     return (
         <Popover.Root positioning={{ placement: "bottom" }} lazyMount unmountOnExit>
             <Popover.Trigger asChild>
-                <chakra.button type="button" px="2" py="0.5" rounded="full" bg={low ? "live.subtle" : "bg.panel"}
-                    color={low ? "live" : "fg.muted"} borderWidth="1px"
-                    borderColor={low ? "live" : "border.emphasized"}
+                <chakra.button type="button" px="2" py="0.5" rounded="full" bg={tone.bg}
+                    color={tone.fg} borderWidth="1px"
+                    borderColor={tone.border}
                     fontSize="2xs" fontFamily="mono" lineHeight="shorter" fontVariantNumeric="tabular-nums" whiteSpace="nowrap" flexShrink={0}
                     cursor="pointer" aria-label={t("game.room.karma", { value, max: KARMA_MAX })}
                     onClick={(e: MouseEvent) => e.stopPropagation()}>
@@ -90,7 +91,13 @@ export function SeatKarmaPill({ karma, reliability }: {
                         <Popover.Arrow><Popover.ArrowTip /></Popover.Arrow>
                         <Popover.Body fontSize="sm" color="fg.soft">
                             <VStack align="stretch" gap="1.5">
-                                <Text fontWeight="semibold" color="fg">{t("game.room.karma", { value, max: KARMA_MAX })}</Text>
+                                <HStack gap="2" align="center">
+                                    <Text fontWeight="semibold" color="fg">{t("game.room.karma", { value, max: KARMA_MAX })}</Text>
+                                    <Text fontSize="xs" fontWeight="semibold" px="1.5" rounded="full" bg={tone.bg} color={tone.fg} borderWidth="1px" borderColor={tone.border}>
+                                        {t(`game.karma.tier.${tier}`)}
+                                    </Text>
+                                </HStack>
+                                <Text>{t(`game.karma.tierHint.${tier}`)}</Text>
                                 {reliability && (
                                     <Text>
                                         {reliability.recentAbandons > 0
@@ -113,6 +120,27 @@ export function SeatKarmaPill({ karma, reliability }: {
             </Portal>
         </Popover.Root>
     )
+}
+
+/* ── Karma tiers (2026-09-23, user request) ──────────────────────────────
+   The number alone said little at a glance; three colours do. 8–10 is what
+   nearly everybody sits at (green), 5–7 means the person has walked out on a
+   few tables lately (yellow), 0–4 is somebody your partner cannot count on
+   (red). The thresholds are a product call, not a statistic — change them
+   here and in the hr/sl/en `karma.tier*` texts together. Tokens only:
+   `ok` (teal, success), `gold` (warning), `danger`/`red` (error). */
+type KarmaTier = "good" | "fair" | "poor"
+
+function karmaTier(value: number): KarmaTier {
+    if (value >= 8) return "good"
+    if (value >= 5) return "fair"
+    return "poor"
+}
+
+const KARMA_TONES: Record<KarmaTier, { bg: string; fg: string; border: string }> = {
+    good: { bg: "ok.subtle", fg: "ok", border: "ok" },
+    fair: { bg: "gold.subtle", fg: "yellow.fg", border: "yellow.emphasized" },
+    poor: { bg: "red.subtle", fg: "red.fg", border: "red.emphasized" },
 }
 
 /** `w` is only ever passed by the `"row"` variant below — the `"grid"`

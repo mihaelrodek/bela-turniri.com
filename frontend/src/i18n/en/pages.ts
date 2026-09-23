@@ -73,6 +73,13 @@ export const pages: PagesDict = {
     // chips. At the far-right position ("All") the distance filter is off.
     "tournaments.filters.radiusLabel": "Within:",
     "tournaments.filters.radiusAll": "All",
+    // "Target score" chips (501/701/1001, multi-select) and the
+    // "Declarations" tri-state (any / allowed / no declarations) — 2026-09-22.
+    "tournaments.filters.targetScoreLabel": "Target score",
+    "tournaments.filters.declarationsLabel": "Declarations",
+    "tournaments.filters.declarationsAll": "Any",
+    "tournaments.filters.declarationsEnabled": "Allowed",
+    "tournaments.filters.declarationsDisabled": "No declarations",
     "tournaments.filters.clearAll": "Clear all",
     "tournaments.filters.clearAllTitleActive": "Clear all filters",
     "tournaments.filters.clearAllTitleInactive": "No active filters",
