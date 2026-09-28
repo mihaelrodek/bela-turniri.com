@@ -9,6 +9,8 @@ import { isGamesSite } from "../site"
 import type { ReactNode } from "react"
 import LiveDot from "./LiveDot"
 import NewBadge from "./NewBadge"
+import { preloadVectorBasemap } from "../utils/mapPreload"
+import { mapPageFactory } from "../routes/lazyPages"
 
 /**
  * "Live" (app-icon-style) count badge on the centre disc's top-right
@@ -17,6 +19,12 @@ import NewBadge from "./NewBadge"
  * (`top="-24px" left="calc(50% + 14px)"`), passed in by the caller so this
  * stays a plain, position-agnostic pill like `NewBadge` itself.
  */
+/** Touch-intent warm-up for the "Karta" tab: page chunk + MapLibre renderer. */
+function warmMapRoute() {
+    void mapPageFactory().catch(() => {})
+    void preloadVectorBasemap()
+}
+
 function LiveRoomsBadge({ count, ariaLabel, ...rest }: { count: number; ariaLabel: string } & BoxProps) {
     return (
         <Box
@@ -409,7 +417,14 @@ export default function MobileTabBar() {
                             transition="color 0.15s ease"
                             _hover={{ color: "blue.fg" }}
                         >
-                            <RouterLink to={tab.to} aria-label={tab.label} aria-current={active ? "page" : undefined}>
+                            <RouterLink
+                                to={tab.to}
+                                aria-label={tab.label}
+                                aria-current={active ? "page" : undefined}
+                                // No hover on a phone: the touch itself is the
+                                // intent signal, ~100 ms ahead of the click.
+                                onPointerDown={tab.to === "/karta" ? warmMapRoute : undefined}
+                            >
                                 <Box position="relative" display="inline-flex">
                                     {tab.icon}
                                     {tab.isNew && !active && <NewBadge position="absolute" top="-7px" left="calc(100% - 6px)" />}

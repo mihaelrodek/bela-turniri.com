@@ -20,7 +20,7 @@
    ────────────────────────────────────────────────────────────────────── */
 
 import "maplibre-gl/dist/maplibre-gl.css"
-import { setWorkerUrl } from "maplibre-gl"
+import { prewarm, setWorkerUrl } from "maplibre-gl"
 import { maplibreGL } from "@maplibre/maplibre-gl-leaflet"
 import type { MaplibreGL } from "leaflet"
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
@@ -33,6 +33,19 @@ import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
    file, and setWorkerUrl points MapLibre at it. Must run before any GL map
    is constructed; module evaluation order guarantees that. */
 setWorkerUrl(maplibreWorkerUrl)
+
+const warmedStyles = new Set<string>()
+
+/** Get the next map's expensive first steps out of the way before it exists:
+ *  `prewarm()` boots MapLibre's worker pool (and keeps it alive across map
+ *  instances, so leaving /karta and coming back no longer re-spawns it), and
+ *  the style JSON lands in the HTTP / service-worker cache. Idempotent. */
+export function warmUpMapRenderer(styleUrl: string): void {
+    prewarm()
+    if (warmedStyles.has(styleUrl)) return
+    warmedStyles.add(styleUrl)
+    void fetch(styleUrl, { mode: "cors" }).catch(() => warmedStyles.delete(styleUrl))
+}
 
 type GlLayerArgs = {
     styleUrl: string
@@ -48,6 +61,9 @@ type GlLayerArgs = {
  *  that is the whole reason we stay on Leaflet instead of rewriting the two
  *  map pages onto raw MapLibre. */
 export function createGlBaseLayer({ styleUrl, attribution, maxZoom }: GlLayerArgs): MaplibreGL {
+    // Keep the worker pool alive after this map is removed, so returning to
+    // a map page reuses warm workers instead of spawning new ones.
+    prewarm()
     const layer = maplibreGL({
         style: styleUrl,
         maxZoom,
@@ -89,7 +105,21 @@ export function createGlBaseLayer({ styleUrl, attribution, maxZoom }: GlLayerArg
     layer.once("add", () => {
         const container = layer.getContainer()
         const gl = layer.getMaplibreMap()
-        if (!container || !gl || typeof ResizeObserver === "undefined") return
+        if (!container || !gl) return
+
+        // Fade the canvas in once the style and first tiles are drawn, over
+        // the matching background colour MapBaseLayer puts on the Leaflet
+        // container — no white flash, no half-painted frame.
+        if (!gl.loaded()) {
+            container.style.opacity = "0"
+            container.style.transition = "opacity 180ms ease-out"
+            const reveal = () => { container.style.opacity = "1" }
+            gl.once("load", reveal)
+            // Never leave the map invisible if "load" is slow (a stalled tile).
+            window.setTimeout(reveal, 2500)
+        }
+
+        if (typeof ResizeObserver === "undefined") return
         const observer = new ResizeObserver(() => gl.resize())
         observer.observe(container)
         layer.once("remove", () => observer.disconnect())

@@ -73,6 +73,10 @@
 const CACHE = "bela-shell-v4";
 const API_CACHE = "bela-api-v1";
 const DECK_CACHE = "bela-decks-v1";
+// OpenFreeMap basemap (style JSON, TileJSON, sprites, glyphs, vector tiles).
+const MAP_CACHE = "bela-map-v1";
+const MAP_HOST = "tiles.openfreemap.org";
+const MAP_CACHE_LIMIT = 1500;
 // Public files do not get Vite hashes, so list the decorative background and
 // both products' visible marks explicitly. They must paint from Cache Storage
 // on a cold PWA launch even when the connection is weak or absent.
@@ -316,7 +320,7 @@ self.addEventListener("activate", (event) => {
     // versions); keep the shell, the runtime API-snapshot cache, AND the
     // deck cache — bumping CACHE (a shell version change) must not throw
     // away card art a player already has offline.
-    const keep = new Set([CACHE, API_CACHE, DECK_CACHE]);
+    const keep = new Set([CACHE, API_CACHE, DECK_CACHE, MAP_CACHE]);
     event.waitUntil(
         caches.keys().then((keys) =>
             Promise.all(keys.filter((k) => !keep.has(k)).map((k) => caches.delete(k)))
@@ -352,7 +356,13 @@ self.addEventListener("fetch", (event) => {
     if (req.method !== "GET") return;
 
     const url = new URL(req.url);
-    // Leave cross-origin (Firebase, MinIO posters, map tiles) to the browser.
+    // The one cross-origin host we DO cache: the vector basemap, so /karta
+    // paints from disk on every visit after the first (see mapCache below).
+    if (url.hostname === MAP_HOST) {
+        event.respondWith(mapCache(req, url, event));
+        return;
+    }
+    // Leave the rest of cross-origin (Firebase, MinIO posters) to the browser.
     if (url.origin !== self.location.origin) return;
     // Hashed, immutable build output: whatever is precached IS the right
     // answer, and offline it is the only one (see the file header).
@@ -704,6 +714,47 @@ async function navigationNetworkFirst(req, event) {
             }
         );
     }
+}
+
+/* OpenFreeMap basemap.
+
+   Vector tiles live under a dated planet path (/planet/20260913_164504_pt/
+   z/x/y.pbf), so a given tile URL never changes content: cache-first, no
+   revalidation. When OpenFreeMap publishes a new planet, the TileJSON points
+   at a new path and old tiles simply age out through the size cap.
+
+   Everything else on the host (style JSON, /planet TileJSON, sprites,
+   glyph PBFs) is small and CAN change: stale-while-revalidate — answer from
+   cache at once, refresh in the background.
+
+   Only 200 CORS responses are stored (MapLibre fetches with CORS and
+   OpenFreeMap sends ACAO *), so an opaque or error body never gets pinned. */
+async function mapCache(req, url, event) {
+    let cache = null;
+    try { cache = await caches.open(MAP_CACHE); } catch (_) { /* private mode */ }
+    if (!cache) return fetch(req);
+
+    const store = (resp) => {
+        if (resp && resp.status === 200 && (resp.type === "cors" || resp.type === "basic")) {
+            const copy = resp.clone();
+            event.waitUntil(
+                cache.put(req, copy).then(() => trimCache(cache, MAP_CACHE_LIMIT)).catch(() => {})
+            );
+        }
+        return resp;
+    };
+
+    let cached = null;
+    try { cached = await cache.match(req); } catch (_) { /* ignore */ }
+
+    const immutable = /^\/planet\/[^/]+\/\d+\/\d+\/\d+\.pbf$/.test(url.pathname);
+    if (cached && immutable) return cached;
+
+    if (cached) {
+        event.waitUntil(fetch(req).then(store).catch(() => {}));
+        return cached;
+    }
+    return fetch(req).then(store);
 }
 
 // Keep the runtime API cache bounded. Cache.keys() preserves insertion order,

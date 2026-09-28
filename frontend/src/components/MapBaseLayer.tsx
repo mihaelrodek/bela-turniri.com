@@ -16,6 +16,7 @@ import type { Layer } from "leaflet"
 
 import { basemap, rasterFallback, type RasterBasemap, type VectorBasemap } from "../utils/mapTiles"
 import { useColorMode } from "../color-mode-hooks"
+import { hasWebGl } from "../utils/mapPreload"
 
 /* Marker class put on the Leaflet container by the RASTER path only, and the
    hook the dark-mode hack in `system.ts` hangs off.
@@ -30,35 +31,10 @@ import { useColorMode } from "../color-mode-hooks"
    keeps the two treatments from ever stacking. */
 const RASTER_MARKER_CLASS = "bela-basemap-raster"
 
-/**
- * Can this browser actually run MapLibre?
- *
- * Asked BEFORE the dynamic import, not after: the renderer is a ~1 MB chunk,
- * and a browser without WebGL must not download it only to throw. The check
- * is the same one MapLibre's own removed `supported()` did — ask for a
- * context and see whether you get one. Wrapped in try/catch because a
- * hardened browser can make `getContext` itself throw rather than return
- * null.
- *
- * Computed once and cached: the answer cannot change while the page is open,
- * and each call otherwise leaks a canvas and a GL context.
- */
-let webGlSupport: boolean | null = null
-function hasWebGl(): boolean {
-    if (webGlSupport !== null) return webGlSupport
-    try {
-        const canvas = document.createElement("canvas")
-        const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl")
-        // Hand the context back immediately — browsers cap how many live GL
-        // contexts a page may hold, and this one was only ever a probe.
-        const lose = gl?.getExtension("WEBGL_lose_context")
-        lose?.loseContext()
-        webGlSupport = gl !== null
-    } catch {
-        webGlSupport = false
-    }
-    return webGlSupport
-}
+
+/* Marker class for the VECTOR path: paints the Leaflet container in the
+   style's own background colour (system.ts) while the GL canvas boots. */
+const VECTOR_MARKER_CLASS = "bela-basemap-vector"
 
 export function MapBaseLayer() {
     // `basemap.kind` is decided at module load from env, so this branch is
@@ -103,6 +79,13 @@ function VectorBaseLayer({ config }: { config: VectorBasemap }) {
     // must get the light style.
     const styleUrl = colorMode === "dark" ? config.darkStyleUrl : config.styleUrl
     const { attribution, maxZoom } = config
+
+    useLayoutEffect(() => {
+        if (fellBack) return
+        const el = map.getContainer()
+        el.classList.add(VECTOR_MARKER_CLASS)
+        return () => el.classList.remove(VECTOR_MARKER_CLASS)
+    }, [map, fellBack])
 
     useEffect(() => {
         if (fellBack) return

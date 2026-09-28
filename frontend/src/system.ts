@@ -385,6 +385,16 @@ const config = defineConfig({
            the popup's Chakra content (fg.ink, light in dark mode) rendered
            white on white. `!important` is load-bearing (same layer reason as
            above). */
+        /* Vector basemap: the Leaflet container wears the OpenFreeMap
+           style's own background (liberty #f8f4f0, dark rgb(12,12,12)) while
+           the GL canvas boots, so the first frame is "empty map", not a white
+           box. Keep in step with the styles in utils/mapTiles.ts. */
+        ".leaflet-container.bela-basemap-vector": {
+            background: "#f8f4f0",
+        },
+        ".dark .leaflet-container.bela-basemap-vector": {
+            background: "rgb(12, 12, 12)",
+        },
         ".dark .leaflet-bar a": {
             background: "var(--chakra-colors-bg-panel) !important",
             color: "var(--chakra-colors-fg-ink) !important",

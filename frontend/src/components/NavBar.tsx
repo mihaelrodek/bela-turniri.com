@@ -28,13 +28,17 @@ import { usePrefetchRoute } from "../hooks/usePrefetchRoute"
 import NewBadge from "./NewBadge"
 import {
     calendarPageFactory,
+    mapPageFactory,
     profilePageFactory,
 } from "../routes/lazyPages"
+import { preloadVectorBasemap } from "../utils/mapPreload"
 
 /** Map route paths to their chunk factories for prefetching. */
 const PREFETCH_MAP: Record<string, (() => Promise<unknown>) | undefined> = {
     "/kalendar": calendarPageFactory,
-    "/karta": undefined, // Leaflet is heavy; excluded from prefetch
+    // Hover intent only (never on idle): the page chunk plus the MapLibre
+    // renderer, its worker pool and the style, so the map paints at once.
+    "/karta": () => Promise.all([mapPageFactory(), preloadVectorBasemap()]),
     "/profil": profilePageFactory,
 }
 
