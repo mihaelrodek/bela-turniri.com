@@ -20,8 +20,19 @@
    ────────────────────────────────────────────────────────────────────── */
 
 import "maplibre-gl/dist/maplibre-gl.css"
+import { setWorkerUrl } from "maplibre-gl"
 import { maplibreGL } from "@maplibre/maplibre-gl-leaflet"
 import type { MaplibreGL } from "leaflet"
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
+
+/* MapLibre 6 finds its worker with `new URL(\`./${name}\`, import.meta.url)` —
+   a template Vite cannot see through, so the worker file was never emitted:
+   prod asked for /assets/maplibre-gl-worker.mjs, got index.html back ("non-
+   JavaScript MIME type") and the map stayed an empty canvas. `?worker&url`
+   makes Vite bundle the worker (with its shared chunk) into one emitted
+   file, and setWorkerUrl points MapLibre at it. Must run before any GL map
+   is constructed; module evaluation order guarantees that. */
+setWorkerUrl(maplibreWorkerUrl)
 
 type GlLayerArgs = {
     styleUrl: string

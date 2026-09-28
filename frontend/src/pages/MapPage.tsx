@@ -896,7 +896,11 @@ export default function MapPage() {
                 them from the grid entirely, so no `order` juggling is
                 needed to get map-then-list on phones and list-beside-map
                 on md+. */}
-            <Grid templateColumns={{ base: "1fr", md: "340px 1fr" }} gap="5">
+            {/* minmax(0, 1fr), not 1fr: a bare `1fr` track is at least as wide as
+                its widest child's min-content, so a long nowrap address in the
+                phone list pushed the whole column (map included) past the
+                viewport. */}
+            <Grid templateColumns={{ base: "minmax(0, 1fr)", md: "340px minmax(0, 1fr)" }} gap="5">
                 {/* Desktop list column */}
                 <Box display={{ base: "none", md: "block" }}>
                     <TournamentMapList

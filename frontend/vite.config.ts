@@ -463,6 +463,9 @@ export default defineConfig({
             },
         },
     },
+    // MapLibre's worker (mapGlLayer.ts, `?worker&url`) is started with
+    // `{ type: "module" }`, so emit workers as ES modules.
+    worker: { format: "es" },
     build: {
         rollupOptions: {
             output: {
