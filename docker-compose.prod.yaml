@@ -220,6 +220,10 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-Bela turniri <noreply@bela-turniri.com>}
       CONTACT_TO: ${CONTACT_TO:-}
+
+      # Google Geocoding (map picker reverse geocode). Server key, restricted
+      # by this host's IP in Google Cloud; blank = Nominatim fallback.
+      GOOGLE_GEOCODING_API_KEY: ${GOOGLE_GEOCODING_API_KEY:-}
     networks:
       - bela_internal
 
@@ -296,6 +300,9 @@ services:
         VITE_CARTO_API_KEY: ${VITE_CARTO_API_KEY:-}
         VITE_MAP_TILE_URL: ${VITE_MAP_TILE_URL:-}
         VITE_MAP_TILE_ATTRIBUTION: ${VITE_MAP_TILE_ATTRIBUTION:-}
+        VITE_MAP_PROVIDER: ${VITE_MAP_PROVIDER:-}
+        VITE_OPENFREEMAP_STYLE: ${VITE_OPENFREEMAP_STYLE:-}
+        VITE_OPENFREEMAP_STYLE_DARK: ${VITE_OPENFREEMAP_STYLE_DARK:-}
     image: bela-edge:latest
     container_name: bela-edge
     <<: *default-logging

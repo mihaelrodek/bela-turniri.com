@@ -7,9 +7,9 @@
        REST only — deliberately NOT the Maps JS SDK: no extra <script> tag, no
        window global, and the exact same code path works inside the Capacitor
        shells where a `capacitor://localhost` document loads no Google script.
-     - OpenStreetMap Nominatim, the keyless fallback and the only provider for
-       reverse geocoding (Google's Geocoding API is a separate, pricier
-       product and a map click is rare compared to typing).
+     - OpenStreetMap Nominatim, the keyless fallback.
+   Reverse geocoding (map click) goes through the backend's Google Geocoding
+   proxy first and falls back to Nominatim — see {@link reverseGeocode}.
 
    Every provider funnels into ONE committed string shape — "Name, Street 1,
    12345 City" — so a tournament address looks the same no matter which path
@@ -21,6 +21,8 @@
    bundle-id restriction plus the "Places API (New) only" API restriction the
    owner sets in Google Cloud. See DEPLOY.md.
    ────────────────────────────────────────────────────────────────────── */
+
+import { reverseGeocodeViaBackend } from "../api/geocode"
 
 /** Set at build time. Empty string (the default) = Nominatim-only. */
 const GOOGLE_KEY: string = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY ?? ""
@@ -390,7 +392,7 @@ export async function resolveSuggestion(
         signal: opts.signal,
         headers: {
             "X-Goog-Api-Key": GOOGLE_KEY,
-            "X-Goog-FieldMask": "id,displayName,formattedAddress,location,addressComponents",
+            "X-Goog-FieldMask": "id,displayName,formattedAddress,location",
         },
     })
     if (!res.ok) throw new Error(`Google details ${res.status}`)
@@ -404,17 +406,27 @@ export async function resolveSuggestion(
 }
 
 /**
- * Reverse geocode a map click. Stays on Nominatim on purpose: Google reverse
- * geocoding is the separate (and pricier) Geocoding API, and a map click is
- * rare next to typing. The result is formatted through the same
- * {@link formatNominatimPlace} the forward fallback uses, so a click and a
- * typed pick commit strings of the same shape.
+ * Reverse geocode a map click.
+ *
+ * <p>Tries the backend first (`GET /api/geocode/reverse`, Google Geocoding
+ * with a server-side key — the Geocoding web service rejects the browser's
+ * referrer-restricted key, so it cannot be called from here). A 204, an
+ * error, or a signed-out caller falls through to Nominatim, formatted with
+ * the same {@link formatNominatimPlace} the forward fallback uses, so a
+ * click and a typed pick commit strings of the same shape.
  *
  * <p>Nominatim's usage policy asks for ≤ 1 request/second per user. The picker
  * is throttled implicitly — the user has to click and wait for the reverse
  * geocode to resolve before they can click again.
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+    try {
+        const viaBackend = await reverseGeocodeViaBackend(lat, lng)
+        if (viaBackend) return viaBackend
+    } catch {
+        // Backend/Google unavailable — Nominatim below.
+    }
+
     const url =
         `${NOMINATIM_REVERSE_URL}?format=json`
         + `&lat=${lat}&lon=${lng}`

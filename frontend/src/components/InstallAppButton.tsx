@@ -4,14 +4,14 @@ import {
     Dialog,
     HStack,
     IconButton,
-    Image,
     Portal,
 } from "@chakra-ui/react"
 import { FiDownload } from "react-icons/fi"
 import { useInstallPrompt, type InstallPromptState } from "../hooks/useInstallPrompt"
 import { useTranslation } from "../i18n"
 import { isNative } from "../platform"
-import { siteName, brand } from "../site"
+import { siteName } from "../site"
+import BrandMark from "./BrandMark"
 import IosInstallSteps from "./IosInstallSteps"
 
 /**
@@ -131,8 +131,7 @@ export function InstallAppButton({
                         <Dialog.Content maxW={{ base: "92%", md: "md" }}>
                             <Dialog.Header>
                                 <HStack gap="2" align="center">
-                                    <Image
-                                        src={brand.symbolSvg}
+                                    <BrandMark
                                         alt=""
                                         h="28px"
                                         w="auto"

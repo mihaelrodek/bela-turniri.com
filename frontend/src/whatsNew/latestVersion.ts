@@ -8,7 +8,7 @@
  * lazy-loading `WhatsNewDialog`. `releases.hr.ts` re-exports this same
  * constant as its newest entry's `version`, so the two can never drift apart.
  */
-export const LATEST_VERSION = "v4"
+export const LATEST_VERSION = "v5"
 
 /** Which product area a release group's content is about — see
  *  `ReleaseGroup.area` in `releases.ts` for the classification rules. Lives
@@ -26,7 +26,8 @@ export type ReleaseArea = "game" | "blok" | "tournaments" | "general"
  *  Comments give each entry's date so it's easy to eyeball against the real
  *  file when adding a release. */
 export const RELEASE_AREAS: readonly { version: string; areas: readonly ReleaseArea[] }[] = [
-    { version: LATEST_VERSION, areas: ["general", "game"] }, // 2026-09-21
+    { version: LATEST_VERSION, areas: ["tournaments"] }, // 2026-09-28
+    { version: "v4", areas: ["general", "game"] }, // 2026-09-21
     { version: "v3", areas: ["game"] }, // 2026-09-18
     { version: "v3", areas: ["game", "blok", "tournaments", "general"] }, // 2026-09-10
 ]

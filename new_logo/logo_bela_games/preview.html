@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="hr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>bela.games — logo paket</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--red:#E24B4A;--yel:#F2C14E;--grn:#4DA66A;--brn:#B8823F;--cream:#F4EFE4;--felt:#173D2C;--felt2:#1F5039;--ink:#141A17}
+*{box-sizing:border-box}
+body{margin:0;font-family:Outfit,system-ui,sans-serif;background:#fff;color:var(--ink)}
+a{color:var(--grn)}a:hover{color:var(--felt)}
+main{max-width:1080px;margin:0 auto;padding:56px 24px 96px}
+h1{font-size:34px;letter-spacing:-.03em;margin:0 0 6px}
+.sub{color:#6b7280;margin:0 0 44px;font-size:15px}
+h2{font:500 12px/1 "JetBrains Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;margin:44px 0 16px;padding-bottom:10px;border-bottom:1px solid #e8e6e0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.panel{border-radius:14px;padding:34px;display:flex;align-items:center;justify-content:center;gap:20px;min-height:140px}
+.panel.l{background:var(--cream)}.panel.w{background:#fff;border:1px solid #e8e6e0}.panel.d{background:var(--felt)}.panel.i{background:var(--ink)}
+.cap{font:500 11px/1 "JetBrains Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:#9aa0a6;margin:10px 2px 0}
+.lock{display:inline-flex;align-items:center;gap:14px;text-decoration:none}
+.lock.st{flex-direction:column;gap:12px}
+.w-d{color:var(--cream)}.w-l{color:var(--felt)}
+.word{font-weight:700;letter-spacing:-.03em;line-height:1;white-space:nowrap}
+.word .dot{color:var(--red)}.word .tld{font-weight:500;opacity:.7}
+.sizes{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap}
+.tokens{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tok{border:1px solid #e8e6e0;border-radius:10px;overflow:hidden}
+.tok .sw{height:56px}.tok .m{padding:10px 12px;font:500 11px/1.5 "JetBrains Mono",monospace;color:#6b7280}
+.tok .m b{display:block;color:var(--ink);font-weight:600}
+.files{font:500 13px/2 "JetBrains Mono",monospace;color:#4b5563;background:#faf9f7;border:1px solid #e8e6e0;border-radius:12px;padding:20px 24px}
+.apps{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+.phone{width:200px;border-radius:22px;overflow:hidden;border:1px solid #e8e6e0}
+.phone .bar{display:flex;align-items:center;gap:8px;padding:12px 14px}
+.phone .body{height:120px}
+</style></head><body><main>
+<h1>bela.games — logo paket</h1>
+<p class="sub">Varijanta A1a. Sve datoteke u <code>logo_export_bela_games/</code>.</p>
+
+<h2>Lockup — horizontalni</h2>
+<div class="grid">
+<div><div class="panel w"><a class="lock" href="#"><img src="svg/mark-bordered.svg" width="48" height="48" alt=""><span class="word w-l" style="font-size:33px">bela<span class="dot">.</span><span class="tld">games</span></span></a></div><div class="cap">light / bijela</div></div>
+<div><div class="panel l"><a class="lock" href="#"><img src="svg/mark-bordered.svg" width="48" height="48" alt=""><span class="word w-l" style="font-size:33px">bela<span class="dot">.</span><span class="tld">games</span></span></a></div><div class="cap">light / krem</div></div>
+<div><div class="panel d"><a class="lock" href="#"><img src="svg/mark.svg" width="48" height="48" alt=""><span class="word w-d" style="font-size:33px">bela<span class="dot">.</span><span class="tld">games</span></span></a></div><div class="cap">dark / felt</div></div>
+<div><div class="panel i"><a class="lock" href="#"><img src="svg/mark.svg" width="48" height="48" alt=""><span class="word w-d" style="font-size:33px">bela<span class="dot">.</span><span class="tld">games</span></span></a></div><div class="cap">dark / ink</div></div>
+</div>
+
+<h2>Lockup — složeni (splash, auth)</h2>
+<div class="grid">
+<div><div class="panel w" style="min-height:220px"><span class="lock st"><img src="svg/mark-bordered.svg" width="88" height="88" alt=""><span class="word w-l" style="font-size:44px">bela<span class="dot">.</span><span class="tld">games</span></span></span></div><div class="cap">light</div></div>
+<div><div class="panel d" style="min-height:220px"><span class="lock st"><img src="svg/mark.svg" width="88" height="88" alt=""><span class="word w-d" style="font-size:44px">bela<span class="dot">.</span><span class="tld">games</span></span></span></div><div class="cap">dark</div></div>
+</div>
+
+<h2>Monokrom</h2>
+<div class="grid">
+<div><div class="panel w"><img src="svg/mark-mono-light.svg" width="64" height="64" alt=""></div><div class="cap">mono / light</div></div>
+<div><div class="panel d"><img src="svg/mark-mono-dark.svg" width="64" height="64" alt=""></div><div class="cap">mono / dark</div></div>
+</div>
+
+<h2>Skalabilnost znaka</h2>
+<div class="panel w" style="justify-content:flex-start"><div class="sizes">
+<img src="svg/mark-bordered.svg" width="96" height="96" alt=""><img src="svg/mark-bordered.svg" width="64" height="64" alt=""><img src="svg/mark-bordered.svg" width="40" height="40" alt=""><img src="svg/mark-bordered.svg" width="32" height="32" alt=""><img src="svg/mark-bordered.svg" width="24" height="24" alt=""><img src="svg/favicon-mini.svg" width="16" height="16" alt="">
+</div></div>
+<div class="cap">96 · 64 · 40 · 32 · 24 px, pa favicon-mini na 16 px</div>
+
+<h2>Primjene</h2>
+<div class="apps">
+<div><div class="phone"><div class="bar" style="background:var(--cream)"><img src="svg/mark-bordered.svg" width="28" height="28" alt=""><span class="word w-l" style="font-size:19px">bela<span class="dot">.</span><span class="tld">games</span></span></div><div class="body" style="background:#fff"></div></div><div class="cap">mobile header light</div></div>
+<div><div class="phone" style="border-color:#2a3b33"><div class="bar" style="background:var(--felt2)"><img src="svg/mark.svg" width="28" height="28" alt=""><span class="word w-d" style="font-size:19px">bela<span class="dot">.</span><span class="tld">games</span></span></div><div class="body" style="background:var(--felt)"></div></div><div class="cap">mobile header dark</div></div>
+<div><div class="phone" style="border:none;background:var(--felt);display:grid;place-items:center;height:164px"><span class="lock st"><img src="svg/mark.svg" width="56" height="56" alt=""><span class="word w-d" style="font-size:26px">bela<span class="dot">.</span><span class="tld">games</span></span></span></div><div class="cap">splash</div></div>
+<div><div class="phone" style="border:none;background:#111;display:grid;place-items:center;height:164px;gap:8px"><img src="svg/mark.svg" width="60" height="60" style="border-radius:13.5px" alt=""><span style="color:#fff;font-size:12px">bela.games</span></div><div class="cap">app ikona</div></div>
+</div>
+
+<h2>Boje</h2>
+<div class="tokens">
+<div class="tok"><div class="sw" style="background:#E24B4A"></div><div class="m"><b>--bela-red</b>#E24B4A</div></div>
+<div class="tok"><div class="sw" style="background:#F2C14E"></div><div class="m"><b>--bela-yellow</b>#F2C14E</div></div>
+<div class="tok"><div class="sw" style="background:#4DA66A"></div><div class="m"><b>--bela-green</b>#4DA66A</div></div>
+<div class="tok"><div class="sw" style="background:#B8823F"></div><div class="m"><b>--bela-brown</b>#B8823F</div></div>
+<div class="tok"><div class="sw" style="background:#F4EFE4"></div><div class="m"><b>--bela-cream</b>#F4EFE4</div></div>
+<div class="tok"><div class="sw" style="background:#173D2C"></div><div class="m"><b>--bela-felt</b>#173D2C</div></div>
+<div class="tok"><div class="sw" style="background:#1F5039"></div><div class="m"><b>--bela-felt-light</b>#1F5039</div></div>
+<div class="tok"><div class="sw" style="background:#141A17"></div><div class="m"><b>--bela-ink</b>#141A17</div></div>
+</div>
+
+<h2>Datoteke</h2>
+<div class="files">BelaLogo.jsx · logo.css · README.md<br>svg/mark.svg · mark-bordered.svg · mark-mono-dark.svg · mark-mono-light.svg<br>svg/lockup-horizontal-{dark,light}.svg · lockup-stacked-{dark,light}.svg<br>svg/favicon.svg · favicon-mini.svg · maskable.svg<br>svg/suit-{heart,bell,leaf,acorn}.svg</div>
+</main></body></html>

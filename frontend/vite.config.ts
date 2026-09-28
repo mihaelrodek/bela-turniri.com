@@ -198,7 +198,7 @@ function precacheManifest(): Plugin {
  *  each must appear in the built shell. */
 const MAIN_TITLE = "Bela Turniri — turniri u beli, online bela i zapisnik"
 const MAIN_DESCRIPTION = "Platforma za vođenje i praćenje turnira u beli. Kreiraj turnir, prikupi prijave parova i objavi rezultate, igraj belu online i vodi zapisnik partije u bloku."
-const MAIN_OG_CARD = "https://bela-turniri.com/bela-turniri-og-card.png"
+const MAIN_OG_CARD = "https://bela-turniri.com/bela-turniri-og-card-v2.png"
 
 /** Croatian copy for the games domains. They show only the online game and
  *  the scorepad, so the promise made in a search result or a WhatsApp
@@ -256,8 +256,8 @@ function gamesShell(): Plugin {
         // The games brand has its own logo files in public/games/ — replace
         // those files to rebrand, this transform only points at them.
         out = swap(out, `<link rel="icon" href="/favicon.ico" sizes="any" />`, `<link rel="icon" href="/games/favicon.ico" sizes="any" />`, 1, "the favicon.ico link")
-        out = swap(out, `<link rel="icon" type="image/svg+xml" href="/bela-turniri-symbol.svg" />`, `<link rel="icon" type="image/svg+xml" href="/games/favicon.svg" /><link rel="icon" type="image/svg+xml" href="/games/favicon-mini.svg" sizes="16x16" />`, 1, "the svg icon link")
-        out = swap(out, `<link rel="apple-touch-icon" href="/apple-touch-icon.png" />`, `<link rel="apple-touch-icon" href="/games/apple-touch-icon.png" />`, 1, "the apple-touch-icon link")
+        out = swap(out, `<link rel="icon" type="image/svg+xml" href="/favicon-v2.svg" />`, `<link rel="icon" type="image/svg+xml" href="/games/favicon.svg" /><link rel="icon" type="image/svg+xml" href="/games/favicon-mini.svg" sizes="16x16" />`, 1, "the svg icon link")
+        out = swap(out, `<link rel="apple-touch-icon" href="/apple-touch-icon-v2.png" />`, `<link rel="apple-touch-icon" href="/games/apple-touch-icon.png" />`, 1, "the apple-touch-icon link")
         out = swap(out, `<img class="boot-logo" src="/bela-turniri-symbol.svg"`, `<img class="boot-logo" src="/games/symbol.svg"`, 1, "the boot-screen logo")
 
         out = swap(

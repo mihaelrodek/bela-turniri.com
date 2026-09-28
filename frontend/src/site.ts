@@ -82,8 +82,16 @@ export const siteName: string = isGamesSite ? GAMES_BRAND_NAME : "Bela Turniri"
  * /apple-touch-icon.png on the games hosts.)
  */
 export const brand = isGamesSite
-    ? { symbolSvg: "/games/symbol.svg", symbolPng: "/games/symbol.png" }
-    : { symbolSvg: "/bela-turniri-symbol.svg", symbolPng: "/bela-turniri-symbol.png" }
+    ? {
+        symbolLightSvg: "/games/symbol.svg",
+        symbolDarkSvg: "/games/symbol.svg",
+        symbolPng: "/games/symbol.png",
+    }
+    : {
+        symbolLightSvg: "/bela-turniri-symbol-light.svg",
+        symbolDarkSvg: "/bela-turniri-symbol-dark.svg",
+        symbolPng: "/bela-turniri-symbol.png",
+    }
 
 /** Where "/" and "back to start" lead. */
 export const homePath: string = isGamesSite ? "/igra" : "/turniri"

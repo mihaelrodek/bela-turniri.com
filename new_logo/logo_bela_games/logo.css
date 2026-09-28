@@ -1,0 +1,50 @@
+/* logo.css — tokeni i CSS-only varijanta logotipa za bela.games (A1a) */
+:root{
+  --bela-red:#E24B4A; --bela-yellow:#F2C14E; --bela-green:#4DA66A; --bela-brown:#B8823F;
+  --bela-cream:#F4EFE4; --bela-felt:#173D2C; --bela-felt-light:#1F5039; --bela-ink:#141A17;
+  --bela-logo-tile:var(--bela-cream);
+  --bela-logo-fg:var(--bela-felt);
+  --bela-logo-border:rgba(23,61,44,.16);
+  --bela-logo-radius:22.5%;
+  --bela-logo-size:40px;
+  --bela-font:Outfit,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+[data-theme="dark"],.dark{
+  --bela-logo-fg:var(--bela-cream);
+  --bela-logo-border:transparent;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bela-logo-fg:var(--bela-cream);--bela-logo-border:transparent}
+}
+
+/* Lockup */
+.bela-logo{display:inline-flex;align-items:center;gap:calc(var(--bela-logo-size)*.36);text-decoration:none;font-family:var(--bela-font)}
+.bela-logo--stacked{flex-direction:column;gap:calc(var(--bela-logo-size)*.28)}
+
+/* Znak: <span class="bela-mark"><i></i><i></i><i></i><i></i></span>
+   ili koristi svg/mark.svg kao <img>. */
+.bela-mark{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8%;
+  width:var(--bela-logo-size);height:var(--bela-logo-size);box-sizing:border-box;padding:calc(var(--bela-logo-size)*.18);
+  background:var(--bela-logo-tile);border-radius:var(--bela-logo-radius);
+  box-shadow:inset 0 0 0 1.5px var(--bela-logo-border);flex:none}
+.bela-mark>i{display:block;min-width:0;min-height:0;background:currentColor;
+  -webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat}
+.bela-mark>i:nth-child(1){color:var(--bela-red);--m:url("svg/suit-heart.svg")}
+.bela-mark>i:nth-child(2){color:var(--bela-yellow);--m:url("svg/suit-bell.svg")}
+.bela-mark>i:nth-child(3){color:var(--bela-green);--m:url("svg/suit-leaf.svg")}
+.bela-mark>i:nth-child(4){color:var(--bela-brown);--m:url("svg/suit-acorn.svg")}
+.bela-mark--mono>i{color:var(--bela-logo-fg)}
+
+/* Wordmark */
+.bela-word{font-family:var(--bela-font);font-weight:700;letter-spacing:-.03em;line-height:1;
+  color:var(--bela-logo-fg);font-size:calc(var(--bela-logo-size)*.68);white-space:nowrap}
+.bela-word .dot{color:var(--bela-red)}
+.bela-word .tld{font-weight:500;opacity:.7}
+
+/* Veličine */
+.bela-logo--sm{--bela-logo-size:28px}
+.bela-logo--md{--bela-logo-size:40px}
+.bela-logo--lg{--bela-logo-size:64px}
+.bela-logo--xl{--bela-logo-size:96px}
+
+/* Minimalna veličina znaka je 20px. Ispod toga koristi favicon-mini.svg (samo srce). */

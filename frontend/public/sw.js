@@ -73,10 +73,17 @@
 const CACHE = "bela-shell-v4";
 const API_CACHE = "bela-api-v1";
 const DECK_CACHE = "bela-decks-v1";
-// Public files do not get Vite hashes, so list the decorative background
-// explicitly. It is fixed behind every route and must paint from Cache
-// Storage as soon as the app has been opened once, even on weak Wi-Fi.
-const STATIC_ASSETS = ["/bg-cards-faded.png"];
+// Public files do not get Vite hashes, so list the decorative background and
+// both products' visible marks explicitly. They must paint from Cache Storage
+// on a cold PWA launch even when the connection is weak or absent.
+const STATIC_ASSETS = [
+    "/bg-cards-faded.png",
+    "/bela-turniri-symbol-light.svg",
+    "/bela-turniri-symbol-dark.svg",
+    "/bela-turniri-symbol.png",
+    "/games/symbol.svg",
+    "/games/symbol.png",
+];
 /* SEVERAL DOMAINS, ONE WORKER (2026-09-20). The same bundle is served on
  * bela-turniri.com and on the games domains (bela.games, belot.games), and
  * those two groups have DIFFERENT HTML shells:

@@ -698,15 +698,15 @@ the iOS branch becomes a no-op; `LiveActivitySenderTest` fails first.
 
 Build-time frontend variables (`frontend/.env.example`, mirrored empty in
 `frontend/.env.native`). All are optional — with none of them set the app uses
-OpenStreetMap Nominatim for address search and CARTO Voyager tiles (keyed, see below).
+OpenStreetMap Nominatim for address search and OpenFreeMap vector tiles (no key).
 
 | Variable | Purpose |
 | --- | --- |
 | `VITE_GOOGLE_MAPS_API_KEY` | Enables Google Places (New) autocomplete on the create/edit tournament form. Empty = Nominatim fallback. |
 | `VITE_CARTO_API_KEY` | Free CARTO basemap key (https://carto.com/basemaps/apikey). Without it tiles carry an "API KEY REQUIRED" watermark. |
-| `VITE_MAP_TILE_URL` | Leaflet tile URL template for both maps. Empty = CARTO Voyager. |
+| `VITE_MAP_TILE_URL` | Leaflet raster tile URL template for both maps; overrides the vector default. Empty = OpenFreeMap. |
 | `VITE_MAP_TILE_ATTRIBUTION` | Attribution HTML shown in the map corner. Empty = provider default. |
-| `VITE_MAP_PROVIDER` | `carto` (default, raster) or `openfreemap` (MapLibre GL vector tiles, no key). |
+| `VITE_MAP_PROVIDER` | `openfreemap` (default, MapLibre GL vector tiles, no key) or `carto` (raster, needs `VITE_CARTO_API_KEY`). |
 | `VITE_OPENFREEMAP_STYLE` | OpenFreeMap light style: `liberty` (default), `bright`, `positron`, `dark`, `fiord`. |
 | `VITE_OPENFREEMAP_STYLE_DARK` | Style used while the app is in dark mode. Default `dark`. |
 
@@ -720,9 +720,15 @@ requires billing to be enabled on the project; Google's free monthly tier covers
 roughly 10 000 autocomplete sessions. Autocomplete + the details call on pick
 share one session token, so a whole typing interaction bills as one session.
 
-Reverse geocoding (clicking the map picker) stays on Nominatim regardless — it
-is a different, pricier Google API and a map click is rare. The backend's lazy
-`GeocodeService` is unaffected and also stays on Nominatim.
+Reverse geocoding (clicking the map picker) goes through the backend,
+`GET /api/geocode/reverse`, which calls the Google **Geocoding API** with a
+separate SERVER key, `GOOGLE_GEOCODING_API_KEY` (`.env.prod` in the repo root on the server). The
+Geocoding web service rejects referrer-restricted keys, so the browser key
+cannot be reused: restrict this one by the server's IP address (Application
+restriction → IP addresses) and to "Geocoding API" only. Blank = the endpoint
+answers 204 and the SPA falls back to Nominatim. 10 000 requests/month are
+free; results are cached in memory per ~11 m cell. The backend's lazy forward
+`GeocodeService` is unaffected and stays on Nominatim.
 
 CARTO gated its public basemaps in 2026: request the free key (no account, 5 M tiles/month non-commercial) at https://carto.com/basemaps/apikey, set `VITE_CARTO_API_KEY`, rebuild. The key ships in the bundle; CARTO keys are referrer-restricted on their side. To leave CARTO altogether set `VITE_MAP_TILE_URL` + `VITE_MAP_TILE_ATTRIBUTION` for MapTiler / Stadia / Thunderforest.
 

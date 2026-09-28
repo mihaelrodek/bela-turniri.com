@@ -28,10 +28,10 @@ public final class PreviewHtml {
     /**
      * Fallback {@code og:image} for pages with no dedicated image of their
      * own (homepage, and a profile with no avatar uploaded): the purpose-built
-     * 1200x630 PNG at {@code frontend/public/bela-turniri-og-card.png}, the
+     * 1200x630 PNG at {@code frontend/public/bela-turniri-og-card-v2.png}, the
      * ratio Facebook/WhatsApp/Slack lay a link-preview card out for.
      */
-    public static final String DEFAULT_OG_IMAGE_FILENAME = "bela-turniri-og-card.png";
+    public static final String DEFAULT_OG_IMAGE_FILENAME = "bela-turniri-og-card-v2.png";
     public static final int DEFAULT_OG_IMAGE_WIDTH = 1200;
     public static final int DEFAULT_OG_IMAGE_HEIGHT = 630;
 
@@ -110,11 +110,11 @@ public final class PreviewHtml {
         sb.append("<link rel=\"icon\" sizes=\"any\" href=\"")
                 .append(escapeAttr(base)).append("/favicon.ico\">\n");
         sb.append("<link rel=\"icon\" type=\"image/svg+xml\" href=\"")
-                .append(escapeAttr(base)).append("/bela-turniri-symbol.svg\">\n");
+                .append(escapeAttr(base)).append("/favicon-v2.svg\">\n");
         sb.append("<link rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"")
-                .append(escapeAttr(base)).append("/icon-192.png\">\n");
+                .append(escapeAttr(base)).append("/icon-192-v2.png\">\n");
         sb.append("<link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"")
-                .append(escapeAttr(base)).append("/apple-touch-icon.png\">\n");
+                .append(escapeAttr(base)).append("/apple-touch-icon-v2.png\">\n");
     }
 
     /**

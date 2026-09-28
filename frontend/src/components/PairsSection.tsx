@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
+import { flushSync } from "react-dom"
 import {
     Badge,
     Box,
@@ -307,10 +308,13 @@ export default function PairsSection(props: PairsSectionProps) {
         () => [...displayActivePairs, ...displayEliminatedPairs].filter((p) => !!p.pendingApproval),
         [displayActivePairs, displayEliminatedPairs],
     )
-    const activeRows = useMemo(
-        () => displayActivePairs.filter((p) => !p.pendingApproval),
-        [displayActivePairs],
-    )
+    // Unsaved (temp id) rows go FIRST, right under the "Dodaj par" button:
+    // appended at the bottom, a new pair opened its name field off-screen and
+    // the phone scrolled the whole roster to reach it.
+    const activeRows = useMemo(() => {
+        const rows = displayActivePairs.filter((p) => !p.pendingApproval)
+        return [...rows.filter((p) => p.id < 0), ...rows.filter((p) => p.id >= 0)]
+    }, [displayActivePairs])
     const eliminatedRows = useMemo(
         () => displayEliminatedPairs.filter((p) => !p.pendingApproval),
         [displayEliminatedPairs],
@@ -346,8 +350,22 @@ export default function PairsSection(props: PairsSectionProps) {
     }, [pairs, selectedPairId])
 
     function handleAddPair() {
-        const tempId = onAddPair()
-        setSelectedPairId(tempId)
+        // flushSync so the new row's name field exists before this click
+        // handler returns: iOS only raises the keyboard for a focus() made
+        // synchronously inside the user gesture, never from a later frame.
+        let tempId = 0
+        flushSync(() => {
+            tempId = onAddPair()
+            setSelectedPairId(tempId)
+        })
+        // Both list copies stay mounted (inline below lg, right pane at lg+);
+        // take the field that is actually on screen.
+        const input = Array.from(
+            document.querySelectorAll<HTMLInputElement>(`input[data-pair-name-input="${tempId}"]`),
+        ).find((el) => el.getClientRects().length > 0)
+        if (!input) return
+        input.focus({ preventScroll: true })
+        input.scrollIntoView({ block: "center", behavior: "smooth" })
     }
 
     /* Removing a pair — the one destructive action, shared by the panel's
@@ -1139,6 +1157,7 @@ function PairDetailPanel({
                         {canRename ? (
                             <Input
                                 ref={nameInputRef}
+                                data-pair-name-input={pair.id}
                                 size="sm"
                                 variant="flushed"
                                 value={pair.name}

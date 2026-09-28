@@ -7,7 +7,6 @@ import {
     Heading,
     HStack,
     IconButton,
-    Image,
     Input,
     InputGroup,
     Stack,
@@ -23,7 +22,8 @@ import { ConsentNotice } from "../components/auth/ConsentGate"
 import { SocialAuthButtons } from "../components/auth/SocialAuthButtons"
 import { nextFromState, pickSafeNext } from "../utils/safeNextPath"
 import { t, useTranslation } from "../i18n"
-import { brand, homePath, siteName } from "../site"
+import { homePath, siteName } from "../site"
+import BrandMark from "../components/BrandMark"
 
 /** Translate Firebase auth error codes into user-friendly messages. */
 function authErrorMessage(err: unknown): string {
@@ -153,7 +153,7 @@ export default function LoginPage() {
                 shadow="card"
             >
                 <VStack gap="2" textAlign="center">
-                    <Image src={brand.symbolSvg} alt={siteName} boxSize="44px" mx="auto" draggable={false} />
+                    <BrandMark alt={siteName} boxSize="44px" mx="auto" />
                     <Heading size="xl">{t("forms.login.heading")}</Heading>
                     <Text color="fg.muted" fontSize="sm">{t("forms.login.subtitle")}</Text>
                 </VStack>

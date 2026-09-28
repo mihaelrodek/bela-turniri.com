@@ -52,7 +52,7 @@ public class ShareImageController {
     // app.default-og-image config property pointed at. Hardcoded rather
     // than read from config: it's a checked-in static file that always
     // exists, so there's no "unset" branch to guard against.
-    private static final String DEFAULT_OG_IMAGE_FILENAME = "bela-turniri-og-card.png";
+    private static final String DEFAULT_OG_IMAGE_FILENAME = "bela-turniri-og-card-v2.png";
 
     @GET
     @Path("/{idOrSlug}/share-image.png")
@@ -93,6 +93,17 @@ public class ShareImageController {
                     .header("Cache-Control", "no-store")
                     .build();
         }
+    }
+
+    /** Cache-busted URL emitted by current preview HTML; the original endpoint remains valid. */
+    @GET
+    @Path("/{idOrSlug}/share-image-v2.png")
+    @Produces("image/png")
+    public Response shareImageV2(
+            @PathParam("idOrSlug") String idOrSlug,
+            @HeaderParam("If-None-Match") String ifNoneMatch
+    ) {
+        return shareImage(idOrSlug, ifNoneMatch);
     }
 
     /** Shorter than the QR's 24h: the card's bytes change on every tournament edit. */

@@ -2,11 +2,11 @@ import { Box, Flex, HStack, Image, Skeleton, Text, VStack } from "@chakra-ui/rea
 import { Link as RouterLink } from "react-router-dom"
 import { FiClock, FiMapPin, FiNavigation, FiTarget } from "react-icons/fi"
 import { useTranslation } from "../i18n"
+import BrandMark from "./BrandMark"
 import { formatDistanceKm } from "../utils/distance"
 import { LISTING_CARD_POSTER_SIZES, posterSrcSet } from "../utils/imageUrl"
 import {
     fillRatio,
-    initialsOf,
     positiveAmount,
     shortLocation,
     useDateParts,
@@ -59,7 +59,7 @@ const STATUS_DOT: Record<StatusKind, string> = {
     upcoming: "#DDE9DC", // THEME --brand-subtle (light) — paler than `soon` so the two stay distinguishable now both are green
 }
 
-/** Poster, or a calm initials placeholder when the tournament has none. */
+/** Poster, or a branded name placeholder when the tournament has none. */
 function Poster({ item, priority }: { item: ListingTournament; priority: boolean }) {
     const { t } = useTranslation()
 
@@ -84,25 +84,52 @@ function Poster({ item, priority }: { item: ListingTournament; priority: boolean
             />
         )
     }
+    // No poster: a felt-green "table" with the brand mark as a watermark and
+    // the tournament name set large, so the card still reads at a glance.
     return (
         <Flex
+            position="relative"
             w="100%"
             h="100%"
             align="center"
             justify="center"
-            bg="bg.subtle"
+            overflow="hidden"
+            bg="linear-gradient(135deg, var(--chakra-colors-brand-solid), var(--chakra-colors-brand-800))"
             title={t("pages.tournaments.noPoster")}
             aria-label={t("pages.tournaments.noPoster")}
         >
+            {/* Soft spotlight so the felt is not a flat fill. */}
+            <Box
+                position="absolute"
+                inset="0"
+                bg="radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.14), transparent 60%)"
+                pointerEvents="none"
+            />
+            <BrandMark
+                position="absolute"
+                right={{ base: "-18px", md: "-28px" }}
+                bottom={{ base: "-22px", md: "-34px" }}
+                h={{ base: "120px", md: "180px" }}
+                w="auto"
+                opacity={0.14}
+                filter="brightness(0) invert(1)"
+                transform="rotate(-12deg)"
+                pointerEvents="none"
+            />
             <Text
-                fontSize={{ base: "4xl", md: "5xl" }}
+                position="relative"
+                px={{ base: "84px", md: "120px" }}
+                textAlign="center"
+                fontSize={{ base: "md", md: "xl" }}
                 fontWeight="bold"
-                color="fg.subtle"
-                letterSpacing="-0.04em"
-                opacity={0.5}
+                lineHeight="1.15"
+                letterSpacing="-0.01em"
+                color="brand.contrast"
+                textShadow="0 1px 2px rgba(0,0,0,0.25)"
+                lineClamp={2}
                 userSelect="none"
             >
-                {initialsOf(item.name)}
+                {item.name}
             </Text>
         </Flex>
     )

@@ -4,6 +4,43 @@ import { LATEST_VERSION } from "./latestVersion"
 export const releasesEn: Release[] = [
     {
         version: LATEST_VERSION,
+        date: "2026-09-28",
+        title: "New logo and better maps",
+        groups: [
+            {
+                heading: "App",
+                area: "tournaments",
+                sections: [
+                    {
+                        title: "New logo",
+                        body: [
+                            "Bela Turniri has a new logo — in the app, on the icon and when sharing links."
+                        ],
+                    },
+                ],
+            },
+            {
+                heading: "Tournaments",
+                area: "tournaments",
+                sections: [
+                    {
+                        title: "Maps",
+                        body: [
+                            "The tournament map displays correctly again, with a new, clearer look."
+                        ],
+                    },
+                    {
+                        title: "And more",
+                        body: [
+                            "Improved user experience, plus a few smaller changes."
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        version: "v4",
         date: "2026-09-21",
         title: "New look and smarter bots",
         groups: [

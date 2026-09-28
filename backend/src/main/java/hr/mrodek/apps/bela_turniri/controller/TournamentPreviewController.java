@@ -20,6 +20,7 @@ import org.jboss.logging.Logger;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -65,12 +66,13 @@ public class TournamentPreviewController {
     // No default-og-image config read here: og:image now always points at
     // the rendered share-image.png endpoint (see #render below), and
     // ShareImageController itself is the one that falls back to the static
-    // bela-turniri-og-card.png (1200x630) if the render ever fails — so the
+    // bela-turniri-og-card-v2.png (1200x630) if the render ever fails — so the
     // fallback still exists, just one layer down from where it used to live.
 
     /** Croatian-localized formatter, e.g. "ned, 24. svibnja 2026. u 18:00". */
     private static final DateTimeFormatter HR_DATETIME =
-            DateTimeFormatter.ofPattern("EEE, d. MMMM yyyy. 'u' HH:mm", Locale.forLanguageTag("hr-HR"));
+            DateTimeFormatter.ofPattern("EEE, d. MMMM yyyy. 'u' HH:mm", Locale.forLanguageTag("hr-HR"))
+                    .withZone(ZoneId.of("Europe/Zagreb"));
 
 
     @GET
@@ -143,7 +145,7 @@ public class TournamentPreviewController {
         boolean hasPoster = posterUrl != null;
         String image = hasPoster
                 ? posterUrl
-                : base + "/api/tournaments/" + idOrSlug + "/share-image.png";
+                : base + "/api/tournaments/" + idOrSlug + "/share-image-v2.png";
 
         return PreviewPage.ok(renderHtml(t, name, description, image, spaUrl, hasPoster));
     }

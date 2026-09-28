@@ -4,7 +4,6 @@ import {
     Button,
     Dialog,
     HStack,
-    Image,
     Portal,
     Text,
     VStack,
@@ -13,7 +12,8 @@ import { FiDownload, FiX } from "react-icons/fi"
 import { useInstallPrompt } from "../hooks/useInstallPrompt"
 import { useTranslation } from "../i18n"
 import { isNative } from "../platform"
-import { siteName, brand } from "../site"
+import { siteName } from "../site"
+import BrandMark from "./BrandMark"
 import IosInstallSteps from "./IosInstallSteps"
 
 /**
@@ -121,8 +121,7 @@ export default function FirstRunInstallPrompt() {
                         <Dialog.Body py="5" px={{ base: "4", md: "6" }}>
                             <VStack align="stretch" gap="4">
                                 <HStack gap="3" align="center">
-                                    <Image
-                                        src={brand.symbolSvg}
+                                    <BrandMark
                                         alt=""
                                         h="56px"
                                         w="auto"

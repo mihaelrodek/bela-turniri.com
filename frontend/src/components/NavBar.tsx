@@ -10,7 +10,8 @@ import {
 } from "react-icons/fi"
 import { useAuth } from "../auth/authContextValue"
 import { useColorMode } from "../color-mode-hooks"
-import { GAMES_BRAND_NAME, GAMES_ORIGIN, homePath, isGamesSite, siteName, brand } from "../site"
+import { GAMES_BRAND_NAME, GAMES_ORIGIN, homePath, isGamesSite, siteName } from "../site"
+import BrandMark, { BrandWordmark } from "./BrandMark"
 import { updateColorMode } from "../api/userMe"
 import { useGameEnabled } from "../game/hooks/useGameEnabled"
 import { useGameStats } from "../game/hooks/useGameStats"
@@ -127,8 +128,9 @@ function NavButton({
                 {icon && <Box as="span" display="inline-flex" flexShrink="0" aria-hidden="true">{icon}</Box>}
                 <Box as="span" position="relative" display="inline-flex" alignItems="center">
                     {children}
-                    {!isActive && (liveBadge ?? (isNew && <NewBadge ml="1.5" />))}
+                    {!isActive && !liveBadge && isNew && <NewBadge ml="1.5" />}
                 </Box>
+                {!isActive && liveBadge}
             </RouterLink>
         </Button>
     )
@@ -785,7 +787,7 @@ function GamesMobileBar({ tourAnchor }: { tourAnchor?: string }) {
     return (
         <Flex display={{ base: "flex", md: "none" }} h={BAR_H} align="center" position="relative">
             <RouterLink to={homePath} aria-label={t("common.nav.brandAriaLabel", { site: siteName })} style={{ display: "inline-flex" }}>
-                <Image src={brand.symbolSvg} alt="" h="30px" w="auto" draggable={false} />
+                <BrandMark alt="" h="30px" w="auto" />
             </RouterLink>
             {/* Centred on the BAR, not on the space left between the two
                 side items, which have different widths. */}
@@ -829,7 +831,7 @@ export default function NavBar() {
      * resolved yet.
      *
      * `undefined` (not `null`/0) when there is nothing to show, so
-     * `NavButton`'s `liveBadge ?? (isNew && <NewBadge/>)` falls through to
+     * `NavButton` shows `<NewBadge/>` only when there is no liveBadge, falling back to
      * today's NOVO badge exactly as before — the pill only replaces it once
      * there is a real count to show.
      */
@@ -837,11 +839,30 @@ export default function NavBar() {
     const gameStats = useGameStats(gameEnabled)
     const plural = usePlural()
     const liveRooms = gameStats?.rooms ?? 0
+    // Floats above the "Igraj" pill's top edge like a notification bubble, so
+    // the label itself stays as short as every other tab.
     const liveRoomsBadge = liveRooms > 0 ? (
-        <HStack as="span" gap="1" ml="1.5" display="inline-flex" alignItems="center">
-            <Box as="span" aria-hidden="true" color="fg.muted" fontWeight="normal">·</Box>
-            <LiveDot />
-            <Box as="span" fontFamily="mono" fontVariantNumeric="tabular-nums" fontWeight="normal">
+        <HStack
+            as="span"
+            position="absolute"
+            top="-11px"
+            right="-6px"
+            zIndex="1"
+            gap="1"
+            px="2"
+            h="20px"
+            rounded="full"
+            bg="bg.panel"
+            borderWidth="1px"
+            borderColor="border.subtle"
+            boxShadow="0 2px 8px rgba(0, 0, 0, 0.18)"
+            display="inline-flex"
+            alignItems="center"
+            pointerEvents="none"
+            whiteSpace="nowrap"
+        >
+            <LiveDot size="6px" />
+            <Box as="span" fontSize="11px" fontFamily="mono" fontVariantNumeric="tabular-nums" fontWeight="600" color="fg" lineHeight="1">
                 {plural("common.nav.liveRooms", liveRooms)}
             </Box>
         </HStack>
@@ -939,12 +960,10 @@ export default function NavBar() {
                                 to={homePath}
                                 aria-label={t("common.nav.brandAriaLabel", { site: siteName })}
                             >
-                                <Image
-                                    src={brand.symbolSvg}
+                                <BrandMark
                                     alt=""
                                     h={{ base: "28px", md: "32px" }}
                                     w="auto"
-                                    draggable={false}
                                 />
                                 <Box
                                     as="span"
@@ -953,7 +972,7 @@ export default function NavBar() {
                                     fontWeight="semibold"
                                     letterSpacing="-0.015em"
                                 >
-                                    {siteName}
+                                    <BrandWordmark />
                                 </Box>
                             </RouterLink>
                         </chakra.a>
@@ -1032,14 +1051,12 @@ export default function NavBar() {
                                 to={homePath}
                                 aria-label={t("common.nav.brandAriaLabel", { site: siteName })}
                             >
-                                <Image
-                                    src={brand.symbolSvg}
+                                <BrandMark
                                     alt=""
                                     h="28px"
                                     w="auto"
-                                    draggable={false}
                                 />
-                                <Box as="span" fontFamily="heading" fontWeight="semibold" letterSpacing="-0.015em">{siteName}</Box>
+                                <Box as="span" fontFamily="heading" fontWeight="semibold" letterSpacing="-0.015em"><BrandWordmark /></Box>
                             </RouterLink>
                         </chakra.a>
                         <Box flex="1" />

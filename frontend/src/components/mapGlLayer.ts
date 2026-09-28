@@ -3,10 +3,10 @@
    ONE reason: everything it imports is expensive and optional.
 
    `maplibre-gl` is ~800 kB of WebGL renderer plus its own stylesheet, and it
-   is needed only when VITE_MAP_PROVIDER=openfreemap. A top-level import
+   is needed only for the vector (OpenFreeMap) basemap. A top-level import
    anywhere in the component tree would sweep it into the eager `vendor`
    chunk (and its CSS into the eager stylesheet) for every visitor of every
-   page, including the default CARTO deployment that never touches it. So
+   page, including pages without a map. So
    `MapBaseLayer` reaches this file through `import()`, Rollup gives it its
    own chunk, and the stylesheet rides along with that chunk instead of the
    app shell. `vite.config.ts` additionally pins maplibre itself to a

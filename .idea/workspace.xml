@@ -5,75 +5,123 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env.prod.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.prod.example" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Caddyfile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DEPLOY.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEPLOY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/AdminGamePlayersDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/AdminGamePlayersDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/GameResultReportRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/GameResultReportRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/TournamentCardDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/TournamentCardDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/GameResult.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/GameResult.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/GameResultPlayer.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/GameResultPlayer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/GameResultPlayerRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/GameResultPlayerRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/GameResultRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/GameResultRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/AccountDeletionService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/AccountDeletionService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/GameStatsService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/GameStatsService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/HomePreviewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/HomePreviewController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/ShareImageController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/ShareImageController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentPreviewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentPreviewController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/PreviewHtml.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/PreviewHtml.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/QrCodeRenderer.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/QrCodeRenderer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/ShareImageRenderer.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/ShareImageRenderer.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/test/java/hr/mrodek/apps/bela_turniri/controller/GameResultsInternalControllerTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/test/java/hr/mrodek/apps/bela_turniri/controller/GameResultsInternalControllerTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/branding/logo-mark.png" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/branding/logo-mark.png" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.prod.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.prod.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/admin.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/AdminGameAnalyticsTab.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/AdminGameAnalyticsTab.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-hdpi/ic_launcher_background.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-hdpi/ic_launcher_background.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-hdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-hdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-hdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-hdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-hdpi/splash_dark.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-hdpi/splash_dark.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-land-hdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-land-hdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-land-mdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-land-mdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-land-xhdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-land-xhdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-land-xxhdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-land-xxhdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-land-xxxhdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-land-xxxhdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-ldpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-ldpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-ldpi/splash_dark.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-ldpi/splash_dark.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-mdpi/ic_launcher_background.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-mdpi/ic_launcher_background.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-mdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-mdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-mdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-mdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-mdpi/splash_dark.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-mdpi/splash_dark.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-port-hdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-port-hdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-port-mdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-port-mdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-port-xhdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-port-xhdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-port-xxhdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-port-xxhdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-port-xxxhdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-port-xxxhdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xhdpi/ic_launcher_background.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xhdpi/ic_launcher_background.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xhdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xhdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xhdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xhdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xhdpi/splash_dark.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xhdpi/splash_dark.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxhdpi/ic_launcher_background.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxhdpi/ic_launcher_background.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxhdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxhdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxhdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxhdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxhdpi/splash_dark.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxhdpi/splash_dark.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxxhdpi/ic_launcher_background.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxxhdpi/ic_launcher_background.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxxhdpi/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxxhdpi/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxxhdpi/splash_dark.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxxhdpi/splash_dark.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-hdpi/ic_launcher.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-hdpi/ic_launcher.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-mdpi/ic_launcher.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-mdpi/ic_launcher.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/android/app/src/main/res/values/ic_launcher_background.xml" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/values/ic_launcher_background.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/Contents.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/Contents.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-1.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-1.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-2.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-2.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_1080x1920.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_1080x1920.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_1125x2436.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_1125x2436.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_1242x2688.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_1242x2688.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_1282x2732.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_1282x2732.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_1536x2048.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_1536x2048.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_640x1136.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_640x1136.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_750x1334.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_750x1334.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_768x1024.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/ios/App/App/Assets.xcassets/Splash.imageset/splash_768x1024.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/apple-touch-icon.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/apple-touch-icon.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/bela-turniri-logo.svg" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/bela-turniri-logo.svg" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/bela-turniri-og-card.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/bela-turniri-og-card.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/bela-turniri-symbol.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/bela-turniri-symbol.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/bela-turniri-symbol.svg" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/bela-turniri-symbol.svg" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/favicon.ico" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/favicon.ico" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/icon-192.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/icon-192.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/icon-512-maskable.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/icon-512-maskable.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/icon-512.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/icon-512.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/maintenance.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/maintenance.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/manifest.webmanifest" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/manifest.webmanifest" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/robots.games.txt" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/robots.games.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/sw.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/resources/icon-background.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/resources/icon-background.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/resources/icon-foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/resources/icon-foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/resources/icon-only.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/resources/icon-only.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/resources/splash-dark.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/resources/splash-dark.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/resources/splash.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/resources/splash.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/AppToaster.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/AppToaster.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/FirstRunInstallPrompt.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/FirstRunInstallPrompt.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/InstallAppButton.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/components/ListingCard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ListingCard.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ListingRow.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ListingRow.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/PairsSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/PairsSection.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/listingShared.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/listingShared.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/GameStatsPills.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/GameStatsPills.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/pages/GameLobbyPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/pages/GameLobbyPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/admin.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/common.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/game.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/pages.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/profile.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/tournament.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/tournament.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/admin.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/game.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/pages.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/profile.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/tournament.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/tournament.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/admin.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/game.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/pages.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/profile.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/tournament.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/tournament.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsSection.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/types/tournaments.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/types/tournaments.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/SuitSpinner.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/SuitSpinner.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/mapGlLayer.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/mapGlLayer.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/LoginPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/LoginPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/RegisterPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/RegisterPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/site.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/site.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/utils/mapTiles.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/utils/mapTiles.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/utils/places.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/utils/places.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/vite.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/vite.config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/BOT.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/BOT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/DEMO-LOBBY.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/DEMO-LOBBY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/test/scenarios.lead.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/test/scenarios.lead.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/engine/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/engine/src/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/demo/director.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/demo/director.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/gameRoom.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/gameRoom.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/lobby.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/lobby.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/server.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/server.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/src/statsReporter.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/src/statsReporter.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/test/demoDirector.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/demoDirector.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/server/test/statsReporter.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/server/test/statsReporter.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ops/reset-game-stats.sh" beforeDir="false" afterPath="$PROJECT_DIR$/ops/reset-game-stats.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="2789" />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -91,63 +139,67 @@
   <component name="KubernetesApiProvider">{
   &quot;isMigrated&quot;: true
 }</component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="0.06107307884175934" />
-      <entry key="MS500" value="2.057667866765719" />
-      <entry key="S2" value="4.542374198881107" />
-      <entry key="S5" value="5.363087288429661" />
-      <entry key="S10" value="5.671759759619988" />
-      <entry key="S30" value="5.888331452687516" />
-      <entry key="S60" value="5.9438786120702884" />
-      <entry key="M2" value="5.971867129454609" />
-      <entry key="M5" value="5.9887294781884" />
-      <entry key="M10" value="5.994361839216207" />
-      <entry key="M15" value="5.9962405814094355" />
-      <entry key="M30" value="5.998119968257986" />
-      <entry key="H1" value="5.9990599035902985" />
-      <entry key="H2" value="5.99967876842284" />
-      <entry key="H4" value="6.250964792969171" />
-      <entry key="D1" value="255.00008007876178" />
-      <entry key="W1" value="1158.985352029025" />
+      <entry key="MS100" value="1.8635185777844074" />
+      <entry key="MS500" value="6.123969135955469" />
+      <entry key="S2" value="13.01780943291145" />
+      <entry key="S5" value="16.189051827632518" />
+      <entry key="S10" value="17.51210083398343" />
+      <entry key="S30" value="18.484334320541876" />
+      <entry key="S60" value="18.739612640137732" />
+      <entry key="M2" value="18.86916055610864" />
+      <entry key="M5" value="18.947508316222734" />
+      <entry key="M10" value="18.9737280964263" />
+      <entry key="M15" value="18.982479600390274" />
+      <entry key="M30" value="18.991236900144667" />
+      <entry key="H1" value="18.99561776130298" />
+      <entry key="H2" value="18.99913146374221" />
+      <entry key="H4" value="19.252075121969636" />
+      <entry key="D1" value="141.83943374309922" />
+      <entry key="W1" value="1077.5041783309894" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.0" />
-      <entry key="S2" value="1.0" />
-      <entry key="S5" value="1.0" />
-      <entry key="S10" value="1.0" />
-      <entry key="S30" value="1.0" />
-      <entry key="S60" value="1.0" />
-      <entry key="M2" value="1.0" />
-      <entry key="M5" value="1.0" />
-      <entry key="M10" value="1.0" />
-      <entry key="M15" value="1.0" />
-      <entry key="M30" value="1.0" />
-      <entry key="H1" value="1.0" />
-      <entry key="H2" value="1.0000000000495362" />
-      <entry key="H4" value="1.0000099535051572" />
-      <entry key="D1" value="1.261329038092665" />
-      <entry key="W1" value="2.49543247032686" />
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="2.906952068733825E-277" />
+      <entry key="M5" value="2.4287071333684825E-111" />
+      <entry key="M10" value="4.928191487116228E-56" />
+      <entry key="M15" value="1.3441829512720064E-37" />
+      <entry key="M30" value="3.6663100677275054E-19" />
+      <entry key="H1" value="6.05500624915244E-10" />
+      <entry key="H2" value="2.460692229790697E-5" />
+      <entry key="H4" value="0.004960585867554545" />
+      <entry key="D1" value="0.5208945764483929" />
+      <entry key="W1" value="2.199264460888372" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.1812304138521203" />
-      <entry key="MS500" value="2.695263529085308" />
-      <entry key="S2" value="5.431533053047498" />
-      <entry key="S5" value="6.316647619771556" />
-      <entry key="S10" value="6.648165051120574" />
-      <entry key="S30" value="6.880380794889616" />
-      <entry key="S60" value="6.939892405497489" />
-      <entry key="M2" value="6.969871294675623" />
-      <entry key="M5" value="6.987930487164526" />
-      <entry key="M10" value="6.993962234055694" />
-      <entry key="M15" value="6.99597415359311" />
-      <entry key="M30" value="6.997986742159422" />
-      <entry key="H1" value="6.998993287492964" />
-      <entry key="H2" value="6.999645459580931" />
-      <entry key="H4" value="7.250958011816016" />
-      <entry key="D1" value="256.26138566770567" />
-      <entry key="W1" value="1161.4807688367143" />
+      <entry key="MS100" value="1.8235942405027794" />
+      <entry key="MS500" value="6.073464183870439" />
+      <entry key="S2" value="12.988705870755865" />
+      <entry key="S5" value="16.174460645732434" />
+      <entry key="S10" value="17.504192906750195" />
+      <entry key="S30" value="18.481548633504655" />
+      <entry key="S60" value="18.73820015929182" />
+      <entry key="M2" value="18.868449334247202" />
+      <entry key="M5" value="18.947222622579766" />
+      <entry key="M10" value="18.973585048003784" />
+      <entry key="M15" value="18.982384189916726" />
+      <entry key="M30" value="18.991189172464026" />
+      <entry key="H1" value="18.99559389245438" />
+      <entry key="H2" value="18.99914413304343" />
+      <entry key="H4" value="19.257029593010625" />
+      <entry key="D1" value="142.3603168070692" />
+      <entry key="W1" value="1079.7034285941434" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -161,49 +213,50 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Application.BelaTurniriApplication.executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [clean].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [compile].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [install].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [test].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.bela-turniri [validate].executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Quarkus Application.BelaTurniriApplication.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.restore.workspace.module&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;ignore_missing_gitignore&quot;: &quot;true&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/mihaelrodek/Programming/bela-turniri.com/scripts&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_interpreter_path&quot;: &quot;node&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;settings.javascript.runtime&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;/Users/mihaelrodek/Programming/bela-turniri.com/game/node_modules/typescript/lib&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Application.BelaTurniriApplication.executor": "Run",
+    "Maven.bela-turniri [clean].executor": "Run",
+    "Maven.bela-turniri [compile].executor": "Run",
+    "Maven.bela-turniri [install].executor": "Run",
+    "Maven.bela-turniri [test].executor": "Run",
+    "Maven.bela-turniri [validate].executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Quarkus Application.BelaTurniriApplication.executor": "Run",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.go.formatter.settings.were.checked": "true",
+    "RunOnceActivity.go.migrated.go.modules.settings": "true",
+    "RunOnceActivity.restore.workspace.module": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "main",
+    "go.import.settings.migrated": "true",
+    "ignore.virus.scanning.warn.message": "true",
+    "ignore_missing_gitignore": "true",
+    "javascript.preferred.runtime.type.id": "node",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/Users/mihaelrodek/Programming/bela-turniri.com/scripts",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_interpreter_path": "node",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "settings.javascript.runtime",
+    "to.speed.mode.migration.done": "true",
+    "ts.external.directory.path": "/Users/mihaelrodek/Programming/bela-turniri.com/game/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/scripts" />

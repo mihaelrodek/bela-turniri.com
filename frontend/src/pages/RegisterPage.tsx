@@ -7,7 +7,6 @@ import {
     Heading,
     HStack,
     IconButton,
-    Image,
     Input,
     InputGroup,
     Text,
@@ -21,7 +20,8 @@ import { ConsentCheckbox } from "../components/auth/ConsentGate"
 import { SocialAuthButtons } from "../components/auth/SocialAuthButtons"
 import { nextFromState, pickSafeNext } from "../utils/safeNextPath"
 import { t, useTranslation } from "../i18n"
-import { brand, homePath, siteName } from "../site"
+import { homePath, siteName } from "../site"
+import BrandMark from "../components/BrandMark"
 
 function authErrorMessage(err: unknown): string {
     // Shared with LoginPage — cancellations and the social-provider codes are
@@ -143,7 +143,7 @@ export default function RegisterPage() {
                 shadow="card"
             >
                 <VStack gap="2" textAlign="center">
-                    <Image src={brand.symbolSvg} alt={siteName} boxSize="44px" mx="auto" draggable={false} />
+                    <BrandMark alt={siteName} boxSize="44px" mx="auto" />
                     <Heading size="xl">{t("forms.register.heading")}</Heading>
                     <Text color="fg.muted" fontSize="sm">{t("forms.register.subtitle")}</Text>
                 </VStack>

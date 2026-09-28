@@ -4,6 +4,43 @@ import { LATEST_VERSION } from "./latestVersion"
 export const releasesHr: Release[] = [
     {
         version: LATEST_VERSION,
+        date: "2026-09-28",
+        title: "Novi logo i bolje karte",
+        groups: [
+            {
+                heading: "Aplikacija",
+                area: "tournaments",
+                sections: [
+                    {
+                        title: "Novi logo",
+                        body: [
+                            "Bela Turniri ima novi logo — u aplikaciji, na ikoni i kod dijeljenja linkova."
+                        ],
+                    },
+                ],
+            },
+            {
+                heading: "Turniri",
+                area: "tournaments",
+                sections: [
+                    {
+                        title: "Karte",
+                        body: [
+                            "Karta turnira ponovno se ispravno prikazuje, u novom preglednijem izgledu."
+                        ],
+                    },
+                    {
+                        title: "I još ponešto",
+                        body: [
+                            "Poboljšano korisničko iskustvo uz još nekoliko manjih promjena."
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        version: "v4",
         date: "2026-09-21",
         title: "Novi izgled i pametniji botovi",
         groups: [

@@ -37,8 +37,8 @@ import java.util.Map;
  * making the code unscannable, since those modules are simply overwritten.
  *
  * <p>Logo source: {@code src/main/resources/branding/logo-mark.png}, a copy
- * of the frontend's {@code public/icon-512.png} (the four Belot suits mark,
- * opaque white background, 512×512). The backend can't read the frontend's
+ * of the frontend's {@code public/icon-512.png} (the branded fan-of-cards
+ * mark, 512×512). The backend can't read the frontend's
  * {@code public/} directory at runtime, so the PNG is vendored into backend
  * resources and loaded from the classpath. Keep it in sync by hand if the
  * app icon changes.

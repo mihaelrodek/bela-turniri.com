@@ -11,19 +11,19 @@
   "theme_color": "#F7F2E9",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/icon-192-v2.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/icon-512-v2.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512-maskable.png",
+      "src": "/icon-512-maskable-v2.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -35,28 +35,28 @@
       "short_name": "Turniri",
       "description": "Pregledaj popis turnira",
       "url": "/turniri",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "/icon-192-v2.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Kalendar",
       "short_name": "Kalendar",
       "description": "Pregledaj kalendar turnira",
       "url": "/kalendar",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "/icon-192-v2.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Karta",
       "short_name": "Karta",
       "description": "Pronađi turnire na karti",
       "url": "/karta",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "/icon-192-v2.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Novi turnir",
       "short_name": "Novi turnir",
       "description": "Kreiraj novi turnir",
       "url": "/turniri/novi",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "/icon-192-v2.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

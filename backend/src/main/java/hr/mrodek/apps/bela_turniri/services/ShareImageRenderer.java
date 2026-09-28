@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -79,7 +80,8 @@ public class ShareImageRenderer {
 
     /** Same Croatian formatting used in the crawler-facing preview HTML. */
     private static final DateTimeFormatter HR_DATETIME =
-            DateTimeFormatter.ofPattern("EEE, d. MMMM yyyy. 'u' HH:mm", Locale.forLanguageTag("hr-HR"));
+            DateTimeFormatter.ofPattern("EEE, d. MMMM yyyy. 'u' HH:mm", Locale.forLanguageTag("hr-HR"))
+                    .withZone(ZoneId.of("Europe/Zagreb"));
 
     public ShareImageRenderer() {
         // Belt and braces: the server never has a display, but forcing this
@@ -153,16 +155,15 @@ public class ShareImageRenderer {
         g.fillRect(0, HEIGHT - 8, WIDTH, 8);
     }
 
-    /** App logo badge (top-left) + "bela-turniri.com" wordmark next to it. */
+    /** App logo badge (top-left) + the current bela·turniri wordmark next to it. */
     private void paintHeader(Graphics2D g) throws IOException {
         int logoSize = 88;
         int logoX = PADDING;
         int logoY = PADDING;
 
         BufferedImage logo = loadLogo();
-        // The vendored logo already has an opaque white background (see
-        // QrCodeRenderer's javadoc), so a rounded clip alone turns it into a
-        // clean rounded-square badge without needing a separate plate.
+        // The vendored logo already contains its rounded brand tile, so the
+        // clip only guards scaled edge pixels from escaping the badge bounds.
         java.awt.Shape oldClip = g.getClip();
         double arc = logoSize * 0.28;
         g.setClip(new RoundRectangle2D.Double(logoX, logoY, logoSize, logoSize, arc, arc));
@@ -175,7 +176,7 @@ public class ShareImageRenderer {
         FontMetrics fm = g.getFontMetrics();
         int textX = logoX + logoSize + 24;
         int textY = logoY + (logoSize + fm.getAscent() - fm.getDescent()) / 2;
-        g.drawString("bela-turniri.com", textX, textY);
+        g.drawString("bela·turniri.com", textX, textY);
     }
 
     /**

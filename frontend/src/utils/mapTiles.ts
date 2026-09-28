@@ -6,7 +6,13 @@
 
    TWO PROVIDERS, one default.
 
-   • CARTO Voyager (raster, DEFAULT). CARTO started gating its public
+   • OpenFreeMap (vector, DEFAULT since 2026-09-28). No key,
+     no account, no registration, no request limit, commercial use allowed.
+     Attribution IS required, and unlike MapLibre's own attribution control
+     our Leaflet control will not derive it from the style, so the string is
+     spelled out below and handed to the GL layer explicitly.
+
+   • CARTO Voyager (raster, opt-in via VITE_MAP_PROVIDER=carto). CARTO started gating its public
      basemaps in 2026: without a key every tile carries a diagonal "API KEY
      REQUIRED" watermark (seen live on 2026-09-10). The key is free — a form
      at carto.com/basemaps/apikey, no account, 5 M tiles/month for
@@ -14,18 +20,12 @@
      VITE_CARTO_API_KEY and the default URL below picks it up; attribution to
      OpenStreetMap and CARTO must stay visible, which the default string does.
 
-   • OpenFreeMap (vector, opt-in via VITE_MAP_PROVIDER=openfreemap). No key,
-     no account, no registration, no request limit, commercial use allowed.
-     Attribution IS required, and unlike MapLibre's own attribution control
-     our Leaflet control will not derive it from the style, so the string is
-     spelled out below and handed to the GL layer explicitly.
-
    The result is a DISCRIMINATED UNION, not a bag of optional fields: a raster
    config has no style URL and a vector config has no tile-URL template, so a
    caller physically cannot feed the wrong one to the wrong renderer.
 
    Switching provider is env-only, no code change:
-     VITE_MAP_PROVIDER=openfreemap            # keyless vector basemap
+     VITE_MAP_PROVIDER=carto                  # raster CARTO instead of the vector default
      VITE_OPENFREEMAP_STYLE=liberty           # light style (see STYLES below)
      VITE_OPENFREEMAP_STYLE_DARK=dark         # dark-mode counterpart
    or, for any other RASTER provider (MapTiler, Stadia, Thunderforest,
@@ -107,9 +107,9 @@ export type Basemap = RasterBasemap | VectorBasemap
 
 function resolveBasemap(): Basemap {
     const explicitRasterUrl = envOr(import.meta.env?.VITE_MAP_TILE_URL, "")
-    const provider = envOr(import.meta.env?.VITE_MAP_PROVIDER, "carto").toLowerCase()
+    const provider = envOr(import.meta.env?.VITE_MAP_PROVIDER, "openfreemap").toLowerCase()
 
-    if (provider === "openfreemap" && explicitRasterUrl.length === 0) {
+    if (provider !== "carto" && explicitRasterUrl.length === 0) {
         const light = styleOr(import.meta.env?.VITE_OPENFREEMAP_STYLE, "liberty")
         const dark = styleOr(import.meta.env?.VITE_OPENFREEMAP_STYLE_DARK, "dark")
         return {
@@ -140,20 +140,26 @@ function resolveBasemap(): Basemap {
  *  `MapBaseLayer` picks between them.) */
 export const basemap: Basemap = resolveBasemap()
 
+const OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+const OSM_ATTRIBUTION =
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+
 /**
  * The raster config to fall back to when the vector renderer cannot run —
  * no WebGL, or the lazy chunk never arrives.
  *
- * Always CARTO, never the `VITE_MAP_TILE_*` overrides: those describe a
- * DELIBERATE raster choice, and reaching this function means the operator
- * chose vector instead. A map with a watermark still shows the streets; an
- * empty grey square with markers floating on it shows nothing.
+ * Never the `VITE_MAP_TILE_*` overrides: those describe a DELIBERATE raster
+ * choice, and reaching this function means the operator chose vector
+ * instead. CARTO when a key is configured; otherwise the OSM standard tiles,
+ * because keyless CARTO is watermarked "API KEY REQUIRED" all over. Only the
+ * rare no-WebGL browser lands here, well within OSM's tile usage policy.
  */
 export function rasterFallback(): RasterBasemap {
+    const hasCartoKey = envOr(import.meta.env?.VITE_CARTO_API_KEY, "").length > 0
     return {
         kind: "raster",
-        url: cartoUrl(),
-        attribution: DEFAULT_TILE_ATTRIBUTION,
-        maxZoom: 20,
+        url: hasCartoKey ? cartoUrl() : OSM_TILE_URL,
+        attribution: hasCartoKey ? DEFAULT_TILE_ATTRIBUTION : OSM_ATTRIBUTION,
+        maxZoom: hasCartoKey ? 20 : 19,
     }
 }

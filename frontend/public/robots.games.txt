@@ -30,7 +30,7 @@ User-agent: *
 Disallow: /prijava
 Disallow: /registracija
 # The JSON API is not content. Nothing on this domain needs an /api/ Allow
-# rule: the OG image is a static /bela-turniri-og-card.png, not an /api/
+# rule: the OG image is a static /bela-turniri-og-card-v2.png, not an /api/
 # render, and there are no SSR preview routes here.
 Disallow: /api/
 

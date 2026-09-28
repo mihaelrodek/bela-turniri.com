@@ -13,6 +13,7 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -60,7 +61,8 @@ public class HomePreviewController {
     /** Croatian-localised long format for tournament dates in the list. */
     private static final DateTimeFormatter HR_DATE =
             DateTimeFormatter.ofPattern("EEEE, d. MMMM yyyy. 'u' HH:mm",
-                    Locale.forLanguageTag("hr-HR"));
+                    Locale.forLanguageTag("hr-HR"))
+                    .withZone(ZoneId.of("Europe/Zagreb"));
 
     /**
      * Max upcoming + finished tournaments to render in each list. Caps
@@ -72,7 +74,7 @@ public class HomePreviewController {
     private static final int FINISHED_LIMIT = 30;
 
     /**
-     * The site-level {@code og:image}: {@code frontend/public/bela-turniri-og-card.png},
+     * The site-level {@code og:image}: {@code frontend/public/bela-turniri-og-card-v2.png},
      * a purpose-built 1200x630 PNG (1.91:1 — the ratio Facebook/WhatsApp/
      * Slack lay a link-preview card out for). Deliberately NOT the square
      * {@code bela-turniri-symbol.png} used elsewhere for the favicon/PWA
