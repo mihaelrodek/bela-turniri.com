@@ -30,6 +30,8 @@ import type { BidChoice, Bot } from "./index"
 import {
     aceOverCheapWinner,
     cashBeforeRuff,
+    seatCouldBeat,
+    seatsStillToPlay,
     opponentBehindWillRuff,
     aceAfterMyWin,
     aceToCash,
@@ -689,6 +691,24 @@ function chooseCard(view: PlayerView, legal: Card[], _rng: () => number): Card {
                 (card) => cardSuit(card) === cardSuit(winner) && isMasterCard(view, card),
             )
             if (master !== undefined) return master
+        }
+
+        // THIRD to play, the same idea (reported 2026-09-29): the cheap winner
+        // only holds if the last seat cannot go over it. Holding Q-K-A of
+        // hearts over a J, the queen "won" — and the opponent behind took it
+        // with the ten that was still out. When the seat after me is an
+        // opponent who could still beat the cheap card, the master of the suit
+        // goes in instead: it takes the trick for certain (ruffs aside), and it
+        // is also what my partner's small opening lead was asking for.
+        if (view.trick.cards.length === 2 && cardSuit(winner) !== trump && !isMasterCard(view, winner)) {
+            const master = legal.find(
+                (card) => cardSuit(card) === cardSuit(winner) && isMasterCard(view, card) && wouldWinTrick(view, card),
+            )
+            const seat = view.seat
+            const threatened = seat !== null && seatsStillToPlay(view).some(
+                (s) => teamOf(s) !== teamOf(seat) && seatCouldBeat(view, s, winner),
+            )
+            if (master !== undefined && threatened) return master
         }
         return winner
     }

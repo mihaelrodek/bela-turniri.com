@@ -1062,4 +1062,9 @@ igrače koji ih još mogu imati.
 4. Sva stara pravila koja pitaju „je li pokazao da nema boju / aduta”
    (`seatShownVoidIn`, `seatShownVoidInTrump`, `opponentCanHold`) sada čitaju i
    ove dokaze, pa brojanje aduta i čuvanje asa vide više nego prije.
+5. **Treći igrač uzima najjačom kad jeftina nije sigurna** (2026-09-29,
+   prijavljeno). Na suigračevu malu kartu i protivnikovog dečka, s damom, kraljem
+   i asom herca: dama bi „uzela” samo dok zadnji igrač ne baci desetku koja je
+   još vani. Kad protivnik iza mene može nadjačati najjeftiniju dobitnu kartu, a
+   ja imam najjaču kartu boje, ide najjača (as).
 

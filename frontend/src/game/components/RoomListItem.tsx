@@ -270,19 +270,21 @@ export default function RoomListItem({
                             above "Igra se" (2026-09-29, user request) — not in
                             the first row with the rule chips, where it pushed
                             them onto a line of their own. Both badges are 18 px
-                            with a 2 px gap: 38 px together, under the ~42 px
-                            the avatar row already takes, so a private room's
-                            card is exactly as tall as a public one's. */}
+                            (`minH="0"` so the recipe's own minimum cannot grow
+                            them) with a 6 px gap between: 42 px together, the
+                            height the avatar row already takes, so a private
+                            room's card is exactly as tall as a public one's
+                            and the two badges do not touch. */}
                         {(room.private || room.status === "PLAYING") && (
-                            <VStack gap="0.5" align="end" flexShrink={0}>
+                            <VStack gap="1.5" align="end" flexShrink={0}>
                                 {room.private && (
-                                    <Badge size="sm" h="18px" variant="subtle" colorPalette="gray" whiteSpace="nowrap"
+                                    <Badge size="sm" h="18px" minH="0" variant="subtle" colorPalette="gray" whiteSpace="nowrap"
                                         aria-label={t("game.lobby.privateAria")} title={t("game.lobby.privateAria")}>
                                         <FiLock size={11} /> {t("game.lobby.private")}
                                     </Badge>
                                 )}
                                 {room.status === "PLAYING" && (
-                                    <Badge size="sm" h="18px" variant="solid" colorPalette="orange" whiteSpace="nowrap" animation={badgeAnimation}>
+                                    <Badge size="sm" h="18px" minH="0" variant="solid" colorPalette="orange" whiteSpace="nowrap" animation={badgeAnimation}>
                                         {t("game.lobby.playing")}
                                     </Badge>
                                 )}

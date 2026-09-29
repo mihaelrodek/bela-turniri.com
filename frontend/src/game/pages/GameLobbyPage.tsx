@@ -5,7 +5,7 @@ import { FiLogIn, FiLogOut, FiPlus, FiSearch, FiSettings, FiUsers } from "react-
 import type { RoomStatus, RoomSummary, TargetScore } from "@bela/protocol"
 import type { CreateGameOptions } from "../components/CreateGameDialog"
 import EmptyState from "../../components/EmptyState"
-import { MOBILE_TABBAR_CLEARANCE } from "../../components/navChrome"
+import { MOBILE_TABBAR_CLEARANCE, NAVBAR_TOP } from "../../components/navChrome"
 import { useDocumentHead } from "../../hooks/useDocumentHead"
 import { useTranslation } from "../../i18n"
 import { showError } from "../../toaster"
@@ -374,7 +374,22 @@ export default function GameLobbyPage() {
                     is a flex item then, so the gap collapses with them and no
                     empty column is left behind. Rendered ONCE for every
                     breakpoint; the phone-only tile row underneath is gone. */}
-                <Flex align="center" gap="3" w="full">
+                {/* Sticky under the navbar while the room list scrolls
+                    (2026-09-29, user request): who you are, your stats and the
+                    settings gear stay in reach. It paints the page's own
+                    canvas colour and bleeds over the Container's side padding
+                    (`mx`/`px`) so cards scrolling under it are fully hidden. */}
+                <Flex
+                    align="center"
+                    gap="3"
+                    position="sticky"
+                    top={NAVBAR_TOP}
+                    zIndex={5}
+                    bg="bg.canvas"
+                    mx="-4"
+                    px="4"
+                    py="2"
+                >
                     <HStack gap="3" minW="0" flex="1">
                         <PlayerAvatar name={socket.me?.name} avatarUrl={socket.me?.avatarUrl} avatarPreset={socket.me?.avatarPreset} size="lg" />
                         {/* `truncate` (ellipsis, single line) rather than
@@ -397,6 +412,7 @@ export default function GameLobbyPage() {
                     <Button
                         display={{ base: "none", md: "inline-flex" }}
                         flexShrink={0}
+                        size="lg"
                         colorPalette="brand"
                         onClick={() => setCreateOpen(true)}
                         disabled={!connected || blocked}
@@ -573,7 +589,7 @@ export default function GameLobbyPage() {
             >
                 <Button
                     w="full"
-                    size="lg"
+                    size="xl"
                     rounded="l3"
                     colorPalette="brand"
                     shadow="lg"

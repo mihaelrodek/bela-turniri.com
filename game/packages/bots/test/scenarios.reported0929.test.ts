@@ -97,4 +97,25 @@ describe("reported 2026-09-29 — A+10 and the caller's small plain opening", ()
         })
         expect(heuristicBot.chooseCard(v, [...hand], noRng)).toBe("7PIK")
     })
+
+    it("third to play with Q-K-A over a jack takes with the ACE — the ten is still out behind", () => {
+        // Caller (0) opens herc 9, Marin (1) plays the jack; Tin (2), the
+        // caller's partner, holds Q-K-A. The queen "wins" only until Klara (3)
+        // plays the ten that nobody has seen yet.
+        const hand: Card[] = ["QHERC", "KHERC", "AHERC", "9PIK", "10PIK", "JPIK", "7TREF", "8TREF"]
+        const v = view({
+            seat: 2,
+            hand,
+            bidding: { turn: 0, passes: [], trump: "KARA", caller: 0 },
+            trick: {
+                leader: 0,
+                turn: 2,
+                cards: [
+                    { seat: 0, card: "9HERC" },
+                    { seat: 1, card: "JHERC" },
+                ],
+            },
+        })
+        expect(heuristicBot.chooseCard(v, ["QHERC", "KHERC", "AHERC"], noRng)).toBe("AHERC")
+    })
 })
