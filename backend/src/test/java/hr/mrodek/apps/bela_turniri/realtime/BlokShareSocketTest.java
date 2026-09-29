@@ -434,11 +434,27 @@ class BlokShareSocketTest {
      */
     private int statusFor(String token) {
         HttpUpgradeCheck.CheckResult result = upgradeCheck
-                .perform(new HttpUpgradeCheck.HttpUpgradeContext(
-                        fakeRequest("/api/live/blok/" + token), null, BlokShareSocket.ENDPOINT_ID))
+                .perform(upgradeContext(fakeRequest("/api/live/blok/" + token)))
                 .await().atMost(Duration.ofSeconds(20));
         assertNotNull(result);
         return result.isUpgradePermitted() ? 0 : result.getHttpResponseCode();
+    }
+
+    /**
+     * The upgrade context the check is handed. An interface since Quarkus
+     * 3.2x (it used to be a record with a public constructor); the check only
+     * reads the request, so everything else stays unanswered.
+     */
+    private static HttpUpgradeCheck.HttpUpgradeContext upgradeContext(HttpServerRequest request) {
+        return new HttpUpgradeCheck.HttpUpgradeContext() {
+            @Override public io.quarkus.websockets.next.UserData userData() { return null; }
+            @Override public String pathParam(String name) { return null; }
+            @Override public HttpServerRequest httpRequest() { return request; }
+            @Override public Uni<io.quarkus.security.identity.SecurityIdentity> securityIdentity() {
+                return Uni.createFrom().nullItem();
+            }
+            @Override public String endpointId() { return BlokShareSocket.ENDPOINT_ID; }
+        };
     }
 
     /** An {@link HttpServerRequest} that answers {@code path()} and nothing else. */

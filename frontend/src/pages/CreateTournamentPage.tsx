@@ -613,7 +613,7 @@ export default function CreateTournamentPage() {
                                                   )
                                                 : null
                                         }
-                                        onChange={(d) => {
+                                        onChange={(d: Date | null) => {
                                             if (!d) {
                                                 onChange("startDate", "")
                                                 onChange("startTime", "")

@@ -21,7 +21,7 @@ import java.util.List;
  *                eliminated, and appears in at most one match.
  */
 public record ManualRoundRequest(
-        @NotEmpty @Valid List<Match> matches
+        @NotEmpty List<@Valid Match> matches
 ) {
     public record Match(
             @NotNull Long pair1Id,

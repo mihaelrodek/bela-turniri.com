@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
-import Joyride, {
-    type CallBackProps,
+import {
+    Joyride,
+    type EventData,
     type Step,
     ACTIONS,
     EVENTS,
@@ -128,7 +129,7 @@ export default function PageTour({
         if (run) finishedRef.current = false
     }, [run])
 
-    function handleCallback(data: CallBackProps) {
+    function handleEvent(data: EventData) {
         const { status, type, index, action } = data
 
         // Forward step transitions to the parent so it can switch tabs
@@ -168,37 +169,33 @@ export default function PageTour({
             run={run}
             steps={steps}
             continuous
-            showSkipButton
-            showProgress
             scrollToFirstStep
-            disableOverlayClose
-            // Disable Joyride's "if the anchor sits inside an overflow:scroll
-            // parent, fix the parent's scroll position before measuring"
-            // behaviour. Our Card components have rounded-corner overflow
-            // clipping that confused the fix into computing tooltip offsets
-            // against the wrong scroll parent, especially after tab-content
-            // swaps changed the document height. Without it, popper just
-            // uses the window as the reference and lands the tooltip at the
-            // anchor's actual viewport coordinates.
-            disableScrollParentFix
-            // Important on mobile: lets Joyride scroll the highlighted
-            // element into view if it's below the fold. Default behaviour
-            // is to keep the page static, which means on a phone the
-            // user might not see what's being highlighted.
-            scrollOffset={80}
-            // NB: we briefly set `floaterProps={{ disableAnimation: true }}`
-            // here to suppress intermediate position tweens during the
-            // filter-expand and tab-swap transitions. Turned out
-            // react-floater uses its animation loop as the trigger for
-            // popper to recompute final coordinates after the anchor
-            // settles — with it disabled, the tooltip stayed pinned to
-            // the position popper had calculated before the React
-            // commit, so on the detail page every tab-swap step landed
-            // the tooltip in the bottom-left corner. We rely on small,
-            // stable anchors (single tab buttons / first-card elements)
-            // instead, which don't produce visible intermediate
-            // positions even with animation on.
-            callback={handleCallback}
+            // v3 (2026-09-29): what v2 spread over top-level props and
+            // `styles.options` lives in one `options` object. The v2
+            // `disableScrollParentFix` has no successor — v3 positions with
+            // floating-ui against the viewport, which is what that flag was
+            // there to force.
+            options={{
+                // v2's `showSkipButton`: the skip button is opt-in per the
+                // default `buttons` list.
+                buttons: ["back", "close", "primary", "skip"],
+                showProgress: true,
+                // v2's `disableOverlayClose`.
+                overlayClickAction: false,
+                // Important on mobile: lets Joyride scroll the highlighted
+                // element into view if it's below the fold, clear of the
+                // sticky header.
+                scrollOffset: 80,
+                // Read straight off the theme so the tour buttons and beacon
+                // track the brand ramp in system.ts instead of a pinned hex.
+                primaryColor: "var(--chakra-colors-brand-solid)",
+                zIndex: 2000,
+                arrowColor: "var(--chakra-colors-bg-panel)",
+                backgroundColor: "var(--chakra-colors-bg-panel)",
+                textColor: "var(--chakra-colors-fg-ink)",
+                overlayColor: "rgba(42, 33, 26, 0.55)",
+            }}
+            onEvent={handleEvent}
             locale={{
                 back: t("common.tour.nav.back"),
                 close: t("common.close"),
@@ -206,20 +203,9 @@ export default function PageTour({
                 next: t("common.tour.nav.next"),
                 skip: t("common.tour.nav.skip"),
                 open: t("common.tour.nav.open"),
-                nextLabelWithProgress: t("common.tour.nav.nextWithProgress"),
+                nextWithProgress: t("common.tour.nav.nextWithProgress"),
             }}
             styles={{
-                options: {
-                    // Read straight off the theme so the tour buttons and
-                    // beacon track the brand ramp in system.ts instead of a
-                    // pinned hex (they used to be a literal #3182CE).
-                    primaryColor: "var(--chakra-colors-brand-solid)",
-                    zIndex: 2000,
-                    arrowColor: "var(--chakra-colors-bg-panel)",
-                    backgroundColor: "var(--chakra-colors-bg-panel)",
-                    textColor: "var(--chakra-colors-fg-ink)",
-                    overlayColor: "rgba(42, 33, 26, 0.55)",
-                },
                 tooltipContainer: {
                     textAlign: "left",
                 },

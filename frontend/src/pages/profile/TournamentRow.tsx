@@ -6,7 +6,7 @@ import { FaTrophy } from "react-icons/fa"
 import { FiCalendar, FiChevronDown, FiChevronRight, FiMapPin } from "react-icons/fi"
 import { getPairMatchHistory, type PairMatchHistory } from "../../api/publicProfile"
 import type { MyTournamentParticipation } from "../../api/userMe"
-import { MEDALS } from "../../components/TournamentResultsCard"
+import { MEDALS } from "../../components/medals"
 import { errorMessage } from "../../utils/apiError"
 import { formatDate } from "../../utils/format"
 import { useTranslation } from "../../i18n"
@@ -54,7 +54,7 @@ export const TournamentRow = React.memo(function TournamentRow({
         }
     }
 
-    let badge: { palette: BadgeProps["colorPalette"]; label: string; icon?: React.ReactNode } | null = null
+    let badge: { palette: BadgeProps["colorPalette"]; label: string; icon?: React.ReactNode }
     if (row.isWinner) {
         badge = { palette: "yellow", label: t("profile.status.winner"), icon: <FaTrophy size={11} color={MEDALS[0]} /> }
     } else if (row.pendingApproval) {

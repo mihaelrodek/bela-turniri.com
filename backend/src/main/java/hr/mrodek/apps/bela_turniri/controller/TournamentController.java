@@ -609,7 +609,7 @@ public class TournamentController {
     @Transactional
     public List<PairDto> replacePairs(
             @PathParam("uuid") String uuid,
-            @Valid List<@Valid PairDto> payload
+            List<@Valid PairDto> payload
     ) {
         return pairService.replacePairs(access.loadForEdit(uuid), payload);
     }

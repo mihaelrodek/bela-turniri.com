@@ -16,12 +16,27 @@ export default defineConfig([
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
-      reactHooks.configs['recommended-latest'],
+      reactHooks.configs.flat['recommended-latest'],
       reactRefresh.configs.vite,
     ],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+    },
+    rules: {
+      // eslint-plugin-react-hooks 7 ships the React Compiler's rules inside
+      // `recommended-latest`. This app does not use the compiler, and these
+      // five flag patterns it relies on on purpose (a ref refreshed during
+      // render to keep a callback stable, state synced from an effect) —
+      // ~160 sites. Rewriting them would change behaviour for no benefit
+      // without the compiler, so they stay off; the classic rules
+      // (rules-of-hooks, exhaustive-deps) and the rest of the compiler set
+      // stay on. Revisit if the React Compiler is ever adopted.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
+      'react-hooks/purity': 'off',
     },
   },
 ])

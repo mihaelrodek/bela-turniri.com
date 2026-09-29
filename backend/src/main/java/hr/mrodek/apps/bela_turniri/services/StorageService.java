@@ -192,7 +192,7 @@ public class StorageService {
                     .bucket(bucketName)
                     .object(key)
                     .contentType(contentType)
-                    .stream(new java.io.ByteArrayInputStream(body), body.length, -1)
+                    .data(body, body.length)
                     .build());
         } catch (Exception e) {
             LOG.warnf("Could not store image variant %s/%s (%s)", bucketName, key, e.toString());
@@ -428,7 +428,7 @@ public class StorageService {
                             "Content-Disposition", "inline",
                             "X-Content-Type-Options", "nosniff"
                     ))
-                    .stream(new java.io.ByteArrayInputStream(body), body.length, -1)
+                    .data(body, body.length)
                     .build();
 
             var result = minio.putObject(put);

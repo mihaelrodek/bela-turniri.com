@@ -582,7 +582,8 @@ export default defineConfig({
     // `{ type: "module" }`, so emit workers as ES modules.
     worker: { format: "es" },
     build: {
-        rollupOptions: {
+        // Vite 8 bundles with Rolldown; `rollupOptions` is its deprecated alias.
+        rolldownOptions: {
             output: {
                 // The app shell's third-party code goes into ONE `vendor`
                 // chunk. App code stays out of it, so the cache benefit
@@ -644,24 +645,24 @@ export default defineConfig({
                     ) {
                         return "vendor-datepicker"
                     }
-                    // The product tour (~80 kB): react-joyride, its floater
-                    // and popper.js, plus the small helpers that only they
-                    // depend on (verified with a reverse-dependency scan —
-                    // `react-is`/`prop-types`/`deepmerge`/`clsx` are shared
-                    // with other packages and stay in `vendor`). `PageTour` is
+                    // The product tour: react-joyride (v3) plus the small
+                    // helpers that only it depends on (verified with
+                    // `npm ls <pkg>` for each, 2026-09-29). Its
+                    // `@floating-ui/react-dom` is NOT here: react-datepicker
+                    // uses it too, so it stays in `vendor` next to the
+                    // `@floating-ui/dom` Chakra already ships. `PageTour` is
                     // `React.lazy` in both pages that show a tour, and the
                     // tour only ever runs on an explicit "pomoć" tap or a
                     // first-visit flag.
                     if (
                         id.includes("node_modules/react-joyride/")
-                        || id.includes("node_modules/react-floater/")
-                        || id.includes("node_modules/popper.js/")
-                        || id.includes("node_modules/tree-changes/")
-                        || id.includes("node_modules/is-lite/")
-                        || id.includes("node_modules/deep-diff/")
-                        || id.includes("node_modules/scrollparent/")
-                        || id.includes("node_modules/react-innertext/")
+                        || id.includes("node_modules/@fastify/deepmerge/")
                         || id.includes("node_modules/@gilbarbara/")
+                        || id.includes("node_modules/is-lite/")
+                        || id.includes("node_modules/react-innertext/")
+                        || id.includes("node_modules/scroll/")
+                        || id.includes("node_modules/scrollparent/")
+                        || id.includes("node_modules/use-sync-external-store/")
                     ) {
                         return "vendor-tour"
                     }

@@ -207,7 +207,7 @@ class ResourceImageVariantTest {
                 .bucket(bucket)
                 .object(objectKey)
                 .contentType(contentType)
-                .stream(new ByteArrayInputStream(bytes), bytes.length, -1)
+                .data(bytes, bytes.length)
                 .build());
 
         Long[] id = new Long[1];

@@ -91,7 +91,7 @@ export const common: CommonDict = {
     "tour.nav.next": "Next",
     "tour.nav.skip": "Skip",
     "tour.nav.open": "Open",
-    "tour.nav.nextWithProgress": "Next ({step}/{steps})",
+    "tour.nav.nextWithProgress": "Next ({current}/{total})",
 
     // --- Guided tour copy — /turniri list tour --------------------------------
     "tour.list.welcome.title": "Welcome to Bela Turniri!",

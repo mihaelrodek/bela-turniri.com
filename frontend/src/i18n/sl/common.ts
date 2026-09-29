@@ -92,7 +92,7 @@ export const common: CommonDict = {
     "tour.nav.next": "Naprej",
     "tour.nav.skip": "Preskoči",
     "tour.nav.open": "Odpri",
-    "tour.nav.nextWithProgress": "Naprej ({step}/{steps})",
+    "tour.nav.nextWithProgress": "Naprej ({current}/{total})",
 
     // --- Guided tour copy — /turniri list tour --------------------------------
     "tour.list.welcome.title": "Dobrodošli na Bela Turniri!",

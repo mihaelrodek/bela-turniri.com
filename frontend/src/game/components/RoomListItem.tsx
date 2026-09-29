@@ -181,13 +181,10 @@ export default function RoomListItem({
                         minW=0`, `lineClamp`) so it never pushes the chips off
                         the card.
 
-                        "Privatna" used to sit next to the NAME instead — on a
-                        private room that pinned the name+badge pair alone on
-                        line one and dropped the whole rule-chip group to its
-                        own line below, out of step with every public room's
-                        card (2026-09-29, user report). It is a rule of the
-                        room same as target score or declarations, so it now
-                        lives with the rest of them, first in that group. */}
+                        "Privatna" is NOT in this row: next to the name (and,
+                        briefly, first among the chips) it pushed the chips
+                        onto a line of their own. It lives in the second row
+                        now, above "Igra se". */}
                     <HStack wrap="wrap" align="start" gap="2">
                         {/* `1 1 auto`, not `1`: with a zero flex-basis the wrap
                             decision sees a zero-width name, keeps the chips on
@@ -198,12 +195,6 @@ export default function RoomListItem({
                             {room.name}
                         </Text>
                         <HStack gap="1.5" wrap="wrap" justify="flex-end" ml="auto" flexShrink={0} maxW="full">
-                            {room.private && (
-                                <Badge size="sm" variant="subtle" colorPalette="gray" flexShrink={0}
-                                    aria-label={t("game.lobby.privateAria")} title={t("game.lobby.privateAria")}>
-                                    <FiLock size={12} /> {t("game.lobby.private")}
-                                </Badge>
-                            )}
                             <Badge size="sm" variant="subtle" colorPalette="brand" fontFamily="mono" fontVariantNumeric="tabular-nums">
                                 {room.targetScore}
                             </Badge>
@@ -275,10 +266,27 @@ export default function RoomListItem({
                                 </Box>
                             )}
                         </HStack>
-                        {room.status === "PLAYING" && (
-                            <Badge size="sm" variant="solid" colorPalette="orange" flexShrink={0} whiteSpace="nowrap" animation={badgeAnimation}>
-                                {t("game.lobby.playing")}
-                            </Badge>
+                        {/* "Privatna" sits HERE, in the second row, stacked
+                            above "Igra se" (2026-09-29, user request) — not in
+                            the first row with the rule chips, where it pushed
+                            them onto a line of their own. Both badges are 18 px
+                            with a 2 px gap: 38 px together, under the ~42 px
+                            the avatar row already takes, so a private room's
+                            card is exactly as tall as a public one's. */}
+                        {(room.private || room.status === "PLAYING") && (
+                            <VStack gap="0.5" align="end" flexShrink={0}>
+                                {room.private && (
+                                    <Badge size="sm" h="18px" variant="subtle" colorPalette="gray" whiteSpace="nowrap"
+                                        aria-label={t("game.lobby.privateAria")} title={t("game.lobby.privateAria")}>
+                                        <FiLock size={11} /> {t("game.lobby.private")}
+                                    </Badge>
+                                )}
+                                {room.status === "PLAYING" && (
+                                    <Badge size="sm" h="18px" variant="solid" colorPalette="orange" whiteSpace="nowrap" animation={badgeAnimation}>
+                                        {t("game.lobby.playing")}
+                                    </Badge>
+                                )}
+                            </VStack>
                         )}
                     </HStack>
                 </VStack>

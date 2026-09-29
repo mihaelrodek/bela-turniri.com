@@ -21,5 +21,5 @@ import java.util.List;
  */
 public record SaveDrinkPricesRequest(
         @NotNull(message = "validation.cjenik.items.required")
-        @Valid List<@Valid DrinkPriceDto> items
+        List<@Valid DrinkPriceDto> items
 ) {}

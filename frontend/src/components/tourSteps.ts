@@ -40,7 +40,7 @@ export function TURNIRI_LIST_TOUR_STEPS(): Step[] {
             placement: "center",
             title: t("common.tour.list.welcome.title"),
             content: t("common.tour.list.welcome.content"),
-            disableBeacon: true,
+            skipBeacon: true,
         },
         // 1 — nav items.
         {
@@ -138,7 +138,7 @@ export function TURNIR_DETAIL_TOUR_STEPS(): Step[] {
             title: t("common.tour.detail.details.title"),
             content: t("common.tour.detail.details.content"),
             placement: "bottom",
-            disableBeacon: true,
+            skipBeacon: true,
         },
         // 1 — Parovi tab (tab switches to "pairs" in the parent).
         {

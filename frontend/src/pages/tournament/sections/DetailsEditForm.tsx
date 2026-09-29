@@ -144,7 +144,7 @@ export default function DetailsEditForm({
                                             ? new Date(`${editForm.startDate}T${editForm.startTime}:00`)
                                             : null
                                     }
-                                    onChange={(d) => {
+                                    onChange={(d: Date | null) => {
                                         if (!d) {
                                             patchEdit("startDate", "")
                                             patchEdit("startTime", "")

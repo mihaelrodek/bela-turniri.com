@@ -1,6 +1,7 @@
 import { Box, Flex, HStack, Text } from "@chakra-ui/react"
 import { FaTrophy } from "react-icons/fa"
 import { useTranslation } from "../i18n"
+import { MEDALS } from "./medals"
 
 /* ──────────────────────────────────────────────────────────────────────────
    TournamentResultsCard — the podium of a finished tournament, as a compact
@@ -16,15 +17,6 @@ import { useTranslation } from "../i18n"
    sensible semantic equivalent. Everything around them (surface, border,
    text) is a semantic token, so the card follows light/dark like any other.
    ────────────────────────────────────────────────────────────────────── */
-
-/** Gold / silver / bronze, in podium order.
- *
- *  Exported because three screens were carrying their own copy of these three
- *  hex values (this card, the tournament detail page's rewards tile and the
- *  profile page's winner trophy) and a fourth would have been along shortly.
- *  They stay literals rather than semantic tokens on purpose: the metals read
- *  as themselves in both colour modes and have no `fg.*` equivalent. */
-export const MEDALS = ["#F5C518", "#9CA3AF", "#CD7F32"] as const
 
 export default function TournamentResultsCard({
     winnerName,

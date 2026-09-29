@@ -5,16 +5,32 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/ManualRoundRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/ManualRoundRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/SaveDrinkPricesRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/SaveDrinkPricesRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/StorageService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/StorageService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/test/java/hr/mrodek/apps/bela_turniri/controller/ResourceImageVariantTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/test/java/hr/mrodek/apps/bela_turniri/controller/ResourceImageVariantTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/test/java/hr/mrodek/apps/bela_turniri/realtime/BlokShareSocketTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/test/java/hr/mrodek/apps/bela_turniri/realtime/BlokShareSocketTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/eslint.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/eslint.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/PageTour.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/PageTour.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/TournamentResultsCard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/TournamentResultsCard.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/tourSteps.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/tourSteps.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/game/components/RoomListItem.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/RoomListItem.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/RoomPanel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/RoomPanel.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/pages/GameRoomPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/pages/GameRoomPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/MapPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/MapPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/BOT.md" beforeDir="false" afterPath="$PROJECT_DIR$/game/BOT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/evaluate.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/evaluate.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/heuristicBot.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/test/evaluate.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/test/evaluate.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/common.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/CreateTournamentPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/CreateTournamentPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/profile/TournamentRow.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/profile/TournamentRow.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsEditForm.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsEditForm.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsSection.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/vite.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/vite.config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/package.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -46,23 +62,23 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.4847428167679217" />
-      <entry key="MS500" value="3.9440966925422685" />
-      <entry key="S2" value="5.954626937328291" />
-      <entry key="S5" value="6.551635140027446" />
-      <entry key="S10" value="6.77041477471884" />
-      <entry key="S30" value="6.922234697204849" />
-      <entry key="S60" value="6.9609604098504585" />
-      <entry key="M2" value="6.980441245434118" />
-      <entry key="M5" value="7.019487508212854" />
-      <entry key="M10" value="8.090181679036618" />
-      <entry key="M15" value="10.97013976992797" />
-      <entry key="M30" value="27.60116986470985" />
-      <entry key="H1" value="85.13805658771668" />
-      <entry key="H2" value="200.49266092351698" />
-      <entry key="H4" value="343.9319628876603" />
-      <entry key="D1" value="707.8535685054585" />
-      <entry key="W1" value="1709.6746883056123" />
+      <entry key="MS100" value="1.7545384866975149" />
+      <entry key="MS500" value="4.460348731833969" />
+      <entry key="S2" value="7.776173204693342" />
+      <entry key="S5" value="9.004431658425961" />
+      <entry key="S10" value="9.482415615479251" />
+      <entry key="S30" value="9.82285302426876" />
+      <entry key="S60" value="9.910834894825742" />
+      <entry key="M2" value="9.95527139687912" />
+      <entry key="M5" value="10.058134433113255" />
+      <entry key="M10" value="12.28556230225841" />
+      <entry key="M15" value="17.375294068531247" />
+      <entry key="M30" value="37.92430589810752" />
+      <entry key="H1" value="90.93576866972663" />
+      <entry key="H2" value="203.7023166299494" />
+      <entry key="H4" value="358.1523505415705" />
+      <entry key="D1" value="759.6246438776797" />
+      <entry key="W1" value="1774.256170420349" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -73,34 +89,34 @@
       <entry key="S30" value="0.0" />
       <entry key="S60" value="0.0" />
       <entry key="M2" value="0.0" />
-      <entry key="M5" value="2.9477150677324276E-187" />
-      <entry key="M10" value="5.429286387484465E-94" />
-      <entry key="M15" value="6.655211071921113E-63" />
-      <entry key="M30" value="8.157947702652298E-32" />
-      <entry key="H1" value="2.856212124939657E-16" />
-      <entry key="H2" value="1.690033172817216E-8" />
-      <entry key="H4" value="1.300025698364749E-4" />
-      <entry key="D1" value="0.28389189680624816" />
-      <entry key="W1" value="2.016604653313236" />
+      <entry key="M5" value="1.9103778688136087E-190" />
+      <entry key="M10" value="1.3821641974865321E-95" />
+      <entry key="M15" value="5.75934497439553E-64" />
+      <entry key="M30" value="2.399863532452504E-32" />
+      <entry key="H1" value="1.5491492931452766E-16" />
+      <entry key="H2" value="1.2446482608748333E-8" />
+      <entry key="H4" value="1.1156491554974926E-4" />
+      <entry key="D1" value="0.27674659137680113" />
+      <entry key="W1" value="2.0092743220680984" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.3193999455314884" />
-      <entry key="MS500" value="3.8984613811058515" />
-      <entry key="S2" value="5.941120266951574" />
-      <entry key="S5" value="6.54599176958518" />
-      <entry key="S10" value="6.767549318025833" />
-      <entry key="S30" value="6.921269451604471" />
-      <entry key="S60" value="6.960476501746129" />
-      <entry key="M2" value="6.980198968239444" />
-      <entry key="M5" value="7.019390139427658" />
-      <entry key="M10" value="8.090125566948318" />
-      <entry key="M15" value="10.970088988286594" />
-      <entry key="M30" value="27.601105766697962" />
-      <entry key="H1" value="85.13796044824524" />
-      <entry key="H2" value="200.4925514758776" />
-      <entry key="H4" value="343.93200064528384" />
-      <entry key="D1" value="708.1374261466906" />
-      <entry key="W1" value="1711.6912753625888" />
+      <entry key="MS100" value="1.7119051602426458" />
+      <entry key="MS500" value="4.424996642916343" />
+      <entry key="S2" value="7.755714255533969" />
+      <entry key="S5" value="8.994424431171272" />
+      <entry key="S10" value="9.477053153446501" />
+      <entry key="S30" value="9.820979961697786" />
+      <entry key="S60" value="9.909887281709018" />
+      <entry key="M2" value="9.954794790109274" />
+      <entry key="M5" value="10.057942267042737" />
+      <entry key="M10" value="12.285453638827057" />
+      <entry key="M15" value="17.375202261604816" />
+      <entry key="M30" value="37.924218839038396" />
+      <entry key="H1" value="90.93566873366883" />
+      <entry key="H2" value="203.7022069623297" />
+      <entry key="H4" value="358.15236682126346" />
+      <entry key="D1" value="759.901354137159" />
+      <entry key="W1" value="1776.2654267836651" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{

@@ -23,7 +23,7 @@ import { FaTrophy } from "react-icons/fa"
 
 import DetailTile from "../../../components/DetailTile"
 import TournamentQrCard from "../../../components/TournamentQrCard"
-import { MEDALS } from "../../../components/TournamentResultsCard"
+import { MEDALS } from "../../../components/medals"
 import { useTranslation } from "../../../i18n"
 import { formatAmount, formatDate, formatTime } from "../../../utils/format"
 import { DETAIL_POSTER_SIZES, posterSrcSet } from "../../../utils/imageUrl"

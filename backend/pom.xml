@@ -15,12 +15,12 @@
         <!-- Quarkus platform coords -->
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
-        <quarkus.platform.version>3.15.6</quarkus.platform.version>
+        <quarkus.platform.version>3.39.5</quarkus.platform.version>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <mapstruct.version>1.5.5.Final</mapstruct.version>
-        <lombok.version>1.18.42</lombok.version>
+        <mapstruct.version>1.6.3</mapstruct.version>
+        <lombok.version>1.18.48</lombok.version>
     </properties>
 
     <!-- Import Quarkus BOM so io.quarkus:* deps don't need versions -->
@@ -41,21 +41,31 @@
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
-            <version>8.5.8</version>
+            <version>9.0.3</version>
+        </dependency>
+        <!-- MinIO 9 depends on OkHttp 5, which publishes its classes in
+             `okhttp-jvm`: the plain `okhttp` artifact MinIO names resolves, in
+             Maven, to a jar with no okhttp3 classes in it (Gradle module
+             metadata is what points Gradle at the -jvm variant). Without this
+             the client fails at runtime with NoClassDefFoundError. Keep the
+             version in step with the one MinIO's pom asks for. -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp-jvm</artifactId>
+            <version>5.3.2</version>
         </dependency>
 
         <!-- For FilenameUtils used in StorageService -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.16.1</version>
         </dependency>
 
         <!-- Image downscale/recompress in StorageService -->
         <dependency>
             <groupId>net.coobird</groupId>
             <artifactId>thumbnailator</artifactId>
-            <version>0.4.20</version>
+            <version>0.4.21</version>
         </dependency>
 
         <!-- JSON / Validation / JDBC -->
@@ -63,10 +73,11 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-jackson</artifactId>
         </dependency>
-        <!-- Pure JAX-RS / RESTEasy Reactive -->
+        <!-- Quarkus REST (JAX-RS). Was `quarkus-resteasy-reactive`, relocated
+             here in Quarkus 3.9 and dropped from the BOM since. -->
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-resteasy-reactive</artifactId>
+            <artifactId>quarkus-rest</artifactId>
         </dependency>
         <!-- Hibernate ORM + Panache (Quarkus-native repository API) -->
         <dependency>
@@ -110,12 +121,12 @@
         <dependency>
             <groupId>com.google.zxing</groupId>
             <artifactId>core</artifactId>
-            <version>3.5.3</version>
+            <version>3.5.4</version>
         </dependency>
         <dependency>
             <groupId>com.google.zxing</groupId>
             <artifactId>javase</artifactId>
-            <version>3.5.3</version>
+            <version>3.5.4</version>
         </dependency>
 
         <!-- OIDC / JWT verification (used to verify Firebase Auth ID tokens) -->
@@ -127,7 +138,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.42</version>
+            <version>${lombok.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -160,7 +171,7 @@
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
-            <version>1.5.5.Final</version>
+            <version>${mapstruct.version}</version>
         </dependency>
 
         <dependency>
@@ -184,12 +195,11 @@
         <dependency>
             <groupId>nl.martijndwars</groupId>
             <artifactId>web-push</artifactId>
-            <version>5.1.1</version>
+            <version>5.1.2</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk18on</artifactId>
-            <version>1.78.1</version>
         </dependency>
 
         <!-- Firebase Admin SDK — used ONLY for Firebase Cloud Messaging (FCM
@@ -205,7 +215,7 @@
         <dependency>
             <groupId>com.google.firebase</groupId>
             <artifactId>firebase-admin</artifactId>
-            <version>9.10.0</version>
+            <version>9.11.0</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.google.cloud</groupId>
@@ -227,13 +237,12 @@
         <dependency>
             <groupId>com.google.http-client</groupId>
             <artifactId>google-http-client-jackson2</artifactId>
-            <version>1.44.2</version>
         </dependency>
 
         <!-- Tests -->
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-junit5</artifactId>
+            <artifactId>quarkus-junit</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -277,11 +286,27 @@
                 </executions>
             </plugin>
 
+            <!-- Surefire pinned (Maven's built-in default is old) and given
+                 the JBoss LogManager the way generated Quarkus projects do,
+                 so test runs no longer log "The LogManager accessed before
+                 the java.util.logging.manager system property was set". -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+                        <maven.home>${maven.home}</maven.home>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+
             <!-- Give the compiler plugin an explicit version -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
+                <version>3.16.0</version>
                 <configuration>
                     <release>${maven.compiler.release}</release>
                     <annotationProcessorPaths>

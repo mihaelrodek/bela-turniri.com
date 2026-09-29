@@ -112,7 +112,7 @@ export const common = {
     "tour.nav.next": "Dalje",
     "tour.nav.skip": "Preskoči",
     "tour.nav.open": "Otvori",
-    "tour.nav.nextWithProgress": "Dalje ({step}/{steps})",
+    "tour.nav.nextWithProgress": "Dalje ({current}/{total})",
 
     // --- Guided tour copy (components/tourSteps.ts) — /turniri list tour ----
     "tour.list.welcome.title": "Dobrodošli na Bela Turniri!",

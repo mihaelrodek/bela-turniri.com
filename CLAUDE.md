@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 bela-turniri.com — Croatian web app for organising Belot (bela) card tournaments: tournament listing/calendar/map, pair registration, round drawing, match scores, drink bills, push notifications, public player profiles. UI text, routes and domain names are Croatian (`turniri`, `cjenik` = price list, `repassage` = re-entry purchase, `par` = pair).
 
-Monorepo: `backend/` (Quarkus 3.15, Java 21, Maven) + `frontend/` (React 19, Vite 7, TypeScript, Chakra UI v3) + root infra (docker-compose, Caddy, deploy docs).
+Monorepo: `backend/` (Quarkus 3.39, Java 21, Maven) + `frontend/` (React 19, Vite 8 / Rolldown, TypeScript 6, Chakra UI v3) + root infra (docker-compose, Caddy, deploy docs).
 
 ## Commands
 
@@ -113,3 +113,7 @@ Standalone Node.js WebSocket server (`game/packages/server`) listens on **8285**
 - `StartupSanityCheck` warns (does not fail) in prod when `CORS_ORIGINS`, `FIREBASE_PROJECT_ID`, `APP_PUBLIC_BASE_URL`, `MINIO_ENDPOINT` are missing or still dev defaults.
 - OpenAPI/Swagger disabled in prod profile on purpose.
 - Root `import_*.sql` files are one-off data imports, not migrations.
+- MinIO Java client 9 needs `com.squareup.okhttp3:okhttp-jvm` declared explicitly in `backend/pom.xml` (OkHttp 5's plain `okhttp` artifact is empty under Maven); keep its version equal to the one MinIO's pom names.
+- TypeScript stays on 6.x until `typescript-eslint` supports 7; `@types/node` tracks the Node runtime (22), not the newest types.
+- `eslint-plugin-react-hooks` 7's React Compiler rules (`set-state-in-effect`, `refs`, `immutability`, `preserve-manual-memoization`, `purity`) are off in `eslint.config.js` on purpose — the app does not use the compiler and relies on those patterns.
+- `quarkus.hibernate-orm.mapping.format.global=ignore`: jsonb columns use Hibernate's own Jackson mapper, not the REST one. Safe because they hold only `String`/`JsonNode`; revisit if a jsonb field ever maps a date or custom type.
