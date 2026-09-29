@@ -27,8 +27,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * {@link PublicReadCacheFilter}: the shared {@code Cache-Control} +
  * {@code stale-while-revalidate} on public reads, weak {@code ETag} →
  * {@code If-None-Match} → 304 on the same routes plus {@code tournaments/
- * {idOrSlug}} and {@code public/users/{slug}}, and the private no-cache +
- * ETag pair on {@code GET /user/me/profile}.
+ * {idOrSlug}} and {@code public/users/{slug}}, the private no-cache +
+ * ETag pair on {@code GET /user/me/profile}, and the revalidation-only
+ * {@code no-cache} + ETag pair (no positive max-age) on
+ * {@code GET /tournaments/{idOrSlug}/rounds}.
  *
  * <p>Runs against the docker-compose Postgres, fixtures committed in
  * {@code @BeforeEach} and removed in {@code @AfterEach}, same pattern as
@@ -163,6 +165,31 @@ class PublicReadCacheFilterTest {
                 .then().statusCode(200)
                 .header("Cache-Control", SWR_CACHE_VALUE)
                 .header("ETag", startsWith("W/\""));
+    }
+
+    /* ---------- rounds: revalidation only, never a positive max-age ---------- */
+
+    @Test
+    void roundsCarryRevalidationOnlyCacheControlAndAWeakEtag() {
+        given().when().get("/tournaments/" + tournamentUuid + "/rounds")
+                .then().statusCode(200)
+                .header("Cache-Control", "no-cache")
+                .header("Vary", containsString("Authorization"))
+                .header("ETag", startsWith("W/\""));
+    }
+
+    @Test
+    void roundsRepeatedWithTheSameIfNoneMatchIs304() {
+        String etag = given().when().get("/tournaments/" + tournamentUuid + "/rounds")
+                .then().statusCode(200)
+                .extract().header("ETag");
+        assertNotNull(etag);
+
+        given().header("If-None-Match", etag)
+                .when().get("/tournaments/" + tournamentUuid + "/rounds")
+                .then().statusCode(304)
+                .header("Cache-Control", "no-cache")
+                .body(org.hamcrest.Matchers.emptyOrNullString());
     }
 
     /* ---------- pairs must stay uncached (live during a tournament) ---------- */

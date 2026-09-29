@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
-import { flushSync } from "react-dom"
 import {
     Badge,
     Box,
@@ -338,9 +337,24 @@ export default function PairsSection(props: PairsSectionProps) {
         if (selectedPair) lastSelectedNameRef.current = selectedPair.name
     }, [selectedPair])
 
+    // The temp id "Dodaj par" just selected. The row reaches `pairs` a beat
+    // AFTER the selection: pairs live in the react-query cache, whose
+    // observers are notified asynchronously. Without this the effect below
+    // saw "selected id not in pairs" in that gap and cleared the selection.
+    const pendingNewPairIdRef = useRef<number | null>(null)
+    // Off-screen input focused synchronously inside the "Dodaj par" tap:
+    // iOS raises the keyboard only for a focus() inside the user gesture,
+    // and the real name field does not exist yet. The panel then moves
+    // focus into its field (see PairDetailPanel) and the keyboard stays up.
+    const keyboardProxyRef = useRef<HTMLInputElement | null>(null)
+
     useEffect(() => {
         if (selectedPairId == null) return
-        if (pairs.some((p) => p.id === selectedPairId)) return
+        if (pairs.some((p) => p.id === selectedPairId)) {
+            if (pendingNewPairIdRef.current === selectedPairId) pendingNewPairIdRef.current = null
+            return
+        }
+        if (pendingNewPairIdRef.current === selectedPairId) return
         // Only a TEMP row can come back under a new id. A saved pair that
         // disappeared was deleted, and re-selecting a namesake (two pairs may
         // legitimately share a name) would be the wrong guess.
@@ -350,22 +364,10 @@ export default function PairsSection(props: PairsSectionProps) {
     }, [pairs, selectedPairId])
 
     function handleAddPair() {
-        // flushSync so the new row's name field exists before this click
-        // handler returns: iOS only raises the keyboard for a focus() made
-        // synchronously inside the user gesture, never from a later frame.
-        let tempId = 0
-        flushSync(() => {
-            tempId = onAddPair()
-            setSelectedPairId(tempId)
-        })
-        // Both list copies stay mounted (inline below lg, right pane at lg+);
-        // take the field that is actually on screen.
-        const input = Array.from(
-            document.querySelectorAll<HTMLInputElement>(`input[data-pair-name-input="${tempId}"]`),
-        ).find((el) => el.getClientRects().length > 0)
-        if (!input) return
-        input.focus({ preventScroll: true })
-        input.scrollIntoView({ block: "center", behavior: "smooth" })
+        keyboardProxyRef.current?.focus({ preventScroll: true })
+        const tempId = onAddPair()
+        pendingNewPairIdRef.current = tempId
+        setSelectedPairId(tempId)
     }
 
     /* Removing a pair — the one destructive action, shared by the panel's
@@ -749,6 +751,22 @@ export default function PairsSection(props: PairsSectionProps) {
 
     return (
         <VStack align="stretch" gap="4">
+            <input
+                ref={keyboardProxyRef}
+                aria-hidden="true"
+                tabIndex={-1}
+                readOnly
+                style={{
+                    position: "fixed",
+                    top: "40%",
+                    left: 0,
+                    width: 1,
+                    height: 1,
+                    opacity: 0,
+                    fontSize: 16,
+                    pointerEvents: "none",
+                }}
+            />
             {/* Header strip: counter chips on the left, roster actions on the
                 right, no card. There is no "Spremi promjene" any more — the
                 name input auto-saves on blur (see the page's onPairNameBlur)
@@ -1110,9 +1128,16 @@ function PairDetailPanel({
     // A new row is selected in the same state update that inserts it. Native
     // autofocus can be missed while the master/detail pane is swapping, so
     // focus the mounted field explicitly on the next frame instead.
+    // Both list copies mount a panel (inline below lg, right pane at lg+), so
+    // only the one actually on screen takes focus and scrolls into view.
     useEffect(() => {
         if (pair.id >= 0 || !canRename) return
-        const frame = window.requestAnimationFrame(() => nameInputRef.current?.focus())
+        const frame = window.requestAnimationFrame(() => {
+            const input = nameInputRef.current
+            if (!input || input.getClientRects().length === 0) return
+            input.focus({ preventScroll: true })
+            input.scrollIntoView({ block: "center", behavior: "smooth" })
+        })
         return () => window.cancelAnimationFrame(frame)
     }, [pair.id, canRename])
 
@@ -1157,7 +1182,6 @@ function PairDetailPanel({
                         {canRename ? (
                             <Input
                                 ref={nameInputRef}
-                                data-pair-name-input={pair.id}
                                 size="sm"
                                 variant="flushed"
                                 value={pair.name}

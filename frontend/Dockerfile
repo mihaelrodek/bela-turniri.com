@@ -73,6 +73,10 @@ ENV VITE_API_URL=$VITE_API_URL \
 RUN npm run build
 # → /app/dist contains the static SPA bundle.
 
+# Precompress static assets with brotli and gzip for faster delivery.
+# This creates .br and .gz siblings for compressible files (≥1KB).
+RUN node scripts/precompress.mjs dist
+
 # ─────────────────── Stage 2: custom Caddy build ──────────────────────
 # The stock Caddy image has no `rate_limit` directive. Build a Caddy binary
 # that includes the caddy-ratelimit module (per-IP request throttling on the

@@ -38,6 +38,89 @@
                   seeded = !!segment && segment !== "novi"
               }
               if (!seeded) return
+
+              /* ── Preload the LCP poster straight out of the seed ─────────
+                 The seed answer sits in memory the instant this fetch
+                 resolves, long before React mounts and the real <img> for it
+                 gets created — so without this, that image's own network
+                 request only starts once the whole module graph has been
+                 parsed and the component tree has rendered. One
+                 <link rel="preload" as="image"> here closes that gap.
+
+                 Only for the ONE poster that can end up as this route's LCP
+                 element:
+                   • listing (/, /turniri) — the first UPCOMING card, and only
+                     in "Mreža" (grid) view: ListingCard.tsx only marks
+                     idx === 0 `priority` (eager + fetchPriority high), and
+                     ListingRow.tsx (list view) never renders a poster <img>
+                     at all. The view choice is read back from the same
+                     sessionStorage key TournamentsPage.tsx writes
+                     ("bela:turniri-view"), best-effort.
+                   • tournament detail (/turniri/<id-or-slug>) — that
+                     tournament's own poster; DetailsSection.tsx's own comment
+                     calls it "the detail page's LCP element on most
+                     tournaments".
+
+                 `imagesrcset`/`imagesizes` MUST match byte-for-byte what the
+                 real <img> in ListingCard.tsx / DetailsSection.tsx requests
+                 (utils/imageUrl.ts: `posterSrcSet`, `LISTING_CARD_POSTER_
+                 SIZES`, `DETAIL_POSTER_SIZES`) — a preload with different
+                 descriptors just downloads a DIFFERENT file than the one the
+                 <img> ends up picking, wasting the request instead of
+                 warming it. That TS module can't be imported into this plain
+                 script, so the two width descriptors and both `sizes`
+                 strings are duplicated here; keep them in sync by hand.
+
+                 Only ever targets the backend's own proxied resource path
+                 (`/api/resources/{id}/image`, no existing query string) —
+                 the one shape the `?w=` variant contract applies to
+                 (`isResourceImageUrl` in utils/imageUrl.ts) — so a banner
+                 hosted anywhere else is left alone rather than handed a
+                 query param its origin won't understand.
+
+                 Wrapped so a mistake here can never be the reason the seed
+                 itself fails: this only ever adds a hint, never changes what
+                 the promise resolves to. */
+              function preloadLcpPoster(seed) {
+                  try {
+                      if (!seed) return
+                      var RESOURCE_IMAGE_PATH = /^\/api\/resources\/\d+\/image$/
+
+                      var url = null
+                      var sizes = null
+                      if (seed.detailsKey && seed.details) {
+                          url = seed.details.bannerUrl || null
+                          sizes = "(min-width: 1280px) 264px, 100vw" // DETAIL_POSTER_SIZES
+                      } else if (seed.upcoming && seed.upcoming.length > 0) {
+                          try {
+                              if (window.sessionStorage
+                                  && window.sessionStorage.getItem("bela:turniri-view") === "list") {
+                                  return // list view never renders a poster — nothing to warm
+                              }
+                          } catch (e) {
+                              /* private mode: fall through — "grid" is the default anyway */
+                          }
+                          url = (seed.upcoming[0] && seed.upcoming[0].bannerUrl) || null
+                          sizes = "(min-width: 1088px) 33vw, (min-width: 672px) 50vw, 100vw" // LISTING_CARD_POSTER_SIZES
+                      }
+                      if (!url || !RESOURCE_IMAGE_PATH.test(url)) return
+
+                      var link = document.createElement("link")
+                      link.setAttribute("rel", "preload")
+                      link.setAttribute("as", "image")
+                      link.setAttribute("href", url)
+                      link.setAttribute("imagesrcset", url + "?w=480 480w, " + url + "?w=960 960w")
+                      link.setAttribute("imagesizes", sizes)
+                      // Same signal ListingCard/DetailsSection give their own
+                      // priority <img> — this poster is the thing worth
+                      // racing the rest of the boot sequence for.
+                      link.setAttribute("fetchpriority", "high")
+                      document.head.appendChild(link)
+                  } catch (e) {
+                      /* A preload hint is an optimisation, never a requirement. */
+                  }
+              }
+
               window.__belaSeed = fetch("/api/seed?path=" + encodeURIComponent(p), {
                   /* No credentials, no Authorization: the response is the
                      anonymous variant for everyone, which is exactly what
@@ -46,6 +129,10 @@
                   headers: { Accept: "application/json" },
               })
                   .then(function (r) { return r.ok ? r.json() : null })
+                  .then(function (seed) {
+                      preloadLcpPoster(seed)
+                      return seed
+                  })
                   .catch(function () { return null })
           } catch (e) {
               /* The shell must never fail to boot because of the seed. */

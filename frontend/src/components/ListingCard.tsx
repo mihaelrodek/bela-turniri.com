@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Box, Flex, HStack, Image, Skeleton, Text, VStack } from "@chakra-ui/react"
 import { Link as RouterLink } from "react-router-dom"
 import { FiClock, FiMapPin, FiNavigation, FiTarget } from "react-icons/fi"
@@ -62,11 +63,20 @@ const STATUS_DOT: Record<StatusKind, string> = {
 /** Poster, or a branded name placeholder when the tournament has none. */
 function Poster({ item, priority }: { item: ListingTournament; priority: boolean }) {
     const { t } = useTranslation()
+    const [loaded, setLoaded] = useState(false)
 
     if (item.bannerUrl) {
         const poster = posterSrcSet(item.bannerUrl, LISTING_CARD_POSTER_SIZES)
         return (
             <Image
+                // Fades in over the tinted box behind it (see the poster
+                // container) instead of popping onto a white card. A poster
+                // that is already decoded when this mounts skips the fade.
+                ref={(el: HTMLImageElement | null) => { if (el?.complete) setLoaded(true) }}
+                onLoad={() => setLoaded(true)}
+                onError={() => setLoaded(true)}
+                opacity={loaded ? 1 : 0}
+                transition="opacity 0.2s ease-out"
                 src={poster?.src ?? item.bannerUrl}
                 srcSet={poster?.srcSet}
                 sizes={poster?.srcSet ? poster.sizes : undefined}
@@ -271,7 +281,7 @@ export default function ListingCard({
                     chip, the status pill, the initials and the time, which is
                     everything this band is for. Desktop keeps its height: there
                     the poster is doing real work in a grid of three. */}
-                <Box position="relative" h={{ base: "118px", md: "170px" }} overflow="hidden">
+                <Box position="relative" h={{ base: "118px", md: "170px" }} overflow="hidden" bg="bg.muted">
                     <Poster item={item} priority={priority} />
 
                     {parts && (

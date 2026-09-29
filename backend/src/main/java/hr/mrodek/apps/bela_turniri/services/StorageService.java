@@ -79,7 +79,8 @@ public class StorageService {
 
     /**
      * On-the-fly width-downscaled variant of a stored image, for
-     * {@code GET /resources/{id}/image?w=}. Caffeine-cached (see the
+     * {@code GET /resources/{id}/image?w=}. Read from the copy stored in the
+     * bucket ({@link #variantKey}), built and stored on a miss. Caffeine-cached (see the
      * {@code image-variants} named cache in {@code application.properties})
      * keyed by resource id + width + the resource's own {@code etag} — the
      * etag is included even though a given resource id's bytes never
@@ -112,35 +113,121 @@ public class StorageService {
             String objectKey,
             String contentType
     ) {
+        // 1. A variant stored earlier (at upload, or by a previous miss).
+        String variantKey = variantKey(objectKey, width);
+        byte[] stored = readObjectOrNull(bucketName, variantKey);
+        if (stored != null) return stored;
+
+        // 2. Not there: build it from the original and keep it for next time.
         try (java.io.InputStream in = minio.getObject(GetObjectArgs.builder()
                 .bucket(bucketName)
                 .object(objectKey)
                 .build())) {
             byte[] original = in.readAllBytes();
-
-            if ("image/gif".equalsIgnoreCase(contentType) || "image/webp".equalsIgnoreCase(contentType)) {
-                return original;
-            }
-
-            int[] dims = readImageDimensions(original);
-            if (dims == null || dims[0] <= width) {
-                // Already narrower than (or equal to) the requested width, or
-                // dimensions unreadable — serving the original is always safe
-                // and never upscales.
-                return original;
-            }
-
-            String outFormat = "image/png".equalsIgnoreCase(contentType) ? "png" : "jpg";
-            var out = new java.io.ByteArrayOutputStream(128 * 1024);
-            net.coobird.thumbnailator.Thumbnails.of(new java.io.ByteArrayInputStream(original))
-                    .width(width)
-                    .outputFormat(outFormat)
-                    .outputQuality(0.85)
-                    .toOutputStream(out);
-            return out.toByteArray();
+            byte[] variant = downscale(original, contentType, width);
+            if (variant == null) return original;
+            storeVariant(bucketName, variantKey, variant, contentType);
+            return variant;
         } catch (Exception e) {
             throw new RuntimeException("Failed to build image variant for resource " + resourceId, e);
         }
+    }
+
+    /**
+     * Where a downscaled copy lives in the bucket. Persisted (2026-09-29) so a
+     * cold Caffeine cache — every deploy — costs one small GET instead of
+     * "fetch the original from object storage, decode, resize, encode" per
+     * image, which is what made posters crawl in after a release.
+     */
+    static String variantKey(String objectKey, int width) {
+        return "variants/w" + width + "/" + objectKey;
+    }
+
+    /**
+     * {@code original} scaled down to {@code width}, or {@code null} when the
+     * original must be served as it is: GIF/WebP (see {@link #resizedVariant}),
+     * unreadable dimensions, or a source already that narrow (never upscale).
+     */
+    private byte[] downscale(byte[] original, String contentType, int width) throws java.io.IOException {
+        if ("image/gif".equalsIgnoreCase(contentType) || "image/webp".equalsIgnoreCase(contentType)) {
+            return null;
+        }
+        int[] dims = readImageDimensions(original);
+        if (dims == null || dims[0] <= width) return null;
+
+        String outFormat = "image/png".equalsIgnoreCase(contentType) ? "png" : "jpg";
+        var out = new java.io.ByteArrayOutputStream(128 * 1024);
+        net.coobird.thumbnailator.Thumbnails.of(new java.io.ByteArrayInputStream(original))
+                .width(width)
+                .outputFormat(outFormat)
+                .outputQuality(0.85)
+                .toOutputStream(out);
+        return out.toByteArray();
+    }
+
+    /** The object's bytes, or {@code null} when it does not exist or cannot
+     *  be read — the caller then rebuilds, so a storage hiccup only costs time. */
+    private byte[] readObjectOrNull(String bucketName, String key) {
+        try (java.io.InputStream in = minio.getObject(GetObjectArgs.builder()
+                .bucket(bucketName)
+                .object(key)
+                .build())) {
+            return in.readAllBytes();
+        } catch (io.minio.errors.ErrorResponseException e) {
+            String code = e.errorResponse() != null ? e.errorResponse().code() : null;
+            if (!"NoSuchKey".equals(code)) {
+                LOG.warnf("Could not read stored image variant %s/%s (%s); rebuilding", bucketName, key, code);
+            }
+            return null;
+        } catch (Exception e) {
+            LOG.warnf("Could not read stored image variant %s/%s (%s); rebuilding", bucketName, key, e.toString());
+            return null;
+        }
+    }
+
+    /** Best-effort: a failed write only means the next cold miss rebuilds. */
+    private void storeVariant(String bucketName, String key, byte[] body, String contentType) {
+        try {
+            minio.putObject(io.minio.PutObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(key)
+                    .contentType(contentType)
+                    .stream(new java.io.ByteArrayInputStream(body), body.length, -1)
+                    .build());
+        } catch (Exception e) {
+            LOG.warnf("Could not store image variant %s/%s (%s)", bucketName, key, e.toString());
+        }
+    }
+
+    /** One daemon thread: variants are built right after an upload, off the
+     *  request thread, so the organiser's save does not wait for two resizes. */
+    private final java.util.concurrent.ExecutorService variantExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "image-variants");
+                t.setDaemon(true);
+                return t;
+            });
+
+    @jakarta.annotation.PreDestroy
+    void shutdownVariantExecutor() {
+        variantExecutor.shutdownNow();
+    }
+
+    private void prebuildVariants(String kind, String bucketName, String objectKey, byte[] body, String contentType) {
+        Set<Integer> widths = "poster".equals(kind) ? ALLOWED_POSTER_WIDTHS
+                : "avatar".equals(kind) ? ALLOWED_AVATAR_WIDTHS
+                : Set.of();
+        if (widths.isEmpty()) return;
+        variantExecutor.execute(() -> {
+            for (int width : widths) {
+                try {
+                    byte[] variant = downscale(body, contentType, width);
+                    if (variant != null) storeVariant(bucketName, variantKey(objectKey, width), variant, contentType);
+                } catch (Exception e) {
+                    LOG.warnf("Could not prebuild %dpx variant of %s/%s (%s)", width, bucketName, objectKey, e.toString());
+                }
+            }
+        });
     }
 
     /**
@@ -171,6 +258,20 @@ public class StorageService {
                     .build());
         } catch (Exception e) {
             LOG.warnf(e, "Failed to delete MinIO object %s/%s (ignored, best-effort)", bucket, objectKey);
+        }
+        // Its stored downscaled copies go with it. Removing a key that was
+        // never written is a no-op in S3, so every known width is tried.
+        for (Set<Integer> widths : java.util.List.of(ALLOWED_POSTER_WIDTHS, ALLOWED_AVATAR_WIDTHS)) {
+            for (int width : widths) {
+                try {
+                    minio.removeObject(RemoveObjectArgs.builder()
+                            .bucket(bucket)
+                            .object(variantKey(objectKey, width))
+                            .build());
+                } catch (Exception e) {
+                    LOG.warnf("Failed to delete image variant of %s/%s (ignored): %s", bucket, objectKey, e.toString());
+                }
+            }
         }
     }
 
@@ -331,6 +432,7 @@ public class StorageService {
                     .build();
 
             var result = minio.putObject(put);
+            prebuildVariants(kind, bucket, objectKey, body, safeContentType);
 
             Resources r = new Resources();
             r.setBucketName(bucket);

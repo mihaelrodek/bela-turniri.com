@@ -5,18 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.env.prod.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.prod.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.github/workflows/ci.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/ci.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DEPLOY.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEPLOY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/MinioBucketInitializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/MinioBucketInitializer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/StartupSanityCheck.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/StartupSanityCheck.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/config/MinioConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/config/MinioConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/health/MinioReadinessCheck.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/health/MinioReadinessCheck.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/StorageService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/StorageService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.prod.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.prod.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsSection.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -48,23 +38,23 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="2.040723032817061" />
-      <entry key="MS500" value="5.081926092643548" />
-      <entry key="S2" value="11.596163395092615" />
-      <entry key="S5" value="18.025651061450038" />
-      <entry key="S10" value="25.186612794024818" />
-      <entry key="S30" value="35.089162167103105" />
-      <entry key="S60" value="38.72119903740562" />
-      <entry key="M2" value="40.77645143022616" />
-      <entry key="M5" value="43.58334469055098" />
-      <entry key="M10" value="55.3786216908522" />
-      <entry key="M15" value="69.67487484142295" />
-      <entry key="M30" value="100.31531587404615" />
-      <entry key="H1" value="127.33798091005116" />
-      <entry key="H2" value="146.7417706479632" />
-      <entry key="H4" value="161.10799170456013" />
-      <entry key="D1" value="280.36374501308865" />
-      <entry key="W1" value="1212.8668192727034" />
+      <entry key="MS100" value="1.8621939402235956" />
+      <entry key="MS500" value="4.642346249113368" />
+      <entry key="S2" value="11.846117686940342" />
+      <entry key="S5" value="23.77893927537012" />
+      <entry key="S10" value="36.76207092288606" />
+      <entry key="S30" value="54.9212618988149" />
+      <entry key="S60" value="61.77341638938894" />
+      <entry key="M2" value="65.71877620139821" />
+      <entry key="M5" value="70.58307998862946" />
+      <entry key="M10" value="80.16808926944219" />
+      <entry key="M15" value="87.93247844914788" />
+      <entry key="M30" value="100.74189753931473" />
+      <entry key="H1" value="110.29080840830031" />
+      <entry key="H2" value="122.32086949180214" />
+      <entry key="H4" value="153.11057054630493" />
+      <entry key="D1" value="338.1849215483265" />
+      <entry key="W1" value="1291.0045761087713" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -75,34 +65,34 @@
       <entry key="S30" value="0.0" />
       <entry key="S60" value="0.0" />
       <entry key="M2" value="0.0" />
-      <entry key="M5" value="3.4099620095228476E-137" />
-      <entry key="M10" value="5.839487999407867E-69" />
-      <entry key="M15" value="3.2427727399820235E-46" />
-      <entry key="M30" value="1.8007700408386446E-23" />
-      <entry key="H1" value="4.2435480919139445E-12" />
-      <entry key="H2" value="2.059987401013499E-6" />
-      <entry key="H4" value="0.0014352799062573088" />
-      <entry key="D1" value="0.42362713873947316" />
-      <entry key="W1" value="2.1352745965040487" />
+      <entry key="M5" value="2.2050347153714853E-169" />
+      <entry key="M10" value="4.6957797173328743E-85" />
+      <entry key="M15" value="6.041412322843767E-57" />
+      <entry key="M30" value="7.772652264731591E-29" />
+      <entry key="H1" value="8.816264665226206E-15" />
+      <entry key="H2" value="9.389496613823153E-8" />
+      <entry key="H4" value="3.0642590509116985E-4" />
+      <entry key="D1" value="0.32750297786974647" />
+      <entry key="W1" value="2.0581963403850128" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="2.0047422253941094" />
-      <entry key="MS500" value="5.053834610996649" />
-      <entry key="S2" value="11.5777681765587" />
-      <entry key="S5" value="18.013053389582904" />
-      <entry key="S10" value="25.177063906463037" />
-      <entry key="S30" value="35.08442171043853" />
-      <entry key="S60" value="38.71853889084285" />
-      <entry key="M2" value="40.77503901192038" />
-      <entry key="M5" value="43.5827391864026" />
-      <entry key="M10" value="55.37824064815283" />
-      <entry key="M15" value="69.67455759374343" />
-      <entry key="M30" value="100.31508935326866" />
-      <entry key="H1" value="127.33783763475563" />
-      <entry key="H2" value="146.74169018423027" />
-      <entry key="H4" value="161.1093815664149" />
-      <entry key="D1" value="280.78735507537726" />
-      <entry key="W1" value="1215.0020789713344" />
+      <entry key="MS100" value="1.823546416992743" />
+      <entry key="MS500" value="4.606555898270048" />
+      <entry key="S2" value="11.823532077839085" />
+      <entry key="S5" value="23.76159871344825" />
+      <entry key="S10" value="36.74865748954975" />
+      <entry key="S30" value="54.91447060927966" />
+      <entry key="S60" value="61.769571694272585" />
+      <entry key="M2" value="65.71672358383672" />
+      <entry key="M5" value="70.58219824386501" />
+      <entry key="M10" value="80.16759204728572" />
+      <entry key="M15" value="87.93211678089152" />
+      <entry key="M30" value="100.74169186368732" />
+      <entry key="H1" value="110.29069628107369" />
+      <entry key="H2" value="122.32080719604195" />
+      <entry key="H4" value="153.11083721575912" />
+      <entry key="D1" value="338.51240620474016" />
+      <entry key="W1" value="1293.0627573548904" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{

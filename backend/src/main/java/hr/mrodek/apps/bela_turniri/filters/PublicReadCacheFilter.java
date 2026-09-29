@@ -53,10 +53,23 @@ import java.util.Set;
  *       no shared cache is present.</li>
  * </ul>
  *
- * <p>Deliberately NOT here: anything under {@code /rounds}, match state, or
- * pair listings ({@code /tournaments/{id}/pairs}). Organisers edit those live
- * during a tournament and a 20 s stale read would make a freshly entered
- * score look lost.
+ * <p>{@code GET /tournaments/{idOrSlug}/rounds} gets a THIRD flavour:
+ * revalidation only, never a positive freshness window (see
+ * {@link #ROUNDS_CACHE_VALUE}) — it is the biggest payload polled while a
+ * tournament is STARTED, and organisers/spectators alike need the score they
+ * just typed or just watched land to show up immediately, not after a
+ * {@code max-age} window. {@link RoundController#list} has no
+ * {@code @Authenticated}/{@code assertCanEdit} and
+ * {@link hr.mrodek.apps.bela_turniri.mappers.RoundMatchMapper} maps every
+ * field unconditionally (no organiser-only column, no redaction branch like
+ * the public profile's phone number) — so the anonymous response is byte-for-
+ * byte the same for every anonymous caller, which is exactly what the ETag
+ * below hashes.
+ *
+ * <p>Deliberately NOT given a shared max-age: pair listings
+ * ({@code /tournaments/{id}/pairs}, viewer-dependent — an organiser sees
+ * fields a spectator doesn't) and match-mutating writes. Only the rounds GET
+ * above is safe, and only for revalidation.
  *
  * <p>Endpoints that set their own {@code Cache-Control} (preview pages, the
  * sitemap, the image proxy, the QR code and share-image renderers) are
@@ -85,6 +98,18 @@ public class PublicReadCacheFilter implements ContainerResponseFilter {
 
     /** {@code GET /user/me/profile} is per-caller — never a shared cache, but still worth a 304. */
     private static final String PRIVATE_CACHE_VALUE = "private, no-cache";
+
+    /**
+     * {@code GET /tournaments/{idOrSlug}/rounds} — revalidation semantics
+     * ONLY, never a positive {@code max-age}/{@code s-maxage}: live scores
+     * must never be served stale. {@code no-cache} does not mean "don't
+     * cache" (a common misreading) — it means any cache (browser or shared)
+     * MUST revalidate with the origin before reusing a stored response, which
+     * is precisely what pairs with the weak ETag below: an unchanged round
+     * list still gets a bodyless 304, a changed one is never allowed to be
+     * served from a stale copy.
+     */
+    private static final String ROUNDS_CACHE_VALUE = "no-cache";
 
     /**
      * Exact paths (relative to the {@code /api} root) that are safe to cache
@@ -118,6 +143,9 @@ public class PublicReadCacheFilter implements ContainerResponseFilter {
      *  by suffix because the path carries a uuid-or-slug segment. */
     private static final String CJENIK_SUFFIX = "/cjenik";
     private static final String TOURNAMENTS_PREFIX = "tournaments/";
+
+    /** Suffix of the round list ({@code RoundController#list}) — see the class banner. */
+    private static final String ROUNDS_SUFFIX = "/rounds";
 
     /**
      * Other GET sub-paths directly under {@code tournaments/} that are NOT
@@ -168,6 +196,18 @@ public class PublicReadCacheFilter implements ContainerResponseFilter {
         // cache in the path getting Vary right.
         if (req.getHeaderString(HttpHeaders.AUTHORIZATION) != null) return;
 
+        // Rounds: its own branch, not folded into `cacheable` below, because
+        // it needs a DIFFERENT Cache-Control value (revalidation-only, no
+        // max-age/s-maxage) — see ROUNDS_CACHE_VALUE's javadoc.
+        if (isTournamentRounds(path)) {
+            res.getHeaders().putSingle(HttpHeaders.CACHE_CONTROL, ROUNDS_CACHE_VALUE);
+            if (!variesOnAuthorization(res.getHeaders().get(HttpHeaders.VARY))) {
+                res.getHeaders().add(HttpHeaders.VARY, "Authorization");
+            }
+            applyWeakEtag(req, res);
+            return;
+        }
+
         boolean cacheable = CACHEABLE.contains(path)
                 || isCjenik(path)
                 || isTournamentDetail(path)
@@ -206,6 +246,19 @@ public class PublicReadCacheFilter implements ContainerResponseFilter {
         return path.startsWith(TOURNAMENTS_PREFIX)
                 && path.endsWith(CJENIK_SUFFIX)
                 && path.indexOf('/', TOURNAMENTS_PREFIX.length()) == path.length() - CJENIK_SUFFIX.length();
+    }
+
+    /**
+     * Exactly {@code tournaments/{idOrSlug}/rounds} — the round LIST GET,
+     * never the deeper {@code /rounds/{roundId}/matches/{matchId}} etc. sub-
+     * routes (those are POST/PUT/DELETE/PATCH, so this GET-only filter never
+     * sees them regardless, but the exact-segment check keeps the intent
+     * unambiguous rather than relying on that side fact).
+     */
+    private static boolean isTournamentRounds(String path) {
+        return path.startsWith(TOURNAMENTS_PREFIX)
+                && path.endsWith(ROUNDS_SUFFIX)
+                && path.indexOf('/', TOURNAMENTS_PREFIX.length()) == path.length() - ROUNDS_SUFFIX.length();
     }
 
     /** Exactly {@code public/users/{slug}} — not the nested {@code /pairs/{pairId}/matches} route. */

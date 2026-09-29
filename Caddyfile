@@ -763,7 +763,9 @@ bela-turniri.com, www.bela-turniri.com {
     # unknown path falls back to /index.html so React Router can take over.
     handle {
         root * /srv
-        file_server
+        file_server {
+            precompressed br gzip
+        }
         try_files {path} /index.html
     }
 
@@ -895,7 +897,9 @@ bela.games {
         rewrite /apple-touch-icon.png /games/apple-touch-icon.png
         rewrite @shell /index.games.html
         try_files {path} /index.games.html
-        file_server
+        file_server {
+            precompressed br gzip
+        }
     }
 
     import static_cache

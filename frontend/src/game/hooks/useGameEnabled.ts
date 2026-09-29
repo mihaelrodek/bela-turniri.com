@@ -31,18 +31,25 @@ async function fetchEnabled(): Promise<boolean> {
     }
 }
 
+/** The same flag for non-React callers (the service-worker precache request in
+ *  `pwa/precacheTiers.ts`), sharing the hook's one fetch per page load. */
+export function gameEnabledOnce(): Promise<boolean> {
+    if (cached !== null) return Promise.resolve(cached)
+    inflight ??= fetchEnabled().then((v) => {
+        cached = v
+        return v
+    })
+    return inflight
+}
+
 /** `null` while the flag is still loading, then the resolved boolean. */
 export function useGameEnabled(): boolean | null {
     const [enabled, setEnabled] = useState(cached)
 
     useEffect(() => {
         if (cached !== null) return
-        inflight ??= fetchEnabled().then((v) => {
-            cached = v
-            return v
-        })
         let cancelled = false
-        inflight.then((v) => {
+        gameEnabledOnce().then((v) => {
             if (!cancelled) setEnabled(v)
         })
         return () => {

@@ -1,8 +1,9 @@
-import type { ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 import { Center } from "@chakra-ui/react"
 import GameComingSoonPage from "./GameComingSoonPage"
 import { useGameEnabled } from "./hooks/useGameEnabled"
 import SuitSpinner from "../components/SuitSpinner"
+import { requestGamePrecache } from "../pwa/precacheTiers"
 
 /**
  * The ONE place the online-bela kill switch is acted on.
@@ -35,6 +36,12 @@ import SuitSpinner from "../components/SuitSpinner"
  */
 export default function GameFeatureGate({ children }: { children: ReactNode }) {
     const enabled = useGameEnabled()
+
+    // The game is really in use on this device: ask the service worker for
+    // its precache tier (route chunks, card art, sounds) — pwa/precacheTiers.ts.
+    useEffect(() => {
+        if (enabled) requestGamePrecache()
+    }, [enabled])
 
     if (enabled === null) {
         return (

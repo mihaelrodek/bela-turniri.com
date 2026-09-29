@@ -281,6 +281,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      # HTTP/3 (QUIC). Caddy serves it by default but it runs over UDP, so
+      # without this mapping browsers never get past HTTP/2. The host
+      # firewall must allow it too: `sudo ufw allow 443/udp`.
+      - "443:443/udp"
     volumes:
       # Caddy persists Let's Encrypt account + certs here. Without this
       # volume, every container restart would re-fetch certs and you'd

@@ -85,10 +85,10 @@ const OFFLINE_ROUTE_MODULES = [
     "src/firebaseAuthModule.ts",
 ]
 
-/* The online table is deliberately warmed as one unit. Its scanned mađarice
- * are emitted as content-hashed /assets files by `imageAssets.ts`; including
- * imported assets only while walking these route roots keeps the offline blok
- * light while ensuring a player never waits on a card image mid-deal. */
+/* The online table is deliberately warmed as one unit — the `game` tier (see
+ * TIERS below). Its scanned mađarice are emitted as content-hashed /assets
+ * files by `imageAssets.ts`, so walking these roots with their assets puts
+ * every card image in the tier and a player never waits on one mid-deal. */
 const GAME_ROUTE_MODULES = [
     "src/game/GameFeatureGate.tsx",
     "src/game/components/GameIdentityGate.tsx",
@@ -101,39 +101,73 @@ const GAME_ROUTE_MODULES = [
 
 const PRECACHE_ROUTE_MODULES = [...OFFLINE_ROUTE_MODULES, ...GAME_ROUTE_MODULES]
 
+/* TIERS (2026-09-29). One flat list made every visitor pay for everything:
+ * 116 files / 6.1 MB per build, 4.1 MB of it card art, downloaded on the
+ * first page load after each deploy by someone who only opened one
+ * tournament link on mobile data. The manifest is therefore split:
+ *
+ *   • `files` — the SHELL tier: entries + the OFFLINE_ROUTE_MODULES closure
+ *     (what an installed PWA opened offline needs to reach /blok), the
+ *     fonts their CSS names and the decks' suit marks. The worker always keeps this one. It keeps the
+ *     key it always had, so a worker from before this change (which only
+ *     knows `files`) reads the shell and nothing else instead of crashing.
+ *   • `tiers.game` — the GAME_ROUTE_MODULES closure with its card art and
+ *     sounds, minus anything already in the shell. Only fetched when a page
+ *     asks for it (src/pwa/precacheTiers.ts); see `public/sw.js`.
+ *
+ * Fonts: only the latin and latin-ext subsets are precached (Croatian and
+ * Slovenian need latin-ext). The CSS still declares every subset with its
+ * unicode-range, so a stray Cyrillic or Vietnamese glyph fetches its file from
+ * the network on demand — only the precache list shrinks. */
+const FONT_FILE_RE = /\.(woff2?|ttf|otf)$/
+const PRECACHED_FONT_SUBSET_RE = /-latin-/
+
+function precacheable(file: string): boolean {
+    if (!FONT_FILE_RE.test(file)) return true
+    return PRECACHED_FONT_SUBSET_RE.test(file)
+}
+
 function precacheManifest(): Plugin {
     return {
         name: "bela-precache-manifest",
         apply: "build",
         generateBundle(_options, bundle) {
-            const files = new Set<string>()
-            const assetsWalked = new Set<string>()
-
-            const walk = (fileName: string, includeAssets = false) => {
-                const entry = bundle[fileName]
-                if (!entry || entry.type !== "chunk") return
-                const key = `/${fileName}`
-                if (files.has(key) && (!includeAssets || assetsWalked.has(fileName))) return
-                files.add(key)
-                for (const css of entry.viteMetadata?.importedCss ?? []) files.add(`/${css}`)
-                if (includeAssets) {
-                    assetsWalked.add(fileName)
+            /** Static closure of `roots`: each chunk, its CSS, and those of the
+             *  assets Vite attributes to it that `takeAsset` accepts. */
+            const closure = (roots: string[], takeAsset: (asset: string) => boolean) => {
+                const files = new Set<string>()
+                const seen = new Set<string>()
+                const walk = (fileName: string) => {
+                    if (seen.has(fileName)) return
+                    const entry = bundle[fileName]
+                    if (!entry || entry.type !== "chunk") return
+                    seen.add(fileName)
+                    files.add(`/${fileName}`)
+                    for (const css of entry.viteMetadata?.importedCss ?? []) files.add(`/${css}`)
                     for (const asset of entry.viteMetadata?.importedAssets ?? []) {
-                        if (asset.startsWith("assets/") && !asset.includes("..")) files.add(`/${asset}`)
+                        if (!asset.startsWith("assets/") || asset.includes("..")) continue
+                        if (precacheable(asset) && takeAsset(asset)) {
+                            files.add(`/${asset}`)
+                        }
                     }
+                    for (const imported of entry.imports) walk(imported)
                 }
-                for (const imported of entry.imports) walk(imported, includeAssets)
+                for (const root of roots) walk(root)
+                return files
             }
 
+            const shellRoots: string[] = []
+            const gameRoots: string[] = []
             const found = new Set<string>()
             for (const [fileName, entry] of Object.entries(bundle)) {
                 if (entry.type !== "chunk") continue
                 const facade = entry.facadeModuleId?.replaceAll("\\", "/") ?? ""
-                if (entry.isEntry) walk(fileName)
+                if (entry.isEntry) shellRoots.push(fileName)
                 for (const module of PRECACHE_ROUTE_MODULES) {
                     if (!facade.endsWith(module)) continue
                     found.add(module)
-                    walk(fileName, GAME_ROUTE_MODULES.includes(module))
+                    if (GAME_ROUTE_MODULES.includes(module)) gameRoots.push(fileName)
+                    else shellRoots.push(fileName)
                 }
             }
 
@@ -148,6 +182,32 @@ function precacheManifest(): Plugin {
                 )
             }
 
+            // The shell takes FONTS only from its assets. /blok statically
+            // reaches the `PlayingCard` chunk (SuitGlyph → SuitIcon), whose
+            // `import.meta.glob` attributes every card image of every deck to
+            // it — 74 webp, 4.1 MB — although the blok never draws a face.
+            //
+            // The one exception is the SUIT MARKS (…/suits/HERC.webp and its
+            // three siblings, per deck — 8 files, ~190 kB): the scorepad's
+            // trump marks are drawn from them, and offline a blok user who
+            // never opened the game would otherwise get the vector fallback
+            // instead of the printed marks (owner's call, 2026-09-29).
+            // Matched on the SOURCE path, since the emitted name is hashed.
+            const isSuitMark = (asset: string) => {
+                const entry = bundle[asset]
+                if (!entry || entry.type !== "asset") return false
+                return (entry.originalFileNames ?? []).some((name) =>
+                    name.replaceAll("\\", "/").includes("/suits/"),
+                )
+            }
+            const shell = closure(
+                shellRoots,
+                (asset) => FONT_FILE_RE.test(asset) || isSuitMark(asset),
+            )
+            // A file both tiers need lives in the shell only, so the game tier
+            // is exactly what a tournament-only visitor is spared.
+            const game = [...closure(gameRoots, () => true)].filter((f) => !shell.has(f))
+
             const entryChunk = Object.values(bundle).find(
                 (entry) => entry.type === "chunk" && entry.isEntry,
             )
@@ -158,12 +218,67 @@ function precacheManifest(): Plugin {
                 source: `${JSON.stringify(
                     {
                         build: entryChunk?.fileName ?? "unknown",
-                        files: [...files].sort(),
+                        files: [...shell].sort(),
+                        tiers: { game: game.sort() },
                     },
                     null,
                     4,
                 )}\n`,
             })
+        },
+    }
+}
+
+/* FONT PRELOAD. The @fontsource CSS sits inside the vendor stylesheet, so
+   without a hint the browser discovers the woff2 files only after that
+   stylesheet has downloaded and parsed — first paint waits on a second round
+   trip. These are the faces the first screen actually draws with (system.ts:
+   body = Instrument Sans, heading = Bricolage Grotesque; both variable, one
+   file per subset). latin-ext for the body because Croatian and Slovenian
+   text needs č/ć/š/ž/đ on the first screen; the heading's latin-ext is left to
+   the normal CSS discovery — every extra preload competes with the entry JS.
+   Names are hashed, so they come from the bundle; a missing one fails the
+   build rather than silently dropping the hint. Runs as a `post`
+   transformIndexHtml, i.e. before `bela-games-shell` reads the finished
+   index.html in closeBundle — both shells get the same tags. */
+const PRELOADED_FONTS = [
+    "instrument-sans-latin-wght-normal.woff2",
+    "instrument-sans-latin-ext-wght-normal.woff2",
+    "bricolage-grotesque-latin-opsz-normal.woff2",
+]
+
+function fontPreload(): Plugin {
+    return {
+        name: "bela-font-preload",
+        apply: "build",
+        transformIndexHtml: {
+            order: "post",
+            handler(_html, ctx) {
+                const bundle = ctx.bundle
+                if (!bundle) return undefined
+                return PRELOADED_FONTS.map((font) => {
+                    const asset = Object.values(bundle).find(
+                        (out) => out.type === "asset" && (out.names ?? []).includes(font),
+                    )
+                    if (!asset) {
+                        throw new Error(
+                            `font preload: no emitted asset for ${font}. `
+                            + "Did the @fontsource package or its import in main.tsx change?",
+                        )
+                    }
+                    return {
+                        tag: "link",
+                        attrs: {
+                            rel: "preload",
+                            as: "font",
+                            type: "font/woff2",
+                            href: `/${asset.fileName}`,
+                            crossorigin: true,
+                        },
+                        injectTo: "head" as const,
+                    }
+                })
+            },
         },
     }
 }
@@ -382,7 +497,7 @@ function gamesShell(): Plugin {
 }
 
 export default defineConfig({
-    plugins: [react(), precacheManifest(), gamesShell()],
+    plugins: [react(), precacheManifest(), fontPreload(), gamesShell()],
     resolve: {
         // The online-bela packages live OUTSIDE this app, in the sibling
         // `game/` workspace, and are consumed straight from TypeScript source

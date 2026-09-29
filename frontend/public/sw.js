@@ -48,9 +48,12 @@
  *
  * DECK_CACHE (2026-09-20): bela online's card decks (`frontend/src/game/cards`)
  * are hashed Vite assets under /assets/, exactly like the shell's own chunks,
- * but they must NOT ride in `/precache-manifest.json` — a visitor who only
- * ever opens the tournament pages would otherwise download ~1.8 MB of card
- * art they never look at. So deck images get their OWN cache, filled only on
+ * but they must NOT ride in the always-precached SHELL tier of
+ * `/precache-manifest.json` — a visitor who only ever opens the tournament
+ * pages would otherwise download megabytes of card art they never look at.
+ * (Since 2026-09-29 every deck also rides in the optional `game` tier — see
+ * PRECACHE TIERS — which only players ask for; a file already held there is
+ * not stored a second time here.) So deck images get their OWN cache, filled only on
  * request (see the `bela:cache-deck` message handler below, called from
  * `src/game/cards/deckOffline.ts` once a player has actually chosen a deck),
  * kept in a cache separate from CACHE so `refreshPrecache`'s prune (which
@@ -77,6 +80,11 @@ const DECK_CACHE = "bela-decks-v1";
 const MAP_CACHE = "bela-map-v1";
 const MAP_HOST = "tiles.openfreemap.org";
 const MAP_CACHE_LIMIT = 1500;
+// Posters and avatars (/api/resources/<id>/image[?w=]). A resource id's bytes
+// never change (the backend sends `immutable`), so cache-first is exact.
+const IMG_CACHE = "bela-img-v1";
+const IMG_CACHE_LIMIT = 300;
+const IMG_PATH = /^\/api\/resources\/\d+\/image$/;
 // Public files do not get Vite hashes, so list the decorative background and
 // both products' visible marks explicitly. They must paint from Cache Storage
 // on a cold PWA launch even when the connection is weak or absent.
@@ -111,7 +119,8 @@ const SHELL = ["/", "/manifest.webmanifest", ...STATIC_ASSETS];
  * `bela-precache-manifest` plugin in vite.config.ts (read its header for what
  * goes in and why). It names the app shell's own chunks plus everything the
  * /blok route chunk statically needs, with the hashed file names only Rollup
- * can know.
+ * can know — and, as an optional tier, the online game (see PRECACHE TIERS
+ * below).
  *
  * WHY THE WORKER FETCHES A LIST INSTEAD OF CARRYING ONE
  * ────────────────────────────────────────────────────
@@ -172,114 +181,266 @@ const NEVER_CACHE_API_PATTERNS = [
     /^\/api\/tournaments\/[^/]+\/waiter\//,
 ];
 
-/** One precache pass at a time: install and a page's message can arrive in the
- *  same tick, and two passes would race the prune against the add. */
-let precaching = null;
+/* ──────────────────────────── PRECACHE TIERS ────────────────────────────
+ * (2026-09-29) The manifest is split so a tournament-only visitor no longer
+ * downloads the online game's 4 MB of card art after every deploy:
+ *
+ *   { "build": "...", "files": [shell…], "tiers": { "game": [...] } }
+ *
+ * `files` is the SHELL tier, always precached — same key as before, so a
+ * worker that predates tiers reads the shell and ignores the rest. Every
+ * `tiers.<name>` list is OPTIONAL and fetched only when a page asks for it in
+ * its `bela:precache` message (`{ type, tiers: ["game"] }`, sent by
+ * src/pwa/precacheTiers.ts). A manifest with no `tiers` (an older build) is
+ * simply all-shell.
+ *
+ * Per-tier bookkeeping lives in CACHE under keys that are never real URLs:
+ *   • BUILD_STAMP (shell) and BUILD_STAMP + "/<tier>" — the build each tier
+ *     last COMPLETED for. The shell keeps the old key, so an install that
+ *     predates tiers still skips the pass when nothing was deployed.
+ *   • HELD_TIERS — every optional tier this device has ever been asked for.
+ *     Written BEFORE a tier's first download, so a pass that died halfway
+ *     still protects what it fetched.
+ *
+ * PRUNING keeps the shell plus every HELD tier's files that the CURRENT
+ * manifest still lists — not just the tiers this page load asked for. A
+ * player who opens a tournament link (no game request: data saver, or the
+ * kill switch was off) must not lose the card art the lobby cached an hour
+ * ago. A file that no tier of the current manifest names is pruned as before.
+ * A held tier is only REFRESHED (new files downloaded) when a page asks for
+ * it; otherwise its stale files are pruned and its fresh ones kept, and the
+ * next request under this build finds the tier's stamp stale and fills it in.
+ * ────────────────────────────────────────────────────────────────────── */
+const SHELL_TIER = "shell";
+const HELD_TIERS = "/__precache-tiers";
+const TIER_NAME_RE = /^[a-z]{1,24}$/;
+const TIERS_LIMIT = 8;
+
+/** Only same-origin build output, and never a path that could walk out of
+ *  it: the manifest is fetched, so it is treated as input. */
+function sanitizeManifestList(list) {
+    const out = new Set();
+    if (!Array.isArray(list)) return out;
+    for (const file of list) {
+        if (typeof file !== "string") continue;
+        if (!file.startsWith("/assets/") || file.includes("..")) continue;
+        out.add(file);
+    }
+    return out;
+}
+
+/** Manifest body → Map(tier → Set(path)). Always has SHELL_TIER when valid. */
+function parseManifestTiers(body) {
+    const tiers = new Map();
+    if (!body || typeof body !== "object") return tiers;
+    const shell = sanitizeManifestList(body.files);
+    if (shell.size === 0) return tiers;
+    tiers.set(SHELL_TIER, shell);
+    const optional = body.tiers && typeof body.tiers === "object" ? body.tiers : {};
+    for (const name of Object.keys(optional).slice(0, TIERS_LIMIT)) {
+        if (name === SHELL_TIER || !TIER_NAME_RE.test(name)) continue;
+        const files = sanitizeManifestList(optional[name]);
+        if (files.size > 0) tiers.set(name, files);
+    }
+    return tiers;
+}
+
+/** The optional-tier names from a page message: untrusted, so validated. */
+function sanitizeTierRequest(list) {
+    const out = [];
+    if (!Array.isArray(list)) return out;
+    for (const name of list.slice(0, TIERS_LIMIT)) {
+        if (typeof name !== "string" || name === SHELL_TIER || !TIER_NAME_RE.test(name)) continue;
+        if (!out.includes(name)) out.push(name);
+    }
+    return out;
+}
+
+function stampKey(tier) {
+    return tier === SHELL_TIER ? BUILD_STAMP : `${BUILD_STAMP}/${tier}`;
+}
+
+async function readStamp(cache, tier) {
+    try {
+        const hit = await cache.match(stampKey(tier));
+        return hit ? await hit.text() : null;
+    } catch (_) {
+        return null;
+    }
+}
 
 /**
- * Bring the shell cache in line with the CURRENT build.
+ * The optional tiers this device holds. HELD_TIERS is the record; for an
+ * install from BEFORE tiers existed there is none, and the one signal that
+ * the player already used the game is a deck index in DECK_CACHE (written
+ * only once a deck was chosen at a table) — that keeps their card art through
+ * the first shell-only pass instead of pruning it and fetching it again.
+ */
+async function readHeldTiers(cache) {
+    const held = new Set();
+    try {
+        const hit = await cache.match(HELD_TIERS);
+        if (hit) {
+            const parsed = await hit.json();
+            if (Array.isArray(parsed)) {
+                for (const name of sanitizeTierRequest(parsed)) held.add(name);
+            }
+            return held;
+        }
+    } catch (_) {
+        /* unreadable — fall through to the legacy signal */
+    }
+    try {
+        const decks = await caches.open(DECK_CACHE);
+        const keys = await decks.keys();
+        if (keys.some((req) => new URL(req.url).pathname.startsWith(DECK_INDEX_PREFIX))) {
+            held.add("game");
+        }
+    } catch (_) {
+        /* storage unavailable — nothing held */
+    }
+    return held;
+}
+
+/** One precache pass at a time: install and a page's message can arrive in the
+ *  same tick, and two passes would race the prune against the add. A request
+ *  that arrives DURING a pass is not dropped (it may ask for a tier the
+ *  running pass does not fetch): requests are merged into one follow-up pass,
+ *  which is cheap when there is nothing left to do (see the stamp check). */
+let precaching = null;
+let queuedPass = null;
+
+function refreshPrecache(tiers) {
+    const requested = sanitizeTierRequest(tiers);
+    if (!precaching) {
+        precaching = runPrecache(requested).finally(() => {
+            precaching = null;
+        });
+        return precaching;
+    }
+    if (!queuedPass) {
+        const pass = { tiers: new Set() };
+        pass.promise = precaching.then(() => {
+            queuedPass = null;
+            return refreshPrecache([...pass.tiers]);
+        });
+        queuedPass = pass;
+    }
+    for (const name of requested) queuedPass.tiers.add(name);
+    return queuedPass.promise;
+}
+
+/**
+ * Bring the shell cache in line with the CURRENT build, for the shell and for
+ * every optional tier in `requested`.
  *
  * Best-effort throughout: every failure leaves the cache exactly as it was,
  * which is the whole safety property here — a half-applied precache is a shell
  * that boots into a missing chunk. Offline it fails at the first fetch and
  * changes nothing.
  */
-async function refreshPrecache() {
-    if (precaching) return precaching;
-    precaching = (async () => {
-        try {
-            // `no-store`: the point is to learn what is deployed RIGHT NOW, and
-            // a manifest served from the HTTP cache would answer with the build
-            // whose assets we already have.
-            const resp = await fetch(PRECACHE_MANIFEST, { cache: "no-store" });
-            if (!resp || !resp.ok) return;
-            const body = await resp.json();
-            const listed = body && Array.isArray(body.files) ? body.files : null;
-            if (!listed || listed.length === 0) return;
+async function runPrecache(requested) {
+    try {
+        // `no-store`: the point is to learn what is deployed RIGHT NOW, and
+        // a manifest served from the HTTP cache would answer with the build
+        // whose assets we already have.
+        const resp = await fetch(PRECACHE_MANIFEST, { cache: "no-store" });
+        if (!resp || !resp.ok) return;
+        const body = await resp.json();
+        const manifest = parseManifestTiers(body);
+        if (!manifest.has(SHELL_TIER)) return;
 
-            // Only same-origin build output, and never a path that could walk
-            // out of it: this list is fetched, so it is treated as input.
-            const wanted = new Set();
-            for (const file of listed) {
-                if (typeof file !== "string") continue;
-                if (!file.startsWith("/assets/") || file.includes("..")) continue;
-                wanted.add(file);
-            }
-            if (wanted.size === 0) return;
+        const cache = await caches.open(CACHE);
+        // Asked-for tiers the current build actually has, shell first.
+        const fetching = [SHELL_TIER, ...requested.filter((t) => manifest.has(t))];
 
-            const cache = await caches.open(CACHE);
-            const held = await cache.keys();
-            const have = new Set(held.map((req) => new URL(req.url).pathname));
+        const heldKeys = await cache.keys();
+        const have = new Set(heldKeys.map((req) => new URL(req.url).pathname));
 
-            /* Nothing deployed since the last completed pass AND everything it
-               wrote is still here: stop, having spent one small request. This
-               runs on every page load, so the common case has to be cheap —
-               without it each load would also re-fetch index.html and walk the
-               cache. Both halves of the test matter: the stamp alone would
-               skip a pass after the browser evicted part of the cache under
-               storage pressure, and the completeness check alone would miss a
-               deploy that changed only index.html. */
-            const stamp = String(body.build ?? "");
-            let stamped = false;
-            try {
-                const heldStamp = await cache.match(BUILD_STAMP);
-                stamped = heldStamp ? (await heldStamp.text()) === stamp : false;
-            } catch (_) {
-                stamped = false;
-            }
-            let complete = true;
-            for (const path of wanted) {
-                if (!have.has(path)) complete = false;
-            }
-            if (stamped && complete) return;
+        /* Nothing deployed since the last completed pass AND everything it
+           wrote is still here: stop, having spent one small request. This
+           runs on every page load, so the common case has to be cheap —
+           without it each load would also re-fetch index.html and walk the
+           cache. Both halves of the test matter: the stamp alone would
+           skip a pass after the browser evicted part of the cache under
+           storage pressure, and the completeness check alone would miss a
+           deploy that changed only index.html. Checked PER TIER: a device
+           that cached the shell for this build and now asks for the game
+           tier for the first time has a current shell stamp but no game
+           stamp, so the pass runs and fetches only the game's files. */
+        const stamp = String(body.build ?? "");
+        let upToDate = true;
+        for (const t of fetching) {
+            if ((await readStamp(cache, t)) !== stamp) upToDate = false;
+            for (const path of manifest.get(t)) if (!have.has(path)) upToDate = false;
+        }
+        if (upToDate) return;
 
-            // 1. Add what is missing. One at a time rather than `addAll`, which
-            //    is all-or-nothing: a single 404 (a deploy landing mid-pass)
-            //    would throw away the dozen files that did arrive.
-            for (const path of wanted) {
+        // Tiers whose still-listed files survive the prune (see the header),
+        // recorded before the first download of a newly asked-for tier.
+        const held = await readHeldTiers(cache);
+        const keeping = new Set(fetching);
+        for (const t of held) if (manifest.has(t)) keeping.add(t);
+        const heldBefore = held.size;
+        for (const t of fetching) if (t !== SHELL_TIER) held.add(t);
+        if (held.size !== heldBefore) {
+            await cache.put(HELD_TIERS, new Response(JSON.stringify([...held])));
+        }
+
+        // 1. Add what is missing. One at a time rather than `addAll`, which
+        //    is all-or-nothing: a single 404 (a deploy landing mid-pass)
+        //    would throw away the dozen files that did arrive.
+        const addMissing = async (tier) => {
+            for (const path of manifest.get(tier)) {
                 if (have.has(path)) continue;
                 try {
                     await cache.add(path);
+                    have.add(path);
                 } catch (_) {
                     /* keep going — a partial precache still helps */
                 }
             }
+        };
+        await addMissing(SHELL_TIER);
 
-            // 2. Only now the shell, so it is never newer than the chunks it
-            //    names. Fetched as "/" so each domain caches ITS OWN shell —
-            //    see the SHELL comment at the top of this file. The
-            //    "/index.html" copy is an alias for the navigation fallback,
-            //    not a second fetch.
-            try {
-                const shell = await fetch("/", { cache: "no-store" });
-                if (shell && shell.status === 200 && shell.type === "basic") {
-                    await cache.put("/index.html", shell.clone());
-                    await cache.put("/", shell);
-                }
-            } catch (_) {
-                /* the previously cached shell stays — see the header */
+        // 2. Only now the shell, so it is never newer than the chunks it
+        //    names — and BEFORE the optional tiers, so a slow 4 MB game
+        //    download never delays the offline blok getting the new build.
+        //    Fetched as "/" so each domain caches ITS OWN shell — see the
+        //    SHELL comment at the top of this file. The "/index.html" copy
+        //    is an alias for the navigation fallback, not a second fetch.
+        try {
+            const shell = await fetch("/", { cache: "no-store" });
+            if (shell && shell.status === 200 && shell.type === "basic") {
+                await cache.put("/index.html", shell.clone());
+                await cache.put("/", shell);
             }
-
-            // 3. Prune the build output no longer claimed. Everything else in
-            //    this cache (the shell, the build stamp) is left alone — the
-            //    filter is `/assets/`, and only this pass ever writes there.
-            for (const req of held) {
-                const path = new URL(req.url).pathname;
-                if (!path.startsWith("/assets/")) continue;
-                if (wanted.has(path)) continue;
-                await cache.delete(req);
-            }
-
-            // 4. Last, so a pass that died halfway is not recorded as done and
-            //    the next load picks up where it left off.
-            await cache.put(BUILD_STAMP, new Response(stamp));
         } catch (_) {
-            /* offline, unparseable manifest, storage refusing to open */
-        } finally {
-            precaching = null;
+            /* the previously cached shell stays — see the header */
         }
-    })();
-    return precaching;
+
+        for (const t of fetching) if (t !== SHELL_TIER) await addMissing(t);
+
+        // 3. Prune the build output no longer claimed by the shell or a held
+        //    tier. Everything else in this cache (the shell, the stamps, the
+        //    held-tier record) is left alone — the filter is `/assets/`, and
+        //    only this pass ever writes there.
+        const wanted = new Set();
+        for (const t of keeping) for (const path of manifest.get(t)) wanted.add(path);
+        for (const req of heldKeys) {
+            const path = new URL(req.url).pathname;
+            if (!path.startsWith("/assets/")) continue;
+            if (wanted.has(path)) continue;
+            await cache.delete(req);
+        }
+
+        // 4. Last, so a pass that died halfway is not recorded as done and
+        //    the next load picks up where it left off. Only the tiers this
+        //    pass actually fetched are stamped.
+        for (const t of fetching) await cache.put(stampKey(t), new Response(stamp));
+    } catch (_) {
+        /* offline, unparseable manifest, storage refusing to open */
+    }
 }
 
 self.addEventListener("install", (event) => {
@@ -295,7 +456,9 @@ self.addEventListener("install", (event) => {
             } catch (_) {
                 /* private mode, storage blocked, one of them 404 */
             }
-            await refreshPrecache();
+            // Shell only: an install is not a page asking for a tier. Tiers
+            // this device already holds survive it (see PRECACHE TIERS).
+            await refreshPrecache([]);
         })()
     );
     // Skip waiting so a fresh deploy activates on the next page load instead
@@ -320,7 +483,7 @@ self.addEventListener("activate", (event) => {
     // versions); keep the shell, the runtime API-snapshot cache, AND the
     // deck cache — bumping CACHE (a shell version change) must not throw
     // away card art a player already has offline.
-    const keep = new Set([CACHE, API_CACHE, DECK_CACHE, MAP_CACHE]);
+    const keep = new Set([CACHE, API_CACHE, DECK_CACHE, MAP_CACHE, IMG_CACHE]);
     event.waitUntil(
         caches.keys().then((keys) =>
             Promise.all(keys.filter((k) => !keep.has(k)).map((k) => caches.delete(k)))
@@ -341,7 +504,9 @@ self.addEventListener("message", (event) => {
     const data = event.data;
     if (!data || typeof data !== "object") return;
     if (data.type === "bela:precache") {
-        event.waitUntil(refreshPrecache());
+        // `tiers` is optional (a page from before tiers sends none) and
+        // untrusted; refreshPrecache validates it.
+        event.waitUntil(refreshPrecache(data.tiers));
         return;
     }
     if (data.type === "bela:cache-deck") {
@@ -374,6 +539,15 @@ self.addEventListener("fetch", (event) => {
     // API reads: network-first with a last-snapshot fallback (see file header).
     // Exception: /api/tournaments* lists use stale-while-revalidate for perceived
     // speed (return cached list immediately, refresh in background).
+    // Uploaded images first: they are /api/* by path but not API data. Left to
+    // apiNetworkFirst they waited on the backend (which itself fetches from
+    // object storage) on every refresh, and filled the 80-entry JSON snapshot
+    // cache with image bytes.
+    if (IMG_PATH.test(url.pathname)) {
+        event.respondWith(imageCacheFirst(req, event));
+        return;
+    }
+
     if (url.pathname.startsWith("/api/")) {
         // Exactly the public list, its count and one tournament's summary
         // (`/api/tournaments`, `/api/tournaments/count`, `/api/tournaments/<id>`);
@@ -521,10 +695,30 @@ async function cacheDeckOffline(deck, wanted) {
         return; // storage unavailable — nothing to do
     }
 
+    // The `game` precache tier may already hold these exact hashed files in
+    // CACHE; `assetCacheFirst` reads CACHE first, so a second copy here would
+    // only double the storage. Such a file counts as held for this deck.
+    // Should the tier's copy be pruned later (new build, new hash), the page
+    // sends the new URLs and this pass fetches them into DECK_CACHE.
+    let shellCache = null;
+    try {
+        shellCache = await caches.open(CACHE);
+    } catch (_) {
+        /* no shell cache — everything goes to DECK_CACHE as before */
+    }
+    const heldElsewhere = async (path) => {
+        try {
+            return shellCache ? !!(await shellCache.match(path)) : false;
+        } catch (_) {
+            return false;
+        }
+    };
+
     for (const path of wanted) {
         try {
             const already = await cache.match(path);
             if (already) continue;
+            if (await heldElsewhere(path)) continue;
             const resp = await fetch(path);
             if (resp && resp.ok && resp.type === "basic") {
                 await cache.put(path, resp.clone());
@@ -537,7 +731,7 @@ async function cacheDeckOffline(deck, wanted) {
     let complete = true;
     for (const path of wanted) {
         try {
-            if (!(await cache.match(path))) {
+            if (!(await cache.match(path)) && !(await heldElsewhere(path))) {
                 complete = false;
                 break;
             }
@@ -714,6 +908,27 @@ async function navigationNetworkFirst(req, event) {
             }
         );
     }
+}
+
+// Cache-first for uploaded images. A miss goes to the network and is stored;
+// offline with no copy the <img> simply fails, which the cards already handle.
+async function imageCacheFirst(req, event) {
+    let cache = null;
+    try { cache = await caches.open(IMG_CACHE); } catch (_) { /* private mode */ }
+    if (cache) {
+        try {
+            const hit = await cache.match(req, { ignoreVary: true });
+            if (hit) return hit;
+        } catch (_) { /* fall through to the network */ }
+    }
+    const resp = await fetch(req);
+    if (cache && resp && resp.status === 200 && resp.type === "basic") {
+        const copy = resp.clone();
+        event.waitUntil(
+            cache.put(req, copy).then(() => trimCache(cache, IMG_CACHE_LIMIT)).catch(() => {})
+        );
+    }
+    return resp;
 }
 
 /* OpenFreeMap basemap.

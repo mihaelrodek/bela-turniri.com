@@ -67,6 +67,66 @@ import type { TournamentDetails } from "../types/tournaments"
 
 export type TournamentData = ReturnType<typeof useTournamentData>
 
+/* ---------- Scope-aware live refresh ----------
+   The backend's ping carries a `scope` (LiveBroadcaster.java) so a client can
+   refetch only what that scope can actually have changed instead of always
+   pulling details+pairs+rounds(+blokLinks) on every score entry. The mapping
+   below is read off every `notifyTournament(uuid, scope)` call site, not
+   guessed — see the file:line evidence:
+
+     • "match"      RoundService#updateMatchScore/overrideMatchScore (L342,
+                     L503) write the score AND both pairs' wins/losses/
+                     eliminated; MatchBillService (L51) and BlokLinkService
+                     (L210, "SCOPE_MATCH covers all of ... no gain") use it
+                     for bill totals/paid too, and its own comment says a
+                     blok-link change is ONLY ever announced as "match".
+                     -> rounds + pairs (+ blokLinks for organisers)
+     • "round"      RoundService#drawNextRound/drawManualRound (L160, L258)
+                     add matches; #hardResetRound/#finishRound (L373, L434)
+                     also recompute every pair's stats via
+                     recomputePairStats(). -> rounds + pairs
+     • "pairs"      TournamentPairService (L165/206/214/227),
+                     SelfRegistrationService (L187), RepassageService (L90),
+                     AdminService (L109) — roster-only mutations.
+                     -> pairs
+     • "tournament" TournamentLifecycleService#start/finish/setPodium/reset
+                     (L78/111/162/186) — reset() wipes rounds+matches AND
+                     zeroes every pair's wins/losses/eliminated, finish()
+                     flips elimination flags too; CjenikService (L39) also
+                     uses this scope for a price-list edit, which only needs
+                     details but riding along on the wider set costs one
+                     spare request, never a stale one.
+                     -> details + rounds + pairs
+
+   Unknown/missing scope (a future scope this client doesn't know about yet,
+   or a malformed frame) refetches EVERYTHING — see the task's own rule:
+   stale data on a live scoreboard is worse than an extra request. */
+type LiveQueryTarget = "details" | "pairs" | "rounds" | "blokLinks"
+
+const LIVE_SCOPE_TARGETS: Record<string, readonly LiveQueryTarget[]> = {
+    match: ["rounds", "pairs", "blokLinks"],
+    round: ["rounds", "pairs"],
+    pairs: ["pairs"],
+    tournament: ["details", "rounds", "pairs"],
+}
+
+/**
+ * Fold a set of accumulated scopes (see `livePendingScopesRef` below) into
+ * the query targets they can touch. Returns `"all"` — refetch everything —
+ * the moment any scope in the set isn't one of the four known ones, so a
+ * single unrecognised ping in a coalesced burst widens the whole refetch
+ * rather than silently dropping it.
+ */
+function targetsForScopes(scopes: ReadonlySet<string>): ReadonlySet<LiveQueryTarget> | "all" {
+    const targets = new Set<LiveQueryTarget>()
+    for (const scope of scopes) {
+        const forScope = LIVE_SCOPE_TARGETS[scope]
+        if (!forScope) return "all"
+        for (const t of forScope) targets.add(t)
+    }
+    return targets
+}
+
 /** Empty-string key when there is no id yet — the queries are disabled anyway. */
 const keysFor = (uuid: string | undefined) => {
     const id = uuid ?? ""
@@ -412,11 +472,19 @@ export function useTournamentData(uuid: string | undefined) {
      *        chance: the offline queue DROPPED an operation (the row on screen
      *        is a lie, and the drop lands moments after the request that set
      *        `lastFetchAtRef`), and an explicit pull-to-refresh, which the user
-     *        is watching.
+     *        is watching. Also widens the refetch to everything, same as
+     *        omitting `liveScopes`.
+     * @param liveScopes the scopes accumulated for THIS attempt (see
+     *        `armLiveRefresh`). Omitted (poll ticks, `force` callers) means
+     *        "refetch everything", same as an unrecognised scope inside the
+     *        set. Consumed scopes are drained from `livePendingScopesRef`
+     *        here, before the fetch, so a ping that lands while the request
+     *        is in flight accumulates into a fresh set instead of racing a
+     *        blanket clear after the fact.
      * @returns true when the fetch actually ran, false when a guard bailed —
      *          the websocket path uses this to re-arm instead of losing a ping.
      */
-    const refreshLive = useCallback(async (force = false): Promise<boolean> => {
+    const refreshLive = useCallback(async (force = false, liveScopes?: Set<string>): Promise<boolean> => {
         if (!uuid) return false
         // A save in flight owns the page's state until it resolves. Checked
         // HERE rather than in usePolling's `enabled` flag: flipping `enabled`
@@ -430,18 +498,31 @@ export function useTournamentData(uuid: string | undefined) {
         // tab flapping).
         if (!force && Date.now() - lastFetchAtRef.current < 5_000) return false
         lastFetchAtRef.current = Date.now()
+
+        // Decide what to refetch BEFORE the request goes out, and drain the
+        // scopes consumed right here (not in a `.then` after the await) — see
+        // the jsdoc above for why that ordering matters.
+        let targets: ReadonlySet<LiveQueryTarget> | "all" = "all"
+        if (!force && liveScopes && liveScopes.size > 0) {
+            targets = targetsForScopes(liveScopes)
+            for (const s of liveScopes) livePendingScopesRef.current.delete(s)
+        }
+        const wantAll = targets === "all"
+        const wants = (t: LiveQueryTarget) => wantAll || (targets as ReadonlySet<LiveQueryTarget>).has(t)
+
         try {
-            const jobs = [
-                queryClient.refetchQueries({ queryKey: keys.details }),
-                queryClient.refetchQueries({ queryKey: keys.pairs }),
-                queryClient.refetchQueries({ queryKey: keys.rounds }),
-            ]
+            const jobs: Promise<unknown>[] = []
+            if (wants("details")) jobs.push(queryClient.refetchQueries({ queryKey: keys.details }))
+            if (wants("pairs")) jobs.push(queryClient.refetchQueries({ queryKey: keys.pairs }))
+            if (wants("rounds")) jobs.push(queryClient.refetchQueries({ queryKey: keys.rounds }))
             // Same reasoning as refreshAll: only ask for this when the viewer
             // can actually see it. The backend broadcasts the `match` scope
             // (not a new one) when a blok link changes, so this ping-driven
             // refresh is genuinely how an organiser's other open tab/device
             // learns about an approval — see BLOK-LINK.md §2.3.6.
-            if (canEditTournament) jobs.push(queryClient.refetchQueries({ queryKey: keys.blokLinks }))
+            if (canEditTournament && wants("blokLinks")) {
+                jobs.push(queryClient.refetchQueries({ queryKey: keys.blokLinks }))
+            }
             await Promise.all(jobs)
         } catch (e) {
             // Every background call is silent (see `isRefresh`), so nothing was
@@ -532,14 +613,20 @@ export function useTournamentData(uuid: string | undefined) {
        all of that function's guards apply unchanged. */
     const liveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     /**
-     * A ping is outstanding: received, but no refresh has actually run for it.
-     * `refreshLive` bails on a save in flight and on a fetch younger than 5 s,
-     * and `lastFetchAtRef` is bumped by saves too — so the delay computed when
-     * the ping arrived is often already stale when the timer fires. Without
-     * this flag the ping simply vanished, and with the socket up the poll
-     * behind it is 120 s away.
+     * Scopes outstanding: received, but no refresh has actually run for them
+     * yet. `refreshLive` bails on a save in flight and on a fetch younger than
+     * 5 s, and `lastFetchAtRef` is bumped by saves too — so the delay computed
+     * when a ping arrived is often already stale when the timer fires.
+     * Without this set a ping (and the scope it carried) would simply vanish,
+     * and with the socket up the poll behind it is 120 s away.
+     *
+     * A single set, not a flag: several pings can land before the debounce
+     * timer fires (a round draw touches both "round" and "pairs"), and the
+     * eventual refetch must cover the UNION of everything received, not just
+     * the last one. Entries are only removed by `refreshLive` itself, and
+     * only the ones it actually drained for its attempt — see its jsdoc.
      */
-    const livePendingRef = useRef(false)
+    const livePendingScopesRef = useRef<Set<string>>(new Set())
     /** Unmounted (or the tournament changed) — stop re-arming. */
     const liveDisposedRef = useRef(false)
     // refreshLive's identity changes with `uuid`; keep it in a ref so the
@@ -610,13 +697,15 @@ export function useTournamentData(uuid: string | undefined) {
 
     /**
      * Arm the debounced live refetch, and RE-ARM it when a guard swallowed the
-     * run: `refreshLive` returns false when it bailed, and the ping is only
-     * considered delivered once one actually fetched.
+     * run: `refreshLive` returns false when it bailed, and a scope is only
+     * considered delivered once a fetch actually drained it.
      */
     const armLiveRefresh = useCallback(() => {
         if (liveDisposedRef.current) return
         // A single organiser action can emit several pings (a round draw
-        // touches rounds AND pairs); collapse a burst into one refetch.
+        // touches rounds AND pairs); collapse a burst into one refetch. The
+        // scopes themselves keep accumulating in `livePendingScopesRef`
+        // regardless — only the TIMER is coalesced here.
         if (liveTimerRef.current !== null) return
         // refreshLive drops a tick that lands within 5 s of the previous fetch.
         // For a poll that's right (nothing was lost — the next tick comes
@@ -626,12 +715,17 @@ export function useTournamentData(uuid: string | undefined) {
         const delay = Math.max(700, 5_100 - sinceLastFetch)
         liveTimerRef.current = setTimeout(() => {
             liveTimerRef.current = null
-            void refreshLiveRef.current().then((ran) => {
-                if (ran) livePendingRef.current = false
+            // Snapshot: `refreshLive` drains exactly these keys out of the
+            // live ref (before its own fetch, not after), so a ping landing
+            // during the request below accumulates into a fresh set rather
+            // than being wiped out from under it.
+            const scopes = new Set(livePendingScopesRef.current)
+            void refreshLiveRef.current(false, scopes).then((ran) => {
                 // Still outstanding: the delay is recomputed from the CURRENT
                 // lastFetchAtRef, so a save that moved the guard forward is
-                // waited out rather than lost.
-                else if (livePendingRef.current) armLiveRefreshRef.current()
+                // waited out rather than lost. `ran === false` means the
+                // scopes were never drained, so the set is still non-empty.
+                if (!ran && livePendingScopesRef.current.size > 0) armLiveRefreshRef.current()
             })
         }, delay)
     }, [])
@@ -640,8 +734,11 @@ export function useTournamentData(uuid: string | undefined) {
     const armLiveRefreshRef = useRef(armLiveRefresh)
     armLiveRefreshRef.current = armLiveRefresh
 
-    const onLiveUpdate = useCallback(() => {
-        livePendingRef.current = true
+    const onLiveUpdate = useCallback((scope: string) => {
+        // Empty/missing scope still needs a key in the set so `targetsForScopes`
+        // sees a non-empty pending set — `LIVE_SCOPE_TARGETS[""]` is undefined,
+        // which is exactly "unknown scope: refetch everything".
+        livePendingScopesRef.current.add(scope)
         armLiveRefreshRef.current()
     }, [])
 

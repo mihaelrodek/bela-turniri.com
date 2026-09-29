@@ -605,6 +605,20 @@ independently. Whichever lands second does the work — a late seed applied afte
 the session is known is judged on the spot, an early seed waits in
 `seededKeys`. See `frontend/src/shell/seed.ts`.
 
+## HTTP/3
+
+The edge publishes `443/udp` next to `443/tcp` (docker-compose.prod.yaml), so
+Caddy can serve HTTP/3. One-off on the server, before or after the deploy:
+
+```bash
+sudo ufw allow 443/udp
+```
+If the server sits behind a Hetzner Cloud Firewall, add an inbound UDP 443
+rule there as well. Check from a laptop:
+`curl -sI --http3 https://bela-turniri.com | head -1` (needs a curl built
+with HTTP/3), or the "Protocol" column in the browser's network tab (`h3`).
+Nothing breaks while UDP is closed — browsers simply stay on HTTP/2.
+
 ## Object storage: Cloudflare R2
 
 Since 2026-09-29 posters and avatars live in Cloudflare R2, not the local

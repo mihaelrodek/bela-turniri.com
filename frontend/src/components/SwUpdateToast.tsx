@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react"
 import { toaster } from "../toaster"
 import { useTranslation } from "../i18n"
 import { isNative } from "../platform"
+import { requestPrecacheOnLoad } from "../pwa/precacheTiers"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Service-worker registration + "new version available" UX.
@@ -191,21 +192,10 @@ export default function SwUpdateToast() {
            So the page asks. One postMessage per load, answered by a ~300-byte
            manifest fetch, and the worker adds only what it does not already
            hold; offline it fails silently and keeps the last good precache.
-           `ready` rather than `controller` because a first-ever install has no
-           controller yet — `ready` resolves once a worker is active, which is
-           exactly when there is someone to ask. */
-        function askForPrecache() {
-            navigator.serviceWorker.ready
-                .then((registration) => {
-                    registration.active?.postMessage({ type: "bela:precache" })
-                })
-                .catch(() => {
-                    /* no worker ever became active — nothing to refresh */
-                })
-        }
-
+           Which optional tiers (the online game) the message asks for is
+           decided in `pwa/precacheTiers.ts`. */
         function onLoad() {
-            askForPrecache()
+            requestPrecacheOnLoad()
             navigator.serviceWorker.register("/sw.js").then(wireRegistration).catch((err) => {
                 // Non-fatal — the app still works; only the install prompt and
                 // offline shell (and this update toast) are unavailable.

@@ -95,6 +95,7 @@ export default function DetailsSection({
 
     // Tiles in the money row: igra se do + repasaž do always, the prices
     // only when set.
+    // Parovi + repasaž do, plus each price that is set.
     const moneyTileCount =
         2 +
         (typeof t.entryPrice === "number" ? 1 : 0) +
@@ -225,15 +226,10 @@ export default function DetailsSection({
                     />
                 </Box>
 
-                {/* When row — datum, vrijeme početka, parovi: three across
-                    from md up. Grid items stretch, so every tile in a row
-                    has the same height. */}
+                {/* When row — datum and vrijeme početka side by side. */}
                 <Box
                     display="grid"
-                    gridTemplateColumns={{
-                        base: "repeat(2, minmax(0, 1fr))",
-                        md: "repeat(3, minmax(0, 1fr))",
-                    }}
+                    gridTemplateColumns="repeat(2, minmax(0, 1fr))"
                     gap="3"
                 >
                     <DetailTile
@@ -248,18 +244,12 @@ export default function DetailsSection({
                         label={tr("tournament.tile.startTime")}
                         value={formatTime(t.startAt)}
                     />
-                    <DetailTile
-                        icon={<FiUsers size={13} />}
-                        label={tr("tournament.tile.pairs")}
-                        value={`${pairCount} / ${typeof t.maxPairs === "number" ? t.maxPairs : "∞"}`}
-                        span={{ base: "span 2", md: "auto" }}
-                    />
                 </Box>
 
-                {/* Money row — igra se do, kotizacija, repasaž, repasaž do.
-                    One track per tile that actually renders (four usually,
-                    five with a second repassage), so the row never wraps an
-                    orphan on desktop. */}
+                {/* Entry row — parovi, kotizacija, repasaž, repasaž do. One
+                    track per tile that actually renders (four usually, five
+                    with a second repassage), so the row never wraps an
+                    orphan on desktop. Grid items stretch to equal height. */}
                 <Box
                     display="grid"
                     gridTemplateColumns={{
@@ -269,9 +259,9 @@ export default function DetailsSection({
                     gap="3"
                 >
                     <DetailTile
-                        icon={<FiAward size={13} />}
-                        label={tr("tournament.tile.targetScore")}
-                        value={t.targetScore ?? 1001}
+                        icon={<FiUsers size={13} />}
+                        label={tr("tournament.tile.pairs")}
+                        value={`${pairCount} / ${typeof t.maxPairs === "number" ? t.maxPairs : "∞"}`}
                     />
                     {typeof t.entryPrice === "number" && (
                         <DetailTile
@@ -508,7 +498,8 @@ function RuleItem({
 }
 
 /**
- * "Pravila" — how the tables play: igra se na, zvanja, bela, smjer kartanja.
+ * "Pravila" — how the tables play: igra se do, igra se na, zvanja, bela,
+ * smjer kartanja.
  * Yes/no rules get a check or a cross so they read at a glance; the deal
  * direction gets the matching rotation arrow (↻ desno, ↺ lijevo).
  */
@@ -547,10 +538,16 @@ function RulesCard({ t }: { t: TournamentDetails }) {
                 display="grid"
                 gridTemplateColumns={{
                     base: "repeat(2, minmax(0, 1fr))",
-                    md: "repeat(4, minmax(0, 1fr))",
+                    md: "repeat(5, minmax(0, 1fr))",
                 }}
                 gap="2"
             >
+                <RuleItem
+                    label={tr("tournament.tile.targetScore")}
+                    icon={<FiAward size={12} />}
+                    iconColor="brand.fg"
+                    value={String(t.targetScore ?? 1001)}
+                />
                 <RuleItem
                     label={tr("tournament.tile.gameEndRule")}
                     icon={<FiFlag size={12} />}
