@@ -121,7 +121,8 @@ export const tournament: TournamentDict = {
     "rule.direction.left": "Left",
     "rule.declarations.enabled": "Allowed",
     "rule.declarations.disabled": "No declarations",
-    "rule.declarations.off": "Not allowed",
+    "rule.declarations.off": "No declarations",
+    "rule.declarations.offShort": "None", // compact, web only (5-tile row); mobile keeps "No declarations"
     "rule.yes": "Yes",
     "rule.no": "No",
     "rule.belaCounts": "Counts",

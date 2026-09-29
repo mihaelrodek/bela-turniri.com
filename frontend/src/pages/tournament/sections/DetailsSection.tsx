@@ -460,7 +460,9 @@ function RuleItem({
     label: string
     icon: ReactNode
     iconColor: string
-    value: string
+    /** Usually a string; a node lets a rule swap in a shorter label on
+     *  desktop where five tiles share the row (see the zvanja-off case). */
+    value: ReactNode
 }) {
     return (
         <Box bg="bg.subtle" rounded="lg" px="2.5" py="2.5" minW="0">
@@ -560,7 +562,19 @@ function RulesCard({ t }: { t: TournamentDetails }) {
                     label={tr("tournament.tile.declarations")}
                     icon={declarationsOn ? <FiCheck size={13} /> : <FiX size={13} />}
                     iconColor={declarationsOn ? yesColor : noColor}
-                    value={tr(declarationsOn ? "tournament.rule.declarations.enabled" : "tournament.rule.declarations.off")}
+                    value={
+                        declarationsOn ? (
+                            tr("tournament.rule.declarations.enabled")
+                        ) : (
+                            // "Bez zvanja" on mobile (two tiles per row, room
+                            // to spare) vs. the compact "Bez" on desktop,
+                            // where five tiles share one row.
+                            <>
+                                <Box as="span" hideFrom="md">{tr("tournament.rule.declarations.off")}</Box>
+                                <Box as="span" hideBelow="md">{tr("tournament.rule.declarations.offShort")}</Box>
+                            </>
+                        )
+                    }
                 />
                 {/* Bela is a question only when zvanja are off: with zvanja on
                     it always counts, and the edit form does not even offer the

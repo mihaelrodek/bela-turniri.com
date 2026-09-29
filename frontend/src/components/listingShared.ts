@@ -23,7 +23,7 @@ import { fetchTournamentDetails } from "../api/tournaments"
 import { qk } from "../queryClient"
 import { formatAmount, formatTime } from "../utils/format"
 import { usePlural, useTranslation } from "../i18n"
-import { detailPosterPreload } from "../utils/imageUrl"
+import { detailPosterPreload, LISTING_CARD_POSTER_SIZES, posterSrcSet } from "../utils/imageUrl"
 import { MONTH_KEYS, WEEKDAY_KEYS } from "./calendarShared"
 
 /**
@@ -368,6 +368,26 @@ export function useRulesLine(): (item: ListingTournament) => RulesLine | null {
  * `preload()`, matched to the exact `srcSet`/`sizes` `DetailsSection` uses,
  * without waiting for the detail fetch to resolve.
  */
+/**
+ * Warms the browser's image cache for a batch of listing posters — used to
+ * preload the next "Učitaj više" page in the background, so clicking it
+ * shows filled cards instead of a blank one while the images download.
+ * `fetchPriority: "low"`: these aren't on screen yet and must not compete
+ * with the current viewport's own images.
+ */
+export function preloadListingPosters(items: TournamentCard[]): void {
+    for (const item of items) {
+        const poster = posterSrcSet(item.bannerUrl, LISTING_CARD_POSTER_SIZES)
+        if (!poster) continue
+        preload(poster.src, {
+            as: "image",
+            fetchPriority: "low",
+            imageSrcSet: poster.srcSet,
+            imageSizes: poster.sizes,
+        })
+    }
+}
+
 export function useTournamentPrefetch(): (idOrSlug?: string | null, bannerUrl?: string | null) => void {
     const queryClient = useQueryClient()
     return useCallback(

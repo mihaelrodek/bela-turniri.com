@@ -110,7 +110,8 @@ export const tournament: TournamentDict = {
     "rule.direction.left": "Levo",
     "rule.declarations.enabled": "Veljajo",
     "rule.declarations.disabled": "Brez napovedi",
-    "rule.declarations.off": "Ne veljajo",
+    "rule.declarations.off": "Brez zvanj",
+    "rule.declarations.offShort": "Brez", // compact, web only (5-tile row); mobile keeps "Brez zvanj"
     "rule.yes": "Da",
     "rule.no": "Ne",
     "rule.belaCounts": "Velja",

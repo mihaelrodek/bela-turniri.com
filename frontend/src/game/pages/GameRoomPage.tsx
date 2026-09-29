@@ -297,18 +297,22 @@ export default function GameRoomPage() {
     // "X zove žir": a quick beat, not a dialog (2026-09-20, user request). It
     // leaves long before TRUMP_SET's own dwell is over.
     /* The trump MARKS (score panel, caller's medallion) appear with that beat,
-       not before it. `view.bidding.trump` is set in the frame the bid lands,
-       but the queue still has the BID's own dwell to play before TRUMP_SET,
-       so following the view showed the trump at the top ~1 s before the popup
-       announced it (2026-09-20, user report). Same shape as the talon above:
-       revealed by the event, or at once when there is no event to wait for
-       (a reconnect, a rejoin mid-deal). */
+       not before it — but "that beat" is the calling BID, same as the talon
+       above, not TRUMP_SET's own popup. This used to wait specifically for
+       TRUMP_SET (2026-09-20), which was fine until the talon fix right above
+       started releasing the two extra cards on BID instead: the two-card
+       hand then updated to eight a full BID-dwell (800 ms) before the suit
+       itself appeared, i.e. the cards loaded and only then, late, the trump
+       (2026-09-29, user report — "neka se adut odmah prikaže, a karte se u
+       pozadini učitaju istovremeno"). Tying this to `talonRevealedDeal`
+       instead of re-deriving the same trigger keeps the two in lockstep by
+       construction, including its reconnect / mid-deal-rejoin fallbacks. */
     const [trumpShownDeal, setTrumpShownDeal] = useState<number | null>(null)
     const trumpDeal = view && view.bidding.trump !== null ? view.dealNo : null
     useEffect(() => {
         if (trumpDeal === null) return
-        if (trumpSet !== null || settled) setTrumpShownDeal(trumpDeal)
-    }, [trumpDeal, trumpSet, settled])
+        if (talonRevealedDeal === trumpDeal) setTrumpShownDeal(trumpDeal)
+    }, [trumpDeal, talonRevealedDeal])
     const trumpHidden = trumpDeal !== null && trumpShownDeal !== trumpDeal && trumpSet === null
 
     /* The declaration NUMBERS — ScoreBoard's "+40" and the Zvanja button's

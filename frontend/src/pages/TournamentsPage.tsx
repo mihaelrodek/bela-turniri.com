@@ -1,6 +1,6 @@
 import { isNative } from "../platform"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
-import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
     Box,
     Button,
@@ -47,6 +47,7 @@ import ListingCard, { ListingCardSkeleton } from "../components/ListingCard"
 import ListingRow, { ListingRowSkeleton } from "../components/ListingRow"
 import {
     NEARBY_DEFAULT_KM,
+    preloadListingPosters,
     RADIUS_MAX_KM,
     SORT_MODES,
     sortNeedsLocation,
@@ -97,6 +98,22 @@ const EMPTY_CARDS: ListingTournament[] = []
 
 const FINISHED_PREVIEW_LIMIT = 6
 
+/**
+ * `requestIdleCallback` with a `setTimeout` fallback (Safari has neither on
+ * old iOS, and the polyfill isn't loaded here). Used to prefetch the NEXT
+ * "Učitaj više" page's data + poster images while the browser is otherwise
+ * idle, so clicking the button swaps in already-loaded cards instead of a
+ * blank one while the fetch is in flight. Returns a canceller.
+ */
+function scheduleIdle(fn: () => void): () => void {
+    if (typeof window.requestIdleCallback !== "function") {
+        const id = window.setTimeout(fn, 300)
+        return () => window.clearTimeout(id)
+    }
+    const id = window.requestIdleCallback(fn, { timeout: 2000 })
+    return () => window.cancelIdleCallback(id)
+}
+
 /** Chip order for the "Igra se do" filter — every value `TournamentTargetScore`
  *  currently allows. Multi-select, OR semantics: a tournament matches when its
  *  `targetScore` is any one of the checked chips. */
@@ -114,6 +131,88 @@ type DeclarationsFilter = "all" | "enabled" | "disabled"
  *  at all — mirrors the backend's own `MIN_QUERY_LENGTH` so the SPA never
  *  fires a request the server would just ignore. */
 const SEARCH_MIN_LENGTH = 2
+
+/**
+ * Core filter predicate shared by every filterable listing group — upcoming,
+ * finished, and the server-searched finished group: search text, location
+ * text, kotizacija/repasaž ranges, "igra se do", zvanja and (once the user
+ * has shared their location) the distance radius. Extracted so "filtriraj i
+ * završene turnire" didn't mean copy-pasting the whole loop three times.
+ * Callers sort the result themselves — the "Sortiraj" dropdown only ever
+ * applied to "Nadolazeći", and this keeps that unchanged for "Završeni".
+ */
+function filterListing(
+    items: ListingTournament[],
+    opts: {
+        q: string
+        loc: string
+        min: number | null
+        max: number | null
+        repMin: number | null
+        repMax: number | null
+        targetScoreFilter: TournamentTargetScore[]
+        declarationsFilter: DeclarationsFilter
+        me: { lat: number; lng: number } | null
+        limitByRadius: boolean
+        radiusKm: number
+    },
+): { visible: ListingTournament[]; missingLocationCount: number } {
+    const { q, loc, min, max, repMin, repMax, targetScoreFilter, declarationsFilter, me, limitByRadius, radiusKm } = opts
+    let missing = 0
+    const base: ListingTournament[] = []
+
+    for (const item of items) {
+        const place = (item.location ?? "").toLowerCase()
+        // The placeholder promises name / city / venue, and `location` is
+        // where both the city and the hall end up, so one query hits both.
+        if (q && !item.name.toLowerCase().includes(q) && !place.includes(q)) continue
+        if (loc && !place.includes(loc)) continue
+
+        if (typeof item.entryPrice === "number") {
+            if (min != null && item.entryPrice < min) continue
+            if (max != null && item.entryPrice > max) continue
+        } else if (min != null || max != null) {
+            // Tournaments with no known kotizacija drop out only once a
+            // kotizacija bound is actually set.
+            continue
+        }
+
+        if (typeof item.repassagePrice === "number") {
+            if (repMin != null && item.repassagePrice < repMin) continue
+            if (repMax != null && item.repassagePrice > repMax) continue
+        } else if (repMin != null || repMax != null) {
+            continue
+        }
+
+        if (targetScoreFilter.length > 0) {
+            if (typeof item.targetScore !== "number" || !targetScoreFilter.includes(item.targetScore)) continue
+        }
+
+        if (declarationsFilter !== "all") {
+            const enabled = item.declarationsEnabled !== false
+            if (declarationsFilter === "enabled" && !enabled) continue
+            if (declarationsFilter === "disabled" && enabled) continue
+        }
+
+        if (!me) {
+            base.push(item)
+            continue
+        }
+        if (typeof item.latitude !== "number" || typeof item.longitude !== "number") {
+            if (limitByRadius) {
+                missing += 1
+                continue
+            }
+            base.push(item)
+            continue
+        }
+        const distanceKm = haversineKm(me, { lat: item.latitude, lng: item.longitude })
+        if (limitByRadius && distanceKm > radiusKm) continue
+        base.push({ ...item, distanceKm })
+    }
+
+    return { visible: base, missingLocationCount: missing }
+}
 
 /** Page size for the finished-search group's own "prikaži još" ladder. */
 const SEARCH_FINISHED_PAGE_SIZE = 20
@@ -242,6 +341,7 @@ export default function TournamentsPage() {
     })
 
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
 
     /* ── Data ──────────────────────────────────────────────────────────────
        Three independent react-query entries instead of one big effect. Coming
@@ -353,6 +453,38 @@ export default function TournamentsPage() {
         if (searchFinishedResults.length >= searchFinishedTotal) return
         setSearchFinishedLimit((n) => n + SEARCH_FINISHED_PAGE_SIZE)
     }
+
+    /* Idle-prefetch the next "Prikaži još" page of the search-finished group:
+       once the current page has settled, quietly fetch the next-bigger page
+       and warm its poster images, so a click on the button is instant. */
+    useEffect(() => {
+        if (!searchFinishedHasMore || searchFinishedQuery.isFetching) return
+        const nextLimit = searchFinishedLimit + SEARCH_FINISHED_PAGE_SIZE
+        const seenSoFar = searchFinishedResults.length
+        let cancelled = false
+        const cancel = scheduleIdle(() => {
+            queryClient
+                .fetchQuery({
+                    queryKey: qk.tournaments({ status: "finished", q: debouncedSearch, limit: nextLimit }),
+                    queryFn: () => fetchTournaments("finished", { q: debouncedSearch, offset: 0, limit: nextLimit }),
+                })
+                .then((data) => {
+                    if (!cancelled) preloadListingPosters((data as ListingTournament[]).slice(seenSoFar))
+                })
+                .catch(() => {})
+        })
+        return () => {
+            cancelled = true
+            cancel()
+        }
+    }, [
+        searchFinishedHasMore,
+        searchFinishedQuery.isFetching,
+        searchFinishedLimit,
+        searchFinishedResults.length,
+        debouncedSearch,
+        queryClient,
+    ])
 
     const [locationFilter, setLocationFilter] = useState("")
     const [priceMin, setPriceMin] = useState("")
@@ -489,6 +621,32 @@ export default function TournamentsPage() {
 
     const finishedHasMore = finished.length < finishedTotal
 
+    /* Idle-prefetch the next "Učitaj više" page: once the current page has
+       settled, quietly fetch the next-bigger page and warm its poster
+       images, so a click on the button swaps in already-loaded cards
+       instead of a blank one while the network request is in flight. */
+    useEffect(() => {
+        if (!finishedHasMore || finishedQuery.isFetching) return
+        const nextLimit = finishedLimit + FINISHED_PREVIEW_LIMIT
+        const seenSoFar = finished.length
+        let cancelled = false
+        const cancel = scheduleIdle(() => {
+            queryClient
+                .fetchQuery({
+                    queryKey: qk.tournaments({ status: "finished", limit: nextLimit }),
+                    queryFn: () => fetchTournaments("finished", { offset: 0, limit: nextLimit }),
+                })
+                .then((data) => {
+                    if (!cancelled) preloadListingPosters((data as ListingTournament[]).slice(seenSoFar))
+                })
+                .catch(() => {})
+        })
+        return () => {
+            cancelled = true
+            cancel()
+        }
+    }, [finishedHasMore, finishedQuery.isFetching, finishedLimit, finished.length, queryClient])
+
     // Eagerly load the entire finished list when the tour will need it.
     // The demo tournament (TOUR_DEMO_TOURNAMENT_SLUG) is the oldest
     // finished tournament, so it sits at the bottom of the paginated
@@ -527,92 +685,49 @@ export default function TournamentsPage() {
        radius at all, so instead of silently vanishing they are counted
        separately and surfaced as a note under the grid.
        ──────────────────────────────────────────────────────────────────── */
-    const { visible: filteredUpcoming, missingLocationCount } = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        const loc = locationFilter.trim().toLowerCase()
-        const min = parseNum(priceMin)
-        const max = parseNum(priceMax)
-        const repMin = parseNum(repassageMin)
-        const repMax = parseNum(repassageMax)
+    // Shared by upcoming, finished and the finished-search group below —
+    // everything the "Filteri" panel controls except the "Sortiraj" dropdown,
+    // which stays "Nadolazeći"-only (the finished buckets keep the backend's
+    // own newest-first order).
+    const filterOpts = useMemo(() => {
         const me = userPos ? { lat: userPos[0], lng: userPos[1] } : null
-        const limitByRadius = !!me && radiusKm < RADIUS_MAX_KM
-
-        let missing = 0
-        const base: ListingTournament[] = []
-
-        for (const item of upcoming) {
-            const place = (item.location ?? "").toLowerCase()
-            // The placeholder promises name / city / venue, and `location` is
-            // where both the city and the hall end up, so one query hits both.
-            if (q && !item.name.toLowerCase().includes(q) && !place.includes(q)) continue
-            if (loc && !place.includes(loc)) continue
-
-            if (typeof item.entryPrice === "number") {
-                if (min != null && item.entryPrice < min) continue
-                if (max != null && item.entryPrice > max) continue
-            } else if (min != null || max != null) {
-                // Tournaments with no known kotizacija drop out only once a
-                // kotizacija bound is actually set.
-                continue
-            }
-
-            if (typeof item.repassagePrice === "number") {
-                if (repMin != null && item.repassagePrice < repMin) continue
-                if (repMax != null && item.repassagePrice > repMax) continue
-            } else if (repMin != null || repMax != null) {
-                continue
-            }
-
-            if (targetScoreFilter.length > 0) {
-                if (typeof item.targetScore !== "number" || !targetScoreFilter.includes(item.targetScore)) continue
-            }
-
-            if (declarationsFilter !== "all") {
-                const enabled = item.declarationsEnabled !== false
-                if (declarationsFilter === "enabled" && !enabled) continue
-                if (declarationsFilter === "disabled" && enabled) continue
-            }
-
-            if (!me) {
-                base.push(item)
-                continue
-            }
-            if (typeof item.latitude !== "number" || typeof item.longitude !== "number") {
-                if (limitByRadius) {
-                    missing += 1
-                    continue
-                }
-                base.push(item)
-                continue
-            }
-            const distanceKm = haversineKm(me, { lat: item.latitude, lng: item.longitude })
-            if (limitByRadius && distanceKm > radiusKm) continue
-            base.push({ ...item, distanceKm })
-        }
-
         return {
-            visible: sortTournaments(base, sortMode, intlTag(locale)),
-            missingLocationCount: missing,
+            q: search.trim().toLowerCase(),
+            loc: locationFilter.trim().toLowerCase(),
+            min: parseNum(priceMin),
+            max: parseNum(priceMax),
+            repMin: parseNum(repassageMin),
+            repMax: parseNum(repassageMax),
+            targetScoreFilter,
+            declarationsFilter,
+            me,
+            limitByRadius: !!me && radiusKm < RADIUS_MAX_KM,
+            radiusKm,
         }
-    }, [
-        upcoming,
-        search,
-        locationFilter,
-        priceMin,
-        priceMax,
-        repassageMin,
-        repassageMax,
-        targetScoreFilter,
-        declarationsFilter,
-        userPos,
-        radiusKm,
-        sortMode,
-        locale,
-    ])
+    }, [search, locationFilter, priceMin, priceMax, repassageMin, repassageMax, targetScoreFilter, declarationsFilter, userPos, radiusKm])
+
+    const { visible: filteredUpcoming, missingLocationCount } = useMemo(() => {
+        const { visible, missingLocationCount } = filterListing(upcoming, filterOpts)
+        return { visible: sortTournaments(visible, sortMode, intlTag(locale)), missingLocationCount }
+    }, [upcoming, filterOpts, sortMode, locale])
 
     // Distinguishes the two empty-result reasons: nothing within the radius
     // (widen it) vs. the generic "no filter matches" (clear them).
     const noneNearby = nearMeActive && filteredUpcoming.length === 0 && upcoming.length > 0
+
+    // "Završeni" is server-paginated (only the loaded page is in `finished`),
+    // so this filters whatever page has been fetched/prefetched so far — same
+    // predicate as "Nadolazeći", just without a resort (backend order stands).
+    // `missingLocationCount` is intentionally unused here: the radius filter
+    // on a mostly-past event list is a minor case, not worth a second banner.
+    const { visible: filteredFinished } = useMemo(
+        () => filterListing(finished, filterOpts),
+        [finished, filterOpts],
+    )
+    const { visible: filteredSearchFinished } = useMemo(
+        () => filterListing(searchFinishedResults, filterOpts),
+        [searchFinishedResults, filterOpts],
+    )
 
     /** Both sections render through the same switch, so "Mreža"/"Popis" is a
      *  property of the page rather than of one list. */
@@ -1181,9 +1296,15 @@ export default function TournamentsPage() {
                                                 {tt(isNative ? "pages.tournaments.nearMe.deniedNative" : "pages.tournaments.nearMe.denied")}
                                             </Text>
                                         )}
+                                        {/* Was a plain ghost button — barely readable next to the
+                                            "Uključi lokaciju" ghost button right above it. An outlined
+                                            red pill only when there's something TO clear reads as a
+                                            real action; once filters are back to default it fades to
+                                            a quiet ghost so it doesn't compete for attention. */}
                                         <Button
                                             size="xs"
-                                            variant="ghost"
+                                            variant={isFiltering ? "outline" : "ghost"}
+                                            colorPalette={isFiltering ? "red" : "gray"}
                                             ml="auto"
                                             mb="1.5"
                                             onClick={resetFilters}
@@ -1192,7 +1313,7 @@ export default function TournamentsPage() {
                                                 ? tt("pages.tournaments.filters.clearAllTitleActive")
                                                 : tt("pages.tournaments.filters.clearAllTitleInactive")}
                                         >
-                                            {tt("pages.tournaments.filters.clearAll")}
+                                            <FiX /> {tt("pages.tournaments.filters.clearAll")}
                                         </Button>
                                     </HStack>
                                     <Slider.Root
@@ -1318,21 +1439,43 @@ export default function TournamentsPage() {
                     )}
                     {searchFinishedLoading ? (
                         skeletons
+                    ) : filteredSearchFinished.length === 0 ? (
+                        // The search matched something, but the "Filteri" panel
+                        // (price/zvanja/radius/…) hid every match — same
+                        // "Nema rezultata" + clear-filters CTA as the other
+                        // two groups, so filtering never looks like a bug.
+                        <ListEmptyState
+                            title={tt("pages.tournaments.empty.noResultsTitle")}
+                            description={tt("pages.tournaments.empty.noResultsDescription")}
+                            cta={
+                                <Button size="sm" variant="outline" onClick={resetFilters}>
+                                    {tt("pages.tournaments.empty.clearFilters")}
+                                </Button>
+                            }
+                        />
                     ) : (
                         <>
-                            {renderItems(searchFinishedResults, "finished")}
+                            {renderItems(filteredSearchFinished, "finished")}
                             {searchFinishedHasMore && (
-                                <HStack justify="center" mt="4">
+                                <HStack justify="center" mt="5">
                                     <Button
-                                        size="sm"
+                                        size="md"
                                         variant="outline"
                                         colorPalette="brand"
+                                        rounded="full"
+                                        px="6"
+                                        borderWidth="1.5px"
+                                        bg="bg.panel"
+                                        shadow="xs"
+                                        _hover={{ bg: "brand.subtle", shadow: "sm" }}
+                                        css={{ "& svg": { transition: "transform 0.15s ease" }, "&:hover svg": { transform: "translateY(1px)" } }}
                                         onClick={loadMoreSearchFinished}
                                         loading={searchFinishedLoadingMore}
                                     >
                                         {tt("pages.tournaments.searchFinished.showMore", {
                                             count: searchFinishedTotal - searchFinishedResults.length,
                                         })}
+                                        <FiChevronDown />
                                     </Button>
                                 </HStack>
                             )}
@@ -1358,6 +1501,20 @@ export default function TournamentsPage() {
                             errorFinished ?? tt("pages.tournaments.empty.finishedEmptyDescription")
                         }
                     />
+                ) : filteredFinished.length === 0 ? (
+                    // The loaded finished page has rows, but the "Filteri"
+                    // panel hid every one of them — same "Nema rezultata" +
+                    // "Očisti filtere" ListEmptyState "Nadolazeći" shows for
+                    // the same situation, rather than an unexplained blank.
+                    <ListEmptyState
+                        title={tt("pages.tournaments.empty.noResultsTitle")}
+                        description={tt("pages.tournaments.empty.noResultsDescription")}
+                        cta={
+                            <Button size="sm" variant="outline" onClick={resetFilters}>
+                                {tt("pages.tournaments.empty.clearFilters")}
+                            </Button>
+                        }
+                    />
                 ) : (
                     <>
                         {/* Which finished entry hosts the `turniri-demo-card`
@@ -1369,7 +1526,7 @@ export default function TournamentsPage() {
                             step would stall on a Next button that goes
                             nowhere. */}
                         {(() => {
-                            const demoIdx = finished.findIndex(
+                            const demoIdx = filteredFinished.findIndex(
                                 (item) => item.slug === TOUR_DEMO_TOURNAMENT_SLUG,
                             )
                             const anchorIdx = demoIdx >= 0 ? demoIdx : 0
@@ -1381,7 +1538,7 @@ export default function TournamentsPage() {
                             if (view === "list") {
                                 return (
                                     <VStack align="stretch" gap="2">
-                                        {finished.map((item, idx) => (
+                                        {filteredFinished.map((item, idx) => (
                                             <Box key={item.uuid}>
                                                 {wrap(<ListingRow item={item} variant="finished" />, idx)}
                                             </Box>
@@ -1391,7 +1548,7 @@ export default function TournamentsPage() {
                             }
                             return (
                                 <Grid className="responsive-card-grid" gap="4">
-                                    {finished.map((item, idx) => (
+                                    {filteredFinished.map((item, idx) => (
                                         <Box key={item.uuid}>
                                             {wrap(<ListingCard item={item} variant="finished" />, idx)}
                                         </Box>
@@ -1400,17 +1557,32 @@ export default function TournamentsPage() {
                             )
                         })()}
                         {/* Učitaj više — fetches the next page from the backend
-                            and appends it. Hidden once everything is loaded. */}
+                            and appends it. Hidden once everything is loaded. A
+                            pill, not the plain outline box it used to be, with
+                            a chevron that nudges down on hover — the click
+                            target most people are drilling down through the
+                            finished list to find. The next page's data +
+                            poster images are already warmed in the background
+                            (see the idle-prefetch effect above finishedHasMore),
+                            so this click rarely shows its own loading spinner. */}
                         {finishedHasMore && (
-                            <HStack justify="center" mt="4">
+                            <HStack justify="center" mt="5">
                                 <Button
-                                    size="sm"
+                                    size="md"
                                     variant="outline"
                                     colorPalette="brand"
+                                    rounded="full"
+                                    px="6"
+                                    borderWidth="1.5px"
+                                    bg="bg.panel"
+                                    shadow="xs"
+                                    _hover={{ bg: "brand.subtle", shadow: "sm" }}
+                                    css={{ "& svg": { transition: "transform 0.15s ease" }, "&:hover svg": { transform: "translateY(1px)" } }}
                                     onClick={loadMoreFinished}
                                     loading={loadingMoreFinished}
                                 >
                                     {tt("pages.tournaments.loadMore", { count: finishedTotal - finished.length })}
+                                    <FiChevronDown />
                                 </Button>
                             </HStack>
                         )}

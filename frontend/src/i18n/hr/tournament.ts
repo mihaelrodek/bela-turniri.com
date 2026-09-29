@@ -159,7 +159,8 @@ export const tournament = {
     "rule.direction.left": "Lijevo",
     "rule.declarations.enabled": "Vrijede",
     "rule.declarations.disabled": "Bez zvanja",
-    "rule.declarations.off": "Ne vrijede",
+    "rule.declarations.off": "Bez zvanja",
+    "rule.declarations.offShort": "Bez", // compact, web only (5-tile row); mobile keeps "Bez zvanja"
     "rule.yes": "Da",
     "rule.no": "Ne",
     "rule.belaCounts": "Vrijedi",
