@@ -175,26 +175,33 @@ type NavItem = {
 }
 
 function buildNavItems(t: (key: string) => string): NavItem[] {
-    const items: NavItem[] = [
-        { to: "/", label: t("common.nav.turniri"), icon: <FiHome size={16} />, exact: true },
-        { to: "/kalendar", label: t("common.nav.kalendar"), icon: <FiCalendar size={16} /> },
-        // Online bela (src/game), dead centre — the same slot it holds in the
-        // mobile tab bar, where the middle is the thumb's home position. Its
-        // label lives in the `game` namespace, not in `common`.
-        // The same card mark the mobile bar's centre disc carries — the two
-        // bars are one navigation seen at two widths (MobileTabBar's header).
-        // On the games domains the lobby IS "/", so it must match exactly there
-        // or it would light up on every page.
-        { to: gameLobbyPath, label: t("common.nav.igraj"), icon: <CardsIcon size={16} />, accent: true, isNew: true, exact: isGamesSite },
-        { to: "/karta", label: t("common.nav.karta"), icon: <FiMap size={16} /> },
-        // Bela blok (src/blok) — public offline scorepad, no feature flag, no
-        // auth. Its label lives in the `blok` namespace with the rest of that
-        // subtree.
-        { to: "/blok", label: t("common.nav.blok"), icon: <FiEdit3 size={16} /> },
-    ]
-    // bela.games (src/site.ts) has no tournaments, calendar or map — only
-    // the game and the scorepad stay in the nav.
-    if (isGamesSite) return items.filter((item) => item.to === gameLobbyPath || item.to === "/blok")
+    // Built by APPENDING, not by filtering a full-site array down afterwards
+    // (2026-09-29, user report — live DOM still showed "Turniri" on
+    // bela.games after a confirmed-fresh deploy). The old filter compared
+    // `item.to === gameLobbyPath`, but `gameLobbyPath` IS `"/"` on the games
+    // domains — the exact same `to` "Turniri" already had — so the filter's
+    // own equality check could not tell the two apart and kept both. Adding
+    // each item only under the site it belongs to has no `to` to collide on.
+    const items: NavItem[] = []
+    if (!isGamesSite) {
+        items.push({ to: "/", label: t("common.nav.turniri"), icon: <FiHome size={16} />, exact: true })
+        items.push({ to: "/kalendar", label: t("common.nav.kalendar"), icon: <FiCalendar size={16} /> })
+    }
+    // Online bela (src/game), dead centre — the same slot it holds in the
+    // mobile tab bar, where the middle is the thumb's home position. Its
+    // label lives in the `game` namespace, not in `common`.
+    // The same card mark the mobile bar's centre disc carries — the two
+    // bars are one navigation seen at two widths (MobileTabBar's header).
+    // On the games domains the lobby IS "/", so it must match exactly there
+    // or it would light up on every page.
+    items.push({ to: gameLobbyPath, label: t("common.nav.igraj"), icon: <CardsIcon size={16} />, accent: true, isNew: true, exact: isGamesSite })
+    if (!isGamesSite) {
+        items.push({ to: "/karta", label: t("common.nav.karta"), icon: <FiMap size={16} /> })
+    }
+    // Bela blok (src/blok) — public offline scorepad, no feature flag, no
+    // auth. Its label lives in the `blok` namespace with the rest of that
+    // subtree.
+    items.push({ to: "/blok", label: t("common.nav.blok"), icon: <FiEdit3 size={16} /> })
     return items
 }
 
