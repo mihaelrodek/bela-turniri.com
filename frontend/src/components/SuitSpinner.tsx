@@ -1,12 +1,25 @@
 import { Center, Text, VStack, chakra } from "@chakra-ui/react"
 import { keyframes } from "@emotion/react"
 import { useTranslation } from "../i18n"
+import { isGamesSite } from "../site"
 import BrandMark from "./BrandMark"
 
 /* ──────────────────────────────────────────────────────────────────────────
    SuitSpinner — the app's page-level loading mark. It renders the current
    product mark through BrandMark, so bela-turniri follows its light/dark logo
    and bela.games keeps its separate identity.
+
+   bela.games is the one exception (2026-09-29, user request): its mark is a
+   rounded-square background tile with the four suits laid out in a 2×2 grid
+   ON it, and spinning the whole tile made the square's corners swing around
+   too — the background read as tumbling along with the suits instead of
+   sitting still under them. `GamesSuitMark` below reproduces that SVG
+   (`public/games/symbol.svg`) inline, split into the background `<rect>`
+   (static) and the four suit `<g>`s (the only thing wrapped in the animated
+   `<g>`) — same orbit, but only the glyphs travel. bela-turniri's mark stays
+   on the BrandMark path: its fan-of-cards artwork is a single interlocking
+   shape, not glyphs-on-a-tile, so there's no separable "background" to hold
+   still, and turning the whole fan is the mark's own look already.
 
    Small inline spinners (buttons, badges, `size="xs" | "sm"`) stay Chakra's
    `Spinner`: four suits are illegible under ~24 px — the logo README says the
@@ -31,6 +44,52 @@ export type SuitSpinnerSize = keyof typeof SIZES
 const DURATION = "1s"
 const EASING = "cubic-bezier(0.65, 0, 0.35, 1)"
 
+const ORBIT_KEYFRAMES = {
+    animation: `${orbit} ${DURATION} ${EASING} infinite`,
+    "@media (prefers-reduced-motion: reduce)": {
+        animation: `${pulse} 1.6s ease-in-out infinite`,
+    },
+} as const
+
+/** For BrandMark's whole-image orbit: a plain box, so a percentage origin
+ *  resolves against its own rendered size same as any HTML element,
+ *  correctly at every `size` prop. */
+const ORBIT_CSS = { transformOrigin: "50% 50%", ...ORBIT_KEYFRAMES } as const
+
+/** For the `<g>` inside `GamesSuitMark` below: an SVG child element's
+ *  transform-origin resolves in the nearest viewport's user-space
+ *  (the viewBox), not against its own rendered CSS pixel size or its own
+ *  bounding box, so this is `viewBox` coordinates — the tile's actual
+ *  centre — not a percentage, and it stays correct at every `size`. */
+const SVG_ORBIT_CSS = { transformOrigin: "50px 50px", ...ORBIT_KEYFRAMES } as const
+
+/**
+ * bela.games's mark, inlined from `public/games/symbol.svg` — kept byte-for-
+ * byte identical to that file (same viewBox, same four paths, same fills) so
+ * the two never drift apart.
+ */
+function GamesSuitMark({ px }: { px: number }) {
+    return (
+        <svg viewBox="0 0 100 100" width={px} height={px} aria-hidden="true">
+            <rect width="100" height="100" rx="22.5" fill="#F4EFE4" />
+            <chakra.g css={SVG_ORBIT_CSS}>
+                <g transform="translate(18 18) scale(0.29440)" fill="#E24B4A">
+                    <path d="M50 88C22 66 10 52 10 33a20 20 0 0 1 40-8a20 20 0 0 1 40 8c0 19-12 33-40 55Z" />
+                </g>
+                <g transform="translate(52.56 18) scale(0.29440)" fill="#F2C14E">
+                    <path d="M42 20a8 8 0 0 1 16 0v3c13 6 20 20 20 39v6h8v8H14v-8h8v-6c0-19 7-33 20-39z" />
+                </g>
+                <g transform="translate(18 52.56) scale(0.29440)" fill="#4DA66A">
+                    <path d="M50 8C32 26 12 40 12 58a20 20 0 0 0 33 15l-3 19h16l-3-19a20 20 0 0 0 33-15C88 40 68 26 50 8Z" />
+                </g>
+                <g transform="translate(52.56 52.56) scale(0.29440)" fill="#B8823F">
+                    <path d="M46 8h8v8h-8z M22 42c0-16 12-26 28-26s28 10 28 26v6H22z M27 54h46c0 20-11 34-23 38C38 88 27 74 27 54Z" />
+                </g>
+            </chakra.g>
+        </svg>
+    )
+}
+
 export default function SuitSpinner({ size = "md", label }: {
     size?: SuitSpinnerSize
     /** Accessible name; defaults to the shared "Učitavanje…". */
@@ -48,18 +107,11 @@ export default function SuitSpinner({ size = "md", label }: {
             w={`${px}px`}
             h={`${px}px`}
         >
-            <BrandMark
-                w="full"
-                h="full"
-                aria-hidden="true"
-                css={{
-                    transformOrigin: "50% 50%",
-                    animation: `${orbit} ${DURATION} ${EASING} infinite`,
-                    "@media (prefers-reduced-motion: reduce)": {
-                        animation: `${pulse} 1.6s ease-in-out infinite`,
-                    },
-                }}
-            />
+            {isGamesSite ? (
+                <GamesSuitMark px={px} />
+            ) : (
+                <BrandMark w="full" h="full" aria-hidden="true" css={ORBIT_CSS} />
+            )}
         </chakra.span>
     )
 }
