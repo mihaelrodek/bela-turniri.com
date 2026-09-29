@@ -17,7 +17,13 @@ public class MinioBucketInitializer {
     @ConfigProperty(name = "minio.bucket")
     String bucket;
 
+    /** false on Cloudflare R2: the bucket is made in the Cloudflare dashboard
+     *  and the API token is scoped to objects in that one bucket. */
+    @ConfigProperty(name = "minio.create-bucket", defaultValue = "true")
+    boolean createBucket;
+
     void onStart(@Observes StartupEvent ev) {
+        if (!createBucket) return;
         try {
             boolean exists = minio.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
             if (!exists) {

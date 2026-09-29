@@ -1,6 +1,8 @@
 package hr.mrodek.apps.bela_turniri.health;
 
-import io.minio.BucketExistsArgs;
+import io.minio.ListObjectsArgs;
+import io.minio.Result;
+import io.minio.messages.Item;
 import io.minio.MinioClient;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -25,8 +27,7 @@ import java.util.concurrent.TimeoutException;
  * comment claimed it also covered "the MinIO connection pool", which
  * wasn't true; this makes that comment accurate.
  *
- * <p>Deliberately cheap: {@code bucketExists} is a single HEAD-style call,
- * never a listing, and runs with a short timeout so a hung MinIO doesn't
+ * <p>Deliberately cheap: a one-key {@code listObjects} (a single request), and runs with a short timeout so a hung MinIO doesn't
  * also hang the readiness probe past the 5s the prod healthcheck allows
  * (see {@code docker-compose.prod.yaml}).
  */
@@ -43,7 +44,7 @@ public class MinioReadinessCheck implements HealthCheck {
     @ConfigProperty(name = "minio.bucket")
     String bucket;
 
-    // A single daemon-ish thread just to bound bucketExists() with a
+    // A single daemon-ish thread just to bound the probe with a
     // timeout — the MinIO SDK offers no per-call timeout of its own, and
     // this check runs infrequently (health-probe cadence), so a small
     // dedicated pool is cheaper than spinning one up per invocation.
@@ -55,8 +56,18 @@ public class MinioReadinessCheck implements HealthCheck {
 
     @Override
     public HealthCheckResponse call() {
-        Callable<Boolean> probe = () -> minio.bucketExists(
-                BucketExistsArgs.builder().bucket(bucket).build());
+        // ListObjects (max 1 key), not HeadBucket: a Cloudflare R2 token
+        // scoped to "Object Read & Write" on one bucket can always list it,
+        // while bucket-level calls are not guaranteed. A missing bucket
+        // still surfaces as a NoSuchBucket error → DOWN.
+        Callable<Boolean> probe = () -> {
+            for (Result<Item> r : minio.listObjects(
+                    ListObjectsArgs.builder().bucket(bucket).maxKeys(1).build())) {
+                r.get();
+                break;
+            }
+            return true;
+        };
 
         Future<Boolean> future = executor.submit(probe);
         try {

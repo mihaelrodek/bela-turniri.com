@@ -31,6 +31,10 @@ public class StorageService {
     @ConfigProperty(name = "minio.bucket")
     String bucket;
 
+    /** false on Cloudflare R2 — see {@code minio.create-bucket} in application.properties. */
+    @ConfigProperty(name = "minio.create-bucket", defaultValue = "true")
+    boolean createBucket;
+
     /**
      * Hard cap on poster size (bytes). The global Quarkus body-size limit is
      * 15 MiB, but a tournament poster has no business being more than a few
@@ -247,12 +251,16 @@ public class StorageService {
                         "storage.image.tooLarge", String.valueOf(maxBytes / (1024 * 1024))));
             }
 
-            // Ensure bucket exists (no-op if it already does)
-            boolean exists = minio.bucketExists(
-                    io.minio.BucketExistsArgs.builder().bucket(bucket).build()
-            );
-            if (!exists) {
-                minio.makeBucket(io.minio.MakeBucketArgs.builder().bucket(bucket).build());
+            // Ensure bucket exists (no-op if it already does). Skipped on a
+            // managed store (Cloudflare R2): the bucket is created in its
+            // dashboard and a bucket-scoped token may not HeadBucket at all.
+            if (createBucket) {
+                boolean exists = minio.bucketExists(
+                        io.minio.BucketExistsArgs.builder().bucket(bucket).build()
+                );
+                if (!exists) {
+                    minio.makeBucket(io.minio.MakeBucketArgs.builder().bucket(bucket).build());
+                }
             }
 
             java.nio.file.Path path = file.uploadedFile();

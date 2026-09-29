@@ -1,7 +1,7 @@
 # Deploying bela-turniri.com
 
 Single-server prod deploy on a Hetzner Cloud CX22 (or any VPS with Docker).
-Stack: postgres + minio + Quarkus backend + Caddy edge (SPA + reverse proxy + TLS).
+Stack: postgres + Quarkus backend + Caddy edge (SPA + reverse proxy + TLS), images in Cloudflare R2 (MinIO until 2026-09-29).
 
 ## Prerequisites
 
@@ -108,10 +108,11 @@ compose up -d --build`. (You'll lose data — only do this on first deploy.)
 the DB last applied it. Don't edit committed changesets in place; add a new
 one. If you must, `liquibase clearChecksums` against the running container.
 
-**MinIO gives 403 to the backend.** Wrong `MINIO_ROOT_USER` /
-`MINIO_ROOT_PASSWORD` combination, or you changed them between deploys
-without wiping the MinIO volume. The bucket is private; no public-read
-policy exists by design — all image reads go through the backend.
+**Storage gives 403 to the backend / readiness shows `minio` DOWN.** On R2:
+wrong `S3_ACCESS_KEY` / `S3_SECRET_KEY`, a token not scoped to `S3_BUCKET`,
+or a token with only "Object Read". `S3_ENDPOINT` must be the account
+endpoint *without* the bucket name. The bucket is private; no public access
+exists by design — all image reads go through the backend.
 
 ## Useful commands
 
@@ -603,6 +604,89 @@ Note the ordering this survives: the seed and the Firebase session resolve
 independently. Whichever lands second does the work — a late seed applied after
 the session is known is judged on the spot, an early seed waits in
 `seededKeys`. See `frontend/src/shell/seed.ts`.
+
+## Object storage: Cloudflare R2
+
+Since 2026-09-29 posters and avatars live in Cloudflare R2, not the local
+MinIO container. MinIO stopped publishing Docker images and binaries
+(Docker Hub, quay.io and dl.min.io all refuse), so a fresh server could no
+longer start it. R2 speaks the S3 API: the backend keeps its MinIO Java
+client and only the endpoint, keys and bucket change. The free tier (10 GB
+storage, egress always free) covers this app many times over.
+
+The bucket is **private**. Browsers never talk to R2; they get images from
+`/api/resources/{id}/image`, which the backend streams from the bucket.
+
+### 1. Cloudflare (dashboard)
+
+1. Sign up / log in at dash.cloudflare.com → **R2 Object Storage** →
+   enable R2 (asks for a card; nothing is charged inside the free tier).
+2. **Create bucket** → name `bela-posters`, location Automatic (or EU
+   jurisdiction). Leave public access **off**.
+3. **Manage API tokens → Create API token**:
+   - Permissions: **Object Read & Write**
+   - Specify bucket: **only `bela-posters`**
+   - TTL: forever
+4. Copy the **Access Key ID**, **Secret Access Key** and the **S3 endpoint**
+   `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` (shown on the token
+   page). The secret is shown once.
+5. Optional: R2 → Settings → set a budget notification.
+
+### 2. `.env.prod`
+
+```
+S3_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+S3_ACCESS_KEY=<access key id>
+S3_SECRET_KEY=<secret access key>
+S3_BUCKET=bela-posters
+```
+Keep the existing `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` /
+`MINIO_BUCKET` lines until step 5 — the copy reads the old MinIO with them.
+Compose refuses to start the backend while any `S3_*` value is missing.
+
+### 3. Copy the existing images (site stays up)
+
+```bash
+./ops/migrate-to-r2.sh
+```
+Starts the old MinIO (profile `legacy-minio`), runs `rclone copy` into R2,
+then `rclone check --one-way` (every source object present with the same
+size/hash) and prints both sizes. Nothing is deleted anywhere.
+
+### 4. Switch the backend
+
+```bash
+./ops/deploy.sh
+```
+The backend now boots against R2 (`MINIO_REGION=auto`,
+`MINIO_CREATE_BUCKET=false` are set by compose). Then run
+`./ops/migrate-to-r2.sh` **once more**: it copies anything uploaded between
+step 3 and the switch. Check a tournament poster and an avatar in the
+browser, and
+`docker exec bela-backend curl -s localhost:8085/api/q/health/ready` (the
+`minio` check must be UP — it now probes R2).
+
+Rollback: point the four `S3_*` values at the old MinIO
+(`S3_ENDPOINT=http://minio:9000`, the MinIO user/password/bucket), start
+it with `docker compose -f docker-compose.prod.yaml --env-file .env.prod
+--profile legacy-minio up -d minio`, and deploy. `MINIO_REGION=auto`
+is harmless against MinIO.
+
+### 5. Retire MinIO (a week or two later)
+
+```bash
+docker compose -f docker-compose.prod.yaml --env-file .env.prod --profile legacy-minio stop minio
+docker compose -f docker-compose.prod.yaml --env-file .env.prod --profile legacy-minio rm -f minio minio-setup
+# optional, after a last backup of the volume:
+docker run --rm -v bela-turniri_minio_data:/data -v "$PWD/backups:/b" alpine tar czf /b/minio-data-final.tgz -C /data .
+```
+Then drop the `MINIO_*` lines from `.env.prod`. The `minio`, `minio-setup`
+and `r2-migrate` services and the `minio_data` volume can be deleted from
+`docker-compose.prod.yaml` in a later commit. (The volume name prefix is the
+compose project name — check with `docker volume ls`.)
+
+Local development still uses the MinIO from `docker-compose.yaml`
+(already-pulled image). CI builds MinIO from source (`.github/workflows/ci.yml`).
 
 ## Email (Resend)
 

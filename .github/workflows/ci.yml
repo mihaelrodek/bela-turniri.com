@@ -43,29 +43,46 @@ jobs:
           cache: maven
           cache-dependency-path: backend/pom.xml
 
-      # GitHub Actions `services:` can't override a container's command, and
-      # MinIO no longer publishes to Docker Hub (`docker pull minio/minio` is
-      # "pull access denied", 2026-09-20) — the same tags live on quay.io.
-      # The official minio image requires `server /data` as an
-      # argument - it won't start with just env vars. Run it as a plain
-      # `docker run` step instead, on the same port (9085) the local
-      # docker-compose.yaml uses, matching minio.endpoint's default
-      # (http://localhost:9085) so no extra env var is needed for that.
-      # StorageService creates the bucket itself on first use
-      # (bucketExists/makeBucket), so there's no need to pre-create it here.
+      # MinIO as a plain BINARY built from source, not a container: MinIO
+      # stopped public distribution — Docker Hub went first ("pull access
+      # denied", 2026-09-20), then quay.io ("unauthorized") and the dl.min.io
+      # archive (410 Gone), both 2026-09-28. The AGPL source is still on
+      # GitHub, so `go install` the same release prod runs
+      # (docker-compose.prod.yaml); its go.mod says go 1.22 and has no
+      # replace directives, which is what `go install pkg@version` needs.
+      # Cached, so only the first run (and a release bump) pays the build.
+      # Port 9085 = the local docker-compose.yaml port and minio.endpoint's
+      # default, so no extra env var. MinioBucketInitializer creates the
+      # bucket on startup.
+      - name: Cache MinIO binary
+        id: minio-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/minio-bin
+          key: minio-RELEASE.2024-10-02T17-50-41Z-go1.22-linux-amd64
+
+      - uses: actions/setup-go@v5
+        if: steps.minio-cache.outputs.cache-hit != 'true'
+        with:
+          go-version: "1.22"
+          cache: false
+
+      - name: Build MinIO
+        if: steps.minio-cache.outputs.cache-hit != 'true'
+        run: GOBIN="$HOME/minio-bin" go install github.com/minio/minio@RELEASE.2024-10-02T17-50-41Z
+
       - name: Start MinIO
         run: |
-          docker run -d --name minio \
-            -p 9085:9000 -p 9185:9001 \
-            -e MINIO_ROOT_USER=minio \
-            -e MINIO_ROOT_PASSWORD=minio12345 \
-            quay.io/minio/minio:RELEASE.2024-10-02T17-50-41Z \
-            server /data --console-address ":9001"
+          mkdir -p ~/minio-data
+          MINIO_ROOT_USER=minio MINIO_ROOT_PASSWORD=minio12345 \
+            nohup ~/minio-bin/minio server ~/minio-data \
+              --address ":9085" --console-address ":9185" > ~/minio.log 2>&1 &
           for i in $(seq 1 30); do
             curl -fsS http://localhost:9085/minio/health/live && exit 0
             sleep 2
           done
           echo "MinIO did not become healthy in time" >&2
+          cat ~/minio.log >&2
           exit 1
 
       - name: Test

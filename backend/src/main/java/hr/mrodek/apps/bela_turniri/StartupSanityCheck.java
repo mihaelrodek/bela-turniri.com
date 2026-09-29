@@ -115,8 +115,9 @@ public class StartupSanityCheck {
             warnings.add("MINIO_ENDPOINT points at localhost (current value: '"
                     + minioEndpoint
                     + "'). Inside a container that means the MinIO client will "
-                    + "fail to reach MinIO. Set it to e.g. 'http://minio:9000' "
-                    + "(the docker-compose service name) or your managed S3 host.");
+                    + "fail to reach MinIO. Set S3_ENDPOINT to the Cloudflare R2 endpoint "
+                    + "(https://<account-id>.r2.cloudflarestorage.com) or MINIO_ENDPOINT "
+                    + "to e.g. 'http://minio:9000'.");
         }
 
         if (gameResultsToken().isBlank()) {

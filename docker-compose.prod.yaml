@@ -72,9 +72,14 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
 
+  # LEGACY (2026-09-29): uploads now live in Cloudflare R2. MinIO only runs
+  # under the `legacy-minio` profile, for the one-off copy into R2
+  # (ops/migrate-to-r2.sh) and as a rollback until minio_data is retired.
+  # Plain `compose up` no longer starts it.
   minio:
     image: quay.io/minio/minio:RELEASE.2024-10-02T17-50-41Z
     container_name: bela-minio
+    profiles: ["legacy-minio"]
     <<: *default-logging
     restart: unless-stopped
     # Sized for a small VPS - MinIO's own footprint is small at this scale
@@ -100,6 +105,7 @@ services:
   minio-setup:
     image: quay.io/minio/mc:latest
     container_name: bela-minio-setup
+    profiles: ["legacy-minio"]
     <<: *default-logging
     depends_on:
       minio:
@@ -122,6 +128,46 @@ services:
     networks:
       - bela_internal
 
+  # One-off MinIO → Cloudflare R2 copy, run by ops/migrate-to-r2.sh.
+  # `copy` never deletes on either side, so re-running it is safe and only
+  # moves what is missing (e.g. uploads made between two runs).
+  r2-migrate:
+    image: rclone/rclone:1.68
+    container_name: bela-r2-migrate
+    profiles: ["legacy-minio"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      RCLONE_CONFIG_SRC_TYPE: s3
+      RCLONE_CONFIG_SRC_PROVIDER: Minio
+      RCLONE_CONFIG_SRC_ENDPOINT: http://minio:9000
+      RCLONE_CONFIG_SRC_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      RCLONE_CONFIG_DST_TYPE: s3
+      RCLONE_CONFIG_DST_PROVIDER: Cloudflare
+      RCLONE_CONFIG_DST_ENDPOINT: ${S3_ENDPOINT}
+      RCLONE_CONFIG_DST_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      RCLONE_CONFIG_DST_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      RCLONE_CONFIG_DST_REGION: auto
+      # Bucket-scoped R2 token: must not try to create/check the bucket.
+      RCLONE_CONFIG_DST_NO_CHECK_BUCKET: "true"
+      SRC_BUCKET: ${MINIO_BUCKET}
+      DST_BUCKET: ${S3_BUCKET}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "Copying minio:$$SRC_BUCKET -> r2:$$DST_BUCKET"
+        rclone copy "src:$$SRC_BUCKET" "dst:$$DST_BUCKET" --stats-one-line --stats 5s -v
+        echo "Verifying (every source object must exist in R2 with the same size/hash)..."
+        rclone check "src:$$SRC_BUCKET" "dst:$$DST_BUCKET" --one-way
+        echo "Source:"; rclone size "src:$$SRC_BUCKET"
+        echo "R2:";     rclone size "dst:$$DST_BUCKET"
+    restart: "no"
+    networks:
+      - bela_internal
+
   backend:
     build:
       context: ./backend
@@ -140,8 +186,6 @@ services:
     cpus: 1.5
     depends_on:
       postgres:
-        condition: service_healthy
-      minio:
         condition: service_healthy
     healthcheck:
       # quarkus.http.root-path=/api, so the SmallRye readiness probe lives at
@@ -170,12 +214,17 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
-      # MinIO — internal endpoint name. The backend never touches the
-      # public URL; the /api/resources/{id}/image proxy streams bytes.
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET: ${MINIO_BUCKET}
+      # Object storage = Cloudflare R2 (S3 API; the MinIO Java client talks to
+      # it unchanged, hence the MINIO_* names). The bucket stays private: the
+      # SPA gets images through the /api/resources/{id}/image proxy. `:?`
+      # makes compose refuse to start with a half-configured .env.prod
+      # instead of booting a backend that cannot store a single poster.
+      MINIO_ENDPOINT: ${S3_ENDPOINT:?set S3_ENDPOINT in .env.prod (see DEPLOY.md, Cloudflare R2)}
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in .env.prod}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env.prod}
+      MINIO_BUCKET: ${S3_BUCKET:?set S3_BUCKET in .env.prod}
+      MINIO_REGION: auto
+      MINIO_CREATE_BUCKET: "false"
 
       # Firebase OIDC — only needs the project id; no client secret.
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
