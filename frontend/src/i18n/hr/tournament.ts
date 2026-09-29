@@ -115,6 +115,9 @@ export const tournament = {
        share one tile, value composed from rule.declarations.* + rule.bela.*
        — see DetailsSection.tsx. */
     "tile.declarationsAndBela": "Zvanja i bela",
+    // Detail page "Pravila" card (2026-09-29): one labelled item per rule.
+    "tile.rules": "Pravila",
+    "tile.bela": "Bela",
     "tile.rewards": "Nagrade",
     "tile.additionalOptions": "Dodatne opcije",
 
@@ -156,6 +159,7 @@ export const tournament = {
     "rule.direction.left": "Lijevo",
     "rule.declarations.enabled": "Vrijede",
     "rule.declarations.disabled": "Bez zvanja",
+    "rule.declarations.off": "Ne vrijede",
     "rule.yes": "Da",
     "rule.no": "Ne",
     /* Bela chip/tile fragment (2026-09-22). Used standalone (capitalised) on

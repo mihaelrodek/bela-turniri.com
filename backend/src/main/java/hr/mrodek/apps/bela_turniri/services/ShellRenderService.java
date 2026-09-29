@@ -128,8 +128,9 @@ public class ShellRenderService {
      * {@code null} when nothing is seeded for it.
      *
      * <ul>
-     *   <li>{@code "/"} and {@code "/turniri"} → {@code "/turniri"} (the root
-     *       route is a {@code <Navigate to="/turniri">}, so a cold load on
+     *   <li>{@code "/"} and {@code "/turniri"} → {@code "/turniri"} (the
+     *       listing lives on "/" since 2026-09-29 and the old /turniri 301s
+     *       there; "/turniri" stays the internal cache key, so a cold load on
      *       {@code /} lands on the listing too)</li>
      *   <li>{@code "/turniri/<slug>"} and {@code "/turniri/<slug>/<section>"}
      *       → {@code "/turniri/<slug>"} — the section is a tab within the same

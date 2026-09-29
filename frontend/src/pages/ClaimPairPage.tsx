@@ -153,7 +153,7 @@ export default function ClaimPairPage() {
                             {t("forms.claimPair.notFoundMessage")}
                         </Text>
                         <Button asChild variant="outline" size="sm" mt="2">
-                            <RouterLink to="/turniri">{t("forms.shared.backToTournaments")}</RouterLink>
+                            <RouterLink to="/">{t("forms.shared.backToTournaments")}</RouterLink>
                         </Button>
                     </VStack>
                 </Card.Body>

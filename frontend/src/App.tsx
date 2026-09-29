@@ -196,6 +196,23 @@ function FullSiteRedirect() {
     return isNative ? <Navigate to={homePath} replace /> : <RouteLoading />
 }
 
+/** Old home address (/turniri, or /igra on the games domains) → "/",
+ *  keeping ?query and #hash. Caddy 301s the cold load; this covers links
+ *  followed inside the running SPA. */
+function HomeRedirect() {
+    const { search, hash } = useLocation()
+    return <Navigate to={{ pathname: "/", search, hash }} replace />
+}
+
+/* The lobby is mounted on "/" (games domains) or "/igra" (full site).
+   GameFeatureGate stays OUTSIDE the identity gate — see the comment above
+   the /igra route in <Routes>. */
+const gameLobbyElement = (
+    <GameFeatureGate>
+        <GameIdentityGate><GameLobbyPage /></GameIdentityGate>
+    </GameFeatureGate>
+)
+
 function GameChrome() {
     const { pathname } = useLocation()
     const onTable = pathname.startsWith("/igra/soba/")
@@ -289,12 +306,16 @@ export default function App() {
                 <Suspense fallback={<RouteLoading />}>
                 {isGamesSite && isFullSiteOnlyPath(displayed.pathname) ? <FullSiteRedirect /> : (
                 <Routes location={displayed}>
-                    <Route path="/" element={<Navigate to={homePath} replace />} />
+                    {/* Home is the bare domain (2026-09-29): the listing on the
+                        full site, the game lobby on the games domains. The
+                        old home addresses keep working as redirects that
+                        carry the query string (?q= search links). */}
+                    <Route path="/" element={isGamesSite ? gameLobbyElement : <TournamentsPage />} />
 
                     {/* Croatian (canonical) routes. */}
                     <Route path="/prijava" element={<LoginPage />} />
                     <Route path="/registracija" element={<RegisterPage />} />
-                    <Route path="/turniri" element={<TournamentsPage />} />
+                    <Route path="/turniri" element={<HomeRedirect />} />
                     <Route
                         path="/turniri/novi"
                         element={
@@ -325,14 +346,7 @@ export default function App() {
                         it must stay OUTSIDE the identity gate: a signed-out
                         visitor should read why the game isn't there yet, not
                         be sent to a login form for a feature that is off. */}
-                    <Route
-                        path="/igra"
-                        element={
-                            <GameFeatureGate>
-                                <GameIdentityGate><GameLobbyPage /></GameIdentityGate>
-                            </GameFeatureGate>
-                        }
-                    />
+                    <Route path="/igra" element={isGamesSite ? <HomeRedirect /> : gameLobbyElement} />
                     <Route
                         path="/igra/soba/:roomId"
                         element={
@@ -386,7 +400,7 @@ export default function App() {
                         below extract and forward them. */}
                     <Route path="/login" element={<Navigate to="/prijava" replace />} />
                     <Route path="/register" element={<Navigate to="/registracija" replace />} />
-                    <Route path="/tournaments" element={<Navigate to="/turniri" replace />} />
+                    <Route path="/tournaments" element={<Navigate to="/" replace />} />
                     <Route path="/tournaments/new" element={<Navigate to="/turniri/novi" replace />} />
                     <Route path="/tournaments/:uuid/:section?" element={<LegacyTournamentRedirect />} />
                     <Route path="/calendar" element={<Navigate to="/kalendar" replace />} />

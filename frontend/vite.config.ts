@@ -288,7 +288,7 @@ function gamesShell(): Plugin {
             1,
             "apple-mobile-web-app-title",
         )
-        // This domain's own PWA identity: name, start_url /igra, its own
+        // This domain's own PWA identity: name, start_url / (the lobby), its own
         // shortcuts. Caddy ALSO rewrites /manifest.webmanifest to the same
         // file on bela.games, so the service worker's shell precache (which
         // asks for the canonical name) gets the right one too.
@@ -315,8 +315,8 @@ function gamesShell(): Plugin {
         )
 
         // JSON-LD: the full site's block advertises a SearchAction over
-        // /turniri?q=, a page that does not exist on this domain (Caddy 301s
-        // it away). Replace both records with a plain WebSite + Organization
+        // bela-turniri.com/?q= (the tournament search), which bela.games does
+        // not have. Replace both records with a plain WebSite + Organization
         // for bela.games.
         const ldBlocks = out.match(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g) ?? []
         if (ldBlocks.length !== 2) {

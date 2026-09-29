@@ -1,7 +1,7 @@
 # Deploying bela-turniri.com
 
 Single-server prod deploy on a Hetzner Cloud CX22 (or any VPS with Docker).
-Stack: postgres + Quarkus backend + Caddy edge (SPA + reverse proxy + TLS), images in Cloudflare R2 (MinIO until 2026-09-29).
+Stack: postgres + Quarkus backend + Caddy edge (SPA + reverse proxy + TLS), images in Cloudflare R2.
 
 ## Prerequisites
 
@@ -640,53 +640,34 @@ S3_ACCESS_KEY=<access key id>
 S3_SECRET_KEY=<secret access key>
 S3_BUCKET=bela-posters
 ```
-Keep the existing `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` /
-`MINIO_BUCKET` lines until step 5 — the copy reads the old MinIO with them.
-Compose refuses to start the backend while any `S3_*` value is missing.
+`S3_ENDPOINT` is the account endpoint **without** the bucket name. Compose
+refuses to start the backend while any `S3_*` value is missing; it sets
+`MINIO_REGION=auto` and `MINIO_CREATE_BUCKET=false` itself (the backend's
+config keeps its MinIO-era names because it still uses the MinIO Java
+client, which speaks plain S3).
 
-### 3. Copy the existing images (site stays up)
+Check after a deploy:
+`docker exec bela-backend curl -s localhost:8085/api/q/health/ready` — the
+check named `minio` probes R2 and must be UP.
 
-```bash
-./ops/migrate-to-r2.sh
-```
-Starts the old MinIO (profile `legacy-minio`), runs `rclone copy` into R2,
-then `rclone check --one-way` (every source object present with the same
-size/hash) and prints both sizes. Nothing is deleted anywhere.
+### History
 
-### 4. Switch the backend
-
-```bash
-./ops/deploy.sh
-```
-The backend now boots against R2 (`MINIO_REGION=auto`,
-`MINIO_CREATE_BUCKET=false` are set by compose). Then run
-`./ops/migrate-to-r2.sh` **once more**: it copies anything uploaded between
-step 3 and the switch. Check a tournament poster and an avatar in the
-browser, and
-`docker exec bela-backend curl -s localhost:8085/api/q/health/ready` (the
-`minio` check must be UP — it now probes R2).
-
-Rollback: point the four `S3_*` values at the old MinIO
-(`S3_ENDPOINT=http://minio:9000`, the MinIO user/password/bucket), start
-it with `docker compose -f docker-compose.prod.yaml --env-file .env.prod
---profile legacy-minio up -d minio`, and deploy. `MINIO_REGION=auto`
-is harmless against MinIO.
-
-### 5. Retire MinIO (a week or two later)
+Migrated 2026-09-29: ~16 MB copied from the old MinIO volume with
+`rclone copy` + `rclone check --one-way` (clean), backend switched, second
+copy for the switch window, uploads verified. The MinIO services, the
+`minio_data` volume and `ops/migrate-to-r2.sh` were then removed from the
+repo. If an old server still has the container/volume:
 
 ```bash
-docker compose -f docker-compose.prod.yaml --env-file .env.prod --profile legacy-minio stop minio
-docker compose -f docker-compose.prod.yaml --env-file .env.prod --profile legacy-minio rm -f minio minio-setup
-# optional, after a last backup of the volume:
-docker run --rm -v bela-turniri_minio_data:/data -v "$PWD/backups:/b" alpine tar czf /b/minio-data-final.tgz -C /data .
+docker rm -f bela-minio bela-minio-setup 2>/dev/null
+docker volume ls | grep minio_data     # note the exact name (project prefix)
+docker run --rm -v <that_volume>:/data -v "$PWD/backups:/b" alpine tar czf /b/minio-data-final.tgz -C /data .
+docker volume rm <that_volume>
 ```
-Then drop the `MINIO_*` lines from `.env.prod`. The `minio`, `minio-setup`
-and `r2-migrate` services and the `minio_data` volume can be deleted from
-`docker-compose.prod.yaml` in a later commit. (The volume name prefix is the
-compose project name — check with `docker volume ls`.)
 
-Local development still uses the MinIO from `docker-compose.yaml`
-(already-pulled image). CI builds MinIO from source (`.github/workflows/ci.yml`).
+Local development still runs MinIO from `docker-compose.yaml` (already
+pulled image) and CI builds it from source (`.github/workflows/ci.yml`),
+because the tests need a real S3 endpoint.
 
 ## Email (Resend)
 

@@ -126,7 +126,7 @@ type TabDef = {
     to: string
     label: string
     icon: ReactNode
-    /** Exact-match flag so `/turniri` doesn't stay highlighted on `/turniri/123`. */
+    /** Exact-match flag: only `to` itself lights the tab, never a sub-path. */
     exact?: boolean
     /** True when the route lives outside the bottom bar (e.g. /turniri/:uuid). */
     matchPrefixes?: string[]
@@ -145,7 +145,8 @@ type TabDef = {
  */
 function buildTabs(t: (key: string) => string): TabDef[] {
     const tabs: TabDef[] = [
-        { to: "/turniri", label: t("common.nav.turniri"), icon: <FiHome size={20} />, matchPrefixes: ["/turniri"] },
+        // Home is "/"; a tournament page (/turniri/:slug) keeps the tab lit.
+        { to: "/", label: t("common.nav.turniri"), icon: <FiHome size={20} />, matchPrefixes: ["/turniri"] },
         { to: "/kalendar", label: t("common.nav.kalendar"), icon: <FiCalendar size={20} /> },
         // Online bela (src/game) — centre slot, see the header comment. The
         // bar hides itself on /igra* (`hidden` below), so this tab hands the
@@ -164,7 +165,8 @@ function buildTabs(t: (key: string) => string): TabDef[] {
 }
 
 function isActive(pathname: string, tab: TabDef): boolean {
-    if (tab.exact) return pathname === tab.to
+    if (pathname === tab.to) return true
+    if (tab.exact) return false
     if (tab.matchPrefixes) {
         return tab.matchPrefixes.some((p) => pathname === p || pathname.startsWith(p + "/"))
     }

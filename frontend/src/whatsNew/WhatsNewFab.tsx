@@ -5,6 +5,7 @@ import { useTranslation } from "../i18n"
 import { usePrefersReducedMotion } from "../game/hooks/usePrefersReducedMotion"
 import { WHATS_NEW_FAB, WHATS_NEW_FAB_RIGHT } from "../components/navChrome"
 import { open, useHasUnseenWhatsNew } from "./store"
+import { isGameRoute } from "../site"
 
 /* ──────────────────────────────────────────────────────────────────────────
    WhatsNewFab — the sticky "Novosti" button that opens `WhatsNewDialog`.
@@ -29,7 +30,7 @@ export default function WhatsNewFab() {
     const unseen = useHasUnseenWhatsNew()
     const reducedMotion = usePrefersReducedMotion()
 
-    const hidden = pathname.startsWith("/igra") || pathname.startsWith("/blok")
+    const hidden = isGameRoute(pathname) || pathname.startsWith("/blok")
     if (hidden) return null
 
     const label = t("whatsNew.fab.ariaLabel")

@@ -202,8 +202,7 @@ public class HomePreviewController {
         // All URLs use Croatian slugs — they're the canonical paths now.
         String base = baseUrl();
         sb.append("<section>\n<h2>Istraži</h2>\n<ul>\n");
-        sb.append("<li><a href=\"").append(escapeAttr(base)).append("/turniri\">Svi turniri</a></li>\n");
-        sb.append("<li><a href=\"").append(escapeAttr(base)).append("/kalendar\">Kalendar turnira</a></li>\n");
+                sb.append("<li><a href=\"").append(escapeAttr(base)).append("/kalendar\">Kalendar turnira</a></li>\n");
         sb.append("<li><a href=\"").append(escapeAttr(base)).append("/karta\">Karta turnira</a></li>\n");
         sb.append("</ul>\n</section>\n");
 
@@ -225,7 +224,7 @@ public class HomePreviewController {
                 "Popis turnira u beli — Bela Turniri",
                 "Popis svih nadolazećih i odigranih Bela turnira u Hrvatskoj. "
                         + "Pretraži po lokaciji, datumu i cijeni.",
-                "https://bela-turniri.com/turniri");
+                "https://bela-turniri.com/");
         sb.append("</head>\n<body>\n<article>\n");
         sb.append("<h1>Bela turniri</h1>\n");
         sb.append("<p>Popis svih turnira u bazi bela-turniri.com. "
@@ -244,7 +243,7 @@ public class HomePreviewController {
             sb.append("</ul>\n</section>\n");
         }
 
-        sb.append("<hr>\n<p><a href=\"").append(escapeAttr(baseUrl())).append("/turniri\">"
+        sb.append("<hr>\n<p><a href=\"").append(escapeAttr(baseUrl())).append("/\">"
                 + "Otvori popis turnira u aplikaciji</a></p>\n");
         sb.append("</article>\n</body>\n</html>\n");
         return sb.toString();
@@ -364,7 +363,7 @@ public class HomePreviewController {
                 .append("\"inLanguage\":\"hr\",")
                 .append("\"potentialAction\":{\"@type\":\"SearchAction\",")
                 .append("\"target\":{\"@type\":\"EntryPoint\",\"urlTemplate\":\"")
-                .append(jsonEscape(base + "/turniri?q={search_term_string}")).append("\"},")
+                .append(jsonEscape(base + "/?q={search_term_string}")).append("\"},")
                 .append("\"query-input\":\"required name=search_term_string\"}}")
                 .append("</script>\n");
         sb.append("<script type=\"application/ld+json\">")

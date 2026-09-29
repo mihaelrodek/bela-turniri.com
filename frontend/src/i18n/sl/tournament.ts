@@ -77,6 +77,9 @@ export const tournament: TournamentDict = {
     "tile.declarations": "Napovedi",
     "tile.allowBela": "Bela",
     "tile.declarationsAndBela": "Napovedi in bela",
+    // Detail page "Pravila" card (2026-09-29): one labelled item per rule.
+    "tile.rules": "Pravila",
+    "tile.bela": "Bela",
     "tile.rewards": "Nagrade",
     "tile.additionalOptions": "Dodatne možnosti",
 
@@ -107,6 +110,7 @@ export const tournament: TournamentDict = {
     "rule.direction.left": "Levo",
     "rule.declarations.enabled": "Veljajo",
     "rule.declarations.disabled": "Brez napovedi",
+    "rule.declarations.off": "Ne veljajo",
     "rule.yes": "Da",
     "rule.no": "Ne",
     "rule.bela.enabled": "Bela da",

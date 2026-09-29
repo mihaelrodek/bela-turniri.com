@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "react"
+import type { ChangeEvent, ReactNode } from "react"
 import {
     Box,
     Button,
@@ -45,6 +45,18 @@ import type { TournamentForm } from "../../../utils/tournamentForm"
 registerLocale("hr", hr)
 registerLocale("sl", sl)
 registerLocale("en", enGB)
+
+/** Small icon + label heading — same as CreateTournamentPage's GroupHeading. */
+function GroupHeading({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+    return (
+        <HStack gap="2" fontSize="sm" fontWeight="medium" color="fg">
+            <Box color="brand.fg" display="flex" alignItems="center">
+                {icon}
+            </Box>
+            <Text>{children}</Text>
+        </HStack>
+    )
+}
 
 /**
  * "Uredi turnir" — the inline edit form on the Detalji section.
@@ -187,170 +199,233 @@ export default function DetailsEditForm({
                         </Field.Root>
                     </Box>
 
-                    {/* Row 2 — same layout as the create form: location
-                        autocomplete + details textarea stack on the left, map
-                        fills the right column on desktop. On mobile everything
-                        collapses to one column (Lokacija → Map → Detalji). */}
+                    {/* Row 2 — same grid as CreateTournamentPage step 1:
+                          · RIGHT : Lokacija, with the map directly under it
+                          · LEFT  : Detalji, Kontakt organizatora, Plakat
+                        On mobile it collapses to one column and `order`
+                        gives Lokacija → karta → Detalji → Kontakt → Plakat. */}
                     <Box
                         display="grid"
                         gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }}
-                        gap="4"
+                        gap="3"
+                        alignItems="start"
                     >
-                        <Field.Root required>
-                            <Field.Label>{tr("tournament.tile.location")} <Field.RequiredIndicator /></Field.Label>
-                            <LocationAutocomplete
-                                value={editForm.location}
-                                onChange={(v) => patchEdit("location", v)}
-                                onPickSuggestion={(s) => {
-                                    setEditPickedCoords({ lat: s.latitude, lng: s.longitude })
-                                }}
-                                placeholder={tr("tournament.edit.locationPlaceholder")}
-                            />
-                        </Field.Root>
-
-                        <Box
-                            gridRow={{ base: "auto", md: "span 2" }}
-                            gridColumn={{ base: "auto", md: "2" }}
+                        {/* RIGHT column — Lokacija above the map. */}
+                        <VStack
+                            align="stretch"
+                            gap="2"
+                            gridColumn={{ md: "2" }}
+                            order={{ base: 0, md: 1 }}
                         >
+                            <Field.Root required>
+                                <Field.Label>{tr("tournament.tile.location")} <Field.RequiredIndicator /></Field.Label>
+                                <LocationAutocomplete
+                                    value={editForm.location}
+                                    onChange={(v) => patchEdit("location", v)}
+                                    onPickSuggestion={(s) => {
+                                        setEditPickedCoords({ lat: s.latitude, lng: s.longitude })
+                                    }}
+                                    placeholder={tr("tournament.edit.locationPlaceholder")}
+                                />
+                            </Field.Root>
                             <LocationMapPicker
                                 value={editPickedCoords}
                                 onPick={(p) => {
                                     patchEdit("location", p.displayName)
                                     setEditPickedCoords({ lat: p.lat, lng: p.lng })
                                 }}
-                                height={{ base: "220px", md: "100%" }}
-                                minH="220px"
+                                height={{ base: "240px", md: "252px" }}
+                                minH="240px"
                             />
-                        </Box>
+                        </VStack>
 
-                        <Field.Root>
-                            <Field.Label>{tr("tournament.tile.details")}</Field.Label>
-                            <Textarea
-                                rows={3}
-                                value={editForm.details}
-                                onChange={(e) => patchEdit("details", e.target.value)}
-                            />
-                        </Field.Root>
-                    </Box>
-
-                    {/* Poster picker. Same layout/validation as
-                        CreateTournamentPage. When a new file is picked, the
-                        existing bannerUrl is hidden behind the local preview;
-                        clicking the × either cancels the pick (if a file was
-                        just picked) or marks the server-side poster for
-                        deletion on Spremi. */}
-                    <Box>
-                        <HStack gap="2" mb="2" fontSize="sm" fontWeight="medium">
-                            <FiImage />
-                            <Text>
-                                {tr("tournament.edit.poster")} <chakra.span color="fg.muted" fontWeight="normal">{tr("tournament.edit.optional")}</chakra.span>
-                            </Text>
-                        </HStack>
-
-                        {/* Same alignment treatment as CreateTournamentPage:
-                            vertically centred on desktop, horizontally centred
-                            on mobile when the preview + VStack wrap. */}
-                        <HStack
-                            align="center"
+                        {/* LEFT column — Detalji, Kontakt, Plakat. */}
+                        <VStack
+                            align="stretch"
                             gap="3"
-                            wrap="wrap"
-                            justify={{ base: "center", md: "flex-start" }}
+                            gridColumn={{ md: "1" }}
+                            gridRow={{ md: "1" }}
+                            order={{ base: 1, md: 0 }}
                         >
-                            {showLocalPreview || showServerPoster ? (
-                                <Box
-                                    position="relative"
-                                    borderWidth="1px"
-                                    rounded="md"
-                                    overflow="hidden"
-                                    w="120px"
-                                    h="120px"
-                                >
-                                    <img
-                                        src={showLocalPreview ? posterPreviewUrl! : bannerUrl!}
-                                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                    />
-                                    <IconButton
-                                        type="button"
-                                        aria-label={tr("tournament.edit.removePoster")}
-                                        size="2xs"
-                                        variant="solid"
-                                        colorPalette="red"
-                                        position="absolute"
-                                        top="1"
-                                        right="1"
-                                        onClick={() => {
-                                            if (showLocalPreview) {
-                                                // Local pick — just discard
-                                                onClearPosterPick()
-                                            } else {
-                                                // Persisted poster — mark for removal on save
-                                                onMarkPosterForRemoval()
-                                            }
-                                        }}
-                                    >
-                                        <FiX />
-                                    </IconButton>
-                                </Box>
-                            ) : (
-                                <Box
-                                    w="120px"
-                                    h="120px"
-                                    borderWidth="1px"
-                                    borderStyle="dashed"
-                                    borderColor="border.subtle"
-                                    rounded="md"
-                                    display="flex"
-                                    alignItems="center"
-                                    justifyContent="center"
-                                    color="fg.muted"
-                                >
-                                    <FiImage size={28} />
-                                </Box>
-                            )}
+                            <Field.Root>
+                                <Field.Label>{tr("tournament.tile.details")}</Field.Label>
+                                <Textarea
+                                    rows={2}
+                                    resize="vertical"
+                                    value={editForm.details}
+                                    onChange={(e) => patchEdit("details", e.target.value)}
+                                />
+                            </Field.Root>
 
-                            <VStack
-                                align={{ base: "center", md: "start" }}
-                                gap="1"
-                                flex="1"
-                                minW="200px"
-                            >
-                                <Button
-                                    as="label"
-                                    variant="outline"
-                                    colorPalette="blue"
-                                    size="sm"
-                                    cursor="pointer"
+                            {/* Organiser contact — one group heading +
+                                placeholders, exactly like the create wizard. */}
+                            <Box>
+                                <GroupHeading icon={<FiPhone />}>
+                                    {tr("tournament.edit.sectionContact")}
+                                </GroupHeading>
+                                <Box
+                                    display="grid"
+                                    gridTemplateColumns={{ base: "1fr", sm: "1fr 1fr" }}
+                                    gap="2"
+                                    mt="1.5"
                                 >
-                                    {posterFile
-                                        ? tr("tournament.edit.changeImage")
-                                        : bannerUrl && !posterRemove
-                                            ? tr("tournament.edit.replacePoster")
-                                            : tr("tournament.edit.chooseImage")}
-                                    <input
-                                        type="file"
-                                        accept={POSTER_ACCEPT.join(",")}
-                                        style={{ display: "none" }}
-                                        onChange={(e) => {
-                                            const f = e.target.files?.[0]
-                                            if (f) onPosterPick(f)
-                                            // Reset so picking the same file again still fires onChange.
-                                            e.target.value = ""
-                                        }}
+                                    <Input
+                                        aria-label={tr("tournament.edit.contactName")}
+                                        placeholder={tr("tournament.edit.contactNamePlaceholder")}
+                                        value={editForm.contactName}
+                                        onChange={(e) => patchEdit("contactName", e.target.value)}
                                     />
-                                </Button>
-                                {posterUploadErr ? (
-                                    <Text color="red.fg" fontSize="xs">{posterUploadErr}</Text>
-                                ) : posterRemove ? (
-                                    <Text color="orange.fg" fontSize="xs">
-                                        {tr("tournament.edit.posterWillBeRemoved")}
-                                    </Text>
-                                ) : (
-                                    <Text color="fg.muted" fontSize="xs">
-                                        {tr("tournament.edit.posterHint", { mb: POSTER_MAX_MB })}
-                                    </Text>
-                                )}
-                            </VStack>
-                        </HStack>
+                                    <HStack gap="2">
+                                        <NativeSelect.Root size="md" w="110px" flexShrink={0}>
+                                            <NativeSelect.Field
+                                                aria-label={tr("tournament.edit.contactPhone")}
+                                                value={editForm.contactPhoneCountry}
+                                                onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                                                    patchEdit("contactPhoneCountry", e.target.value)
+                                                }
+                                            >
+                                                {PHONE_COUNTRIES.map((c) => (
+                                                    <option key={c.value} value={c.value}>
+                                                        {c.label}
+                                                    </option>
+                                                ))}
+                                            </NativeSelect.Field>
+                                        </NativeSelect.Root>
+                                        <Input
+                                            flex="1"
+                                            minW="0"
+                                            inputMode="numeric"
+                                            pattern="[0-9 ]*"
+                                            aria-label={tr("tournament.edit.contactPhone")}
+                                            placeholder={tr("tournament.edit.contactPhonePlaceholder")}
+                                            value={editForm.contactPhone}
+                                            onChange={(e) =>
+                                                patchEdit("contactPhone", sanitizePhone(e.target.value))
+                                            }
+                                        />
+                                    </HStack>
+                                </Box>
+                            </Box>
+
+                            {/* Poster picker. Same layout/validation as
+                                CreateTournamentPage. When a new file is picked, the
+                                existing bannerUrl is hidden behind the local preview;
+                                clicking the × either cancels the pick (if a file was
+                                just picked) or marks the server-side poster for
+                                deletion on Spremi. */}
+                            <Box>
+                                <GroupHeading icon={<FiImage />}>
+                                    {tr("tournament.edit.poster")}{" "}
+                                    <chakra.span color="fg.muted" fontWeight="normal">{tr("tournament.edit.optional")}</chakra.span>
+                                </GroupHeading>
+
+                                {/* Same alignment treatment as CreateTournamentPage:
+                                    vertically centred on desktop, horizontally centred
+                                    on mobile when the preview + VStack wrap. */}
+                                <HStack
+                                    align="center"
+                                    gap="3"
+                                    wrap="wrap"
+                                    mt="1.5"
+                                    justify={{ base: "center", sm: "flex-start" }}
+                                >
+                                    {showLocalPreview || showServerPoster ? (
+                                        <Box
+                                            position="relative"
+                                            borderWidth="1px"
+                                            rounded="md"
+                                            overflow="hidden"
+                                            w="88px"
+                                            h="88px"
+                                        >
+                                            <img
+                                                src={showLocalPreview ? posterPreviewUrl! : bannerUrl!}
+                                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                            />
+                                            <IconButton
+                                                type="button"
+                                                aria-label={tr("tournament.edit.removePoster")}
+                                                size="2xs"
+                                                variant="solid"
+                                                colorPalette="red"
+                                                position="absolute"
+                                                top="1"
+                                                right="1"
+                                                onClick={() => {
+                                                    if (showLocalPreview) {
+                                                        // Local pick — just discard
+                                                        onClearPosterPick()
+                                                    } else {
+                                                        // Persisted poster — mark for removal on save
+                                                        onMarkPosterForRemoval()
+                                                    }
+                                                }}
+                                            >
+                                                <FiX />
+                                            </IconButton>
+                                        </Box>
+                                    ) : (
+                                        <Box
+                                            w="88px"
+                                            h="88px"
+                                            borderWidth="1px"
+                                            borderStyle="dashed"
+                                            borderColor="border.subtle"
+                                            rounded="md"
+                                            display="flex"
+                                            alignItems="center"
+                                            justifyContent="center"
+                                            color="fg.muted"
+                                        >
+                                            <FiImage size={24} />
+                                        </Box>
+                                    )}
+
+                                    <VStack
+                                        align={{ base: "center", sm: "start" }}
+                                        gap="1"
+                                        flex="1"
+                                        minW="180px"
+                                    >
+                                        <Button
+                                            as="label"
+                                            variant="outline"
+                                            colorPalette="blue"
+                                            size="sm"
+                                            cursor="pointer"
+                                        >
+                                            {posterFile
+                                                ? tr("tournament.edit.changeImage")
+                                                : bannerUrl && !posterRemove
+                                                    ? tr("tournament.edit.replacePoster")
+                                                    : tr("tournament.edit.chooseImage")}
+                                            <input
+                                                type="file"
+                                                accept={POSTER_ACCEPT.join(",")}
+                                                style={{ display: "none" }}
+                                                onChange={(e) => {
+                                                    const f = e.target.files?.[0]
+                                                    if (f) onPosterPick(f)
+                                                    // Reset so picking the same file again still fires onChange.
+                                                    e.target.value = ""
+                                                }}
+                                            />
+                                        </Button>
+                                        {posterUploadErr ? (
+                                            <Text color="red.fg" fontSize="xs">{posterUploadErr}</Text>
+                                        ) : posterRemove ? (
+                                            <Text color="orange.fg" fontSize="xs">
+                                                {tr("tournament.edit.posterWillBeRemoved")}
+                                            </Text>
+                                        ) : (
+                                            <Text color="fg.muted" fontSize="xs">
+                                                {tr("tournament.edit.posterHint", { mb: POSTER_MAX_MB })}
+                                            </Text>
+                                        )}
+                                    </VStack>
+                                </HStack>
+                            </Box>
+                        </VStack>
                     </Box>
                 </VStack>
             </SectionCard>
@@ -604,48 +679,6 @@ export default function DetailsEditForm({
                         </Field.Root>
                     </Box>
                 </VStack>
-            </SectionCard>
-
-            <SectionCard icon={<FiPhone />} title={tr("tournament.edit.sectionContact")}>
-                <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="4">
-                    <Field.Root>
-                        <Field.Label>{tr("tournament.edit.contactName")}</Field.Label>
-                        <Input
-                            placeholder={tr("tournament.edit.contactNamePlaceholder")}
-                            value={editForm.contactName}
-                            onChange={(e) => patchEdit("contactName", e.target.value)}
-                        />
-                    </Field.Root>
-                    <Field.Root>
-                        <Field.Label>{tr("tournament.edit.contactPhone")}</Field.Label>
-                        <HStack gap="2">
-                            <NativeSelect.Root size="md" w="120px" flexShrink={0}>
-                                <NativeSelect.Field
-                                    value={editForm.contactPhoneCountry}
-                                    onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                                        patchEdit("contactPhoneCountry", e.target.value)
-                                    }
-                                >
-                                    {PHONE_COUNTRIES.map((c) => (
-                                        <option key={c.value} value={c.value}>
-                                            {c.label}
-                                        </option>
-                                    ))}
-                                </NativeSelect.Field>
-                            </NativeSelect.Root>
-                            <Input
-                                flex="1"
-                                inputMode="numeric"
-                                pattern="[0-9 ]*"
-                                placeholder={tr("tournament.edit.contactPhonePlaceholder")}
-                                value={editForm.contactPhone}
-                                onChange={(e) =>
-                                    patchEdit("contactPhone", sanitizePhone(e.target.value))
-                                }
-                            />
-                        </HStack>
-                    </Field.Root>
-                </Box>
             </SectionCard>
 
             {/* Sticky save bar */}

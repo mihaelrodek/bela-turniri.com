@@ -237,7 +237,7 @@ export default function TournamentsPage() {
         ogTitle: tt("pages.tournaments.seo.ogTitle"),
         ogDescription: tt("pages.tournaments.seo.ogDescription"),
         ogType: "website",
-        canonical: "https://bela-turniri.com/turniri",
+        canonical: "https://bela-turniri.com/",
     })
 
     const navigate = useNavigate()

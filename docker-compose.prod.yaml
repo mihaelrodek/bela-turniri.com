@@ -7,11 +7,11 @@
 #   │                  /api/*  ▼                                  │
 #   │                       backend (Quarkus, port 8085)          │
 #   │                          │                                  │
-#   │              ┌───────────┼────────────┐                     │
-#   │              ▼           ▼            ▼                     │
-#   │          postgres      minio    (Firebase OIDC, external)   │
-#   │                                                             │
-#   │   bela_internal network (postgres + minio not host-exposed) │
+#   │              ┌───────────┼──────────────┐                   │
+#   │              ▼           ▼              ▼                   │
+#   │          postgres   Cloudflare R2   Firebase OIDC           │
+#   │                     (external)      (external)              │
+#   │   bela_internal network (postgres not host-exposed)         │
 #   └─────────────────────────────────────────────────────────────┘
 #
 # Run from the repo root, with .env.prod in the same directory:
@@ -48,7 +48,7 @@ services:
     container_name: bela-postgres
     <<: *default-logging
     restart: unless-stopped
-    # Sized for a small VPS (Hetzner CX22, 4 GB RAM) with backend/minio/
+    # Sized for a small VPS (Hetzner CX22, 4 GB RAM) with backend/game/
     # caddy sharing the box. postgres:16-alpine's own defaults (shared_buffers
     # etc.) are modest enough to run comfortably inside this.
     mem_limit: 512m
@@ -72,102 +72,6 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
 
-  # LEGACY (2026-09-29): uploads now live in Cloudflare R2. MinIO only runs
-  # under the `legacy-minio` profile, for the one-off copy into R2
-  # (ops/migrate-to-r2.sh) and as a rollback until minio_data is retired.
-  # Plain `compose up` no longer starts it.
-  minio:
-    image: quay.io/minio/minio:RELEASE.2024-10-02T17-50-41Z
-    container_name: bela-minio
-    profiles: ["legacy-minio"]
-    <<: *default-logging
-    restart: unless-stopped
-    # Sized for a small VPS - MinIO's own footprint is small at this scale
-    # (a handful of posters/avatars, no heavy erasure-coding cluster).
-    mem_limit: 256m
-    cpus: 0.5
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 5
-    networks:
-      - bela_internal
-    # No `ports:` — bucket is private; the SPA reaches images through
-    # the backend's /api/resources/{id}/image proxy.
-
-  minio-setup:
-    image: quay.io/minio/mc:latest
-    container_name: bela-minio-setup
-    profiles: ["legacy-minio"]
-    <<: *default-logging
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET: ${MINIO_BUCKET}
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        set -e
-        until mc alias set minio http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do
-          echo "Waiting for MinIO..."; sleep 2
-        done
-        mc mb -p minio/$$MINIO_BUCKET || true
-        echo "MinIO bucket $$MINIO_BUCKET ready (private; backend-only access)."
-    restart: "no"
-    networks:
-      - bela_internal
-
-  # One-off MinIO → Cloudflare R2 copy, run by ops/migrate-to-r2.sh.
-  # `copy` never deletes on either side, so re-running it is safe and only
-  # moves what is missing (e.g. uploads made between two runs).
-  r2-migrate:
-    image: rclone/rclone:1.68
-    container_name: bela-r2-migrate
-    profiles: ["legacy-minio"]
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      RCLONE_CONFIG_SRC_TYPE: s3
-      RCLONE_CONFIG_SRC_PROVIDER: Minio
-      RCLONE_CONFIG_SRC_ENDPOINT: http://minio:9000
-      RCLONE_CONFIG_SRC_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
-      RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
-      RCLONE_CONFIG_DST_TYPE: s3
-      RCLONE_CONFIG_DST_PROVIDER: Cloudflare
-      RCLONE_CONFIG_DST_ENDPOINT: ${S3_ENDPOINT}
-      RCLONE_CONFIG_DST_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
-      RCLONE_CONFIG_DST_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
-      RCLONE_CONFIG_DST_REGION: auto
-      # Bucket-scoped R2 token: must not try to create/check the bucket.
-      RCLONE_CONFIG_DST_NO_CHECK_BUCKET: "true"
-      SRC_BUCKET: ${MINIO_BUCKET}
-      DST_BUCKET: ${S3_BUCKET}
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -e
-        echo "Copying minio:$$SRC_BUCKET -> r2:$$DST_BUCKET"
-        rclone copy "src:$$SRC_BUCKET" "dst:$$DST_BUCKET" --stats-one-line --stats 5s -v
-        echo "Verifying (every source object must exist in R2 with the same size/hash)..."
-        rclone check "src:$$SRC_BUCKET" "dst:$$DST_BUCKET" --one-way
-        echo "Source:"; rclone size "src:$$SRC_BUCKET"
-        echo "R2:";     rclone size "dst:$$DST_BUCKET"
-    restart: "no"
-    networks:
-      - bela_internal
-
   backend:
     build:
       context: ./backend
@@ -177,7 +81,7 @@ services:
     <<: *default-logging
     restart: unless-stopped
     # Sized for a small VPS (Hetzner CX22, 4 GB RAM) shared with postgres/
-    # minio/caddy. JAVA_OPTS below overrides the Dockerfile's default
+    # game/caddy. JAVA_OPTS below overrides the Dockerfile's default
     # -XX:MaxRAMPercentage=75.0 with a lower percentage: the JVM reads the
     # container's cgroup limit (mem_limit), so 65% of 768m ≈ 500m heap,
     # leaving ~270m for metaspace/thread stacks/direct buffers/GC overhead -
@@ -189,7 +93,7 @@ services:
         condition: service_healthy
     healthcheck:
       # quarkus.http.root-path=/api, so the SmallRye readiness probe lives at
-      # /api/q/health/ready (datasource + MinIO readiness). curl ships in the
+      # /api/q/health/ready (datasource + R2 storage readiness). curl ships in the
       # eclipse-temurin:21-jre base image used by
       # backend/src/main/docker/Dockerfile.jvm (verified: Ubuntu-based, has
       # both curl and wget), so no extra package install needed. Public
@@ -413,7 +317,6 @@ services:
 
 volumes:
   pg_data:
-  minio_data:
   caddy_data:
   caddy_config:
 

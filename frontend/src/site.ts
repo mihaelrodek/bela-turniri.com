@@ -93,8 +93,23 @@ export const brand = isGamesSite
         symbolPng: "/bela-turniri-symbol.png",
     }
 
-/** Where "/" and "back to start" lead. */
-export const homePath: string = isGamesSite ? "/igra" : "/turniri"
+/** The home page is the bare domain on every site (2026-09-29): the
+ *  tournament listing on bela-turniri.com, the game lobby on the games
+ *  domains. The old addresses (/turniri, and /igra on the games domains)
+ *  301 here in Caddy and <Navigate> here in App.tsx. */
+export const homePath = "/"
+
+/** Where the game lobby lives: "/" on the games domains, "/igra" on the
+ *  full site (where "/" is the tournament listing). Rooms stay /igra/soba/:id
+ *  everywhere. */
+export const gameLobbyPath: string = isGamesSite ? "/" : "/igra"
+
+/** True on any online-game page (lobby or room), on either kind of site. */
+export function isGameRoute(pathname: string): boolean {
+    return pathname === "/igra"
+        || pathname.startsWith("/igra/")
+        || (isGamesSite && pathname === "/")
+}
 
 /** Route prefixes that exist only on the full site. Kept here, next to the
  *  mode, so the router, the nav and Caddy's redirect list have ONE list to

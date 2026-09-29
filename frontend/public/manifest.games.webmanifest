@@ -3,7 +3,8 @@
   "short_name": "Bela Online",
   "description": "Igraj belu online i vodi zapisnik partije u bloku.",
   "lang": "hr",
-  "start_url": "/igra",
+  "id": "/igra",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -34,7 +35,7 @@
       "name": "Igraj",
       "short_name": "Igraj",
       "description": "Otvori lobi i igraj belu online",
-      "url": "/igra",
+      "url": "/",
       "icons": [{ "src": "/games/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {

@@ -308,7 +308,7 @@ export default function CalendarPage() {
                                     : t("pages.calendar.emptyMonth.description")}
                                 action={tournaments.length === 0 ? (
                                     <Button size="sm" colorPalette="brand" asChild>
-                                        <RouterLink to="/turniri">
+                                        <RouterLink to="/">
                                             {t("pages.calendar.emptyAgenda.cta")}
                                         </RouterLink>
                                     </Button>

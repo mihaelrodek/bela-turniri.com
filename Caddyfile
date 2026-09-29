@@ -94,6 +94,15 @@
 # even though those would also return the 503 page during maintenance.
 # One flag file covers BOTH domains on purpose: they are one deploy.
 (maintenance) {
+    # The maintenance page is meant to be served IN PLACE of whatever URL
+    # was asked for (rewrite below), never under its own name. Anyone who
+    # ends up on /maintenance*.html directly — a shared link, a bookmark,
+    # an old tab — is sent to the home page. `redir` runs before `handle`
+    # in Caddy's directive order, so this fires in and out of maintenance:
+    # during it "/" shows the page anyway, after it "/" is the live app.
+    @maintenance_page path /maintenance.html /maintenance.games.html
+    redir @maintenance_page / 302
+
     @maintenance {
         file {
             root /maintenance
@@ -595,7 +604,11 @@ bela-turniri.com, www.bela-turniri.com {
     # Specific paths first (so /tournaments/new isn't caught by the
     # regex below, and so the exact /tournaments redirect wins over the
     # /tournaments/{anything} pattern).
-    redir /tournaments /turniri permanent
+    # The listing moved to the bare domain (2026-09-29): /turniri is now an
+    # old address. {?query} keeps "?q=…" search links working.
+    @old_home path /turniri /turniri/
+    redir @old_home /{?query} permanent
+    redir /tournaments /{?query} permanent
     redir /tournaments/new /turniri/novi permanent
     redir /profile /profil permanent
     redir /calendar /kalendar permanent
@@ -668,17 +681,8 @@ bela-turniri.com, www.bela-turniri.com {
         reverse_proxy backend:8085
     }
 
-    # ─── 4. Tournament list SSR preview for crawlers ──────────────────
-    # `/turniri` is the second-highest-traffic SEO page. Same
-    # pre-rendering rationale as the homepage.
-    @tournaments_list_for_bot {
-        path /turniri
-        header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot|duckduckbot|yandexbot)
-    }
-    handle @tournaments_list_for_bot {
-        rewrite * /api/preview/tournaments-list
-        reverse_proxy backend:8085
-    }
+    # (4. — the /turniri list preview for crawlers — is gone: /turniri
+    # 301s to "/" above, and "/" is served by the homepage preview.)
 
     # ─── 5. Tournament SSR preview for crawlers ────────────────────────
     # Match must include BOTH a tournament-detail path AND a known
@@ -843,6 +847,11 @@ bela.games {
     # legacy link must still land somewhere useful.
     @full_only path /turniri /turniri/* /kalendar /kalendar/* /karta /karta/* /pronadi-para /pronadi-para/* /preuzmi-par /preuzmi-par/* /preuzmi-ime /preuzmi-ime/* /tournaments /tournaments/* /calendar /calendar/* /map /map/* /find-pair /find-pair/* /claim-pair /claim-pair/* /claim-name /claim-name/*
     redir @full_only https://bela-turniri.com{uri} permanent
+
+    # The game lobby IS the home page here (2026-09-29): the old /igra
+    # address 301s to "/". Rooms (/igra/soba/<id>) are untouched.
+    @old_lobby path /igra /igra/
+    redir @old_lobby /{?query} permanent
 
     # ─── 3. SPA fallback, with the games shell and metadata ────────────
     # `index.games.html` is emitted at build time from the FINAL dist/

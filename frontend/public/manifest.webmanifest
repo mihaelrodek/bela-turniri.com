@@ -3,7 +3,8 @@
   "short_name": "Bela Turniri",
   "description": "Organiziraj i prati Bela turnire u Hrvatskoj.",
   "lang": "hr",
-  "start_url": "/turniri",
+  "id": "/turniri",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -34,7 +35,7 @@
       "name": "Turniri",
       "short_name": "Turniri",
       "description": "Pregledaj popis turnira",
-      "url": "/turniri",
+      "url": "/",
       "icons": [{ "src": "/icon-192-v2.png", "sizes": "192x192", "type": "image/png" }]
     },
     {

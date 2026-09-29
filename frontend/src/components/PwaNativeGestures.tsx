@@ -4,6 +4,7 @@ import { Box } from "@chakra-ui/react"
 import { FiChevronLeft, FiRefreshCw } from "react-icons/fi"
 import { queryClient } from "../queryClient"
 import { isNative } from "../platform"
+import { isGameRoute } from "../site"
 
 /**
  * Installed PWAs (display-mode: standalone) run with no browser chrome, so
@@ -118,7 +119,7 @@ export default function PwaNativeGestures() {
     // A live table has its own fixed-size layout and a 15-second turn clock.
     // Pull-to-refresh there is both accidental and disruptive, so game routes
     // deliberately opt out of these app-level gestures.
-    const isGameRoute = pathname === "/igra" || pathname.startsWith("/igra/")
+    const onGameRoute = isGameRoute(pathname)
 
     useEffect(() => {
         // This component exists to patch back two gestures that standalone
@@ -129,7 +130,7 @@ export default function PwaNativeGestures() {
         // so there is nothing here to reimplement natively.
         if (isNative) return
         if (!isStandalone()) return
-        if (isGameRoute) return
+        if (onGameRoute) return
 
         const g = {
             mode: "none" as GestureMode,
@@ -245,7 +246,7 @@ export default function PwaNativeGestures() {
             window.removeEventListener("touchend", onTouchEnd)
             window.removeEventListener("touchcancel", onTouchEnd)
         }
-    }, [isGameRoute, navigate, refreshing])
+    }, [onGameRoute, navigate, refreshing])
 
     useEffect(() => {
         // Long-press previews (2026-09-20, user report): the image sheet
@@ -278,7 +279,7 @@ export default function PwaNativeGestures() {
         }
     }, [])
 
-    if (isNative || !isStandalone() || isGameRoute) return null
+    if (isNative || !isStandalone() || onGameRoute) return null
 
     const pullReady = pullDistance >= PULL_THRESHOLD
     const backReady = backDistance >= BACK_THRESHOLD

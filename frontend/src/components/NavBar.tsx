@@ -10,7 +10,7 @@ import {
 } from "react-icons/fi"
 import { useAuth } from "../auth/authContextValue"
 import { useColorMode } from "../color-mode-hooks"
-import { GAMES_BRAND_NAME, GAMES_ORIGIN, homePath, isGamesSite, siteName } from "../site"
+import { GAMES_BRAND_NAME, GAMES_ORIGIN, gameLobbyPath, homePath, isGamesSite, siteName } from "../site"
 import BrandMark, { BrandWordmark } from "./BrandMark"
 import { updateColorMode } from "../api/userMe"
 import { useGameEnabled } from "../game/hooks/useGameEnabled"
@@ -167,7 +167,7 @@ type NavItem = {
     to: string
     label: string
     icon: ReactNode
-    /** Exact match, so `/turniri` doesn't stay lit on `/turniri/:slug`. */
+    /** Exact match, so "/" (home) doesn't stay lit on every other page. */
     exact?: boolean
     /** Filled even when it is not the current page — see `NavButton`. */
     accent?: boolean
@@ -176,14 +176,16 @@ type NavItem = {
 
 function buildNavItems(t: (key: string) => string): NavItem[] {
     const items: NavItem[] = [
-        { to: "/turniri", label: t("common.nav.turniri"), icon: <FiHome size={16} />, exact: true },
+        { to: "/", label: t("common.nav.turniri"), icon: <FiHome size={16} />, exact: true },
         { to: "/kalendar", label: t("common.nav.kalendar"), icon: <FiCalendar size={16} /> },
         // Online bela (src/game), dead centre — the same slot it holds in the
         // mobile tab bar, where the middle is the thumb's home position. Its
         // label lives in the `game` namespace, not in `common`.
         // The same card mark the mobile bar's centre disc carries — the two
         // bars are one navigation seen at two widths (MobileTabBar's header).
-        { to: "/igra", label: t("common.nav.igraj"), icon: <CardsIcon size={16} />, accent: true, isNew: true },
+        // On the games domains the lobby IS "/", so it must match exactly there
+        // or it would light up on every page.
+        { to: gameLobbyPath, label: t("common.nav.igraj"), icon: <CardsIcon size={16} />, accent: true, isNew: true, exact: isGamesSite },
         { to: "/karta", label: t("common.nav.karta"), icon: <FiMap size={16} /> },
         // Bela blok (src/blok) — public offline scorepad, no feature flag, no
         // auth. Its label lives in the `blok` namespace with the rest of that
@@ -192,7 +194,7 @@ function buildNavItems(t: (key: string) => string): NavItem[] {
     ]
     // bela.games (src/site.ts) has no tournaments, calendar or map — only
     // the game and the scorepad stay in the nav.
-    if (isGamesSite) return items.filter((item) => item.to === "/igra" || item.to === "/blok")
+    if (isGamesSite) return items.filter((item) => item.to === gameLobbyPath || item.to === "/blok")
     return items
 }
 
@@ -582,7 +584,7 @@ function GamesSwitch() {
     const { pathname } = useLocation()
     const onBlok = pathname.startsWith("/blok")
     const items = [
-        { to: "/igra", label: t("common.nav.igraj"), icon: <CardsIcon size={16} />, active: !onBlok },
+        { to: gameLobbyPath, label: t("common.nav.igraj"), icon: <CardsIcon size={16} />, active: !onBlok },
         { to: "/blok", label: t("common.nav.blok"), icon: <FiEdit3 size={15} />, active: onBlok },
     ]
     // Same live-room pull as NavBar's desktop capsule (useGameStats.ts, one
@@ -626,7 +628,7 @@ function GamesSwitch() {
                     <RouterLink to={item.to} aria-current={item.active ? "page" : undefined}>
                         {item.icon}
                         {item.label}
-                        {item.to === "/igra" && liveRooms > 0 && (
+                        {item.to === gameLobbyPath && liveRooms > 0 && (
                             <HStack as="span" gap="1" display="inline-flex" alignItems="center">
                                 <LiveDot />
                                 <Box as="span" fontFamily="mono" fontVariantNumeric="tabular-nums" fontSize="xs">
@@ -996,7 +998,7 @@ export default function NavBar() {
                                 icon={item.icon}
                                 accent={item.accent}
                                 isNew={item.isNew}
-                                liveBadge={item.to === "/igra" ? liveRoomsBadge : undefined}
+                                liveBadge={item.to === gameLobbyPath ? liveRoomsBadge : undefined}
                             >
                                 {item.label}
                             </NavButton>

@@ -135,7 +135,7 @@ export function useTournamentHead(t: TournamentDetails | null, uuid: string | un
                     "@type": "ListItem",
                     position: 1,
                     name: "Turniri",
-                    item: "https://bela-turniri.com/turniri",
+                    item: "https://bela-turniri.com/",
                 },
                 {
                     "@type": "ListItem",

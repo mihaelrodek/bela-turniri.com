@@ -108,7 +108,7 @@ export default function GameComingSoonPage() {
                         scorepad is the only other door on this site. */}
                     {!isGamesSite && (
                         <Button asChild size="sm" variant="solid" colorPalette="brand">
-                            <RouterLink to="/turniri">
+                            <RouterLink to="/">
                                 <FiArrowLeft /> {t("game.comingSoon.backToTournaments")}
                             </RouterLink>
                         </Button>

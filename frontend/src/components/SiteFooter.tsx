@@ -2,7 +2,7 @@ import type { BoxProps } from "@chakra-ui/react"
 import { Box, Flex, Text } from "@chakra-ui/react"
 import { Link as RouterLink, useLocation } from "react-router-dom"
 import { useTranslation } from "../i18n"
-import { publicOrigin } from "../site"
+import { isGameRoute, publicOrigin } from "../site"
 
 /** "https://bela-turniri.com" → "bela-turniri.com" (or whichever games twin
  *  the visitor is on — see `publicOrigin` in site.ts) — the copyright line
@@ -59,7 +59,7 @@ export default function SiteFooter(props: BoxProps) {
     // UNDER the pinned card, revealing nothing but the footer.
     if (
         pathname.startsWith("/turniri/novi")
-        || pathname.startsWith("/igra")
+        || isGameRoute(pathname)
         || pathname.startsWith("/blok")
     ) return null
 

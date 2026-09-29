@@ -10,8 +10,8 @@
          network alongside the code instead of queueing behind it. Backend:
          ShellController / ShellRenderService. Client: src/shell/seed.ts.
 
-         Seeded routes only: the listing (/turniri, and / — App.tsx redirects
-         it there) and one tournament (/turniri/<uuid-or-slug>, section tab
+         Seeded routes only: the listing (/, and the old /turniri — Caddy 301s
+         it to /) and one tournament (/turniri/<uuid-or-slug>, section tab
          included, since that is a tab within the same page). /turniri/novi is
          the create wizard, not a tournament.
 
@@ -247,7 +247,7 @@
         "@type": "SearchAction",
         "target": {
           "@type": "EntryPoint",
-          "urlTemplate": "https://bela-turniri.com/turniri?q={search_term_string}"
+          "urlTemplate": "https://bela-turniri.com/?q={search_term_string}"
         },
         "query-input": "required name=search_term_string"
       }

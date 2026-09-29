@@ -7,6 +7,7 @@ import ConfirmDialog from "../../components/ConfirmDialog"
 import { WHATS_NEW_FAB } from "../../components/navChrome"
 import { ACTION_BAR_RESERVE } from "../../blok/actionBar"
 import { useActiveRoom } from "../hooks/useGameSocket"
+import { isGameRoute } from "../../site"
 
 /* ──────────────────────────────────────────────────────────────────────────
    ActiveRoomWidget — the small "you are still at a table" dock, bottom-right,
@@ -46,7 +47,7 @@ export default function ActiveRoomWidget() {
     const sticky = socket.stickyRoomId
     // Quiet on the game routes: the table IS the room, and the lobby has its
     // own card for exactly this state.
-    const onGameRoute = pathname === "/igra" || pathname.startsWith("/igra/")
+    const onGameRoute = isGameRoute(pathname)
     // `/blok` pins its own "MI + / VI +" bar to the bottom of the viewport,
     // and this dock is fixed bottom-right — so on that route it landed right
     // on top of the two buttons the screen exists for. Sit above the bar

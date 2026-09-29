@@ -255,7 +255,7 @@ export default function TournamentDetailsPage() {
             // to localStorage — without this the deleted tournament renders
             // from disk on the next cold load and 404s when tapped.
             invalidateTournamentLists()
-            navigate("/turniri", { replace: true })
+            navigate("/", { replace: true })
         } catch (err) {
             // Stay on the page; interceptor toasted why.
             console.warn("Brisanje turnira nije uspjelo", err)
@@ -570,7 +570,7 @@ export default function TournamentDetailsPage() {
                         <VStack py="10" gap="3">
                             <Text color="red.fg">{error ?? tr("tournament.notFound")}</Text>
                             <Button asChild size="sm">
-                                <RouterLink to="/turniri">{tr("tournament.backToList")}</RouterLink>
+                                <RouterLink to="/">{tr("tournament.backToList")}</RouterLink>
                             </Button>
                         </VStack>
                     ) : tab === "details" ? (
@@ -893,7 +893,7 @@ export default function TournamentDetailsPage() {
                         // After the farewell step, drop the user back on the
                         // /turniri landing so they're not stranded on the detail
                         // page they were just guided through.
-                        navigate("/turniri")
+                        navigate("/")
                     }}
                 />
             </Suspense>

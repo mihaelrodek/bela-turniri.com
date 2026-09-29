@@ -48,6 +48,7 @@ import { installAudioUnlock, playSound, primeAudio } from "../util/sounds"
 import { useKeepAwake } from "../hooks/useKeepAwake"
 import { useTableScale } from "../hooks/useTableScale"
 import SuitSpinner from "../../components/SuitSpinner"
+import { gameLobbyPath } from "../../site"
 
 /* ──────────────────────────────────────────────────────────────────────────
    GameRoomPage (/igra/soba/:roomId) — the room, and then the table.
@@ -853,7 +854,7 @@ export default function GameRoomPage() {
                     {socket.status === "closed" ? (
                         <>
                             <Text color="fg.muted">{t("game.connection.closed")}</Text>
-                            <Button size="sm" variant="outline" onClick={() => navigate("/igra")}>
+                            <Button size="sm" variant="outline" onClick={() => navigate(gameLobbyPath)}>
                                 <FiArrowLeft /> {t("game.room.backToLobby")}
                             </Button>
                         </>

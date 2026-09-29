@@ -88,6 +88,9 @@ export const tournament: TournamentDict = {
     "tile.declarations": "Declarations",
     "tile.allowBela": "Bela",
     "tile.declarationsAndBela": "Declarations and bela",
+    // Detail page "Pravila" card (2026-09-29): one labelled item per rule.
+    "tile.rules": "Rules",
+    "tile.bela": "Bela",
     "tile.rewards": "Prizes",
     "tile.additionalOptions": "Additional options",
 
@@ -118,6 +121,7 @@ export const tournament: TournamentDict = {
     "rule.direction.left": "Left",
     "rule.declarations.enabled": "Allowed",
     "rule.declarations.disabled": "No declarations",
+    "rule.declarations.off": "Not allowed",
     "rule.yes": "Yes",
     "rule.no": "No",
     "rule.bela.enabled": "Bela yes",

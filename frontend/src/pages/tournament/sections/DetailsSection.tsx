@@ -1,18 +1,23 @@
-import { useMemo } from "react"
+import { useMemo, type ReactNode } from "react"
 import { Badge, Box, Button, chakra, Flex, HStack, Image, Text, VStack } from "@chakra-ui/react"
 import {
     FiAward,
     FiCalendar,
+    FiCheck,
     FiClock,
     FiDollarSign,
     FiExternalLink,
+    FiFlag,
     FiGift,
     FiInfo,
     FiMapPin,
     FiPhone,
     FiRotateCcw,
+    FiRotateCw,
+    FiSettings,
     FiUser,
     FiUsers,
+    FiX,
 } from "react-icons/fi"
 import { FaTrophy } from "react-icons/fa"
 
@@ -87,6 +92,14 @@ export default function DetailsSection({
             ],
         }
     }, [t.rewardType, t.rewardFirst, t.rewardSecond, t.rewardThird, tr])
+
+    // Tiles in the money row: igra se do + repasaž do always, the prices
+    // only when set.
+    const moneyTileCount =
+        2 +
+        (typeof t.entryPrice === "number" ? 1 : 0) +
+        (typeof t.repassagePrice === "number" ? 1 : 0) +
+        (typeof t.repassageSecondPrice === "number" ? 1 : 0)
 
     return (
         <Box
@@ -164,21 +177,11 @@ export default function DetailsSection({
 
             {/* ── Informacije ── */}
             <VStack gridArea="info" align="stretch" gap="3" minW="0">
-                {/* Identity row — who is running it, how to reach them, and
-                    when. Four equal tiles with the brand stripe.
-
-                    Back to 2×2 at xl, where the media column claims 264px and
-                    four tiles would be ~130px each — narrow enough that a full
-                    name and a long date both start truncating. Between md and
-                    lg there is no media column yet, so the row gets its full
-                    four. */}
+                {/* Identity row — who is running it and how to reach them.
+                    Two equal tiles with the brand stripe. */}
                 <Box
                     display="grid"
-                    gridTemplateColumns={{
-                        base: "repeat(2, minmax(0, 1fr))",
-                        md: "repeat(4, minmax(0, 1fr))",
-                        xl: "repeat(2, minmax(0, 1fr))",
-                    }}
+                    gridTemplateColumns="repeat(2, minmax(0, 1fr))"
                     gap="3"
                 >
                     <DetailTile
@@ -220,6 +223,19 @@ export default function DetailsSection({
                             )
                         }
                     />
+                </Box>
+
+                {/* When row — datum, vrijeme početka, parovi: three across
+                    from md up. Grid items stretch, so every tile in a row
+                    has the same height. */}
+                <Box
+                    display="grid"
+                    gridTemplateColumns={{
+                        base: "repeat(2, minmax(0, 1fr))",
+                        md: "repeat(3, minmax(0, 1fr))",
+                    }}
+                    gap="3"
+                >
                     <DetailTile
                         accent
                         icon={<FiCalendar size={13} />}
@@ -232,33 +248,26 @@ export default function DetailsSection({
                         label={tr("tournament.tile.startTime")}
                         value={formatTime(t.startAt)}
                     />
-                </Box>
-
-                {/* Stats row — the numbers a pair checks before signing up. A
-                    fixed four across, not `auto-fit`: the usual shape is
-                    exactly four (parovi, kotizacija, repasaž, repasaž do) and
-                    auto-fit sized them to three tracks at xl, which dropped the
-                    fourth onto a row of its own. A tournament that also charges
-                    a second repassage wraps a fifth tile; that is the rare
-                    case, and it is the one worth costing a gap. */}
-                <Box
-                    display="grid"
-                    gridTemplateColumns={{
-                        base: "repeat(2, minmax(0, 1fr))",
-                        md: "repeat(4, minmax(0, 1fr))",
-                    }}
-                    gap="3"
-                >
                     <DetailTile
                         icon={<FiUsers size={13} />}
                         label={tr("tournament.tile.pairs")}
                         value={`${pairCount} / ${typeof t.maxPairs === "number" ? t.maxPairs : "∞"}`}
+                        span={{ base: "span 2", md: "auto" }}
                     />
-                    {/* "Igra se do" moved here, directly before "Kotizacija"
-                        (2026-09-22, owner request: "neka piše do koliko se
-                        igra iznad kotizacije") — it used to sit in the rules
-                        row below. Unconditional, like before: a tournament
-                        with no stored value still shows the 1001 default. */}
+                </Box>
+
+                {/* Money row — igra se do, kotizacija, repasaž, repasaž do.
+                    One track per tile that actually renders (four usually,
+                    five with a second repassage), so the row never wraps an
+                    orphan on desktop. */}
+                <Box
+                    display="grid"
+                    gridTemplateColumns={{
+                        base: "repeat(2, minmax(0, 1fr))",
+                        md: `repeat(${moneyTileCount}, minmax(0, 1fr))`,
+                    }}
+                    gap="3"
+                >
                     <DetailTile
                         icon={<FiAward size={13} />}
                         label={tr("tournament.tile.targetScore")}
@@ -302,50 +311,13 @@ export default function DetailsSection({
                     />
                 </Box>
 
-                {/* Pravila turnirskih stolova. Values are always present on
-                    newly-created tournaments; the fallbacks keep older API
-                    responses readable while their database migration lands.
-
-                    "Igra se do" moved out of this row (now beside
-                    "Kotizacija" above); "Zvanja" and "Bela" — two separate
-                    tiles until 2026-09-22, the second shown only when
-                    declarations were off — are now ONE merged tile so the
-                    row stays a clean three-across instead of growing a
-                    conditional fifth cell. */}
-                <Box
-                    display="grid"
-                    gridTemplateColumns={{
-                        base: "repeat(2, minmax(0, 1fr))",
-                        md: "repeat(4, minmax(0, 1fr))",
-                    }}
-                    gap="3"
-                >
-                    <DetailTile
-                        icon={<FiRotateCcw size={13} />}
-                        label={tr("tournament.tile.gameEndRule")}
-                        value={tr(`tournament.rule.end.${t.gameEndRule === "dosta" ? "dosta" : "prolaz"}`)}
-                    />
-                    {/* Value composed as "{Zvanja state} · {bela state}",
-                        e.g. "Vrijede · bela da" / "Bez zvanja · bez bele" —
-                        the bela half reuses `rule.bela.enabled/disabled`
-                        (capitalised, standalone strings on the listing card's
-                        rules chip) lower-cased here to read as one sentence
-                        fragment rather than two title-cased labels stapled
-                        together. */}
-                    <DetailTile
-                        icon={<FiUsers size={13} />}
-                        label={tr("tournament.tile.declarationsAndBela")}
-                        value={
-                            `${tr(`tournament.rule.declarations.${t.declarationsEnabled === false ? "disabled" : "enabled"}`)}` +
-                            ` · ${tr(`tournament.rule.bela.${t.allowBela === false ? "disabled" : "enabled"}`).toLocaleLowerCase()}`
-                        }
-                    />
-                    <DetailTile
-                        icon={<FiRotateCcw size={13} />}
-                        label={tr("tournament.tile.dealDirection")}
-                        value={tr(`tournament.rule.direction.${t.dealDirection === "left" ? "left" : "right"}`)}
-                    />
-                </Box>
+                {/* Pravila — one card, one labelled item per rule, each value
+                    carrying an icon that says it faster than the word:
+                    check/x for zvanja and bela, a rotation arrow for the deal
+                    direction. Replaces the three tiles that composed
+                    "Vrijede · bela da" into one string. Fallbacks keep older
+                    API responses readable. */}
+                <RulesCard t={t} />
 
                 {/* Lokacija — its own row, because the venue is the one fact
                     that carries an action next to it. */}
@@ -484,6 +456,126 @@ export default function DetailsSection({
                     />
                 )}
             </VStack>
+        </Box>
+    )
+}
+
+/** One rule inside the "Pravila" card: muted label over an icon + value. */
+function RuleItem({
+    label,
+    icon,
+    iconColor,
+    value,
+}: {
+    label: string
+    icon: ReactNode
+    iconColor: string
+    value: string
+}) {
+    return (
+        <Box bg="bg.subtle" rounded="lg" px="3" py="2.5" minW="0">
+            <Text
+                fontSize="2xs"
+                fontWeight="semibold"
+                color="fg.muted"
+                letterSpacing="wider"
+                textTransform="uppercase"
+                mb="1.5"
+            >
+                {label}
+            </Text>
+            <HStack gap="2" minW="0">
+                <Flex
+                    w="22px"
+                    h="22px"
+                    rounded="full"
+                    bg="bg.panel"
+                    borderWidth="1px"
+                    borderColor="border.subtle"
+                    align="center"
+                    justify="center"
+                    color={iconColor}
+                    flexShrink={0}
+                >
+                    {icon}
+                </Flex>
+                <Text fontWeight="medium" truncate>
+                    {value}
+                </Text>
+            </HStack>
+        </Box>
+    )
+}
+
+/**
+ * "Pravila" — how the tables play: igra se na, zvanja, bela, smjer kartanja.
+ * Yes/no rules get a check or a cross so they read at a glance; the deal
+ * direction gets the matching rotation arrow (↻ desno, ↺ lijevo).
+ */
+function RulesCard({ t }: { t: TournamentDetails }) {
+    const { t: tr } = useTranslation()
+    const declarationsOn = t.declarationsEnabled !== false
+    const belaOn = t.allowBela !== false
+    const direction = t.dealDirection === "left" ? "left" : "right"
+    const yesColor = "teal.fg"
+    const noColor = "red.fg"
+
+    return (
+        <Box
+            bg="bg.panel"
+            borderWidth="1px"
+            borderColor="border.subtle"
+            rounded="xl"
+            shadow="card"
+            p="3"
+        >
+            <HStack gap="1.5" mb="2.5" px="0.5">
+                <Box color="brand.fg" display="flex" alignItems="center">
+                    <FiSettings size={13} />
+                </Box>
+                <Text
+                    fontSize="2xs"
+                    fontWeight="semibold"
+                    color="fg.muted"
+                    letterSpacing="wider"
+                    textTransform="uppercase"
+                >
+                    {tr("tournament.tile.rules")}
+                </Text>
+            </HStack>
+            <Box
+                display="grid"
+                gridTemplateColumns={{
+                    base: "repeat(2, minmax(0, 1fr))",
+                    md: "repeat(4, minmax(0, 1fr))",
+                }}
+                gap="2"
+            >
+                <RuleItem
+                    label={tr("tournament.tile.gameEndRule")}
+                    icon={<FiFlag size={12} />}
+                    iconColor="brand.fg"
+                    value={tr(`tournament.rule.end.${t.gameEndRule === "dosta" ? "dosta" : "prolaz"}`)}
+                />
+                <RuleItem
+                    label={tr("tournament.tile.declarations")}
+                    icon={declarationsOn ? <FiCheck size={13} /> : <FiX size={13} />}
+                    iconColor={declarationsOn ? yesColor : noColor}
+                    value={tr(declarationsOn ? "tournament.rule.declarations.enabled" : "tournament.rule.declarations.off")}
+                />
+                <RuleItem
+                    label={tr("tournament.tile.bela")}
+                    icon={belaOn ? <FiCheck size={13} /> : <FiX size={13} />}
+                    iconColor={belaOn ? yesColor : noColor}
+                    value={tr(belaOn ? "tournament.rule.yes" : "tournament.rule.no")}
+                />
+                <RuleItem
+                    label={tr("tournament.tile.dealDirection")}
+                    icon={direction === "left" ? <FiRotateCcw size={12} /> : <FiRotateCw size={12} />}
+                    iconColor="brand.fg"
+                    value={tr(`tournament.rule.direction.${direction}`)}
+                />
+            </Box>
         </Box>
     )
 }

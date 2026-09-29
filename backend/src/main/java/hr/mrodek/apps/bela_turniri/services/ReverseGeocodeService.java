@@ -39,8 +39,11 @@ public class ReverseGeocodeService {
 
     private static final String ENDPOINT = "https://maps.googleapis.com/maps/api/geocode/json";
 
-    @ConfigProperty(name = "app.google.geocoding-api-key", defaultValue = "")
-    String apiKey;
+    // Optional, not String with defaultValue="": the properties file maps it
+    // to ${GOOGLE_GEOCODING_API_KEY:}, and SmallRye treats an empty value as
+    // missing — a plain String injection then fails boot (CI, local dev).
+    @ConfigProperty(name = "app.google.geocoding-api-key")
+    Optional<String> apiKey;
 
     @Inject
     ObjectMapper json;
@@ -55,7 +58,7 @@ public class ReverseGeocodeService {
             .build();
 
     public boolean enabled() {
-        return apiKey != null && !apiKey.isBlank();
+        return apiKey.filter(k -> !k.isBlank()).isPresent();
     }
 
     /** Formatted address for the point, or empty on no key / no result / failure. */
@@ -70,7 +73,7 @@ public class ReverseGeocodeService {
         String url = ENDPOINT
                 + "?latlng=" + String.format(Locale.ROOT, "%.6f,%.6f", lat, lng)
                 + "&language=" + URLEncoder.encode(language, StandardCharsets.UTF_8)
-                + "&key=" + URLEncoder.encode(apiKey.trim(), StandardCharsets.UTF_8);
+                + "&key=" + URLEncoder.encode(apiKey.orElseThrow().trim(), StandardCharsets.UTF_8);
 
         HttpRequest req = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(5))

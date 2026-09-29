@@ -72,7 +72,6 @@ public class SitemapController {
         // work via Caddy 301 → Croatian, but we don't list them here — the
         // sitemap should contain only canonical URLs).
         appendUrl(sb, base + "/",         null, "weekly",  "1.0");
-        appendUrl(sb, base + "/turniri",  null, "daily",   "0.9");
         appendUrl(sb, base + "/kalendar", null, "daily",   "0.7");
         appendUrl(sb, base + "/karta",    null, "weekly",  "0.7");
 

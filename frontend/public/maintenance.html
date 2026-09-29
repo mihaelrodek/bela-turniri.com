@@ -8,6 +8,14 @@
     <!-- Auto-reload every 20 s: the instant the deploy finishes and the flag is
          cleared, the visitor's browser reloads straight into the live app. -->
     <meta http-equiv="refresh" content="20" />
+    <!-- Opened under its own name (/maintenance.html) the plain refresh would
+         reload this static file forever; go to the home page instead. -->
+    <script>
+        if (/\/maintenance(\.games)?\.html$/.test(location.pathname)) {
+            // Just ahead of the meta refresh, which cannot be cancelled once parsed.
+            setTimeout(function () { location.replace("/") }, 19000)
+        }
+    </script>
     <title>Nadogradnja u tijeku - Bela turniri</title>
     <style>
         /* Brand palette, hardcoded on purpose: during maintenance EVERY request
