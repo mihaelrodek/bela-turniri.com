@@ -172,30 +172,38 @@ export default function RoomListItem({
             <HStack justify="space-between" align="center" gap="2">
                 <VStack align="stretch" gap="2" flex="1" minW="0">
                     {/* Top row, same corners at every width (2026-09-21, user
-                        request): name (+ "Privatna") pinned top-left, the
-                        rule chips pinned top-right. Chips used to drop to
-                        their own line under the name on phones — now the
-                        chip group itself wraps (flexWrap, justified to the
-                        end) and floats to the right of whichever line it
-                        lands on via `ml="auto"`, while the name side flexes
-                        and truncates (`flex=1 minW=0`, `lineClamp`) so it
-                        never pushes the chips off the card. */}
+                        request): name pinned top-left, the rule chips pinned
+                        top-right. Chips used to drop to their own line under
+                        the name on phones — now the chip group itself wraps
+                        (flexWrap, justified to the end) and floats to the
+                        right of whichever line it lands on via `ml="auto"`,
+                        while the name side flexes and truncates (`flex=1
+                        minW=0`, `lineClamp`) so it never pushes the chips off
+                        the card.
+
+                        "Privatna" used to sit next to the NAME instead — on a
+                        private room that pinned the name+badge pair alone on
+                        line one and dropped the whole rule-chip group to its
+                        own line below, out of step with every public room's
+                        card (2026-09-29, user report). It is a rule of the
+                        room same as target score or declarations, so it now
+                        lives with the rest of them, first in that group. */}
                     <HStack wrap="wrap" align="start" gap="2">
                         {/* `1 1 auto`, not `1`: with a zero flex-basis the wrap
                             decision sees a zero-width name, keeps the chips on
                             line one and squeezes the name down to "…". With
                             `auto` the name claims its real width first and the
                             chips drop to a second, right-aligned line. */}
-                        <HStack gap="2" flex="1 1 auto" minW="0" maxW="full">
-                            <Text fontFamily="heading" fontWeight="semibold" lineClamp={1} minW="0">{room.name}</Text>
+                        <Text fontFamily="heading" fontWeight="semibold" lineClamp={1} minW="0" flex="1 1 auto" maxW="full">
+                            {room.name}
+                        </Text>
+                        <HStack gap="1.5" wrap="wrap" justify="flex-end" ml="auto" flexShrink={0} maxW="full">
                             {room.private && (
                                 <Badge size="sm" variant="subtle" colorPalette="gray" flexShrink={0}
                                     aria-label={t("game.lobby.privateAria")} title={t("game.lobby.privateAria")}>
                                     <FiLock size={12} /> {t("game.lobby.private")}
                                 </Badge>
                             )}
-                        </HStack>
-                        <HStack gap="1.5" wrap="wrap" justify="flex-end" ml="auto" flexShrink={0} maxW="full">
                             <Badge size="sm" variant="subtle" colorPalette="brand" fontFamily="mono" fontVariantNumeric="tabular-nums">
                                 {room.targetScore}
                             </Badge>

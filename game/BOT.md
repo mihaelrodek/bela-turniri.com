@@ -489,7 +489,14 @@ više nego za dva štiha: as pod rez koji dolazi, boja koju je suigrač iznio, i
 dečko koji mora van prije nego pojede nešto vrijedno. Nijedno nije A/B mjereno
 (§9) — ušla su kao pravila stola, kao i §12.
 
-### 13.1 Zadnji sam, a doma su as i desetka (`aceOverCheapWinner`)
+### 13.1 Doma su as i desetka (`aceOverCheapWinner`)
+
+> **Prošireno 2026-09-29 (pravilo vlasnika, dvije prijavljene partije):** više
+> ne vrijedi samo za zadnjeg u štihu. **S bilo kojeg mjesta**, tko uzima štih
+> bočne boje i ima i asa i desetku te boje, uzima **asom** — i kad je prisiljen
+> ići preko vlastitog suigrača (§1.5). Desetkom smije samo strana koja je
+> **zvala**, i samo dok su svi štihovi još njezini (gradi se štihak, as ostaje
+> kao siguran štih za kasnije). U obrani — nikad desetkom.
 
 Prijavljeni štih: na stolu 7, 8 i dečko strane boje, u ruci A, 10 i kralj. Bot
 je bacio **kralja** — najjeftiniji dobitni potez, štih je ionako njegov. Ali as
@@ -512,8 +519,15 @@ je dijelila po visini karte i time je krivo čitala nezvačevu malu kartu):
 | Tko je otvorio | Njegova karta | Značenje | Odgovor |
 |---|---|---|---|
 | suigrač koji **nije zvao** | bilo koja, mala ili veća | možda mu je to solo karta; ako je vratim, on siječe i „spasi aduta” kojeg bi inače izgubio | ta boja natrag, **uvijek**, nisko |
-| suigrač **zvač** | **7, 8 ili 9** | „imam adutskog dečka, vrati aduta” | adut natrag (`trumpDrawCard`) |
-| suigrač **zvač** | 10, J, Q, K | boju je iznio i želi je nastaviti | ta boja natrag, nisko |
+| suigrač **zvač** | **7, 8, 9, dečko ili baba** | „imam adutskog dečka, vrati aduta” | adut natrag (`trumpDrawCard`) |
+| suigrač **zvač** | 10, K | boju je iznio i želi je nastaviti | ta boja natrag, nisko |
+
+**Zvačevo PRVO otvaranje malom bočnom kartom** (2026-09-29, prijavljeno) je ista
+rečenica **tko god uzeo taj štih**: nije išao ni dečkom ni adutom, dakle dečka
+ima doma i traži aduta. Prijavljena partija: zvač otvori karo babu, protivnik
+uzme desetkom, suigrač uzme sljedeći štih herc asom i vrati karu umjesto aduta.
+Sad vraća **aduta** čim dođe na red (`callerOpenedSmallPlain`). Zahtjev je
+ispunjen kad je naša strana jednom otvorila adutom.
 
 Zvačevo otvaranje **malim adutom** je zasebna rečenica (§5 pravilo 1b, §13.4):
 ako imam dečka, adut se vraća — uvijek kad ga imam i dok protivnici još mogu
@@ -659,7 +673,8 @@ ispravaka:
    gole 7/8 se ne podigravaju; tada vrijede obična pravila otvaranja.
 5. **Desetkom, ne asom** (`aceOverCheapWinner`, `partnerSuitTakenByMyAce`).
    Zvač-suigrač otvori bočnu kartu, a ja imam asa i desetku: nosi desetka, as
-   ostaje kao poruka. „Vrati aduta" (§13.2) i „vrati boju" priznaju i štih
+   ostaje kao poruka — **od 2026-09-29 samo dok su svi štihovi još naši**
+   (štihak); inače ide as (§13.1). „Vrati aduta" (§13.2) i „vrati boju" priznaju i štih
    uzet desetkom.
 6. **Zvač bez dečka** (`callerLengthTrumpLead`, mijenja §13.3). Vodi **babu ili
    kralja** ako ih ima, tek inače najmanji adut: 7/8 je rečenica „vrati aduta",
@@ -1005,3 +1020,46 @@ Zatim se u odgovarajući `scenarios.*.test.ts` doda slučaj s jednorečeničnim
 objašnjenjem **zašto** je očekivana karta ispravna — test bez tog obrazloženja
 je zabilježena greška, a ne pravilo. Pravilo se onda zapiše ovdje, u BOT.md, i
 `BOT_VERSION` se podigne.
+
+## 16. Pamćenje podjele (`memory.ts`, zahtjev vlasnika 2026-09-29)
+
+Bot za svaku od 32 karte, **samo za tu podjelu**, zna gdje još može biti:
+odigrana, u mojoj ruci, **sigurno** kod jednog igrača, **moguće** kod nekog, ili
+**nemoguće** za nekoga. Ništa se ne pogađa — svaki „nema” je dokaz iz pravila
+§1.5 čitanih unatrag:
+
+| Što je igrač odigrao | Što je time dokazao |
+|---|---|
+| nije odgovorio na boju | nema nijednu kartu te boje |
+| …i nije bacio aduta | nema ni aduta |
+| odgovorio, ali **ispod** karte koja nosi štih (štih nije presječen) | nema ništa **jače** od te karte u toj boji |
+| sjekao **ispod** aduta koji je već na stolu | nema jačeg aduta od tog |
+
+Primjer vlasnika: žir nije adut, padne 7 – 9 – 8. Treći je bacio osmicu ispod
+devetke, dakle nema ništa iznad devetke; sedmica i osmica su na stolu, dakle
+**nema žira uopće** i sljedeći krug siječe.
+
+Uz to: zvanja i bela imenuju karte (sigurno kod tog igrača), a brojanje dovršava
+ostalo — karta koju dvojica ne mogu imati je kod trećeg; ruka koju popune
+poznate karte ne može imati ništa drugo.
+
+„Vjerojatno” postoji samo kao `likelyCount`: otvorene karte podijeljene na
+igrače koji ih još mogu imati.
+
+**Odluke koje se na to oslanjaju:**
+
+1. **Uberi prije reza** (`cashBeforeRuff`). Uzimam štih bočne boje i imam
+   najjaču kartu te boje, a protivnik će u sljedećem krugu biti bez te boje i
+   još može imati aduta: uzimam **najjačom** (asom), ne najjeftinijom.
+   Iznimka: mogu sam izbiti sve adute (`canDrawEveryTrump`) — tada uzimam
+   jeftino, vadim adute i tek onda berem asa i ono ispod njega. Ista iznimka
+   vrijedi i za §13.1 (as + desetka) kad je moja strana zvala.
+2. **Ne puni štih koji će biti presječen** (`opponentBehindWillRuff`).
+   Protivnik iza mene je bez boje i ima aduta: ide najjeftinija dopuštena karta.
+3. **Suigračev štih je siguran** i kad njegova karta nije najjača u boji, ako
+   jedini igrač iza mene dokazano ne može ni preko nje ni sjeći
+   (`partnerTrickIsSafe`, `seatCouldBeat`).
+4. Sva stara pravila koja pitaju „je li pokazao da nema boju / aduta”
+   (`seatShownVoidIn`, `seatShownVoidInTrump`, `opponentCanHold`) sada čitaju i
+   ove dokaze, pa brojanje aduta i čuvanje asa vide više nego prije.
+

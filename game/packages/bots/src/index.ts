@@ -34,7 +34,7 @@ export interface Bot {
  * a test) does not need a bump. Bumping too often costs nothing; not bumping
  * silently merges two different bots into one bucket.
  */
-export const BOT_VERSION = "2026-09-23"
+export const BOT_VERSION = "2026-09-29"
 
 /** The single bot. Stateless and pure, so every seat can share one instance;
  *  the factory exists only so callers never hard-code which module it is. */

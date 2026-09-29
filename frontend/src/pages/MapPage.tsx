@@ -226,13 +226,23 @@ function MapFocus({
 
     // Phase 3 — selection follow. Flies to whichever tournament is
     // selected, from the list or from clicking its pin directly.
+    //
+    // NOT dead-centre (2026-09-29, user report): the popup opens ABOVE the
+    // pin and, with the tournament name, status pill, date/address/price
+    // rows and a CTA button, can run ~230px tall — a pin centred in a
+    // 340-500px-tall map left no room above it, so the popup's top (the
+    // NAME) rendered off the top edge of the map, invisible. The target
+    // point is shifted up in projected pixel space before flying to it, so
+    // the pin lands lower in the viewport instead of at its centre, leaving
+    // the top clear for the popup to open into.
     useEffect(() => {
         if (!selectedTournament) return
-        map.flyTo(
-            [selectedTournament.latitude, selectedTournament.longitude],
-            Math.max(map.getZoom(), 12),
-            { duration: 0.6 },
-        )
+        const zoom = Math.max(map.getZoom(), 12)
+        const size = map.getSize()
+        const point = map
+            .project([selectedTournament.latitude, selectedTournament.longitude], zoom)
+            .subtract([0, size.y * 0.18])
+        map.flyTo(map.unproject(point, zoom), zoom, { duration: 0.6 })
     }, [selectedTournament, map])
 
     // Keep the Leaflet canvas in sync when the surrounding layout swaps

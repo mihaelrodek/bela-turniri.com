@@ -50,6 +50,8 @@ export const BLOCKED_SUBSTRINGS: readonly string[] = [
     "jebote", "pojebi", "najebi", "govno", "govnar", "seronja", "seres",
     "drkadzija", "drkati", "supak", "supcina", "kucka", "picketina",
     "usisavac", "cepic", "kuratina",
+    // Dialect/regional spelling; also what "p3zda" folds to (3 → e).
+    "pezda",
     // ── Slovenian vulgar & sexual (distinct spellings) ──
     "kurbin", "posranec", "jebenka", "pofukan",
     // ── HR/SR/BS slurs (ethnic, homophobic, ableist) ──

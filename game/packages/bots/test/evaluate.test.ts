@@ -708,7 +708,9 @@ describe("trumpOutlook — counting the trumps the opponents can still hold", ()
         expect(seatShownVoidIn(v, 3, "HERC")).toBe(true)
         expect(seatShownVoidIn(v, 2, "HERC")).toBe(false)
         const outlook = trumpOutlook(v)
-        expect(outlook.outstanding).toBe(4)
+        // All four are provably my partner's (BOT.md §16): not trumps an
+        // opponent can ruff with, so they are not counted as outstanding.
+        expect(outlook.outstanding).toBe(0)
         expect(outlook.opponentMax).toBe(0)
         expect(outlook.opponentExpected).toBe(0)
     })
@@ -2346,12 +2348,14 @@ describe("opponentCanHold (BOT.md §11)", () => {
         // I am the caller and I opened with the trump ace, so the convention
         // would "prove" I hold the jack. I do not, and inferring about myself
         // would make a card I cannot see disappear from the count.
+        // The ace is still on the table: nobody has answered it yet, so the
+        // jack is genuinely open. (A completed trick would PROVE where it is —
+        // every seat that followed under the ace has none — BOT.md §16.)
         const v = view({
             seat: 0,
             hand: ["7PIK", "8TREF"],
             bidding: { turn: 1, passes: [], trump: "HERC", caller: 0 },
-            played: ["AHERC", "7HERC", "7PIK", "8PIK"],
-            trickHistory: [wonTrick(0, ["AHERC", "7HERC", "7PIK", "8PIK"], 0)],
+            trick: { leader: 0, turn: 1, cards: [{ seat: 0, card: "AHERC" }] },
         })
         expect(readSeatFromLeads(v, 0).holds).toContain("JHERC")
         expect(opponentCanHold(v, "JHERC")).toBe(true)
@@ -2502,8 +2506,9 @@ describe("seatShownVoidInTrump (§1.5: void in the led suit must ruff)", () => {
         expect(seatShownVoidInTrump(v, 3)).toBe(true)
         // Seat 2 followed the suit: it says nothing about his trumps.
         expect(seatShownVoidInTrump(v, 2)).toBe(false)
-        // …and the old, lead-only proof sees none of it.
-        expect(seatShownVoidIn(v, 1, "HERC")).toBe(false)
+        // `seatShownVoidIn` reads the deal's memory too now (BOT.md §16), so
+        // it sees the same proof.
+        expect(seatShownVoidIn(v, 1, "HERC")).toBe(true)
     })
 
     it("does not read a RUFF that way", () => {
@@ -2635,7 +2640,24 @@ describe("aceOverCheapWinner (BOT.md §13.1)", () => {
         expect(aceOverCheapWinner(v, ["APIK", "10PIK", "KPIK"])).toBeNull()
     })
 
-    it("is only for the LAST seat — a third player still has somebody behind him", () => {
+    it("on DEFENCE the ace goes in from the third seat too (2026-09-29)", () => {
+        const v = view({
+            seat: 0,
+            hand: ["APIK", "10PIK", "KPIK"],
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 1 }, // they called
+            trick: {
+                leader: 2,
+                turn: 0,
+                cards: [
+                    { seat: 2, card: "7PIK" },
+                    { seat: 3, card: "8PIK" },
+                ],
+            },
+        })
+        expect(aceOverCheapWinner(v, ["APIK", "10PIK", "KPIK"])).toBe("APIK")
+    })
+
+    it("keeps the ace back on the CALLING side while every trick is still ours (štihak)", () => {
         const v = view({
             seat: 0,
             hand: ["APIK", "10PIK", "KPIK"],

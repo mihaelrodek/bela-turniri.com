@@ -19,6 +19,7 @@ import {
     teamOf,
     trickWinner,
 } from "@bela/engine"
+import { recall } from "./memory"
 
 /**
  * README §5 bidding heuristic: value of holding `hand` if `suit` becomes
@@ -294,7 +295,11 @@ export function seatShownVoidIn(view: PlayerView, seat: Seat, suit: Suit): boole
 
     if (showsVoid(view.trick.cards)) return true
     for (const trick of reviewableTricks(view)) if (showsVoid(trick.plays)) return true
-    return false
+    // The deal's memory proves more voids than a failure to follow does: a
+    // seat that followed UNDER the card holding the trick has nothing above
+    // it, and when everything below is already on the table he is out of the
+    // suit (BOT.md §16 — the reported 7, 9, 8).
+    return seat !== view.seat && recall(view).isVoid(seat, suit)
 }
 
 /**
@@ -318,6 +323,8 @@ export function seatShownVoidIn(view: PlayerView, seat: Seat, suit: Suit): boole
 export function seatShownVoidInTrump(view: PlayerView, seat: Seat): boolean {
     const trump = view.bidding.trump
     if (trump === null) return false
+    // Includes everything the deal's memory proves (BOT.md §16), e.g. a ruff
+    // made UNDER a trump already on the table with nothing lower left.
     if (seatShownVoidIn(view, seat, trump)) return true
 
     const discardedInsteadOfRuffing = (plays: readonly TrickCard[]): boolean => {
@@ -611,7 +618,12 @@ export function partnerTrickIsSafe(view: PlayerView): boolean {
 
     const winner = currentTrickWinner(view)
     const winningCard = view.trick.cards.find((tc) => tc.seat === winner)?.card
-    if (winningCard === undefined || !isMasterCard(view, winningCard)) return false
+    if (winningCard === undefined) return false
+    // Not the master of its suit, but the only seat still to play provably
+    // cannot beat it or ruff it: just as safe (BOT.md §16).
+    if (!isMasterCard(view, winningCard)) {
+        return seatsStillToPlay(view).every((s) => !seatCouldBeat(view, s, winningCard))
+    }
     // A master TRUMP is beyond everybody, whatever is still to be played and
     // however many seats are still to play. This is the common case the rule
     // exists for: the partner opens with the top trump and draws.
@@ -627,6 +639,142 @@ export function partnerTrickIsSafe(view: PlayerView): boolean {
         follower = nextSeat(follower)
     }
     return true
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   BOT.md §16 — reasoning from the deal's memory (`memory.ts`).
+   ────────────────────────────────────────────────────────────────────── */
+
+/** The seats that still have to play to the trick in progress, after me. */
+export function seatsStillToPlay(view: PlayerView): Seat[] {
+    const seat = view.seat
+    if (seat === null || view.trick.cards.length === 0) return []
+    const out: Seat[] = []
+    let next = nextSeat(seat)
+    while (next !== view.trick.leader) {
+        out.push(next)
+        next = nextSeat(next)
+    }
+    return out
+}
+
+/**
+ * Could `seat`, playing to this trick, still take it from `card`?
+ *   - with a higher card of the same suit he may hold; or
+ *   - `card` being plain, with a trump — which needs him to be out of the led
+ *     suit. A seat KNOWN to hold a card of the led suit must follow and cannot
+ *     ruff; one that only might be out of it, might.
+ */
+export function seatCouldBeat(view: PlayerView, seat: Seat, card: Card): boolean {
+    const trump = view.bidding.trump
+    const led = view.trick.cards[0]
+    if (trump === null || led === undefined) return true
+    const memory = recall(view)
+    const suit = cardSuit(card)
+    const mine = cardStrength(card, trump)
+    if (memory.possibleInSuit(seat, suit).some((other) => cardStrength(other, trump) > mine)) return true
+    if (suit === trump) return false
+
+    const ledSuit = cardSuit(led.card)
+    if (memory.isVoid(seat, trump)) return false
+    const mustFollow = memory.certainCards(seat).some((held) => cardSuit(held) === ledSuit)
+    return !mustFollow
+}
+
+/**
+ * An opponent still to play is OUT of the led plain suit and can hold a
+ * trump: he has to ruff (§1.5), so whatever I "win" this trick with is his.
+ * No points go in — the cheapest card the rules allow.
+ */
+export function opponentBehindWillRuff(view: PlayerView): boolean {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    const led = view.trick.cards[0]
+    if (seat === null || trump === null || led === undefined) return false
+    const ledSuit = cardSuit(led.card)
+    if (ledSuit === trump) return false
+    const memory = recall(view)
+    return seatsStillToPlay(view).some(
+        (s) => teamOf(s) !== teamOf(seat) && memory.isVoid(s, ledSuit) && !memory.isVoid(s, trump),
+    )
+}
+
+/**
+ * Can I strip the opponents of trump by myself, once I have the lead? Every
+ * round I lead with a trump nothing hidden beats takes one off each of them,
+ * so I need as many such trumps as the longest opposing trump holding.
+ *
+ * That length is bounded by proof (`possibleInSuit`) and, where the proof
+ * leaves it open, estimated: the opponent's expected share plus one round of
+ * margin. Five trumps hidden among three seats fall 2-2-1 far more often than
+ * 4-1-0, and J-9-A is the hand that draws them.
+ */
+export function canDrawEveryTrump(view: PlayerView): boolean {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    if (seat === null || trump === null) return false
+    const memory = recall(view)
+    const opponents = SEATS.filter((s) => teamOf(s) !== teamOf(seat))
+    const most = Math.max(
+        0,
+        ...opponents.map((s) =>
+            Math.min(
+                view.handSizes[s],
+                memory.possibleInSuit(s, trump).length,
+                Math.ceil(memory.likelyCount(s, trump)) + 1,
+            ),
+        ),
+    )
+    if (most === 0) return true
+    const hiddenTrumps = memory.hidden.filter((card) => cardSuit(card) === trump)
+    const masters = view.hand.filter(
+        (card) =>
+            cardSuit(card) === trump &&
+            hiddenTrumps.every((other) => cardStrength(other, trump) < cardStrength(card, trump)),
+    )
+    return masters.length >= most
+}
+
+/**
+ * CASH IT BEFORE IT IS RUFFED (BOT.md §16, owner's example 2026-09-29).
+ *
+ * I am winning a plain-suit trick and hold the master of that suit. The cheap
+ * winner keeps the master for the next round — but the memory says an opponent
+ * will be out of the suit by then and can still hold a trump: the next round
+ * is ruffed and the master dies in hand. So it goes in NOW.
+ *
+ * Not when I can draw every trump myself first (`canDrawEveryTrump`): then the
+ * cheap card takes this trick, the trumps come out, and the master and what
+ * sits under it are cashed afterwards — the caller with the top trumps.
+ */
+export function cashBeforeRuff(view: PlayerView, legal: readonly Card[]): Card | null {
+    const seat = view.seat
+    const trump = view.bidding.trump
+    const led = view.trick.cards[0]
+    if (seat === null || trump === null || led === undefined) return null
+    const suit = cardSuit(led.card)
+    if (suit === trump) return null
+    if (view.trick.cards.some((tc) => cardSuit(tc.card) === trump)) return null
+
+    const master = legal.find(
+        (card) => cardSuit(card) === suit && isMasterCard(view, card) && wouldWinTrick(view, card),
+    )
+    if (master === undefined) return null
+    // Somebody behind me could still take it: not a trick to load.
+    if (seatsStillToPlay(view).some((s) => teamOf(s) !== teamOf(seat) && seatCouldBeat(view, s, master))) {
+        return null
+    }
+    if (canDrawEveryTrump(view)) return null
+
+    const memory = recall(view)
+    const behind = new Set<Seat>(seatsStillToPlay(view))
+    const ruffNextRound = SEATS.some((s) => {
+        if (teamOf(s) === teamOf(seat) || memory.isVoid(s, trump)) return false
+        // A seat still to play spends one card of the suit on this trick.
+        const left = memory.possibleInSuit(s, suit).length - (behind.has(s) ? 1 : 0)
+        return left <= 0
+    })
+    return ruffNextRound ? master : null
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -2293,6 +2441,11 @@ export function opponentCanHold(view: PlayerView, card: Card, located?: Map<Card
     const owner = (located ?? locatedCards(view)).get(card)
     if (owner !== undefined) return teamOf(owner) !== teamOf(seat)
 
+    // What the play itself has ruled out (BOT.md §16): a card neither
+    // opponent can hold any more is my partner's.
+    const memory = recall(view)
+    if (!SEATS.some((s) => teamOf(s) !== teamOf(seat) && memory.canHold(s, card))) return false
+
     const bela = belaSeat(view)
     if (bela !== null && teamOf(bela) === teamOf(seat)) {
         const trump = view.bidding.trump
@@ -2362,8 +2515,9 @@ export function belaLead(view: PlayerView, legal: readonly Card[]): Card | null 
    ────────────────────────────────────────────────────────────────────── */
 
 /**
- * Last to play a PLAIN-suit trick I am about to win, holding both the ace and
- * the ten of the led suit: take it with the ACE (BOT.md §13.1, reported).
+ * Winning a PLAIN-suit trick from any seat, holding both the ace and the ten
+ * of the led suit: take it with the ACE (BOT.md §13.1, reported; widened from
+ * "last to play" to every seat 2026-09-29).
  *
  * The trick is mine either way — the reported shape was 7, 8, J on the table
  * and A, 10, K in hand, where the king wins for four points. But the ace and
@@ -2376,7 +2530,17 @@ export function belaLead(view: PlayerView, legal: readonly Card[]): Card | null 
  */
 export function aceOverCheapWinner(view: PlayerView, legal: readonly Card[]): Card | null {
     const trump = view.bidding.trump
-    if (trump === null || !isLastToPlay(view)) return null
+    if (trump === null) return null
+    // From ANY seat, not only the last one (owner's rule, 2026-09-29, two
+    // reported deals): holding the ace and the ten, the trick is taken with the
+    // ACE. The ten may go instead only on the CALLING side while every trick
+    // is still ours — a štihak being built, where the ace is kept back as the
+    // sure winner of a later round. On defence, never.
+    if (mySideCalled(view) && stigljaIsLive(view) && !isLastToPlay(view)) return null
+    // …or holding the trumps to strip the table myself (BOT.md §16): the cheap
+    // card takes this one, the trumps come out, the ace and ten are cashed
+    // after them with nobody left to ruff.
+    if (mySideCalled(view) && canDrawEveryTrump(view)) return null
 
     const led = view.trick.cards[0]
     if (led === undefined) return null
@@ -2385,17 +2549,20 @@ export function aceOverCheapWinner(view: PlayerView, legal: readonly Card[]): Ca
 
     const ace = makeCard("A", suit)
     if (!legal.includes(ace) || !legal.includes(makeCard("10", suit))) return null
-    // NB "odnesi cenerom" (the caller-partner opened, I hold A and 10) needs no
-    // exception here: when my partner opens I am THIRD to play, never last, so
-    // this rule cannot see that trick at all — `cheapestWinningCard` already
-    // takes it with the ten, and §13.2 then sends the trump back.
+    // NB "odnesi cenerom" — the caller-partner opened and I hold A and 10 —
+    // is now the štihak exception above and nothing more: outside a live
+    // štiglja the ace goes in here too, and §13.2 still sends the trump back
+    // (`partnerSuitTakenByMyAce` accepts either card).
     return wouldWinTrick(view, ace) ? ace : null
 }
 
-/** A plain-suit lead of 7, 8 or 9 — "mala", the card that carries a message
- *  rather than a trick. The same three ranks `partnerAskedForTrump` reads in
- *  the trump suit. */
-const LOW_LEAD_RANKS: ReadonlySet<string> = new Set(["7", "8", "9"])
+/** A plain-suit lead of a card worth nothing or next to nothing — "mala",
+ *  the card that carries a message rather than a trick: 7, 8, 9, and the
+ *  plain jack (2) and queen (3). The queen was added 2026-09-29 (reported:
+ *  the caller opened the karo QUEEN "malom van aduta" and his partner read it
+ *  as a suit, not as the request it was). The king (4) and above still read
+ *  as a real card of the suit. */
+const LOW_LEAD_RANKS: ReadonlySet<string> = new Set(["7", "8", "9", "J", "Q"])
 
 /** Did `trick` open with the partner's plain-suit card, and did I take it with
  *  the ace of that suit? Returns the suit, or null. */
@@ -2468,12 +2635,42 @@ export function partnerLowPlainLeadAsksForTrump(view: PlayerView): boolean {
     if (trumpOutlook(view).opponentMax === 0) return false
     if (provablyNoTrumpJack(view, partnerOf(seat))) return false
 
-    for (const trick of reviewableTricks(view)) {
+    const tricks = reviewableTricks(view)
+    for (const trick of tricks) {
         const opener = trick.plays[0]
         if (opener === undefined || !LOW_LEAD_RANKS.has(cardRank(opener.card))) continue
         if (partnerSuitTakenByMyAce(view, trick, seat) !== null) return true
     }
-    return false
+    return callerOpenedSmallPlain(view, tricks, seat)
+}
+
+/**
+ * The caller's OPENING lead of the deal was a small plain card, and it said
+ * the same thing whoever went on to win that trick (reported 2026-09-29): he
+ * skipped the jack and the trump on purpose — "imam doma dečka, podigraj mi
+ * aduta". The reported deal: caller opened the karo queen, an opponent took
+ * it with the ten, the partner won the next trick with the herc ace and led
+ * the karo jack back instead of the trump that was asked for.
+ *
+ * Answered once my side has led a trump after that opening — from then on the
+ * caller has the lead back often enough to draw himself.
+ */
+function callerOpenedSmallPlain(view: PlayerView, tricks: readonly WonTrick[], seat: Seat): boolean {
+    const trump = view.bidding.trump
+    const opening = tricks.find((trick) => trick.no === 1)
+    const opener = opening?.plays[0]
+    if (trump === null || opener === undefined) return false
+    if (opener.seat !== partnerOf(seat)) return false
+    if (cardSuit(opener.card) === trump || !LOW_LEAD_RANKS.has(cardRank(opener.card))) return false
+
+    const ourTrumpLead = tricks.some((trick) => {
+        const lead = trick.plays[0]
+        return trick.no > 1
+            && lead !== undefined
+            && teamOf(lead.seat) === teamOf(seat)
+            && cardSuit(lead.card) === trump
+    })
+    return !ourTrumpLead
 }
 
 /**

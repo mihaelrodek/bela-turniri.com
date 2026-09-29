@@ -72,21 +72,32 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
         try { await navigator.clipboard.writeText(room.code); showSuccess(t("game.room.codeCopied")) }
         catch { showError(t("game.room.codeCopyFailed"), room.code) }
     }
-    const roomFacts = [
+    // Split in two (2026-09-29, user report): one wrapping row used to hold
+    // all of these, and on a phone-width room with every optional chip
+    // present (tricks off, min win-rate, spectators off) the browser's own
+    // wrap point landed mid-group — "Bez gledatelja" stranded alone on its
+    // own line, looking like layout breakage rather than a deliberate chip.
+    // Grouped explicitly instead: RULES (how the deal is scored) in one row,
+    // VIEWING (who else can watch — tricks review, spectators) in the next,
+    // public/private in its own row below (unchanged; it doubles as the
+    // "copy code" action when private, so it stays apart from plain facts).
+    const ruleFacts = [
         { key: "target", icon: <FiTarget />, label: t("game.lobby.target", { target: room.targetScore }) },
         { key: "finish", icon: <FiFlag />, label: t(`game.lobby.finishMode.${room.gameEndRule}`) },
         { key: "declarations", icon: <FiFileText />, label: t(room.noDeclarations ? "game.rules.noDeclarations" : "game.rules.withDeclarations") },
         ...(room.noDeclarations
             ? [{ key: "bela", icon: <CardsIcon size={15} />, label: t(room.allowBela ? "game.rules.allowBela" : "game.rules.noBela") }]
             : []),
+        ...(room.minWinRatePercent > 0
+            ? [{ key: "win-rate", icon: <FiAward />, label: t("game.room.minWinRate", { percent: room.minWinRatePercent }) }]
+            : []),
+    ]
+    const viewingFacts = [
         {
             key: "tricks",
             icon: room.trickReview === "off" ? <FiEyeOff /> : <FiEye />,
             label: t(`game.rules.trickReviewBadge.${room.trickReview}`),
         },
-        ...(room.minWinRatePercent > 0
-            ? [{ key: "win-rate", icon: <FiAward />, label: t("game.room.minWinRate", { percent: room.minWinRatePercent }) }]
-            : []),
         { key: "spectators", icon: <FiUsers />, label: t(room.allowSpectators ? "game.room.spectatorsAllowed" : "game.room.spectatorsDisabled") },
     ]
 
@@ -116,14 +127,25 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                         <IconButton size="sm" rounded="full" aria-label={t("game.room.leaveAria")} onClick={onLeave} variant="ghost"><FiLogOut /></IconButton>
                     </HStack>
                 </HStack>
-                {/* One wrapping row of compact chips (2026-09-20, user
-                    request): the previous 2-column grid of tall tiles plus a
-                    separate visibility row ate ~200px of a phone screen for
-                    facts nobody needed to read as a table. Chips wrap as
-                    needed and the public/private badge sits in the same
-                    flow — same information, a fraction of the height. */}
+                {/* Compact chips, wrapping ROWS of compact chips (2026-09-20,
+                    user request; regrouped 2026-09-29 — see `ruleFacts` /
+                    `viewingFacts` above): the previous 2-column grid of tall
+                    tiles plus a separate visibility row ate ~200px of a
+                    phone screen for facts nobody needed to read as a table.
+                    Chips wrap as needed within each group. */}
                 <Flex wrap="wrap" gap="1.5" mt="2">
-                    {roomFacts.map((fact) => (
+                    {ruleFacts.map((fact) => (
+                        <HStack key={fact.key} gap="1" flexShrink={0} h="26px" px="2"
+                            rounded="full" bg="bg.subtle" borderWidth="1px" borderColor="border.subtle">
+                            <Box color="brand.500" flexShrink={0} fontSize="xs" display="flex">{fact.icon}</Box>
+                            <Text fontSize="2xs" fontWeight="semibold" whiteSpace="nowrap">
+                                {fact.label}
+                            </Text>
+                        </HStack>
+                    ))}
+                </Flex>
+                <Flex wrap="wrap" gap="1.5" mt="1.5">
+                    {viewingFacts.map((fact) => (
                         <HStack key={fact.key} gap="1" flexShrink={0} h="26px" px="2"
                             rounded="full" bg="bg.subtle" borderWidth="1px" borderColor="border.subtle">
                             <Box color="brand.500" flexShrink={0} fontSize="xs" display="flex">{fact.icon}</Box>

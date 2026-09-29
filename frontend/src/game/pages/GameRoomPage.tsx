@@ -651,6 +651,17 @@ export default function GameRoomPage() {
             socket.clearError()
             return
         }
+        // A tap on a card out of turn is not an error worth a banner
+        // (2026-09-29, user report): every extra tap stacked another red
+        // toast, each one five seconds long, and on an iPhone Safari takes
+        // the colour of whatever is pinned to the top of the page for its
+        // status bar — the whole top of the screen stayed red until the last
+        // one expired. The turn pill under the table already says whose move
+        // it is, so the refusal is simply dropped.
+        if (socket.error.code === "NOT_YOUR_TURN") {
+            socket.clearError()
+            return
+        }
         // Schedule the imperative toaster after React has finished this
         // lifecycle, same as GameLobbyPage's own error effect: Chakra's
         // toaster flushes synchronously, and calling it straight from inside

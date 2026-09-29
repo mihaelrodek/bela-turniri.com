@@ -29,6 +29,8 @@ import { cardPoints, cardRank, cardSuit, makeCard, nextSeat, partnerOf, teamOf }
 import type { BidChoice, Bot } from "./index"
 import {
     aceOverCheapWinner,
+    cashBeforeRuff,
+    opponentBehindWillRuff,
     aceAfterMyWin,
     aceToCash,
     belaLead,
@@ -610,7 +612,21 @@ function chooseCard(view: PlayerView, legal: Card[], _rng: () => number): Card {
         const notBeating = legal.filter((card) => !wouldWinTrick(view, card))
         // §1.5 leaves no choice but to take it off him: the weakest card that
         // does, since the trick is ours either way.
-        if (notBeating.length === 0) return weakestCard(legal, trump)
+        if (notBeating.length === 0) {
+            // Forced over him holding the ace AND the ten of the led suit: the
+            // ace goes in, same rule as winning an opponent's trick (reported
+            // 2026-09-29 — the ten went in, and the ace was ruffed a round
+            // later). `aceOverCheapWinner` keeps the štihak exception.
+            const ace = aceOverCheapWinner(view, legal)
+            if (ace !== null) return ace
+            // The owner's own example (BOT.md §16): 7, 9, 8 of a plain suit,
+            // my partner holds with the 9 and I must go over him. The seat that
+            // threw the 8 is out of the suit, so the next round is ruffed —
+            // the ace goes in now, not the cheap card that keeps it.
+            const cashNow = cashBeforeRuff(view, legal)
+            if (cashNow !== null) return cashNow
+            return weakestCard(legal, trump)
+        }
         // "Na suigračevo nošenje nastoj upuniti svaki bod" — but only once
         // nobody after me can take it (`partnerTrickIsSafe`). Until then the
         // cheapest card, and the ace waits for a trick that is actually ours.
@@ -638,6 +654,16 @@ function chooseCard(view: PlayerView, legal: Card[], _rng: () => number): Card {
 
     const winner = cheapestWinningCard(view, legal)
     if (winner !== null) {
+        // The seat behind me is out of this suit and has to ruff: the trick is
+        // his whatever I play, so no points go in (BOT.md §16).
+        if (opponentBehindWillRuff(view)) return cheapestCard(legal, trump)
+
+        // The master of this suit will not live to a second round — an
+        // opponent is out of it and still has a trump. It takes the trick now
+        // (BOT.md §16), unless I can draw the trumps myself first.
+        const cashNow = cashBeforeRuff(view, legal)
+        if (cashNow !== null) return cashNow
+
         // Last to play, holding the ace AND the ten of the led plain suit: the
         // cheap winner keeps 21 points in a suit that is about to be ruffed,
         // so the ace goes in now (BOT.md §13.1). It sits inside this branch on
