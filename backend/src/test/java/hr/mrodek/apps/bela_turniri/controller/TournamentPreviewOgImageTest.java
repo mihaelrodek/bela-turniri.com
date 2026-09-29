@@ -125,7 +125,9 @@ class TournamentPreviewOgImageTest {
     @Test
     void withoutAPosterItFallsBackToTheRenderedCardWithItsExactSize() {
         String html = previewFor(withoutPosterId);
-        assertTrue(html.contains("share-image.png"), "og:image should be the rendered share card");
+        // The cache-busted v2 endpoint (ShareImageController), not the
+        // original — see TournamentPreviewController#render.
+        assertTrue(html.contains("share-image-v2.png"), "og:image should be the rendered share card");
         assertTrue(html.contains("<meta property=\"og:image:width\" content=\"1200\">"),
                 "the card's width is known and must be declared");
         assertTrue(html.contains("<meta property=\"og:image:height\" content=\"630\">"),
@@ -138,7 +140,7 @@ class TournamentPreviewOgImageTest {
         // would render with no thumbnail at all, which is worse than the
         // generic card.
         String html = previewFor(withWebpPosterId);
-        assertTrue(html.contains("share-image.png"), "a webp poster must fall back to the card");
+        assertTrue(html.contains("share-image-v2.png"), "a webp poster must fall back to the card");
         assertFalse(html.contains("/api/resources/" + webpResourceId + "/image"),
                 "a webp poster must never be emitted as og:image");
     }
