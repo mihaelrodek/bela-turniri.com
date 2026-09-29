@@ -24,6 +24,8 @@
 #            AppBridgeViewController.swift,
 #            BelaLiveActivityPlugin.swift + BelaActivityAttributes.swift,
 #            GuestKeychainPlugin.swift, Assets.xcassets (icon + splash),
+#            {hr,sl,en}.lproj/InfoPlist.strings (the translated permission
+#            prompts, and their PBXVariantGroup in the pbxproj),
 #            debug.xcconfig, and the whole BelaActivity/ widget-extension
 #            target (Live Activity + Dynamic Island).
 #            (No Podfile — this project is on Swift Package Manager,
@@ -32,7 +34,8 @@
 #   Android  AndroidManifest.xml (App Links intent-filter, the FCM channel
 #            meta-data, the BelaMessagingService swap that `tools:node="remove"`s
 #            the plugin's own service, the FileProvider, the permission set
-#            deliberately COARSE-only), app/build.gradle (firebase-messaging,
+#            — whose COARSE location this script strips again, see below),
+#            app/build.gradle (firebase-messaging,
 #            window-java, work-runtime-ktx, the google-services soft-apply),
 #            MainActivity.java (registerPlugin Foldable + BelaLiveActivity),
 #            FoldablePlugin, BelaLiveActivityPlugin, LiveGameState,
@@ -177,6 +180,30 @@ print(f"  added {add.strip()} to {path}")
 PY
 }
 
+# Location is the one strip that must never "warn and carry on". The full
+# app asks for approximate location ("turniri u blizini" on the list, map and
+# calendar); the games app has none of those screens, so a permission or a
+# usage string that leaks into it is a store declaration we cannot justify —
+# Play's Data safety form and Apple's review both compare the binary against
+# what we say we collect. Every location check below bumps LEAKS, and the
+# script exits non-zero at the very end if any fired.
+LEAKS=0
+
+# Remove every regex match from a file (DOTALL + MULTILINE). Says how many.
+py_drop_re() {  # py_drop_re <file> <regex>
+    PATTERN="$2" python3 - "$1" <<'PY'
+import os, re, sys
+path = sys.argv[1]
+src = open(path, encoding="utf-8").read()
+out, n = re.subn(os.environ["PATTERN"], "", src, flags=re.S | re.M)
+if n:
+    open(path, "w", encoding="utf-8").write(out)
+    print(f"  removed {n} match(es) from {path}")
+else:
+    print(f"  nothing to remove in {path}")
+PY
+}
+
 # ═══════════════════════════════════════════════════════════════════════════
 # iOS
 # ═══════════════════════════════════════════════════════════════════════════
@@ -270,13 +297,50 @@ PY
     # posters, which the games app has no screen for; the only image picker
     # it can reach is the avatar on /profil. A usage string that describes a
     # feature the reviewer cannot find is a Resolution Center round trip.
-    # (There is deliberately NO NSLocation*UsageDescription in either app —
-    # see the comment in ios/App/App/Info.plist.)
     sedi \
         "s|<string>Koristi se za snimanje fotografija za postere turnira i profilne slike.</string>|<string>Koristi se za snimanje profilne slike.</string>|; \
          s|<string>Koristi se za odabir fotografija za postere turnira i profilne slike.</string>|<string>Koristi se za odabir profilne slike iz galerije.</string>|" \
         ios-games/App/App/Info.plist
     say "NSCamera/NSPhotoLibrary usage strings → profile-photo wording"
+
+    # …and the same two strings in every translation. Rewritten BY KEY, not by
+    # matching the old sentence, so rewording the full app's copy can never
+    # leave a poster sentence behind in the games app. hr/sl/en is the whole
+    # set (knownRegions in the pbxproj); a new .lproj must be added here too.
+    for lang in hr sl en; do
+        GAMES_LANG="$lang" python3 - "ios-games/App/App/$lang.lproj/InfoPlist.strings" <<'PY'
+import os, re, sys
+path, lang = sys.argv[1], os.environ["GAMES_LANG"]
+games = {
+    "hr": ("Koristi se za snimanje profilne slike.",
+           "Koristi se za odabir profilne slike iz galerije."),
+    "sl": ("Uporablja se za fotografiranje profilne slike.",
+           "Uporablja se za izbiro profilne slike iz galerije."),
+    "en": ("Used to take your profile picture.",
+           "Used to choose your profile picture from your photo library."),
+}[lang]
+if not os.path.exists(path):
+    sys.stderr.write(f"  ! {path} missing — the translated prompts did not carry over\n")
+    sys.exit(0)
+src = open(path, encoding="utf-8").read()
+for key, value in zip(("NSCameraUsageDescription", "NSPhotoLibraryUsageDescription"), games):
+    src, n = re.subn(rf'^"{key}" = ".*";$', f'"{key}" = "{value}";', src, flags=re.M)
+    if not n:
+        sys.stderr.write(f"  ! {key} not found in {path}\n")
+open(path, "w", encoding="utf-8").write(src)
+print(f"  {path}: camera/photo → profile-photo wording")
+PY
+    done
+
+    # Location: out of Info.plist and out of every translation. Matched on
+    # the KEY (any NSLocation*UsageDescription), never on the sentence, so a
+    # reworded prompt in the full app is still caught.
+    py_drop_re ios-games/App/App/Info.plist \
+        '^[ \t]*<key>NSLocation[A-Za-z]*UsageDescription</key>\s*<string>.*?</string>[ \t]*\n'
+    for f in ios-games/App/App/*.lproj/InfoPlist.strings; do
+        [ -e "$f" ] || continue
+        py_drop_re "$f" '^"NSLocation[A-Za-z]*UsageDescription"[^\n]*\n'
+    done
 
     # The other app's Firebase config must never ride along: it would point
     # this binary at the wrong iOS app in the Firebase project, and FCM tokens
@@ -304,6 +368,23 @@ PY
         say "    ruby scripts/add-live-activity-target.rb ios/App/App.xcodeproj"
         say "  against ios/ first, then re-run this script with --force,"
         say "  or run it against ios-games/App/App.xcodeproj directly."
+    fi
+
+    step "verifying the iOS strip"
+    # The Info.plist comments talk about location, so only the <key> element
+    # and the "key" = form of the strings files count as a leak.
+    if grep -En '<key>NSLocation[A-Za-z]*UsageDescription</key>|^"NSLocation[A-Za-z]*UsageDescription"' \
+            ios-games/App/App/Info.plist ios-games/App/App/*.lproj/InfoPlist.strings >&2 2>/dev/null; then
+        printf '  ! a location usage description survived in ios-games (listed above)\n' >&2
+        LEAKS=$((LEAKS + 1))
+    else
+        say "clean: no location usage description in ios-games"
+    fi
+    # Not fatal (a leftover poster sentence is wrong copy, not a false store
+    # declaration), but loud.
+    if grep -Eqi 'poster|plakat' ios-games/App/App/*.lproj/InfoPlist.strings 2>/dev/null; then
+        printf '  ! a tournament-poster permission prompt survived in ios-games/*.lproj:\n' >&2
+        grep -Eni 'poster|plakat' ios-games/App/App/*.lproj/InfoPlist.strings | sed 's/^/      /' >&2
     fi
 
     say "done: ios-games/"
@@ -409,6 +490,24 @@ if [ "$DO_ANDROID" = "1" ]; then
         say "removed the copied google-services.json"
     fi
 
+    step "stripping location from the games manifest"
+    # The full app declares ACCESS_COARSE_LOCATION for "turniri u blizini";
+    # the games app has no list, map or calendar and must not declare it.
+    # The explanatory comment goes with it (it would only mislead there), and
+    # the second pass catches any <uses-permission> naming a location
+    # permission in case the comment was reworded upstream.
+    py_drop_re android-games/app/src/main/AndroidManifest.xml \
+        '^[ \t]*<!-- APPROXIMATE location only.*?-->[ \t]*\n'
+    py_drop_re android-games/app/src/main/AndroidManifest.xml \
+        '^[ \t]*<uses-permission[^>]*android\.permission\.ACCESS_[A-Z_]*LOCATION[^>]*/>[ \t]*\n'
+    # …and the optional android.hardware.location feature that accompanies
+    # it (harmless left in, but it would advertise a capability the games
+    # app never touches).
+    py_drop_re android-games/app/src/main/AndroidManifest.xml \
+        '^[ \t]*<!-- Spelled out so a location-less device.*?-->[ \t]*\n'
+    py_drop_re android-games/app/src/main/AndroidManifest.xml \
+        '^[ \t]*<uses-feature\s+android:name="android\.hardware\.location[a-z.]*"[^>]*/>[ \t]*\n'
+
     step "stripping tournaments-only Android features"
     # The home-screen widget lists UPCOMING TOURNAMENTS and the "Novi turnir"
     # shortcut opens the create-tournament form — neither route exists in a
@@ -505,6 +604,16 @@ BLOCK
     else
         say "! fix the references listed above BEFORE building — see docs/BELA-GAMES-NATIVE.md §3"
     fi
+    # Location is checked apart from the list above because it is fatal (see
+    # LEAKS). Plugins' own manifests are merged in at build time and are not
+    # visible here; none of the installed plugins declares a location
+    # permission today — check the merged manifest if one is ever added.
+    if grep -rnE -- 'android\.permission\.ACCESS_[A-Z_]*LOCATION|android\.hardware\.location' android-games/app/src/main >&2 2>/dev/null; then
+        printf '  ! a location permission/feature survived in android-games (listed above)\n' >&2
+        LEAKS=$((LEAKS + 1))
+    else
+        say "clean: no location permission in android-games"
+    fi
 
     say "done: android-games/"
 fi
@@ -539,5 +648,9 @@ cat <<EOF
      intent-filter and marks the whole filter unverified if one fails.
   6. Then, from frontend/:  npm run build:native:games
 EOF
+
+if [ "$LEAKS" -gt 0 ]; then
+    die "location leaked into the games project ($LEAKS check(s) above). The games app must not declare location — fix the listed files (or the strip patterns in this script) before building."
+fi
 
 printf '\n✓ done\n'

@@ -21,6 +21,7 @@ import "../../../datepicker.css"
 
 import { LocationAutocomplete } from "../../../components/LocationAutocomplete"
 import LocationMapPicker from "../../../components/LocationMapPicker"
+import { MOBILE_TABBAR_CLEARANCE } from "../../../components/navChrome"
 import PerPairHint from "../../../components/PerPairHint"
 import SectionCard from "../../../components/SectionCard"
 import SuffixInput from "../../../components/SuffixInput"
@@ -263,9 +264,13 @@ export default function DetailsEditForm({
                                 <GroupHeading icon={<FiPhone />}>
                                     {tr("tournament.edit.sectionContact")}
                                 </GroupHeading>
+                                {/* One column, always: this form shares the row with
+                                    the tournament sidebar, so its left column is too
+                                    narrow for name + prefix + number side by side —
+                                    the number was cut to a few digits. */}
                                 <Box
                                     display="grid"
-                                    gridTemplateColumns={{ base: "1fr", sm: "1fr 1fr" }}
+                                    gridTemplateColumns="minmax(0, 1fr)"
                                     gap="2"
                                     mt="1.5"
                                 >
@@ -684,19 +689,25 @@ export default function DetailsEditForm({
             {/* Sticky save bar */}
             <Box
                 position="sticky"
-                bottom="0"
-                // Matches the create wizard's sticky submit bar — same frosted
-                // surface, same hairline. Presentation only.
+                // Floats as a card of its own: clear of the mobile tab bar
+                // (which is fixed over the viewport's bottom edge) and a
+                // little off the edge on desktop, instead of a square strip
+                // with its text flush against the side.
+                bottom={{ base: `calc(${MOBILE_TABBAR_CLEARANCE} + 8px)`, md: "3" }}
+                zIndex="1"
                 layerStyle="glass.panel"
-                borderTopWidth="1px"
+                borderWidth="1px"
                 borderColor="border.glass"
-                py="3"
+                rounded="xl"
+                shadow="raised"
+                px={{ base: "3", md: "4" }}
+                py="2.5"
                 mt="2"
             >
-                <HStack justify="space-between" gap="3" wrap="wrap">
-                    <Text fontSize="sm" color="fg.muted">
+                <HStack justify="space-between" gap="3" rowGap="2" wrap="wrap">
+                    <Text fontSize="sm" color="fg.muted" minW="0" flex="1 1 160px">
                         {editMissingRequired.length === 0 && !editStartInPast ? (
-                            <chakra.span color="green.fg">{tr("tournament.edit.readyToSave")}</chakra.span>
+                            <chakra.span color="teal.fg" fontWeight="medium">{tr("tournament.edit.readyToSave")}</chakra.span>
                         ) : editStartInPast ? (
                             <chakra.span color="red.fg">
                                 {tr("tournament.edit.pastInline")}
@@ -707,7 +718,7 @@ export default function DetailsEditForm({
                             </chakra.span>
                         )}
                     </Text>
-                    <HStack gap="2">
+                    <HStack gap="2" ml="auto">
                         <Button variant="ghost" onClick={onCancel} disabled={savingDetails}>
                             {tr("common.cancel")}
                         </Button>

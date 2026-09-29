@@ -62,6 +62,10 @@ export const pages = {
     "tournaments.nearMe.unsupported": "Preglednik ne podržava geolokaciju.",
     "tournaments.nearMe.enable": "Uključi",
     "tournaments.nearMe.denied": "Lokacija je odbijena u pregledniku.",
+    /* Native apps: the permission lives in the device settings, not a browser. */
+    "tournaments.nearMe.deniedNative": "Lokacija je odbijena u postavkama uređaja.",
+    "tournaments.nearMe.deniedDescriptionNative":
+        "Dopusti pristup lokaciji u postavkama uređaja da bi filter po udaljenosti radio.",
 
     // --- Search + filter toolbar -----------------------------------------------
     "tournaments.search.placeholder": "Pretraži po imenu turnira, gradu ili dvorani…",
@@ -278,6 +282,7 @@ export const pages = {
     "map.hideLocation": "Sakrij moju lokaciju",
     "map.showLocation": "Prikaži moju lokaciju",
     "map.locationDenied": "Pristup lokaciji je odbijen. Možeš ga uključiti kasnije u postavkama preglednika.",
+    "map.locationDeniedNative": "Pristup lokaciji je odbijen. Možeš ga uključiti kasnije u postavkama uređaja, pod dozvolama aplikacije.",
     "map.locationUnsupported": "Tvoj preglednik ne podržava geolokaciju.",
     "map.bucket.thisWeek": "Ovaj tjedan",
     "map.bucket.nextWeek": "Do sljedeće nedjelje",

@@ -111,6 +111,12 @@ export default function LocationMapPicker({
     return (
         <Box
             position="relative"
+            // Own stacking context: Leaflet's panes and controls carry
+            // z-indexes up to 1000, which otherwise compete with the page —
+            // on the edit form the map slid OVER the sticky section header
+            // while scrolling. Inside this box they only order each other.
+            isolation="isolate"
+            zIndex="0"
             h={height}
             minH={minH}
             rounded="md"

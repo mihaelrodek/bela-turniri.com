@@ -49,19 +49,29 @@ Privacy policy URL to enter in App Store Connect: `https://bela-turniri.com/priv
 
 ## Location
 
+Applies to the **full app "Bela Turniri" (`com.belaturniri.app`) only**; the
+games app "Bela Online" ships without any `NSLocation*UsageDescription` key
+(stripped by `create-games-native.sh`, which fails if one survives).
+
+The full app's `Info.plist` has **`NSLocationWhenInUseUsageDescription`**
+(translated in `{hr,sl,en}.lproj/InfoPlist.strings`) — when-in-use only,
+never "Always", no background location mode. It backs "turniri u blizini" on
+the tournaments list, map and calendar.
+
 | Data type | Collected | Linked to user | Used for tracking | Purposes | Source in code |
 |---|---|---|---|---|---|
-| Precise Location | **No** | — | No | — | `frontend/src/hooks/useUserLocation.ts` calls `navigator.geolocation.getCurrentPosition` with `enableHighAccuracy: false` and keeps the result **only in React state**. It is used exclusively to sort/filter the already-public tournament list client-side and to draw a marker on the Leaflet map (`frontend/src/pages/TournamentsPage.tsx`, `MapPage.tsx`, `CalendarPage.tsx`). No `fetch`/`axios` call in any of those files sends `userPos` anywhere; only a "hidden" boolean preference is written to `localStorage`. Apple's App Privacy asks about data your app *collects* (i.e., transmits off-device); this position is never transmitted, so the correct answer is "Data Not Collected." |
-| Coarse Location | **No** | — | No | — | Same code path as above. |
+| Coarse Location | **No** — used on device only | — | No | — | `frontend/src/hooks/useUserLocation.ts` calls WKWebView's `navigator.geolocation.getCurrentPosition` with `enableHighAccuracy: false` and keeps the result **only in React state** (not persisted; only a "hidden" boolean preference goes to `localStorage`). It sorts/filters the already-fetched public tournament list and centres the Leaflet map (`TournamentsPage.tsx`, `MapPage.tsx`, `CalendarPage.tsx`). No `fetch`/`axios` call sends `userPos` anywhere. Backend checked: no endpoint takes a user position — the only lat/lng input is `GET /api/geocode/reverse`, used by the organiser's venue picker for a point clicked on the map, not the device position. Apple's App Privacy counts data *transmitted off the device*, so the answer is "Data Not Collected" for location. |
+| Precise Location | **No** | — | No | — | Same code path; the app never asks for high accuracy. (iOS may still hand a WebView a precise fix if the user left "Precise Location" on — it stays on the device all the same.) |
+
+Caveat worth knowing (not a collection under Apple's definition, but true):
+once a position is known the map is centred on it at zoom 10, so the map tile
+requests (CARTO by default, `frontend/src/utils/mapTiles.ts`) are for the area
+around the user — the tile server sees tile coordinates and the IP, as with
+any map view. See `open-questions.md` §5.
 
 Note the distinction from a **tournament's** venue coordinates: those are organiser-entered
 text geocoded server-side via OpenStreetMap Nominatim (`backend/.../services/GeocodeService.java`)
 and are public tournament metadata, not the account holder's personal location — see User Content.
-
-Android declares both `ACCESS_COARSE_LOCATION` and `ACCESS_FINE_LOCATION`
-(`frontend/android/app/src/main/AndroidManifest.xml`) even though the JS call only ever
-requests low accuracy. This is a manifest/behavior mismatch worth resolving before
-submission — see `open-questions.md`.
 
 ## User Content
 

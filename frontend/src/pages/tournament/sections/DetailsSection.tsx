@@ -463,7 +463,7 @@ function RuleItem({
     value: string
 }) {
     return (
-        <Box bg="bg.subtle" rounded="lg" px="3" py="2.5" minW="0">
+        <Box bg="bg.subtle" rounded="lg" px="2.5" py="2.5" minW="0">
             <Text
                 fontSize="2xs"
                 fontWeight="semibold"
@@ -489,7 +489,9 @@ function RuleItem({
                 >
                     {icon}
                 </Flex>
-                <Text fontWeight="medium" truncate>
+                {/* Wraps instead of truncating: five tiles share the row on
+                    desktop and "Vrijede" was being cut to "Vrije…". */}
+                <Text fontWeight="medium" lineHeight="1.2" minW="0" overflowWrap="anywhere">
                     {value}
                 </Text>
             </HStack>
@@ -538,7 +540,7 @@ function RulesCard({ t }: { t: TournamentDetails }) {
                 display="grid"
                 gridTemplateColumns={{
                     base: "repeat(2, minmax(0, 1fr))",
-                    md: "repeat(5, minmax(0, 1fr))",
+                    md: `repeat(${declarationsOn ? 4 : 5}, minmax(0, 1fr))`,
                 }}
                 gap="2"
             >
@@ -560,12 +562,17 @@ function RulesCard({ t }: { t: TournamentDetails }) {
                     iconColor={declarationsOn ? yesColor : noColor}
                     value={tr(declarationsOn ? "tournament.rule.declarations.enabled" : "tournament.rule.declarations.off")}
                 />
-                <RuleItem
-                    label={tr("tournament.tile.bela")}
-                    icon={belaOn ? <FiCheck size={13} /> : <FiX size={13} />}
-                    iconColor={belaOn ? yesColor : noColor}
-                    value={tr(belaOn ? "tournament.rule.yes" : "tournament.rule.no")}
-                />
+                {/* Bela is a question only when zvanja are off: with zvanja on
+                    it always counts, and the edit form does not even offer the
+                    choice then. */}
+                {!declarationsOn && (
+                    <RuleItem
+                        label={tr("tournament.tile.bela")}
+                        icon={belaOn ? <FiCheck size={13} /> : <FiX size={13} />}
+                        iconColor={belaOn ? yesColor : noColor}
+                        value={tr(belaOn ? "tournament.rule.belaCounts" : "tournament.rule.belaOff")}
+                    />
+                )}
                 <RuleItem
                     label={tr("tournament.tile.dealDirection")}
                     icon={direction === "left" ? <FiRotateCcw size={12} /> : <FiRotateCw size={12} />}

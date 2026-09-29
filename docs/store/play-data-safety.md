@@ -24,18 +24,28 @@ also an Apple 5.1.1(v) blocker, so it needs fixing regardless of platform.
 
 ## Location
 
+Applies to the **full app "Bela Turniri" (`com.belaturniri.app`) only**. The
+games app "Bela Online" (`games.bela.app`) declares no location permission at
+all — `create-games-native.sh` strips it and refuses to finish if it survives —
+so its form has no Location row.
+
+The full app declares **`ACCESS_COARSE_LOCATION` only** (no FINE, no
+BACKGROUND) in `frontend/android/app/src/main/AndroidManifest.xml`. It backs
+the "turniri u blizini" feature on the tournaments list, map and calendar.
+
 | Data type | Collected | Shared | Optional/Required | Purpose | Source |
 |---|---|---|---|---|---|
-| Approximate location | **No — see reasoning** | No | — | — | `useUserLocation.ts` calls `getCurrentPosition({ enableHighAccuracy: false, ... })` and keeps the coordinate only in React state, used purely to sort/filter the already-fetched public tournament list and place a marker on the client-side map. No network call in `TournamentsPage.tsx` / `MapPage.tsx` / `CalendarPage.tsx` sends it to the backend or to any third party. |
-| Precise location | **No** | No | — | — | Same. |
+| Approximate location | **No** — processed on device only | No | Optional (prompted when the user first opens the map, or taps "U blizini" / the locate button; everything works without it) | — (on-device only: sort/filter the tournament list by distance, centre the map) | `useUserLocation.ts` calls the WebView's `navigator.geolocation.getCurrentPosition({ enableHighAccuracy: false, ... })`; the coordinate lives only in React state and is never written to storage (only a "hidden" boolean goes to `localStorage`). No request in `TournamentsPage.tsx` / `MapPage.tsx` / `CalendarPage.tsx` sends it anywhere. Backend checked: no endpoint accepts a user position — the only lat/lng parameter is `GET /api/geocode/reverse`, used by the organiser's venue picker (`LocationMapPicker.tsx`) for a point **clicked on the map**, never the device position. |
+| Precise location | **No** | No | — | — | Not requested: no `ACCESS_FINE_LOCATION` in the manifest, `enableHighAccuracy: false` in code. |
 
-**Manifest/behavior mismatch to resolve before submission**: `AndroidManifest.xml`
-declares both `ACCESS_COARSE_LOCATION` and `ACCESS_FINE_LOCATION`, but the JS code
-only ever requests `enableHighAccuracy: false`. Play's reviewers compare the declared
-permissions against the Data Safety form; either drop the unused `ACCESS_FINE_LOCATION`
-permission or, if Android's WebView geolocation bridge can still hand back GPS-grade
-precision under fine permission regardless of the JS flag, disclose "Precise location"
-conservatively. Flagged in `open-questions.md`.
+Google's definition of "collected" is data transmitted off the device; data
+processed only on the device need not be declared, which is why the row says
+No even though the permission is declared. **One honest caveat for the
+reviewer notes:** when a position is known, `MapPage.tsx` centres the map on it
+(zoom 10), so the **map tile requests** (CARTO by default, `mapTiles.ts`) are
+for the tiles around the user — the tile server sees tile x/y/z plus the
+device IP, as it does for any map view. No coordinate is sent as such, and
+the same happens in the browser. See `open-questions.md` §5.
 
 ## Photos and videos
 

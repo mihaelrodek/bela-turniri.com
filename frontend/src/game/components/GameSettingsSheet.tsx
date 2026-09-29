@@ -298,7 +298,8 @@ export default function GameSettingsSheet({ open, onClose, room, isHost = false,
                                 <GameOption label={t("game.settings.reduceMotion")} checked={prefs.reduceMotion} onChange={(reduceMotion) => setPrefs({ reduceMotion })} />
                                 {/* Only offered where the browser can actually
                                     do it (Screen Wake Lock: Chrome/Edge, and
-                                    Safari from iOS 16.4) — a switch that
+                                    Safari from iOS 16.4; always in the native
+                                    apps, which use a plugin) — a switch that
                                     silently does nothing is worse than no
                                     switch. */}
                                 {keepAwakeSupported() && (

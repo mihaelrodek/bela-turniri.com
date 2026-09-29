@@ -38,6 +38,10 @@ export const pages: PagesDict = {
     "tournaments.nearMe.unsupported": "Brskalnik ne podpira geolokacije.",
     "tournaments.nearMe.enable": "Vklopi",
     "tournaments.nearMe.denied": "Lokacija je zavrnjena v brskalniku.",
+    /* Native apps: the permission lives in the device settings, not a browser. */
+    "tournaments.nearMe.deniedNative": "Lokacija je zavrnjena v nastavitvah naprave.",
+    "tournaments.nearMe.deniedDescriptionNative":
+        "Dovoli dostop do lokacije v nastavitvah naprave, da bo filter po razdalji deloval.",
 
     "tournaments.search.placeholder": "Išči po imenu turnirja, mestu ali dvorani…",
     "tournaments.search.clearAria": "Počisti iskanje",
@@ -206,6 +210,7 @@ export const pages: PagesDict = {
     "map.hideLocation": "Skrij mojo lokacijo",
     "map.showLocation": "Prikaži mojo lokacijo",
     "map.locationDenied": "Dostop do lokacije je zavrnjen. Lahko ga pozneje vklopiš v nastavitvah brskalnika.",
+    "map.locationDeniedNative": "Dostop do lokacije je zavrnjen. Lahko ga pozneje vklopiš v nastavitvah naprave, pri dovoljenjih aplikacije.",
     "map.locationUnsupported": "Tvoj brskalnik ne podpira geolokacije.",
     "map.bucket.thisWeek": "Ta teden",
     "map.bucket.nextWeek": "Do naslednje nedelje",

@@ -107,7 +107,7 @@ export const tournament = {
     "tile.gameRules": "Pravila igre",
     "tile.targetScore": "Igra se do",
     "tile.gameEndRule": "Igra se na",
-    "tile.dealDirection": "Smjer kartanja",
+    "tile.dealDirection": "Smjer",
     "tile.declarations": "Zvanja",
     "tile.allowBela": "Bela",
     /* Merged tile (2026-09-22): "Zvanja" and "Bela" used to be two separate
@@ -162,6 +162,8 @@ export const tournament = {
     "rule.declarations.off": "Ne vrijede",
     "rule.yes": "Da",
     "rule.no": "Ne",
+    "rule.belaCounts": "Vrijedi",
+    "rule.belaOff": "Ne vrijedi",
     /* Bela chip/tile fragment (2026-09-22). Used standalone (capitalised) on
        the listing card/row's rules chip, and lower-cased into the merged
        "Zvanja i bela" detail tile's value — see DetailsSection.tsx and

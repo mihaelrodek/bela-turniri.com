@@ -735,6 +735,11 @@ export default defineConfig({
                     if (id.includes("node_modules/@capacitor-firebase/")) {
                         return undefined
                     }
+                    // And for community plugins (`@capacitor-community/keep-awake`,
+                    // reached only via `nativeKeepAwake()` in native.ts).
+                    if (id.includes("node_modules/@capacitor-community/")) {
+                        return undefined
+                    }
                     return "vendor"
                 },
             },

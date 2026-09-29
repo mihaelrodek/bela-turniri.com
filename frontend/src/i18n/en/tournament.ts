@@ -84,7 +84,7 @@ export const tournament: TournamentDict = {
     "tile.gameRules": "Game rules",
     "tile.targetScore": "Target score",
     "tile.gameEndRule": "End rule",
-    "tile.dealDirection": "Deal direction",
+    "tile.dealDirection": "Direction",
     "tile.declarations": "Declarations",
     "tile.allowBela": "Bela",
     "tile.declarationsAndBela": "Declarations and bela",
@@ -124,6 +124,8 @@ export const tournament: TournamentDict = {
     "rule.declarations.off": "Not allowed",
     "rule.yes": "Yes",
     "rule.no": "No",
+    "rule.belaCounts": "Counts",
+    "rule.belaOff": "Does not count",
     "rule.bela.enabled": "Bela yes",
     "rule.bela.disabled": "No bela",
 

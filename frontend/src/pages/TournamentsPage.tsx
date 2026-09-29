@@ -1,3 +1,4 @@
+import { isNative } from "../platform"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import {
@@ -402,7 +403,7 @@ export default function TournamentsPage() {
             if (geoStatus === "denied") {
                 showError(
                     tt("pages.tournaments.nearMe.deniedTitle"),
-                    tt("pages.tournaments.nearMe.deniedDescription"),
+                    tt(isNative ? "pages.tournaments.nearMe.deniedDescriptionNative" : "pages.tournaments.nearMe.deniedDescription"),
                 )
             }
             return
@@ -425,7 +426,7 @@ export default function TournamentsPage() {
             // Already known to be denied — don't even ask, just explain.
             showError(
                 tt("pages.tournaments.nearMe.deniedTitle"),
-                tt("pages.tournaments.nearMe.deniedDescription"),
+                tt(isNative ? "pages.tournaments.nearMe.deniedDescriptionNative" : "pages.tournaments.nearMe.deniedDescription"),
             )
             return
         }
@@ -1177,7 +1178,7 @@ export default function TournamentsPage() {
                                         ) : null}
                                         {geoStatus === "denied" && (
                                             <Text fontSize="xs" color="fg.muted" mb="1.5">
-                                                {tt("pages.tournaments.nearMe.denied")}
+                                                {tt(isNative ? "pages.tournaments.nearMe.deniedNative" : "pages.tournaments.nearMe.denied")}
                                             </Text>
                                         )}
                                         <Button

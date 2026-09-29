@@ -1,3 +1,4 @@
+import { isNative } from "../platform"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
@@ -128,7 +129,7 @@ export default function CalendarPage() {
             setNearMeEnabled(false)
             showError(
                 t("pages.tournaments.nearMe.deniedTitle"),
-                t("pages.tournaments.nearMe.deniedDescription"),
+                t(isNative ? "pages.tournaments.nearMe.deniedDescriptionNative" : "pages.tournaments.nearMe.deniedDescription"),
             )
         }
         // `t` is recreated on every language switch; re-running then would
@@ -272,7 +273,7 @@ export default function CalendarPage() {
 
             {geoStatus === "denied" && (
                 <Text fontSize="xs" color="fg.muted">
-                    {t("pages.tournaments.nearMe.denied")}
+                    {t(isNative ? "pages.tournaments.nearMe.deniedNative" : "pages.tournaments.nearMe.denied")}
                 </Text>
             )}
 

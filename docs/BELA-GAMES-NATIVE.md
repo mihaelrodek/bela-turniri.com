@@ -223,8 +223,8 @@ Apple i Associated Domains entitlemente, `UIBackgroundModes`, hrvatske
 `NS*UsageDescription` tekstove, Live Activities, `AppDelegate`-ov zaštićeni
 `FirebaseApp.configure()`, `BelaLiveActivityPlugin`, `GuestKeychainPlugin`,
 `FoldablePlugin`, `BelaMessagingService` (koji `tools:node="remove"`-a plugin
-servis i zamjenjuje ga svojim), FileProvider, COARSE-only lokaciju, ikone,
-splash, `values-sl` prijevode i shortcutove.
+servis i zamjenjuje ga svojim), FileProvider, ikone, splash, `values-sl`
+prijevode, `{hr,sl,en}.lproj/InfoPlist.strings` i shortcutove.
 
 Zato skripte `npm run cap:games:add:ios` / `cap:games:add:android` **postoje,
 ali ih ne koristi** osim ako svjesno želiš prazan projekt od nule.
@@ -256,6 +256,13 @@ na placeholder, i briše eventualno kopirane `GoogleService-Info.plist` /
 `upcoming_tournaments_widget_info.xml`), shortcut "Novi turnir", i
 `/turniri/` path prefix iz App Links intent-filtera. `/blok/`, `/igra/` i
 `/profil/` ostaju — te stranice games aplikacija ima.
+
+Izbacuje i **lokaciju** (od 2026-09-29 puna aplikacija traži približnu
+lokaciju za "turniri u blizini"): `ACCESS_COARSE_LOCATION` iz manifesta,
+`NSLocationWhenInUseUsageDescription` iz `Info.plist` i iz sva tri
+`InfoPlist.strings`, a kamera/galerija tekstove u prijevodima suzi na
+profilnu sliku. Ako lokacija ipak preživi, skripta na kraju **pada**
+(exit 1) — to nije upozorenje nego greška.
 
 ### 3.1 Ručno, odmah nakon skripte
 
@@ -621,7 +628,8 @@ iOS 26 SDK-a (verzija modifikatora u `WidgetKit.swiftinterface`: iOS 18.0).
 ### 9.5 Sitnije
 
 - `UIRequiredDeviceCapabilities`: `armv7` → **`arm64`**.
-- **Maknuti** `NSLocationWhenInUseUsageDescription`. U iOS projektu ništa ne
+- **Maknuti** `NSLocationWhenInUseUsageDescription` (vraćen 2026-09-29 za
+  punu aplikaciju, vidi §9.7). U iOS projektu ništa ne
   linka CoreLocation, nema `@capacitor/geolocation`, a jedina geolokacija je
   web `navigator.geolocation` u `src/hooks/useUserLocation.ts`, koji koriste
   samo karta i kalendar — stranice kojih u games buildu nema.
@@ -823,6 +831,11 @@ Novi `res/drawable/ic_stat_bela.xml` — bijeli vektor na prozirnoj podlozi
   aplikaciju, ali `frontend/android` je izvor istine.)
 
 ### 9.7 Lokacija maknuta (odluka vlasnika)
+
+> **Zamijenjeno 2026-09-29:** puna aplikacija (`com.belaturniri.app`) opet
+> ima `ACCESS_COARSE_LOCATION` i `NSLocationWhenInUseUsageDescription`, jer
+> se i ona sada izdaje. Games aplikacija ih i dalje nema — skripta ih briše
+> i pada ako prežive. Tekst ispod je povijest.
 
 `ACCESS_COARSE_LOCATION` je izbačen iz manifesta. Provjereno: jedini potrošač
 geolokacije u `frontend/src` je `hooks/useUserLocation.ts`, a do njega se dolazi

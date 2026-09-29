@@ -66,19 +66,21 @@ bundle IDs (`com.belaturniri.app` for both iOS and Android) and the
 this could not be verified from the repo alone, and an unrestricted key
 found in a decompiled APK is both an abuse and a store-policy risk.
 
-## 5. Android manifest requests FINE location the JS code never asks for at that precision
+## 5. Location (updated 2026-09-29)
 
-`frontend/android/app/src/main/AndroidManifest.xml` declares
-`ACCESS_FINE_LOCATION` in addition to `ACCESS_COARSE_LOCATION`, but every
-call site (`frontend/src/hooks/useUserLocation.ts`) passes
-`enableHighAccuracy: false`. Play Console cross-checks declared permissions
-against the Data Safety form and against actual runtime behavior. Either:
-(a) confirm whether Android's WebView geolocation bridge can still surface
-GPS-grade precision to a low-accuracy JS request regardless (in which case
-disclose "Precise location" conservatively in Play Data Safety), or
-(b) drop `ACCESS_FINE_LOCATION` from the manifest if it is unused boilerplate
-from the Capacitor template. Could not determine which from static reading
-alone — this needs a decision from whoever owns the Android build.
+The FINE-vs-COARSE question is settled: the full app's manifest declares
+`ACCESS_COARSE_LOCATION` only, iOS has `NSLocationWhenInUseUsageDescription`,
+and the games app declares neither (`create-games-native.sh`). Still open:
+
+- **Android 7–11**: Capacitor's `BridgeWebChromeClient` asks for COARSE+FINE
+  and only accepts "COARSE alone" on Android 12+. On API 24–30 the WebView
+  geolocation request is therefore refused and the pages show their normal
+  "location denied" state. Fix options: declare
+  `ACCESS_FINE_LOCATION` with `android:maxSdkVersion="30"` (then Play's form
+  must say "Precise location" too), or accept the gap.
+- **Map tiles**: centring the map on the user makes the tile requests reveal
+  the rough area to the tile provider. Not "collection" by either store's
+  definition, but decide whether to mention it in the privacy policy.
 
 ## 6. Privacy policy is Croatian-only
 

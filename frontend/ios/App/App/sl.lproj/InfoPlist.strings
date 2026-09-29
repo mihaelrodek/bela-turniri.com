@@ -1,0 +1,7 @@
+/* Slovenian permission prompts (informal "ti", like the app's UI).
+   create-games-native.sh narrows the camera/photo lines to the profile
+   photo and drops the location line for the games app (ios-games/). */
+"NSCameraUsageDescription" = "Uporablja se za fotografiranje plakatov turnirjev in profilnih slik.";
+"NSPhotoLibraryUsageDescription" = "Uporablja se za izbiro fotografij za plakate turnirjev in profilne slike.";
+"NSPhotoLibraryAddUsageDescription" = "Uporablja se za shranjevanje fotografij iz aplikacije.";
+"NSLocationWhenInUseUsageDescription" = "Uporablja se za prikaz turnirjev v tvoji bližini na seznamu, zemljevidu in v koledarju.";

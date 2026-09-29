@@ -68,7 +68,8 @@ const appTree = (
                 consent signal to denied until this grants it. Mounted here
                 (inside BrowserRouter), not alongside the other root-level
                 components below — its privacy-policy link is a RouterLink,
-                which needs the router context. */}
+                which needs the router context. Hidden in the native apps,
+                which never load GA (see the component). */}
             <CookieConsent />
             {/* "Novosti" (what's new): a sticky FAB plus its release-notes
                 dialog. Both live inside the router — the FAB hides itself on

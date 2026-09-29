@@ -73,7 +73,7 @@ export const tournament: TournamentDict = {
     "tile.gameRules": "Pravila igre",
     "tile.targetScore": "Igra se do",
     "tile.gameEndRule": "Igra se na",
-    "tile.dealDirection": "Smer deljenja",
+    "tile.dealDirection": "Smer",
     "tile.declarations": "Napovedi",
     "tile.allowBela": "Bela",
     "tile.declarationsAndBela": "Napovedi in bela",
@@ -113,6 +113,8 @@ export const tournament: TournamentDict = {
     "rule.declarations.off": "Ne veljajo",
     "rule.yes": "Da",
     "rule.no": "Ne",
+    "rule.belaCounts": "Velja",
+    "rule.belaOff": "Ne velja",
     "rule.bela.enabled": "Bela da",
     "rule.bela.disabled": "Brez bele",
 

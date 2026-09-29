@@ -1,0 +1,8 @@
+/* English permission prompts. en is CFBundleDevelopmentRegion, so this is
+   also what any language the app does not ship (German, Italian, ...) sees.
+   create-games-native.sh narrows the camera/photo lines to the profile
+   photo and drops the location line for the games app (ios-games/). */
+"NSCameraUsageDescription" = "Used to take photos for tournament posters and profile pictures.";
+"NSPhotoLibraryUsageDescription" = "Used to choose photos for tournament posters and profile pictures.";
+"NSPhotoLibraryAddUsageDescription" = "Used to save photos from the app.";
+"NSLocationWhenInUseUsageDescription" = "Used to show tournaments near you in the list, on the map and in the calendar.";

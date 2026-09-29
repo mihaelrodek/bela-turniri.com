@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Box, Button, HStack, Text, chakra } from "@chakra-ui/react"
 import { Link as RouterLink } from "react-router-dom"
 import { useTranslation } from "../i18n"
+import { isNative } from "../platform"
 import { MOBILE_TABBAR_CLEARANCE } from "./navChrome"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -70,7 +71,14 @@ export default function CookieConsent() {
         }
     }, [decision])
 
-    if (decision !== null) return null
+    // Never inside the iOS/Android shells: index.html only injects gtag.js on
+    // the production web hostnames, and the WebView serves from
+    // capacitor://localhost / https://localhost, so there is no analytics to
+    // consent to. Asking anyway would be a banner about cookies the app never
+    // sets. Nothing else reads the stored decision (the effect above only
+    // re-grants a tag that is absent natively), so leaving it unset is safe.
+    // Checked AFTER the hooks so their call order never depends on it.
+    if (isNative || decision !== null) return null
 
     function choose(next: ConsentDecision) {
         setDecision(next)

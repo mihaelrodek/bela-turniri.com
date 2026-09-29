@@ -171,20 +171,36 @@
          prompt; the user can still demote it in Settings. -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
-    <!-- NO LOCATION PERMISSION, on purpose (owner decision, 2026-09-20).
-         The only geolocation consumer in the web app is hooks/useUserLocation.ts,
-         reached exclusively from the tournaments calendar/map ("turniri u
-         blizini"); the shipping native app is Bela Games, which has neither
-         screen (src/site.ts FULL_SITE_ONLY_PREFIXES). A declared
-         ACCESS_COARSE_LOCATION would have to be disclosed in Play's Data
-         safety form for a capability the shipped binary never exercises.
-         If a native tournaments build is ever revived, re-add
-         <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-         here (COARSE only — see git history for why not FINE). -->
+    <!-- APPROXIMATE location only (owner decision, 2026-09-29; this replaces
+         the 2026-09-20 "no location" note, which was written while only the
+         games app was going to ship). The full app's tournaments list, map
+         and calendar offer "turniri u blizini": hooks/useUserLocation.ts calls
+         the WEB navigator.geolocation with enableHighAccuracy: false, and
+         Capacitor's BridgeWebChromeClient turns that into this runtime
+         prompt. The position stays in React state on the device (sorting,
+         radius filter, map centring) and is never sent to the backend.
+         COARSE, not FINE: city-level accuracy is all a "within N km" filter
+         needs, and a FINE declaration would have to be disclosed as precise
+         location. Caveat: Capacitor asks for COARSE+FINE and only falls back
+         to "COARSE is enough" on Android 12+ (API 31); on Android 7-11 the
+         WebView request is refused and the pages show their normal
+         "location denied" state, exactly as a browser that said no.
+         create-games-native.sh strips this line from android-games/: the
+         games app has none of those screens (src/site.ts
+         FULL_SITE_ONLY_PREFIXES) and must not declare the permission. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- Feature declarations -->
 
     <uses-feature
         android:name="android.hardware.camera"
+        android:required="false" />
+    <!-- Spelled out so a location-less device (a Wi-Fi tablet with location
+         services off, a Chromebook) is never filtered out of Play: at
+         targetSdk 21+ the permission above implies no hardware feature, but
+         "required=false" makes that explicit rather than an SDK-level
+         subtlety. Stripped from the games app along with the permission. -->
+    <uses-feature
+        android:name="android.hardware.location"
         android:required="false" />
 </manifest>

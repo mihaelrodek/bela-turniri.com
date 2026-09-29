@@ -33,6 +33,8 @@ import { useBlokLiveUpload } from "../components/useBlokLiveUpload"
 import { finalizeBlokLink, useBlokLinkSync } from "../components/useBlokLinkSync"
 import { sidePalette, useSideNames } from "../components/blokSide"
 import { useKeyboardOpen } from "../../platform/useKeyboardOpen"
+import { isNative } from "../../platform"
+import { nativeShare } from "../../platform/nativeIo"
 
 /* ──────────────────────────────────────────────────────────────────────────
    BlokPage (/blok) — the scorepad's only screen.
@@ -445,6 +447,21 @@ export default function BlokPage() {
        and declarations and all, for somebody who was not at the table. */
     const shareUrl = useCallback(
         async (url: string) => {
+            if (isNative) {
+                // Inside the Capacitor WebView `navigator.share` is missing
+                // (Android) or opens a bare web sheet (iOS), which is how the
+                // app used to fall through to the clipboard on the one device
+                // that most wants the real sheet. `Share.share` reaches the OS
+                // share sheet; a dismissal rejects, same no-op as below. Same
+                // branch as pages/tournament/ShareActions.tsx.
+                const Share = await nativeShare()
+                try {
+                    await Share.share({ title: t("blok.title"), url, dialogTitle: t("blok.title") })
+                } catch {
+                    /* user dismissed the sheet — not an error */
+                }
+                return
+            }
             // `navigator.share` is not in every DOM lib build — narrow through a
             // minimal local shape instead of casting to `any` (same trick as
             // pages/tournament/ShareActions.tsx).

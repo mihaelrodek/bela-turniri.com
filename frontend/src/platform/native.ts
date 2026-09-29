@@ -71,3 +71,14 @@ export async function nativeHaptics() {
     const mod = await import("@capacitor/haptics")
     return { Haptics: mod.Haptics, ImpactStyle: mod.ImpactStyle, NotificationType: mod.NotificationType }
 }
+
+/**
+ * Screen-on during an online game (`game/hooks/useKeepAwake.ts`). The WebView
+ * cannot be trusted with the web Wake Lock API — Android WebView and
+ * WKWebView expose it inconsistently — while this plugin is two lines of
+ * platform code (`FLAG_KEEP_SCREEN_ON` / `isIdleTimerDisabled`) that always
+ * works. Separate npm scope again (`@capacitor-community/`).
+ */
+export async function nativeKeepAwake() {
+    return (await import("@capacitor-community/keep-awake")).KeepAwake
+}

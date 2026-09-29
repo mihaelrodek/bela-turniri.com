@@ -1,0 +1,8 @@
+/* Croatian permission prompts. Same wording as the raw values in
+   Info.plist, which stay Croatian as the last-resort fallback.
+   create-games-native.sh narrows the camera/photo lines to the profile
+   photo and drops the location line for the games app (ios-games/). */
+"NSCameraUsageDescription" = "Koristi se za snimanje fotografija za postere turnira i profilne slike.";
+"NSPhotoLibraryUsageDescription" = "Koristi se za odabir fotografija za postere turnira i profilne slike.";
+"NSPhotoLibraryAddUsageDescription" = "Koristi se za spremanje fotografija iz aplikacije.";
+"NSLocationWhenInUseUsageDescription" = "Koristi se za prikaz turnira u tvojoj blizini na popisu, karti i u kalendaru.";

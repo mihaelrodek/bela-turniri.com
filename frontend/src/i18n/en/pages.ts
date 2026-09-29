@@ -55,6 +55,10 @@ export const pages: PagesDict = {
     "tournaments.nearMe.unsupported": "Your browser doesn't support geolocation.",
     "tournaments.nearMe.enable": "Enable",
     "tournaments.nearMe.denied": "Location access was denied in the browser.",
+    /* Native apps: the permission lives in the device settings, not a browser. */
+    "tournaments.nearMe.deniedNative": "Location access was denied in the device settings.",
+    "tournaments.nearMe.deniedDescriptionNative":
+        "Allow location access in your device settings for the distance filter to work.",
 
     // --- Search + filter toolbar -----------------------------------------------
     "tournaments.search.placeholder": "Search by tournament name, city or venue…",
@@ -270,6 +274,7 @@ export const pages: PagesDict = {
     "map.hideLocation": "Hide my location",
     "map.showLocation": "Show my location",
     "map.locationDenied": "Location access was denied. You can turn it on later in your browser settings.",
+    "map.locationDeniedNative": "Location access was denied. You can turn it on later in your device settings, under the app's permissions.",
     "map.locationUnsupported": "Your browser doesn't support geolocation.",
     "map.bucket.thisWeek": "This week",
     "map.bucket.nextWeek": "By next Sunday",

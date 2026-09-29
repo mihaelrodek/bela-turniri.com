@@ -1,4 +1,6 @@
 import { useEffect } from "react"
+import { isNative } from "../../platform"
+import { nativeKeepAwake } from "../../platform/native"
 import { useGamePrefs } from "./useGamePrefs"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -24,7 +26,32 @@ import { useGamePrefs } from "./useGamePrefs"
 
    Note that the lock keeps the screen ON; it does not keep it BRIGHT. iOS
    still dims an idle screen — it just will not lock it.
+
+   Native apps take a different road: Android WebView and WKWebView do not
+   reliably expose `navigator.wakeLock`, so inside the Capacitor shells the
+   `@capacitor-community/keep-awake` plugin holds the screen instead
+   (`FLAG_KEEP_SCREEN_ON` on the Activity window / `isIdleTimerDisabled`).
+   Neither needs the visibility dance above: both are properties of a window
+   that only matter while it is on screen, so backgrounding the app cannot
+   "lose" them and returning cannot need them re-applied. The flag is lifted
+   on unmount, when the game ends, or when the player turns the pref off.
    ────────────────────────────────────────────────────────────────────── */
+
+/* Native calls go through one promise chain so a quick off→on→off (a phase
+   flip, StrictMode's double effect) reaches the plugin in the order React
+   asked for it — two independent `await`s could land keepAwake() after the
+   allowSleep() that was meant to follow it and leave the screen on for
+   good. Failures are swallowed for the same reason as on the web. */
+let nativeQueue: Promise<void> = Promise.resolve()
+
+function nativeSetAwake(on: boolean): void {
+    nativeQueue = nativeQueue
+        .then(async () => {
+            const KeepAwake = await nativeKeepAwake()
+            await (on ? KeepAwake.keepAwake() : KeepAwake.allowSleep())
+        })
+        .catch(() => {})
+}
 
 interface WakeLockSentinelLike {
     released: boolean
@@ -44,7 +71,7 @@ function wakeLock(): WakeLockLike | null {
 /** True when this browser can hold a screen wake lock at all — used by the
  *  settings sheet to explain a switch that would otherwise do nothing. */
 export function keepAwakeSupported(): boolean {
-    return wakeLock() !== null
+    return isNative || wakeLock() !== null
 }
 
 /**
@@ -56,8 +83,14 @@ export function useKeepAwake(active: boolean): void {
     const wanted = active && prefs.keepAwake
 
     useEffect(() => {
+        if (!wanted) return
+        if (isNative) {
+            nativeSetAwake(true)
+            return () => nativeSetAwake(false)
+        }
+
         const api = wakeLock()
-        if (!wanted || !api) return
+        if (!api) return
 
         let cancelled = false
         let sentinel: WakeLockSentinelLike | null = null

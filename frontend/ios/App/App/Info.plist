@@ -76,15 +76,17 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
-	<!-- No NSLocation*UsageDescription on purpose. Nothing in the iOS project
-	     links CoreLocation and there is no @capacitor/geolocation plugin; the
-	     only geolocation in the product is the WEB `navigator.geolocation`
-	     call in src/hooks/useUserLocation.ts, used solely by the map and
-	     calendar pages — which the games build does not even ship
-	     (src/site.ts FULL_SITE_ONLY_PREFIXES). A usage string for a
-	     permission the app never asks for is an App Review question with no
-	     good answer. If a map screen is ever added back to a native build,
-	     WKWebView asks through the app, so the string comes back with it.
+	<!-- Location, approximate and when-in-use only (owner decision,
+	     2026-09-29; replaces the 2026-09-20 "no location" note, written while
+	     only the games app was going to ship). The full app's tournaments
+	     list, map and calendar offer "turniri u blizini" through the WEB
+	     `navigator.geolocation` call in src/hooks/useUserLocation.ts
+	     (enableHighAccuracy: false); WKWebView asks for it through the app,
+	     and without this key the request fails silently. The position stays
+	     in React state on the device and is never sent to the backend.
+	     create-games-native.sh strips this key (and its InfoPlist.strings
+	     translations) from ios-games/: the games app has none of those
+	     screens (src/site.ts FULL_SITE_ONLY_PREFIXES).
 
 	     Camera/photo strings DO stay: the profile page (/profil, present in
 	     both builds) has an <input type="file" accept="image/jpeg,image/png,
@@ -99,6 +101,8 @@
 	<string>Koristi se za odabir fotografija za postere turnira i profilne slike.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Koristi se za spremanje fotografija iz aplikacije.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Koristi se za prikaz turnira u tvojoj blizini na popisu, karti i u kalendaru.</string>
 	<!-- Live Activities for a running bela online game (BelaLiveActivityPlugin);
 	     frequent updates because turns change every few seconds. -->
 	<key>NSSupportsLiveActivities</key>

@@ -45,6 +45,15 @@ import java.io.InputStream;
 @Path("/resources")
 public class ResourceController {
 
+    /**
+     * Always the CONFIGURED bucket, never the name stored on the row: the app
+     * has one bucket, and the stored name goes stale the moment storage moves
+     * (MinIO → Cloudflare R2, 2026-09-29) — rows written before the move
+     * still carry the old bucket's name, which does not exist in R2.
+     */
+    @org.eclipse.microprofile.config.inject.ConfigProperty(name = "minio.bucket")
+    String bucket;
+
     private static final Logger LOG = Logger.getLogger(ResourceController.class);
 
     @Inject
@@ -101,13 +110,13 @@ public class ResourceController {
         // an intermediate byte[].
         StreamingOutput body = out -> {
             try (InputStream in = minio.getObject(GetObjectArgs.builder()
-                    .bucket(r.getBucketName())
+                    .bucket(bucket)
                     .object(r.getObjectKey())
                     .build())) {
                 in.transferTo(out);
             } catch (Exception e) {
                 LOG.errorf(e, "Failed to stream resource %d (%s/%s) from MinIO",
-                        id, r.getBucketName(), r.getObjectKey());
+                        id, bucket, r.getObjectKey());
                 throw new RuntimeException("Failed to fetch image", e);
             }
         };
@@ -179,10 +188,10 @@ public class ResourceController {
         try {
             body = storageService.resizedVariant(
                     r.getId(), width, rawEtag == null ? "" : rawEtag,
-                    r.getBucketName(), r.getObjectKey(), ct);
+                    bucket, r.getObjectKey(), ct);
         } catch (RuntimeException e) {
             LOG.errorf(e, "Failed to build %dpx variant of resource %d (%s/%s)",
-                    width, r.getId(), r.getBucketName(), r.getObjectKey());
+                    width, r.getId(), bucket, r.getObjectKey());
             throw e;
         }
 

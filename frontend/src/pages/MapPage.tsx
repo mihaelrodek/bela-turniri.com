@@ -1,3 +1,4 @@
+import { isNative } from "../platform"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
@@ -847,7 +848,7 @@ export default function MapPage() {
                     py="2"
                 >
                     <Text fontSize="sm">
-                        {tt("pages.map.locationDenied")}
+                        {tt(isNative ? "pages.map.locationDeniedNative" : "pages.map.locationDenied")}
                     </Text>
                 </Box>
             )}

@@ -26,6 +26,7 @@
 		9B5D8A0214BF5F3274497E86 /* BelaActivityLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE267E724E1E6D2388EC5245 /* BelaActivityLiveActivity.swift */; };
 		E7E1552133B264C891E0079B /* GuestKeychainPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8EDE9BB89EE3FB69D371871 /* GuestKeychainPlugin.swift */; };
 		F33FF8F4DF6AD7844BFF4B65 /* BelaActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7C1E5B9D2F4A6C8B0E1D01 /* BelaActivityAttributes.swift */; };
+		CD718D6262D564D93162161F /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = F6543323B444858BAF64B183 /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,6 +75,9 @@
 		B8EDE9BB89EE3FB69D371871 /* GuestKeychainPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestKeychainPlugin.swift; sourceTree = "<group>"; };
 		DE267E724E1E6D2388EC5245 /* BelaActivityLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BelaActivityLiveActivity.swift; sourceTree = "<group>"; };
 		F9B77DB5C7F794DCF3C19506 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		7AFAF6A7C12732BC243E915E /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		D915F2F71EF2837B3B348011 /* hr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = hr; path = hr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		D561D47321668A50CC37D5FF /* sl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = sl; path = sl.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,6 +134,7 @@
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
 				504EC3131FED79650016851F /* Info.plist */,
+				F6543323B444858BAF64B183 /* InfoPlist.strings */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 				F9B77DB5C7F794DCF3C19506 /* PrivacyInfo.xcprivacy */,
@@ -229,6 +234,8 @@
 			knownRegions = (
 				en,
 				Base,
+				hr,
+				sl,
 			);
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
@@ -256,6 +263,7 @@
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
 				9A0597DB0E326DAD3D9DDBAD /* PrivacyInfo.xcprivacy in Resources */,
+				CD718D6262D564D93162161F /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -318,6 +326,16 @@
 				504EC3111FED79650016851F /* Base */,
 			);
 			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
+		F6543323B444858BAF64B183 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				7AFAF6A7C12732BC243E915E /* en */,
+				D915F2F71EF2837B3B348011 /* hr */,
+				D561D47321668A50CC37D5FF /* sl */,
+			);
+			name = InfoPlist.strings;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */
