@@ -23,7 +23,8 @@ import { showError } from "../toaster"
 import { usePlural, useTranslation } from "../i18n"
 import EmptyState from "../components/EmptyState"
 import CalendarSubscribeButton from "../components/CalendarSubscribeButton"
-import CalendarEventRow, { CalendarEventRowSkeleton } from "../components/CalendarEventRow"
+import CalendarEventRow from "../components/CalendarEventRow"
+import { CalendarEventRowSkeleton } from "../components/CalendarPageSkeleton"
 import CalendarMonthGrid from "../components/CalendarMonthGrid"
 import {
     MONTH_KEYS,

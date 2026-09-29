@@ -55,7 +55,7 @@ export interface GameSocket extends GameSocketState {
     sendReaction: (reaction: Reaction) => void
     clearError: () => void
     /** Leave the room; a running game starts the server's two-minute seat hold. */
-    leaveRoom: () => void
+    leaveRoom: (options?: { forfeit?: boolean }) => void
     /** Hide the floating "active room" widget without leaving. */
     dismissWidget: () => void
 }
@@ -101,7 +101,7 @@ export function useGameSocket(options: UseGameSocketOptions = {}): GameSocket {
     const send = useCallback((msg: ClientMessage) => sendImpl(msg), [])
     const sendReaction = useCallback((reaction: Reaction) => sendImpl({ t: "chat.react", reaction }), [])
     const clearError = useCallback(() => clearErrorImpl(), [])
-    const leaveRoom = useCallback(() => leaveRoomImpl(), [])
+    const leaveRoom = useCallback((options?: { forfeit?: boolean }) => leaveRoomImpl(options), [])
     const dismissWidget = useCallback(() => dismissWidgetImpl(), [])
 
     return useMemo(

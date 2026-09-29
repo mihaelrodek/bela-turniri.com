@@ -30,6 +30,7 @@ import type { BidChoice, Bot } from "./index"
 import {
     aceOverCheapWinner,
     cashBeforeRuff,
+    suitsOpponentsOpenedLow,
     seatCouldBeat,
     seatsStillToPlay,
     opponentBehindWillRuff,
@@ -548,11 +549,15 @@ return backedByTen ?? (worthSpending[0] as Card)
         )
         if (preferred.length > 0) return weakestCard(preferred, trump)
     }
+    // …and never back into a suit an opponent opened short: it is waiting to
+    // be ruffed (2026-09-29, reported).
+    const intoTheRuff = suitsOpponentsOpenedLow(view)
     const speaking = legal.filter(
         (card) =>
             !kept.has(card) &&
             !signal.avoids.includes(cardSuit(card)) &&
-            !read.avoid.includes(cardSuit(card)),
+            !read.avoid.includes(cardSuit(card)) &&
+            !intoTheRuff.includes(cardSuit(card)),
     )
     const pool = speaking.length > 0 ? speaking : legal
     const quiet = quietLeadCard(view, pool, kept)

@@ -42,7 +42,11 @@ function randomAvatar(): AvatarId {
     return AVATAR_IDS[Math.floor(Math.random() * AVATAR_IDS.length)] ?? AVATAR_IDS[0]
 }
 
-export default function GameIdentityGate({ children }: { children: ReactNode }) {
+export default function GameIdentityGate({ children, fallback }: {
+    children: ReactNode
+    /** Rendered while auth resolves instead of the default spinner. */
+    fallback?: ReactNode
+}) {
     const { user, loading } = useAuth()
     const { t } = useTranslation()
     const location = useLocation()
@@ -78,7 +82,7 @@ export default function GameIdentityGate({ children }: { children: ReactNode }) 
         const id = window.setInterval(() => setActive((current) => (current + 1) % strip.length), STRIP_STEP_MS)
         return () => window.clearInterval(id)
     }, [stripRunning, strip.length])
-    if (loading || !hydrated) return <PageLoading />
+    if (loading || !hydrated) return fallback !== undefined ? fallback : <PageLoading />
     if (user || guest) return children
     if (!choosingGuest) {
         /* The front door (2026-09-21, user request: "da je jasnije da se može

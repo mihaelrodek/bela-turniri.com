@@ -1,8 +1,9 @@
 import { Box } from "@chakra-ui/react"
-import type { Card as CardId, PlayerView, Reaction, RoomState, Seat as SeatId } from "@bela/protocol"
+import type { Card as CardId, PlayerView, RoomState, Seat as SeatId } from "@bela/protocol"
 import type { TrickCard } from "@bela/engine"
 import { useTurnCountdown } from "../hooks/useTurnCountdown"
 import { SEATS, SEAT_ANCHORS, positionOf, teamOf } from "../util/seats"
+import type { SeatBubble } from "./reactionBubbles"
 import SeatView, { type SeatBid } from "./Seat"
 import TrickArea from "./TrickArea"
 import { tableGeometry } from "./tableStyles"
@@ -64,7 +65,7 @@ export default function Table({
     /** Per-seat bid chip while the deal is being called. */
     bids?: Partial<Record<SeatId, SeatBid>>
     /** Per-seat quick phrase currently floating (from `chat.reaction`). */
-    reactions?: Partial<Record<SeatId, Reaction>>
+    reactions?: Partial<Record<SeatId, SeatBubble>>
 }) {
     const mySeat = view.seat
     const botTurn = view.turn !== null && room.seats[view.turn]?.occupant?.kind === "BOT"

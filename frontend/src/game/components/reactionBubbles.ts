@@ -16,11 +16,21 @@ import type { SeatReaction } from "../hooks/useGameSocket"
 export const BUBBLE_MS = 2800
 
 /**
+ * One live bubble. The `id` is the reaction frame's own, so a seat that says
+ * something new — even the same phrase again — is a new bubble the seat can
+ * re-pop (`key` on the id), not the old one carrying on.
+ */
+export interface SeatBubble {
+    id: number
+    reaction: Reaction
+}
+
+/**
  * A later reaction from the same seat replaces the earlier one — only the
  * last word counts. A spectator's reaction (`seat === null`) has no seat to
  * float over and is dropped.
  */
-export function useReactionBubbles(reactions: SeatReaction[]): Partial<Record<Seat, Reaction>> {
+export function useReactionBubbles(reactions: SeatReaction[]): Partial<Record<Seat, SeatBubble>> {
     const [now, setNow] = useState(() => Date.now())
     const newest = reactions.length === 0 ? -1 : reactions[reactions.length - 1].id
     const latestRef = useRef(reactions)
@@ -42,11 +52,11 @@ export function useReactionBubbles(reactions: SeatReaction[]): Partial<Record<Se
     }, [newest])
 
     return useMemo(() => {
-        const active: Partial<Record<Seat, Reaction>> = {}
+        const active: Partial<Record<Seat, SeatBubble>> = {}
         for (const item of reactions) {
             if (item.seat === null) continue
             if (now - item.at > BUBBLE_MS) continue
-            active[item.seat] = item.reaction
+            active[item.seat] = { id: item.id, reaction: item.reaction }
         }
         return active
     }, [reactions, now])

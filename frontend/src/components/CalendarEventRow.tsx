@@ -1,4 +1,4 @@
-import { Badge, Box, HStack, IconButton, Text, VStack } from "@chakra-ui/react"
+import { Badge, HStack, IconButton, Text, VStack } from "@chakra-ui/react"
 import { Link as RouterLink } from "react-router-dom"
 import { FiClock, FiMap, FiMapPin, FiNavigation, FiUsers } from "react-icons/fi"
 import { formatTime } from "../utils/format"
@@ -272,18 +272,5 @@ export default function CalendarEventRow({
                 </HStack>
             )}
         </HStack>
-    )
-}
-
-/** Skeleton with the row's silhouette, so the agenda doesn't jump on load. */
-export function CalendarEventRowSkeleton() {
-    return (
-        <Box
-            h={{ base: "88px", md: "96px" }}
-            rounded="xl"
-            borderWidth="1px"
-            borderColor="border.subtle"
-            bg="bg.subtle"
-        />
     )
 }

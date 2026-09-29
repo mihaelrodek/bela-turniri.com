@@ -442,7 +442,7 @@ export const game: GameDict = {
     "phase.declarations": "Preverjajo se napovedi",
 
     "exit.title": "Zapustiti mizo?",
-    "exit.description": "Če ostaneš, igraš naprej. Če izstopiš, začne teči odštevanje dveh minut; do izteka se lahko vrneš. Če se ne vrneš, tvoje mesto prevzame bot, ti pa izgubiš 1 točko karme.",
+    "exit.description": "Če izstopiš, takoj izgubiš mesto za mizo, prevzame ga bot in se v to partijo ne moreš več vrniti. Izgubiš tudi 1 točko karme (razen če so za mizo ostali samo boti).",
     "exit.descriptionLobby": "Če izstopiš, takoj zapustiš sobo in tvoje mesto za mizo se sprosti.",
     "exit.stay": "Ostani v sobi",
     "exit.leave": "Izstopi iz sobe",

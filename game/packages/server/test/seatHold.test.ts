@@ -179,6 +179,26 @@ describe("seat hold on an explicit leave", () => {
         expect(room.toState().seats[0].occupant).toMatchObject({ kind: "PLAYER", connected: false })
     })
 
+    it("a CONFIRMED exit (forfeit) gives the seat up at once — no hold to wait out", async () => {
+        server = await startTestServer({
+            timings: { reconnectGraceMs: 30_000, botThinkMinMs: 100_000, botThinkMaxMs: 100_000 },
+        })
+        const host = await connect("Igrac")
+        const roomId = await startSupportedRoom(host)
+        const room = server.lobby.get(roomId)
+        if (!room) throw new Error("room missing")
+
+        host.send({ t: "room.leave", forfeit: true })
+        await host.nextOfType("room.left")
+
+        // 2026-09-29, user report: confirming "leave" at the table used to
+        // start the hold, so the lobby showed a countdown and a second
+        // "Napusti". The seat is gone now, and nothing is held for it.
+        expect(room.holdFor("dev:igrac")).toBeNull()
+        const slot = room.slotAt(0)
+        expect(slot?.kind === "PLAYER" && slot.uid === "dev:igrac").toBe(false)
+    })
+
     it("frees the seat outright when the leave happens in the lobby", async () => {
         server = await startTestServer()
         const host = await connect("Domacin")

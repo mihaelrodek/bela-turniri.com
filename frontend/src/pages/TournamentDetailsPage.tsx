@@ -3,9 +3,7 @@ import {
     Box,
     Button,
     Flex,
-    HStack,
     Skeleton,
-    SkeletonText,
     Text,
     useBreakpointValue,
     VStack,
@@ -18,6 +16,7 @@ import { useAuth } from "../auth/authContextValue"
 import CjenikTab from "../components/CjenikTab"
 import ConfirmDialog from "../components/ConfirmDialog"
 import RacuniSection from "../components/RacuniSection"
+import TournamentDetailsSkeleton from "../components/TournamentDetailsSkeleton"
 import TournamentResultsCard from "../components/TournamentResultsCard"
 import WaiterCodeGate from "../components/WaiterCodeGate"
 import type { TournamentSectionDef } from "../components/TournamentSidebar"
@@ -538,49 +537,10 @@ export default function TournamentDetailsPage() {
                     )}
 
                     {loading ? (
-                        /* Skeleton that mirrors the real layout — a header
-                           strip, the tile grid, and a stack of list rows — so
-                           the page doesn't jump when the data lands. */
-                        <VStack align="stretch" gap="4" aria-busy="true" aria-label={tr("tournament.loadingAria")}>
-                            <Skeleton height="24px" width="60%" maxW="320px" rounded="md" />
-                            <HStack gap="2">
-                                {[0, 1, 2, 3].map((i) => (
-                                    <Skeleton key={i} height="32px" width="88px" rounded="md" />
-                                ))}
-                            </HStack>
-                            <Box
-                                display="grid"
-                                gridTemplateColumns={{ base: "1fr", md: "1fr 1fr", lg: "1fr 1fr 1fr" }}
-                                gap="3"
-                            >
-                                {[0, 1, 2, 3, 4, 5].map((i) => (
-                                    <Box
-                                        key={i}
-                                        borderWidth="1px"
-                                        borderColor="border.emphasized"
-                                        rounded="lg"
-                                        px="3"
-                                        py="2.5"
-                                    >
-                                        <Skeleton height="10px" width="45%" mb="2" rounded="sm" />
-                                        <Skeleton height="18px" width="75%" rounded="sm" />
-                                    </Box>
-                                ))}
-                            </Box>
-                            <VStack align="stretch" gap="2">
-                                {[0, 1, 2].map((i) => (
-                                    <Box
-                                        key={i}
-                                        borderWidth="1px"
-                                        borderColor="border.emphasized"
-                                        rounded="lg"
-                                        p="3"
-                                    >
-                                        <SkeletonText noOfLines={2} gap="2" />
-                                    </Box>
-                                ))}
-                            </VStack>
-                        </VStack>
+                        /* Skeleton that mirrors the real layout — the same
+                           component App.tsx shows while this page's chunk
+                           downloads, so the two waits read as one. */
+                        <TournamentDetailsSkeleton />
                     ) : !t ? (
                         <VStack py="10" gap="3">
                             <Text color="red.fg">{error ?? tr("tournament.notFound")}</Text>

@@ -6,6 +6,7 @@ import { useGameEnabled } from "../game/hooks/useGameEnabled"
 import { useGameStats } from "../game/hooks/useGameStats"
 import { useTranslation, usePlural } from "../i18n"
 import { isGamesSite } from "../site"
+import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
 import LiveDot from "./LiveDot"
 import NewBadge from "./NewBadge"
@@ -168,6 +169,41 @@ function buildTabs(t: (key: string) => string): TabDef[] {
     return tabs
 }
 
+/** Input types that raise the on-screen keyboard. */
+const TEXT_INPUT_TYPES = new Set(["text", "search", "email", "tel", "url", "number", "password", "date", "time", "datetime-local"])
+
+function raisesKeyboard(el: Element | null): boolean {
+    if (!(el instanceof HTMLElement)) return false
+    if (el.isContentEditable || el instanceof HTMLTextAreaElement) return true
+    return el instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(el.type)
+}
+
+/**
+ * True while a text field has focus, i.e. while the on-screen keyboard is up
+ * (2026-09-29, user report). iOS pins `position: fixed; bottom: 0` to the
+ * LAYOUT viewport, not the visual one the keyboard shrinks: scrolling with the
+ * keyboard open dragged the bar half up the screen with the page scrolling
+ * behind and under it. Nobody navigates mid-typing, so the bar simply steps
+ * aside until the field blurs. Focus rather than `visualViewport` height: the
+ * resize fires late and also on toolbar collapse, focus is exact.
+ */
+function useKeyboardOpen(): boolean {
+    const [open, setOpen] = useState(() => typeof document !== "undefined" && raisesKeyboard(document.activeElement))
+    useEffect(() => {
+        const sync = () => setOpen(raisesKeyboard(document.activeElement))
+        // focusout fires before focus lands on the next field; wait a tick so
+        // hopping between two inputs does not flash the bar in and out.
+        const onFocusOut = () => window.setTimeout(sync, 0)
+        document.addEventListener("focusin", sync)
+        document.addEventListener("focusout", onFocusOut)
+        return () => {
+            document.removeEventListener("focusin", sync)
+            document.removeEventListener("focusout", onFocusOut)
+        }
+    }, [])
+    return open
+}
+
 function isActive(pathname: string, tab: TabDef): boolean {
     if (pathname === tab.to) return true
     if (tab.exact) return false
@@ -195,6 +231,7 @@ export default function MobileTabBar() {
     const gameEnabled = useGameEnabled()
     const gameStats = useGameStats(gameEnabled)
     const liveRooms = gameStats?.rooms ?? 0
+    const keyboardOpen = useKeyboardOpen()
 
     // ── Liquid Glass treatment ────────────────────────────────────────
     // iOS 26 Safari renders its bottom URL/toolbar with a translucent
@@ -245,7 +282,7 @@ export default function MobileTabBar() {
 
     // bela.games switches between its two pages in the header (NavBar's
     // `GamesMobileBar`), so it has no bottom bar at all.
-    if (hidden || isGamesSite) return null
+    if (hidden || isGamesSite || keyboardOpen) return null
 
     return (
         <Box

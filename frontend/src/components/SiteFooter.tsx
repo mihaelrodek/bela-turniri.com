@@ -3,6 +3,7 @@ import { Box, Flex, Text } from "@chakra-ui/react"
 import { Link as RouterLink, useLocation } from "react-router-dom"
 import { useTranslation } from "../i18n"
 import { isGameRoute, publicOrigin } from "../site"
+import KodekCredit from "./KodekCredit"
 
 /** "https://bela-turniri.com" → "bela-turniri.com" (or whichever games twin
  *  the visitor is on — see `publicOrigin` in site.ts) — the copyright line
@@ -88,26 +89,36 @@ export default function SiteFooter(props: BoxProps) {
                 px={{ base: "4", md: "6" }}
                 py={{ base: "4", md: "3" }}
                 align="center"
-                justify="center"
+                justify="space-between"
                 gap={{ base: "3", md: "6" }}
                 wrap="wrap"
                 fontSize="xs"
                 color="fg.muted"
             >
-                <Flex gap={{ base: "3", md: "5" }} wrap="wrap" justify="center">
-                    <Box asChild py="2" _hover={{ color: "fg" }}>
-                        <RouterLink to="/kontakt">{t("common.footer.contactLink")}</RouterLink>
-                    </Box>
-                    <Box asChild py="2" _hover={{ color: "fg" }}>
-                        <RouterLink to="/privatnost">{t("common.footer.privacyLink")}</RouterLink>
-                    </Box>
-                    <Box asChild py="2" _hover={{ color: "fg" }}>
-                        <RouterLink to="/uvjeti">{t("common.footer.termsLink")}</RouterLink>
-                    </Box>
+                {/* Who built it, on the far left (2026-09-29, owner). */}
+                <KodekCredit />
+                <Flex align="center" gap="6" wrap="wrap" justify="center">
+                    <Flex gap={{ base: "3", md: "5" }} wrap="wrap" justify="center">
+                        <Box asChild py="2" _hover={{ color: "fg" }}>
+                            <RouterLink to="/kontakt">{t("common.footer.contactLink")}</RouterLink>
+                        </Box>
+                        <Box asChild py="2" _hover={{ color: "fg" }}>
+                            <RouterLink to="/privatnost">{t("common.footer.privacyLink")}</RouterLink>
+                        </Box>
+                        <Box asChild py="2" _hover={{ color: "fg" }}>
+                            <RouterLink to="/uvjeti">{t("common.footer.termsLink")}</RouterLink>
+                        </Box>
+                    </Flex>
+                    <Text whiteSpace="nowrap">
+                        {t("common.footer.copyright", { year, domain: FOOTER_DOMAIN })}
+                    </Text>
                 </Flex>
-                <Text whiteSpace="nowrap">
-                    {t("common.footer.copyright", { year, domain: FOOTER_DOMAIN })}
-                </Text>
+            </Flex>
+            {/* Phones get the signature alone (2026-09-29): the links live in
+                the menu there, but the credit has nowhere else to go. It sits
+                above the tab-bar reserve, so the fixed bar never covers it. */}
+            <Flex display={{ base: "flex", md: "none" }} justify="flex-start" px="4" pt="6" pb="2">
+                <KodekCredit />
             </Flex>
         </Box>
     )

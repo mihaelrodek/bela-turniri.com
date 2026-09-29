@@ -34,7 +34,12 @@ import { requestGamePrecache } from "../pwa/precacheTiers"
  * beat of honest waiting. In dev the hook short-circuits to `true`
  * synchronously, so the spinner is a production-only frame.
  */
-export default function GameFeatureGate({ children }: { children: ReactNode }) {
+export default function GameFeatureGate({ children, fallback }: {
+    children: ReactNode
+    /** Rendered while the flag resolves instead of the default spinner —
+     *  the lobby passes its own skeleton so the page keeps one layout. */
+    fallback?: ReactNode
+}) {
     const enabled = useGameEnabled()
 
     // The game is really in use on this device: ask the service worker for
@@ -44,6 +49,7 @@ export default function GameFeatureGate({ children }: { children: ReactNode }) {
     }, [enabled])
 
     if (enabled === null) {
+        if (fallback !== undefined) return fallback
         return (
             <Center minH="40vh">
                 <SuitSpinner size="lg" />

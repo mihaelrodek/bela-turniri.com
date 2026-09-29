@@ -8,7 +8,6 @@ import {
     HStack,
     IconButton,
     Menu,
-    Skeleton,
     Text,
     VStack,
 } from "@chakra-ui/react"
@@ -46,7 +45,7 @@ import { InvoicesCard } from "./profile/InvoicesCard"
 import { GameStatsCard } from "./profile/GameStatsCard"
 import { BlokHistoryCard } from "./profile/BlokHistoryCard"
 import { buildProfileSections, SIDEBAR_MAX_H, type ProfileSectionDef, type ProfileSectionKey } from "./profile/sections"
-import SuitSpinner from "../components/SuitSpinner"
+import ProfilePageSkeleton, { ProfileCardSkeleton } from "../components/ProfilePageSkeleton"
 
 /* The three admin consoles are reachable only by an admin, only on their own
    profile, and only after clicking the tab — so their (sizeable) code is
@@ -288,13 +287,8 @@ export default function PublicProfilePage() {
     }, [isOwner, profile])
 
     if (loading) {
-        return (
-            <VStack align="stretch" gap="4" maxW="780px" mx="auto">
-                <Skeleton h="120px" rounded="xl" />
-                <Skeleton h="60px" rounded="xl" />
-                <Skeleton h="200px" rounded="xl" />
-            </VStack>
-        )
+        // Same component App.tsx shows while this page's chunk downloads.
+        return <ProfilePageSkeleton />
     }
 
     if (error || !profile) {
@@ -642,15 +636,11 @@ function VisitorProfileActions({ profile }: { profile: PublicProfile }) {
 /* Section navigation                                                          */
 /* -------------------------------------------------------------------------- */
 
-/** Placeholder shown while a lazily-loaded admin tab chunk is downloading. */
+/** Placeholder shown while a lazily-loaded admin tab chunk is downloading:
+ *  a card-shaped skeleton (2026-09-29) instead of a spinner, so the tab's
+ *  own card replaces it in place. */
 function TabChunkLoading() {
-    const { t } = useTranslation()
-    return (
-        <Flex align="center" justify="center" py="12" gap="3">
-            <SuitSpinner />
-            <Text fontSize="sm" color="fg.muted">{t("common.loading")}</Text>
-        </Flex>
-    )
+    return <ProfileCardSkeleton lines={4} />
 }
 
 /**

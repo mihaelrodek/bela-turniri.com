@@ -430,7 +430,12 @@ export class Hub {
             case "room.leave": {
                 const room = this.roomOf(conn)
                 if (room) {
+                    const uid = conn.user?.uid
                     room.leave(conn)
+                    // The player confirmed "leave" at the table: no hold to
+                    // wait out and no second "Napusti" in the lobby — the seat
+                    // goes now, exactly like the lobby's own forfeit below.
+                    if (msg.forfeit === true && uid) room.abandonSeat(uid)
                 } else {
                     // Not in the room any more, but a seat may still be held
                     // for us there — this is the lobby's "napusti igru", which

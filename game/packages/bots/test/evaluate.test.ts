@@ -344,6 +344,19 @@ describe("shouldSpendAce (fault 2)", () => {
         expect(shouldSpendAce(fresh(["APIK", "10PIK", "KPIK", "QPIK", "JPIK", "8TREF"]), "PIK")).toBe(false)
     })
 
+    it("spends A-10-Q even after a discard of the suit — no ruff expected (2026-09-29)", () => {
+        // A PIK was thrown away earlier, so it is no longer the first round,
+        // and only four PIK are outside. The old rule kept the ace and the
+        // quiet lead then gave up the queen.
+        const v = view({
+            seat: 0,
+            hand: ["APIK", "10PIK", "QPIK", "8TREF", "9TREF", "7KARA"],
+            played: ["7PIK", "JHERC", "9HERC", "AHERC", "10HERC"],
+            bidding: { turn: 1, passes: [], trump: "HERC", caller: 1 },
+        })
+        expect(shouldSpendAce(v, "PIK")).toBe(true)
+    })
+
     it("keeps the ace after the first round of the suit has gone", () => {
         const v = view({
             seat: 0,

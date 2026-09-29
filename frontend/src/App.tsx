@@ -51,6 +51,12 @@ import ProfileRedirect from "./pages/ProfileRedirect"
 import NotFoundPage from "./pages/NotFoundPage"
 import SuitSpinner from './components/SuitSpinner'
 import { useTranslation } from './i18n'
+import GameLobbySkeleton from './game/components/GameLobbySkeleton'
+import GameTableSkeleton from './game/components/GameTableSkeleton'
+import TournamentDetailsSkeleton from './components/TournamentDetailsSkeleton'
+import ProfilePageSkeleton from './components/ProfilePageSkeleton'
+import CalendarPageSkeleton from './components/CalendarPageSkeleton'
+import MapPageSkeleton from './components/MapPageSkeleton'
 
 /* ──────────────────────────────────────────────────────────────────────────
    Lazy-loaded routes. These either pull in big deps (Leaflet on /karta and
@@ -112,9 +118,16 @@ const GameIdentityGate = lazyRoute(() => import('./game/components/GameIdentityG
    blok store — arrive after first paint instead of inside the entry bundle. */
 const BlokOutbox = lazyWithReload(() => import('./blok/BlokOutbox'))
 
-/** Suspense fallback while a route chunk is being fetched. The min-height
- *  matches roughly what a page's first screenful occupies so the layout
- *  doesn't jump when the real page finally mounts. */
+/** Generic Suspense fallback while a route chunk is being fetched. The
+ *  min-height matches roughly what a page's first screenful occupies so the
+ *  layout doesn't jump when the real page finally mounts.
+ *
+ *  The main routes no longer reach it (2026-09-29): the tournament page, the
+ *  profile, the calendar, the map and the game room/lobby each have their own
+ *  <Suspense> with a layout-shaped skeleton — small eager files outside the
+ *  lazy chunks — so the chunk wait looks like the page's own loading state
+ *  instead of a spinner that is then replaced by that state. This stays for
+ *  the rarely-visited rest (claim links, legal pages, create form, …). */
 function RouteLoading() {
     const { t } = useTranslation()
     return (
@@ -208,9 +221,14 @@ function HomeRedirect() {
    GameFeatureGate stays OUTSIDE the identity gate — see the comment above
    the /igra route in <Routes>. */
 const gameLobbyElement = (
-    <GameFeatureGate>
-        <GameIdentityGate><GameLobbyPage /></GameIdentityGate>
-    </GameFeatureGate>
+    // One loading picture for every wait on the way in (2026-09-29): the lazy
+    // chunks, the kill switch and the sign-in check all show the lobby's own
+    // skeleton instead of a spinner each, in a different place each time.
+    <Suspense fallback={<GameLobbySkeleton />}>
+        <GameFeatureGate fallback={<GameLobbySkeleton />}>
+            <GameIdentityGate fallback={<GameLobbySkeleton />}><GameLobbyPage /></GameIdentityGate>
+        </GameFeatureGate>
+    </Suspense>
 )
 
 function GameChrome() {
@@ -335,7 +353,14 @@ export default function App() {
                         slugs themselves live in TournamentDetailsPage
                         (SECTION_SLUG); an unknown one falls back to Detalji
                         rather than 404. */}
-                    <Route path="/turniri/:uuid/:section?" element={<TournamentDetailsPage />} />
+                    <Route
+                        path="/turniri/:uuid/:section?"
+                        element={
+                            <Suspense fallback={<TournamentDetailsSkeleton />}>
+                                <TournamentDetailsPage />
+                            </Suspense>
+                        }
+                    />
                     {/* Online bela. Both routes require a signed-in user:
                         the game server authenticates the socket with a
                         Firebase ID token, so an anonymous visitor could not
@@ -350,9 +375,11 @@ export default function App() {
                     <Route
                         path="/igra/soba/:roomId"
                         element={
-                            <GameFeatureGate>
-                                <GameIdentityGate><GameRoomPage /></GameIdentityGate>
-                            </GameFeatureGate>
+                            <Suspense fallback={<GameTableSkeleton />}>
+                                <GameFeatureGate fallback={<GameTableSkeleton />}>
+                                    <GameIdentityGate fallback={<GameTableSkeleton />}><GameRoomPage /></GameIdentityGate>
+                                </GameFeatureGate>
+                            </Suspense>
                         }
                     />
                     {/* Bela blok — public on purpose: no RequireAuth, no
@@ -364,8 +391,8 @@ export default function App() {
                         RequireAuth: the whole point is a recipient without
                         an account can open it. */}
                     <Route path="/blok/z/:token" element={<SharedBlokPage />} />
-                    <Route path="/kalendar" element={<CalendarPage />} />
-                    <Route path="/karta" element={<MapPage />} />
+                    <Route path="/kalendar" element={<Suspense fallback={<CalendarPageSkeleton />}><CalendarPage /></Suspense>} />
+                    <Route path="/karta" element={<Suspense fallback={<MapPageSkeleton />}><MapPage /></Suspense>} />
                     {/* KEEP. "Pronađi para" was deliberately taken out of both
                         navigations (NavBar's capsule and MobileTabBar) — the
                         page itself is NOT orphaned: /pronadi-para stays
@@ -377,7 +404,7 @@ export default function App() {
                         has synced. /profil/:slug is publicly visible per
                         product decision. */}
                     <Route path="/profil" element={<ProfileRedirect />} />
-                    <Route path="/profil/:slug" element={<PublicProfilePage />} />
+                    <Route path="/profil/:slug" element={<Suspense fallback={<ProfilePageSkeleton />}><PublicProfilePage /></Suspense>} />
                     {/* Pair-sharing claim landing pages — token routes, not
                         SEO-relevant, but translated for consistency. Old
                         share tokens still resolve via the legacy aliases

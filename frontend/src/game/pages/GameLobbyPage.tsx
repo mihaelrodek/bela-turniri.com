@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { Badge, Box, Button, Flex, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Text, VStack, VisuallyHidden, chakra } from "@chakra-ui/react"
-import { FiLogIn, FiLogOut, FiPlus, FiSearch, FiSettings, FiUsers } from "react-icons/fi"
+import { Badge, Box, Button, Flex, HStack, Heading, IconButton, Input, InputGroup, SimpleGrid, Skeleton, SkeletonCircle, Text, VStack, VisuallyHidden, chakra } from "@chakra-ui/react"
+import { FiClock, FiLogIn, FiLogOut, FiPlus, FiSearch, FiSettings, FiUsers } from "react-icons/fi"
 import type { RoomStatus, RoomSummary, TargetScore } from "@bela/protocol"
 import type { CreateGameOptions } from "../components/CreateGameDialog"
 import EmptyState from "../../components/EmptyState"
@@ -17,13 +17,13 @@ import PlayerAvatar from "../components/PlayerAvatar"
 import ConfirmDialog from "../../components/ConfirmDialog"
 import GameSettingsSheet from "../components/GameSettingsSheet"
 import RoomListItem from "../components/RoomListItem"
-import { PageLoading } from "../../components/SuitSpinner"
 import { preloadDeck } from "../cards/madjarice/preload"
 import { useGamePrefs } from "../hooks/useGamePrefs"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import { formatCountdown, useHoldCountdown } from "../hooks/useHoldCountdown"
 import { useGameSocket } from "../hooks/useGameSocket"
 import { useSlowConnection } from "../hooks/useSlowConnection"
+import { RoomCardSkeletons } from "../components/GameLobbySkeleton"
 
 /* ──────────────────────────────────────────────────────────────────────────
    GameLobbyPage (/igra) — one header row (player, stats, create, settings),
@@ -81,9 +81,21 @@ function ActiveGameCard({
                         {t(`game.active.status.${status}`)}
                     </Badge>
                     <Text fontFamily="heading" fontWeight="semibold" minW="0" truncate>{roomName}</Text>
+                    {/* Just the countdown (2026-09-29, user request) — the
+                        sentence around it pushed the room name to "ve…" on a
+                        phone. It stays as the accessible name and tooltip. */}
                     {remaining !== null && remaining > 0 && (
-                        <Badge size="sm" variant="subtle" colorPalette="orange" flexShrink={0} fontFamily="mono" fontVariantNumeric="tabular-nums">
-                            {t("game.active.holdLeft", { time: formatCountdown(remaining) })}
+                        <Badge
+                            size="sm"
+                            variant="subtle"
+                            colorPalette="orange"
+                            flexShrink={0}
+                            fontFamily="mono"
+                            fontVariantNumeric="tabular-nums"
+                            title={t("game.active.holdLeft", { time: formatCountdown(remaining) })}
+                            aria-label={t("game.active.holdLeft", { time: formatCountdown(remaining) })}
+                        >
+                            <FiClock /> {formatCountdown(remaining)}
                         </Badge>
                     )}
                 </HStack>
@@ -391,12 +403,23 @@ export default function GameLobbyPage() {
                     py="2"
                 >
                     <HStack gap="3" minW="0" flex="1">
-                        <PlayerAvatar name={socket.me?.name} avatarUrl={socket.me?.avatarUrl} avatarPreset={socket.me?.avatarPreset} size="lg" />
+                        {/* Until the server's `hello` names us, the same
+                            skeleton the loading screen showed — not a "?"
+                            face and a "…" name (2026-09-29). */}
+                        {socket.me ? (
+                            <PlayerAvatar name={socket.me.name} avatarUrl={socket.me.avatarUrl} avatarPreset={socket.me.avatarPreset} size="lg" />
+                        ) : (
+                            <SkeletonCircle size="56px" flexShrink={0} />
+                        )}
                         {/* `truncate` (ellipsis, single line) rather than
                             `lineClamp`: a long name must never push the
                             stats tile or the gear out past the viewport —
                             it is the one thing here with no natural width. */}
-                        <Text fontWeight="semibold" fontSize={{ base: "lg", md: "xl" }} minW="0" truncate>{socket.me?.name ?? "…"}</Text>
+                        {socket.me ? (
+                            <Text fontWeight="semibold" fontSize={{ base: "lg", md: "xl" }} minW="0" truncate>{socket.me.name}</Text>
+                        ) : (
+                            <Skeleton h="22px" w="45%" maxW="200px" rounded="md" />
+                        )}
                         {/* Karma rides beside the name (2026-09-20, user
                             request): alone on its own row under the stat tiles
                             it read as a stray sixth tile. It is a fact about
@@ -528,8 +551,9 @@ export default function GameLobbyPage() {
                     already on screen stay while a dropped connection comes
                     back; only the empty state is replaced. */}
                 {!connected && rooms.length === 0 ? (
-                    <PageLoading
-                        minH="36vh"
+                    // Grey room cards where the real ones will land, not a
+                    // spinner of its own under the filters (2026-09-29).
+                    <RoomCardSkeletons
                         label={slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}
                     />
                 ) : rooms.length === 0 ? (

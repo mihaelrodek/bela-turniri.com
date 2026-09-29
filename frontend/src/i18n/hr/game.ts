@@ -507,7 +507,7 @@ export const game = {
     "phase.declarations": "Provjeravaju se zvanja",
 
     "exit.title": "Napustiti stol?",
-    "exit.description": "Ako ostaneš, nastavljaš igrati. Ako izađeš, počinje odbrojavanje od dvije minute; do isteka se možeš vratiti. Ne vratiš li se, tvoje mjesto preuzima bot, a ti gubiš 1 bod karme.",
+    "exit.description": "Ako izađeš, odmah gubiš mjesto za stolom, preuzima ga bot i više se ne možeš vratiti u ovu partiju. Gubiš i 1 bod karme (osim ako su za stolom ostali samo botovi).",
     "exit.descriptionLobby": "Ako izađeš, odmah napuštaš sobu i tvoje mjesto za stolom se oslobađa.",
     "exit.stay": "Ostani u sobi",
     "exit.leave": "Izađi iz sobe",

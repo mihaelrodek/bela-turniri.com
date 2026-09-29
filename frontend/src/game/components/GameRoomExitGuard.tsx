@@ -154,10 +154,14 @@ export default function GameRoomExitGuard() {
     const leave = useCallback(() => {
         const p = pending
         setPending(null)
-        leaveRoom()
+        // Confirmed during play = final (2026-09-29, user report): the old
+        // hold made the player confirm here, watch a two-minute countdown in
+        // the lobby and press "Napusti" there a second time. A dropped
+        // connection or a refresh still gets the hold; only this does not.
+        leaveRoom({ forfeit: playing })
         if (p?.source === "link") navigate(p.to)
         else p?.leaveTable()
-    }, [pending, navigate, leaveRoom])
+    }, [pending, navigate, leaveRoom, playing])
 
     return (
         <ConfirmDialog

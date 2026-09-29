@@ -1067,4 +1067,23 @@ igrače koji ih još mogu imati.
    i asom herca: dama bi „uzela” samo dok zadnji igrač ne baci desetku koja je
    još vani. Kad protivnik iza mene može nadjačati najjeftiniju dobitnu kartu, a
    ja imam najjaču kartu boje, ide najjača (as).
+6. **Ne vraćaj boju koju je protivnik otvorio malom kartom** (`suitsOpponentsOpenedLow`,
+   2026-09-29). Mala karta (7, 8, 9) kojom protivnik otvara bočnu boju najčešće
+   je solo — vraćanje te boje daje mu rez. Dok protivnici mogu imati aduta, tiho
+   otvaranje tu boju preskače.
+7. **Podigravanje zvaču na PRVO vlastito otvaranje** (`openingTrumpForCallingPartner`).
+   Ne samo u prvom štihu: kad suigrač zvača prvi put dođe na otvaranje, a adut
+   još nitko nije otvorio, otvara aduta (uz stara pravila: ne solo devetku, ne
+   gole 7/8).
+8. **Ne vadi adute kad je to uzaludno** (`drawingIsFutile`). Kad pamćenje
+   dokaže da su svi preostali aduti kod protivnika i da ih jedan ima više nego
+   što ja imam najjačih aduta, vađenje samo troši moje jake adute — njegov
+   adut ionako uzima štih. Isto gasi i trčanje za štiglju.
 
+9. **As s dvije karte iza sebe ide van** (`shouldSpendAce` + `opponentLikelyRuffs`,
+   2026-09-29). A-10-B (ili bilo koji as uz još barem dvije karte boje) otvara
+   se asom, i nakon prvog kruga ili tuđeg bacanja te boje, osim ako je rez
+   stvarno očekivan: pamćenje svakoj skrivenoj karti daje jednake izglede kod
+   svakog igrača koji je još može imati, i as ostaje doma tek kad je šansa da
+   neki protivnik nema boju a ima aduta ≥ 40 % (dokazani void uz mogući adut je
+   100 %). Prije se as čuvao, a tiho otvaranje bacalo babu pod tuđeg kralja.

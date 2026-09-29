@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { Box, Button, Flex, HStack, Text, useBreakpointValue } from "@chakra-ui/react"
+import { Box, Button, Flex, HStack, Text, useBreakpointValue, VStack } from "@chakra-ui/react"
 import { FiArrowLeft } from "react-icons/fi"
 import type { Card, RoomState, Seat, Suit } from "@bela/protocol"
 import { trickWinner } from "@bela/engine"
@@ -15,6 +15,7 @@ import DealSummary from "../components/DealSummary"
 import DeclarationsReveal, { BelaFlash, BelotFlash, TrumpFlash } from "../components/DeclarationsReveal"
 import GameOverDialog from "../components/GameOverDialog"
 import GameSettingsSheet from "../components/GameSettingsSheet"
+import GameTableSkeleton from "../components/GameTableSkeleton"
 import Hand from "../components/Hand"
 import { HAND_CARD_SIZE, handRowWidth } from "../components/handLayout"
 import JoinByCodeDialog from "../components/JoinByCodeDialog"
@@ -48,7 +49,6 @@ import { playHaptic } from "../util/haptics"
 import { installAudioUnlock, playSound, primeAudio } from "../util/sounds"
 import { useKeepAwake } from "../hooks/useKeepAwake"
 import { useTableScale } from "../hooks/useTableScale"
-import SuitSpinner from "../../components/SuitSpinner"
 import { gameLobbyPath } from "../../site"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -876,22 +876,29 @@ export default function GameRoomPage() {
     if (!room) {
         return (
             <>
-                <Flex direction="column" align="center" justify="center" minH="50vh" gap="3">
-                    {socket.status === "closed" ? (
-                        <>
-                            <Text color="fg.muted">{t("game.connection.closed")}</Text>
-                            <Button size="sm" variant="outline" onClick={() => navigate(gameLobbyPath)}>
-                                <FiArrowLeft /> {t("game.room.backToLobby")}
-                            </Button>
-                        </>
-                    ) : !accessCodeOpen ? (
-                        <>
-                            <SuitSpinner size="lg" />
-                            <Text color="fg.muted">{t("game.room.joining")}</Text>
-                            {slowConnection && <Text fontSize="sm" color="live">{t("game.connection.slow")}</Text>}
-                        </>
-                    ) : null}
-                </Flex>
+                {socket.status !== "closed" && !accessCodeOpen ? (
+                    // Joining: the table's own shape in grey (2026-09-29), the
+                    // same skeleton App.tsx shows while this chunk downloads.
+                    <GameTableSkeleton
+                        status={
+                            <VStack gap="1" role="status">
+                                <Text fontSize="sm" color="fg.muted">{t("game.room.joining")}</Text>
+                                {slowConnection && <Text fontSize="xs" color="live">{t("game.connection.slow")}</Text>}
+                            </VStack>
+                        }
+                    />
+                ) : (
+                    <Flex direction="column" align="center" justify="center" minH="50vh" gap="3">
+                        {socket.status === "closed" && (
+                            <>
+                                <Text color="fg.muted">{t("game.connection.closed")}</Text>
+                                <Button size="sm" variant="outline" onClick={() => navigate(gameLobbyPath)}>
+                                    <FiArrowLeft /> {t("game.room.backToLobby")}
+                                </Button>
+                            </>
+                        )}
+                    </Flex>
+                )}
                 <JoinByCodeDialog open={accessCodeOpen} error={socket.error}
                     onOpenChange={(open) => {
                         setAccessCodeOpen(open)

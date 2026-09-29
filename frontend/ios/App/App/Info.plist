@@ -2,12 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CAPACITOR_DEBUG</key>
+	<key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Bela Turniri</string>
+	<string>Bela Turniri</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -20,36 +20,60 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.REPLACE_WITH_REVERSED_CLIENT_ID</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Koristi se za snimanje fotografija za postere turnira i profilne slike.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Koristi se za prikaz turnira u tvojoj blizini na popisu, karti i u kalendaru.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Koristi se za spremanje fotografija iz aplikacije.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Koristi se za odabir fotografija za postere turnira i profilne slike.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
-    <false/>
-    <key>UISceneConfigurations</key>
-    <dict>
-      <key>UIWindowSceneSessionRoleApplication</key>
-      <array>
-        <dict>
-            <key>UISceneConfigurationName</key>
-            <string>Default Configuration</string>
-            <key>UISceneDelegateClassName</key>
-            <string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
-            <key>UISceneStoryboardFile</key>
-            <string>Main</string>
-        </dict>
-      </array>
-    </dict>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
-	<!-- arm64, not the Xcode-8-era `armv7` default: every device that can run
-	     this app's deployment target (iOS 15) is 64-bit, and leaving armv7
-	     here claims a capability the binary does not have. -->
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
@@ -69,64 +93,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<!-- Lets FCM/APNs deliver silent (content-available) pushes and token
-	     refreshes while the app is backgrounded — required for
-	     @capacitor-firebase/messaging's background token handling. -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
-	<!-- Location, approximate and when-in-use only (owner decision,
-	     2026-09-29; replaces the 2026-09-20 "no location" note, written while
-	     only the games app was going to ship). The full app's tournaments
-	     list, map and calendar offer "turniri u blizini" through the WEB
-	     `navigator.geolocation` call in src/hooks/useUserLocation.ts
-	     (enableHighAccuracy: false); WKWebView asks for it through the app,
-	     and without this key the request fails silently. The position stays
-	     in React state on the device and is never sent to the backend.
-	     create-games-native.sh strips this key (and its InfoPlist.strings
-	     translations) from ios-games/: the games app has none of those
-	     screens (src/site.ts FULL_SITE_ONLY_PREFIXES).
-
-	     Camera/photo strings DO stay: the profile page (/profil, present in
-	     both builds) has an <input type="file" accept="image/jpeg,image/png,
-	     image/webp"> avatar picker (src/pages/profile/MyDataCard.tsx), and
-	     WKWebView's file picker offers "Take Photo" / "Photo Library" — both
-	     hard-crash the app without these keys. -->
-	<!-- create-games-native.sh narrows these two strings to the profile-only
-	     wording for the games app, which has no tournament posters. -->
-	<key>NSCameraUsageDescription</key>
-	<string>Koristi se za snimanje fotografija za postere turnira i profilne slike.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Koristi se za odabir fotografija za postere turnira i profilne slike.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Koristi se za spremanje fotografija iz aplikacije.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Koristi se za prikaz turnira u tvojoj blizini na popisu, karti i u kalendaru.</string>
-	<!-- Live Activities for a running bela online game (BelaLiveActivityPlugin);
-	     frequent updates because turns change every few seconds. -->
-	<key>NSSupportsLiveActivities</key>
-	<true/>
-	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
-	<true/>
-	<!-- Native Google sign-in (@capacitor-firebase/authentication → GoogleSignIn
-	     SDK) hands control to Safari/the Google app and needs a URL scheme to
-	     come back to. The scheme is the REVERSED_CLIENT_ID value out of
-	     GoogleService-Info.plist, which is not in the repo yet — the string
-	     below is a PLACEHOLDER and MUST be replaced with the real reversed
-	     client id (see DEPLOY.md, "Sign in with Apple / native Google") or the
-	     Google button on iOS returns to a dead end. Sign in with Apple needs
-	     no URL scheme; it runs in-process through AuthenticationServices. -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.REPLACE_WITH_REVERSED_CLIENT_ID</string>
-			</array>
-		</dict>
-	</array>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 </dict>
 </plist>

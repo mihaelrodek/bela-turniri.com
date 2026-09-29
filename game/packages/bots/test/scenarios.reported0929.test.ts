@@ -118,4 +118,60 @@ describe("reported 2026-09-29 — A+10 and the caller's small plain opening", ()
         })
         expect(heuristicBot.chooseCard(v, ["QHERC", "KHERC", "AHERC"], noRng)).toBe("AHERC")
     })
+
+    it("the partner's first own lead feeds the caller a trump — not the suit the opponent opened short", () => {
+        // Lucija (1) opens herc 7 alone; Mia (2) wins with the 10. Caller is 0.
+        const first: Card[] = ["7HERC", "10HERC", "QHERC", "KHERC"]
+        const hand: Card[] = ["8HERC", "9HERC", "10PIK", "AKARA", "8TREF", "ATREF", "JKARA"]
+        const v = view({
+            seat: 2,
+            hand,
+            handSizes: { 0: 7, 1: 7, 2: 7, 3: 7 },
+            bidding: { turn: 0, passes: [], trump: "PIK", caller: 0 },
+            tricksWon: { A: 1, B: 0 },
+            played: first,
+            lastTrick: wonTrick(1, 1, first, 2),
+            trickHistory: [wonTrick(1, 1, first, 2)],
+            trick: { leader: 2, turn: 2, cards: [] },
+        })
+        expect(heuristicBot.chooseCard(v, [...hand], noRng)).toBe("10PIK")
+    })
+
+    it("with only a bare small trump, it still does NOT lead the opponent's short suit back", () => {
+        const first: Card[] = ["7HERC", "10HERC", "QHERC", "KHERC"]
+        const hand: Card[] = ["8HERC", "9HERC", "7PIK", "KKARA", "8TREF", "9TREF", "JKARA"]
+        const v = view({
+            seat: 2,
+            hand,
+            handSizes: { 0: 7, 1: 7, 2: 7, 3: 7 },
+            bidding: { turn: 0, passes: [], trump: "PIK", caller: 0 },
+            tricksWon: { A: 1, B: 0 },
+            played: first,
+            lastTrick: wonTrick(1, 1, first, 2),
+            trickHistory: [wonTrick(1, 1, first, 2)],
+            trick: { leader: 2, turn: 2, cards: [] },
+        })
+        expect(heuristicBot.chooseCard(v, [...hand], noRng)).not.toMatch(/HERC$/)
+    })
+
+    it("stops drawing when the last trumps are provably with ONE opponent and cannot all be drawn", () => {
+        // Karo trump, Lucija (1) called: A then J drawn, both others showed out.
+        const t1: Card[] = ["AKARA", "QKARA", "7HERC", "7KARA"] // 1 leads; 2 Mia, 3 Stjepan (out), 0 me
+        const t2: Card[] = ["JKARA", "8HERC", "KPIK", "8KARA"] // Mia and Stjepan both out of trump
+        const hand: Card[] = ["9KARA", "APIK", "10PIK", "ATREF", "KHERC", "QHERC"]
+        const v = view({
+            seat: 1,
+            hand,
+            handSizes: { 0: 6, 1: 6, 2: 6, 3: 6 },
+            bidding: { turn: 1, passes: [], trump: "KARA", caller: 1 },
+            tricksWon: { A: 0, B: 2 },
+            played: [...t1, ...t2],
+            lastTrick: wonTrick(2, 1, t2, 1),
+            trickHistory: [wonTrick(1, 1, t1, 1), wonTrick(2, 1, t2, 1)],
+            trick: { leader: 1, turn: 1, cards: [] },
+        })
+        // Seat 0 provably holds the last two trumps (10, K); one nine cannot draw both.
+        expect(heuristicBot.chooseCard(v, [...hand], noRng)).not.toBe("9KARA")
+    })
 })
+

@@ -1,8 +1,9 @@
-import type { CSSProperties, ReactNode } from "react"
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
+import { keyframes } from "@emotion/react"
 import { Box, Flex, Text } from "@chakra-ui/react"
 import BelaAvatar from "../../components/avatars/BelaAvatar"
 import { isAvatarId } from "../../components/avatars/avatarArt"
-import type { Reaction, SeatInfo, Suit } from "@bela/protocol"
+import type { SeatInfo, Suit } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import type { TurnCountdown } from "../hooks/useTurnCountdown"
 import { suitKey } from "../util/cards"
@@ -10,6 +11,7 @@ import { occupantName, type Occupant } from "../util/seats"
 import { botAvatarPreset } from "../util/botAvatar"
 import { REACTION_TEXT_KEYS } from "../util/reactions"
 import AvatarPhoto from "./AvatarPhoto"
+import type { SeatBubble } from "./reactionBubbles"
 import SuitGlyph from "./SuitGlyph"
 import { INK, INK_MUTED, SHORT, TEAM, type TeamSide } from "./tableStyles"
 
@@ -129,6 +131,7 @@ export function SeatAvatar({
     countdown = null,
     reaction = null,
     reactionAlign = "center",
+    reducedMotion = false,
     team = "us",
 }: {
     occupant: Occupant | null
@@ -145,7 +148,7 @@ export function SeatAvatar({
      *  whole deal, not just the moment they said it. */
     callerTrump?: Suit | null
     countdown?: TurnCountdown | null
-    reaction?: Reaction | null
+    reaction?: SeatBubble | null
     /** Keep a flank seat's speech bubble inside the table. */
     reactionAlign?: "left" | "center" | "right"
     reducedMotion?: boolean
@@ -249,61 +252,139 @@ export function SeatAvatar({
                 </Mark>
             )}
 
-            {reaction && (
-                <Box
-                    position="absolute"
-                    bottom={`calc(100% + 7px)`}
-                    left={reactionAlign === "right" ? "auto" : reactionAlign === "left" ? "0" : "50%"}
-                    right={reactionAlign === "right" ? "0" : "auto"}
-                    transform={reactionAlign === "center" ? "translateX(-50%)" : undefined}
-                    zIndex={8}
-                    pointerEvents="none"
-                >
-                    <Flex
-                        position="relative"
-                        w="max-content"
-                        maxW="min(180px, calc(100vw - 32px))"
-                        px="3"
-                        py="1.5"
-                        align="center"
-                        justify="center"
-                        rounded="xl"
-                        bg="brand.50"
-                        color="brand.950"
-                        borderWidth="1px"
-                        borderColor="brand.300"
-                        boxShadow="0 5px 18px rgba(0,0,0,0.28)"
-                        fontSize="11px"
-                        fontWeight="semibold"
-                        lineHeight="short"
-                        textAlign="center"
-                        whiteSpace="normal"
-                        css={{
-                            animation: "belaReactionPop 180ms cubic-bezier(0.22, 1.2, 0.36, 1)",
-                            "@keyframes belaReactionPop": {
-                                from: { transform: "translateY(5px) scale(0.88)", opacity: 0 },
-                                to: { transform: "translateY(0) scale(1)", opacity: 1 },
-                            },
-                            "&::after": {
-                                content: "''",
-                                position: "absolute",
-                                top: "100%",
-                                left: reactionAlign === "left"
-                                    ? `${frame / 2 - 5}px`
-                                    : reactionAlign === "right" ? "auto" : "50%",
-                                right: reactionAlign === "right" ? `${frame / 2 - 5}px` : "auto",
-                                transform: reactionAlign === "center" ? "translateX(-50%)" : undefined,
-                                borderLeft: "5px solid transparent",
-                                borderRight: "5px solid transparent",
-                                borderTop: "6px solid var(--chakra-colors-brand-50)",
-                            },
-                        }}
-                    >
-                        <Box as="span" aria-hidden="true" fontSize="14px" mr="1.5" lineHeight="1">{reaction}</Box>
-                        {t(REACTION_TEXT_KEYS[reaction])}
-                    </Flex>
-                </Box>
-            )}
+            <ReactionBubble
+                bubble={reaction}
+                align={reactionAlign}
+                frame={frame}
+                reducedMotion={reducedMotion}
+            />
+        </Box>
+    )
+}
+
+/* The speech bubble's entrance and exit. Module-scope emotion keyframes — a
+   nested "@keyframes" in Chakra's `css` prop does not run (game/DESIGN.md;
+   the old `belaReactionPop` was exactly that, which is why the bubble just
+   blinked in). POP_IN ends on the resting look, so a dead animation still
+   leaves a readable bubble; POP_OUT runs `forwards` and the bubble unmounts
+   when BUBBLE_EXIT_MS is up either way. */
+const POP_IN = keyframes({
+    "0%": { opacity: 0, transform: "translateY(8px) scale(0.4)" },
+    "55%": { opacity: 1, transform: "translateY(-3px) scale(1.08)" },
+    "80%": { transform: "translateY(0) scale(0.98)" },
+    "100%": { opacity: 1, transform: "translateY(0) scale(1)" },
+})
+const POP_OUT = keyframes({
+    from: { opacity: 1, transform: "translateY(0) scale(1)" },
+    to: { opacity: 0, transform: "translateY(-6px) scale(0.6)" },
+})
+const FADE_IN = keyframes({ from: { opacity: 0 }, to: { opacity: 1 } })
+const FADE_OUT = keyframes({ from: { opacity: 1 }, to: { opacity: 0 } })
+const BUBBLE_IN_MS = 320
+const BUBBLE_EXIT_MS = 200
+const BUBBLE_FADE_MS = 150
+
+/**
+ * The quick phrase floating over a seat, with a real exit: when the bubble's
+ * time is up (`useReactionBubbles` drops the seat) the last one is held for
+ * BUBBLE_EXIT_MS so it can shrink and fade away instead of vanishing, and a
+ * NEW reaction from the same seat (a new id, even the same phrase) remounts
+ * the inner bubble via `key` so its pop plays again from the start.
+ *
+ * Reduced motion (OS or the table's "Smanji animacije") keeps only a short
+ * opacity fade — no scale, no float.
+ */
+function ReactionBubble({
+    bubble,
+    align,
+    frame,
+    reducedMotion,
+}: {
+    bubble: SeatBubble | null
+    align: "left" | "center" | "right"
+    frame: number
+    reducedMotion: boolean
+}) {
+    const { t } = useTranslation()
+    // What is on screen: the live bubble, or the last one while it leaves.
+    const [shown, setShown] = useState<SeatBubble | null>(bubble)
+    if (bubble && bubble.id !== shown?.id) setShown(bubble)
+    const leaving = bubble === null && shown !== null
+    const exitMs = reducedMotion ? BUBBLE_FADE_MS : BUBBLE_EXIT_MS
+
+    useEffect(() => {
+        if (!leaving) return
+        const id = setTimeout(() => setShown(null), exitMs)
+        return () => clearTimeout(id)
+    }, [leaving, exitMs])
+
+    if (!shown) return null
+
+    // Grow out of the tail, which points at the avatar.
+    const origin = align === "left"
+        ? `${frame / 2}px 100%`
+        : align === "right" ? `calc(100% - ${frame / 2}px) 100%` : "50% 100%"
+    const animation = leaving
+        ? reducedMotion
+            ? `${FADE_OUT} ${BUBBLE_FADE_MS}ms ease-in forwards`
+            : `${POP_OUT} ${BUBBLE_EXIT_MS}ms cubic-bezier(0.4, 0, 1, 1) forwards`
+        : reducedMotion
+            ? `${FADE_IN} ${BUBBLE_FADE_MS}ms ease-out backwards`
+            : `${POP_IN} ${BUBBLE_IN_MS}ms cubic-bezier(0.22, 1, 0.36, 1) backwards`
+
+    return (
+        <Box
+            position="absolute"
+            bottom={`calc(100% + 7px)`}
+            left={align === "right" ? "auto" : align === "left" ? "0" : "50%"}
+            right={align === "right" ? "0" : "auto"}
+            transform={align === "center" ? "translateX(-50%)" : undefined}
+            zIndex={8}
+            pointerEvents="none"
+            aria-hidden={leaving || undefined}
+        >
+            <Flex
+                key={shown.id}
+                position="relative"
+                w="max-content"
+                maxW="min(180px, calc(100vw - 32px))"
+                px="3"
+                py="1.5"
+                align="center"
+                justify="center"
+                rounded="xl"
+                bg="brand.50"
+                color="brand.950"
+                borderWidth="1px"
+                borderColor="brand.300"
+                boxShadow="0 5px 18px rgba(0,0,0,0.28)"
+                fontSize="11px"
+                fontWeight="semibold"
+                lineHeight="short"
+                textAlign="center"
+                whiteSpace="normal"
+                transformOrigin={origin}
+                willChange="transform, opacity"
+                css={{
+                    animation,
+                    "&::after": {
+                        content: "''",
+                        position: "absolute",
+                        top: "100%",
+                        left: align === "left"
+                            ? `${frame / 2 - 5}px`
+                            : align === "right" ? "auto" : "50%",
+                        right: align === "right" ? `${frame / 2 - 5}px` : "auto",
+                        transform: align === "center" ? "translateX(-50%)" : undefined,
+                        borderLeft: "5px solid transparent",
+                        borderRight: "5px solid transparent",
+                        borderTop: "6px solid var(--chakra-colors-brand-50)",
+                    },
+                }}
+            >
+                <Box as="span" aria-hidden="true" fontSize="14px" mr="1.5" lineHeight="1">{shown.reaction}</Box>
+                {t(REACTION_TEXT_KEYS[shown.reaction])}
+            </Flex>
         </Box>
     )
 }
@@ -381,7 +462,7 @@ export default function Seat({
     /** This deal's bid, shown as a chip while the bidding runs. */
     bid?: SeatBid | null
     /** Quick phrase from `chat.reaction`, floated briefly above the avatar. */
-    reaction?: Reaction | null
+    reaction?: SeatBubble | null
     reactionAlign?: "left" | "center" | "right"
     reducedMotion?: boolean
     /** My pair or theirs, relative to the viewer (`TEAM`, DESIGN §6). */

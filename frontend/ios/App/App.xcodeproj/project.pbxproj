@@ -24,9 +24,9 @@
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		9A0597DB0E326DAD3D9DDBAD /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F9B77DB5C7F794DCF3C19506 /* PrivacyInfo.xcprivacy */; };
 		9B5D8A0214BF5F3274497E86 /* BelaActivityLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE267E724E1E6D2388EC5245 /* BelaActivityLiveActivity.swift */; };
+		CD718D6262D564D93162161F /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = F6543323B444858BAF64B183 /* InfoPlist.strings */; };
 		E7E1552133B264C891E0079B /* GuestKeychainPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8EDE9BB89EE3FB69D371871 /* GuestKeychainPlugin.swift */; };
 		F33FF8F4DF6AD7844BFF4B65 /* BelaActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7C1E5B9D2F4A6C8B0E1D01 /* BelaActivityAttributes.swift */; };
-		CD718D6262D564D93162161F /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = F6543323B444858BAF64B183 /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,7 +54,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		045758B5A4BB8687DBB4CEA1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		045758B5A4BB8687DBB4CEA1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		3A7C1E5B9D2F4A6C8B0E1D01 /* BelaActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BelaActivityAttributes.swift; sourceTree = "<group>"; };
 		3A7C1E5B9D2F4A6C8B0E1D02 /* BelaLiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BelaLiveActivityPlugin.swift; sourceTree = "<group>"; };
@@ -68,16 +68,16 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		5CEB82473EC5E76B41F36B4E /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		7AFAF6A7C12732BC243E915E /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		9DD38FCD133DF7AFE084C46E /* AppBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBridgeViewController.swift; sourceTree = "<group>"; };
 		ADBC7DC0A9D6B510015B2996 /* BelaActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BelaActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B8EDE9BB89EE3FB69D371871 /* GuestKeychainPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestKeychainPlugin.swift; sourceTree = "<group>"; };
-		DE267E724E1E6D2388EC5245 /* BelaActivityLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BelaActivityLiveActivity.swift; sourceTree = "<group>"; };
-		F9B77DB5C7F794DCF3C19506 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		7AFAF6A7C12732BC243E915E /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
-		D915F2F71EF2837B3B348011 /* hr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = hr; path = hr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		D561D47321668A50CC37D5FF /* sl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = sl; path = sl.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		D915F2F71EF2837B3B348011 /* hr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = hr; path = hr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		DE267E724E1E6D2388EC5245 /* BelaActivityLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BelaActivityLiveActivity.swift; sourceTree = "<group>"; };
+		F9B77DB5C7F794DCF3C19506 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -165,7 +165,6 @@
 				5CEB82473EC5E76B41F36B4E /* Info.plist */,
 				045758B5A4BB8687DBB4CEA1 /* PrivacyInfo.xcprivacy */,
 			);
-			name = BelaActivity;
 			path = BelaActivity;
 			sourceTree = "<group>";
 		};

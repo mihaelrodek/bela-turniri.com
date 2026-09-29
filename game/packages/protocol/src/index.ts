@@ -397,7 +397,10 @@ export type ClientMessage =
     | { t: "profile.setAvatar"; preset: string }
     | { t: "room.join"; roomId: string }
     | { t: "room.joinByCode"; code: string }
-    | { t: "room.leave" }
+    /** `forfeit` (2026-09-29): an explicit, confirmed exit from a RUNNING
+     *  table gives the seat up at once — no two-minute hold. Without it the
+     *  seat is held as before (a plain navigation away, an older client). */
+    | { t: "room.leave"; forfeit?: boolean }
     | { t: "room.sit"; seat: Seat }
     | { t: "room.stand" }
     | { t: "room.addBot"; seat: Seat }

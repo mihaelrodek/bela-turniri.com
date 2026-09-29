@@ -196,7 +196,9 @@ export function dismissWidget(): void {
  * hold. Calling it once more from an already-held state abandons the seat;
  * that second action is intentionally not offered in the playing-game lobby.
  */
-export function leaveRoom(): void {
+/** `forfeit`: give the seat up for good (a confirmed exit from a running
+ *  table) instead of starting the server's two-minute hold. */
+export function leaveRoom(options: { forfeit?: boolean } = {}): void {
     // Keep the current retainer from immediately rejoining this very same
     // room while React is navigating from the table back to the lobby. Once
     // `room.left` arrives, `applyDesired` below is allowed to join it again.
@@ -205,7 +207,9 @@ export function leaveRoom(): void {
         ? null
         : new Set([...retainers].filter((retainer) => retainer.active && retainer.roomId === leavingRoomId))
     lastLeftRoomId = leavingRoomId
-    if (state.room || state.stickyRoomId || state.activeSeat) send({ t: "room.leave" })
+    if (state.room || state.stickyRoomId || state.activeSeat) {
+        send(options.forfeit ? { t: "room.leave", forfeit: true } : { t: "room.leave" })
+    }
     setSticky(null)
     // Leaving a lobby is final. Clear this tab immediately instead of keeping
     // a stale finished-game view or an "active game" card visible until the

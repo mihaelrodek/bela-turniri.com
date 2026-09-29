@@ -475,7 +475,7 @@ export const game: GameDict = {
     "phase.declarations": "Checking declarations",
 
     "exit.title": "Leave the table?",
-    "exit.description": "If you stay, you keep playing. If you leave, a two-minute countdown starts; you can return before it runs out. If you don't return, a bot takes your seat and you lose 1 karma point.",
+    "exit.description": "If you leave, you lose your seat at once — a bot takes it and you can't come back to this game. You also lose 1 karma point (unless only bots are left at the table).",
     "exit.descriptionLobby": "If you leave, you exit the room immediately and your seat is freed.",
     "exit.stay": "Stay in the room",
     "exit.leave": "Leave the room",
