@@ -39,6 +39,7 @@ import { useGameSocket } from "../hooks/useGameSocket"
 import { useLiveActivity } from "../hooks/useLiveActivity"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import SpectatorIntro from "../components/SpectatorIntro"
+import SpectatorPromo from "../components/SpectatorPromo"
 import { useTurnCountdown } from "../hooks/useTurnCountdown"
 import { preloadDeck } from "../cards/madjarice/preload"
 import { cardRank, cardSuit, makeCard } from "../util/cards"
@@ -363,16 +364,26 @@ export default function GameRoomPage() {
         }
     }, [view, trumpHidden, declNumbersHidden])
 
-    const [trumpFlash, setTrumpFlash] = useState(false)
+    /* Same fix, same reason, one more spot (2026-09-29, user follow-up: "idalje
+       se prije pokaže adut i otvore karte nego dođe popup modal koji je adut
+       odzvan" — the trump badge and the talon fix above already moved to the
+       BID beat, but this banner — the one thing that actually SAYS "X zove
+       herc" — was still keyed off `trumpSet` (TRUMP_SET, 800 ms later), so the
+       cards and the badge kept beating their own announcement to the screen.
+       Reads the caller/suit straight off `view.bidding`, same as the badge
+       does, instead of waiting for TRUMP_SET's own event payload. */
+    const trumpCaller = view?.bidding.caller ?? null
+    const trumpFlashSuit = view?.bidding.trump ?? null
+    const [trumpFlash, setTrumpFlash] = useState<{ seat: Seat; suit: Suit } | null>(null)
     useEffect(() => {
-        if (!trumpSet) {
-            setTrumpFlash(false)
+        if (trumpDeal === null || talonRevealedDeal !== trumpDeal || trumpCaller === null || trumpFlashSuit === null) {
+            setTrumpFlash(null)
             return
         }
-        setTrumpFlash(true)
-        const id = setTimeout(() => setTrumpFlash(false), TRUMP_FLASH_MS)
+        setTrumpFlash({ seat: trumpCaller, suit: trumpFlashSuit })
+        const id = setTimeout(() => setTrumpFlash(null), TRUMP_FLASH_MS)
         return () => clearTimeout(id)
-    }, [trumpSet])
+    }, [trumpDeal, talonRevealedDeal, trumpCaller, trumpFlashSuit])
 
     /* ── the trick, as the QUEUE has released it ──────────────────────────
        `view.trick` is the truth but it is not a sequence: the server can put
@@ -1146,6 +1157,7 @@ export default function GameRoomPage() {
                                                 )}
                                             </>
                                         }
+                                        spectators={room.allowSpectators ? room.spectators.length : null}
                                         onSettings={() => setSettingsOpen(true)}
                                     />
                                 }
@@ -1164,7 +1176,6 @@ export default function GameRoomPage() {
                                         tricksEnabled={room.trickReview !== "off"}
                                         tricksPlayed={view.tricksWon.A + view.tricksWon.B}
                                         onTricks={() => setTricksOpen((value) => !value)}
-                                        spectators={room.allowSpectators ? room.spectators.length : null}
                                     />
                                 }
                                 noDeclarations={room.noDeclarations}
@@ -1263,8 +1274,8 @@ export default function GameRoomPage() {
                             />
                         )}
 
-                        {trumpFlash && trumpSet && (
-                            <TrumpFlash seats={room.seats} seat={trumpSet.caller} suit={trumpSet.trump} />
+                        {trumpFlash && (
+                            <TrumpFlash seats={room.seats} seat={trumpFlash.seat} suit={trumpFlash.suit} />
                         )}
                         {bela && <BelaFlash seats={room.seats} seat={bela.seat} />}
                         {belot && (
@@ -1347,21 +1358,30 @@ export default function GameRoomPage() {
                             pb="0"
                             flexShrink={0}
                         >
-                            <Hand
-                                cards={displayedHand}
-                                legal={view.legalMoves}
-                                phase={displayedHandPhase}
-                                layoutKey={mySeat === null ? null : `${room.id}:${view.dealNo}:${mySeat}`}
-                                // `!turnShown`: the trick I just won is still being
-                                // held and swept. The server already made it my
-                                // lead, so a tap went through — and the card
-                                // left my hand but could not land on the felt
-                                // until the sweep finished: for a second it was
-                                // nowhere (2026-09-20, user report).
-                                disabled={busy || !turnShown || declarationsOpen || tricksOpen || belaAsk !== null || (!!revealed && !declHidden)}
-                                onPlay={playCard}
-                                onInvalidPlay={rejectCard}
-                            />
+                            {mySeat === null ? (
+                                // A spectator has no cards — `Hand` would draw
+                                // eight empty outlined slots here, which read
+                                // as a bug rather than "nothing to show"
+                                // (2026-09-29, user report). This replaces the
+                                // whole tray for them.
+                                <SpectatorPromo />
+                            ) : (
+                                <Hand
+                                    cards={displayedHand}
+                                    legal={view.legalMoves}
+                                    phase={displayedHandPhase}
+                                    layoutKey={`${room.id}:${view.dealNo}:${mySeat}`}
+                                    // `!turnShown`: the trick I just won is still being
+                                    // held and swept. The server already made it my
+                                    // lead, so a tap went through — and the card
+                                    // left my hand but could not land on the felt
+                                    // until the sweep finished: for a second it was
+                                    // nowhere (2026-09-20, user report).
+                                    disabled={busy || !turnShown || declarationsOpen || tricksOpen || belaAsk !== null || (!!revealed && !declHidden)}
+                                    onPlay={playCard}
+                                    onInvalidPlay={rejectCard}
+                                />
+                            )}
 
                             {/* My own avatar — turn ring, dealer's "D", caller
                                 medallion, reaction bubble — docked left of

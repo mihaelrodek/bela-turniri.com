@@ -15,12 +15,18 @@ export default function TableHeader({
     targetScore,
     gameEndRule,
     chips,
+    spectators = null,
     onSettings,
 }: {
     targetScore: number
     gameEndRule: GameEndRule
     /** Spectating / connection / autoplay chips, built by the page. */
     chips?: ReactNode
+    /** How many people are watching. Null when the room takes no spectators
+     *  at all — the number would always be 0. Sits beside the settings gear
+     *  (2026-09-29, user request — moved off the Zvanja/Štihovi row, where it
+     *  read as one more action button rather than a status). */
+    spectators?: number | null
     onSettings: () => void
 }) {
     const { t } = useTranslation()
@@ -49,6 +55,15 @@ export default function TableHeader({
                 {chips}
             </HStack>
 
+            {spectators !== null && (
+                <Box position="absolute" insetEnd="36px" top="50%" transform="translateY(-50%)">
+                    <StatusChip label={t("game.table.spectatorCount", { count: spectators })}>
+                        <FiEye aria-hidden="true" size={11} />
+                        {spectators}
+                    </StatusChip>
+                </Box>
+            )}
+
             <IconButton
                 position="absolute"
                 insetEnd="0"
@@ -76,9 +91,7 @@ export function TableActions({
     tricksEnabled,
     tricksPlayed,
     onTricks,
-    spectators = null,
 }: {
-    spectators?: number | null
     declarationsEnabled: boolean
     declarationPoints: Record<TeamSide, number>
     onDeclarations: () => void
@@ -117,15 +130,6 @@ export function TableActions({
                     badgeLabel={plural("game.table.trickCount", tricksPlayed, { n: tricksPlayed })}
                     onClick={onTricks}
                 />
-            )}
-            {/* How many people are watching, beside the buttons rather than in
-                the header line (2026-09-21, user request). Null when the room
-                takes no spectators — the number would always be 0. */}
-            {spectators !== null && (
-                <StatusChip label={t("game.table.spectatorCount", { count: spectators })}>
-                    <FiEye aria-hidden="true" size={11} />
-                    {spectators}
-                </StatusChip>
             )}
         </HStack>
     )

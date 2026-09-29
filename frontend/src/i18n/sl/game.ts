@@ -280,6 +280,10 @@ export const game: GameDict = {
     "table.waiting": "Počakaj…",
     "table.spectatingIntro": "Gledaš igro",
     "table.spectatorCount": "Gledalci: {count}",
+    // Promocija namesto prazne roke gledalca (2026-09-29, uporabnikova zahteva).
+    "table.spectatorPromoTitle": "Igraj svojo partijo bele",
+    "table.spectatorPromoSubtitle": "Brezplačno, na spletu, s prijatelji ali z boti.",
+    "table.spectatorPromoCta": "Igraj belo",
 
     // Hitri odzivi za mizo (protokol `chat.react`).
     "table.reactions": "Reakcije",

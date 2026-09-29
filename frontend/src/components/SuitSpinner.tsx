@@ -11,15 +11,14 @@ import BrandMark from "./BrandMark"
 
    bela.games is the one exception (2026-09-29, user request): its mark is a
    rounded-square background tile with the four suits laid out in a 2×2 grid
-   ON it, and spinning the whole tile made the square's corners swing around
-   too — the background read as tumbling along with the suits instead of
-   sitting still under them. `GamesSuitMark` below reproduces that SVG
-   (`public/games/symbol.svg`) inline, split into the background `<rect>`
-   (static) and the four suit `<g>`s (the only thing wrapped in the animated
-   `<g>`) — same orbit, but only the glyphs travel. bela-turniri's mark stays
-   on the BrandMark path: its fan-of-cards artwork is a single interlocking
-   shape, not glyphs-on-a-tile, so there's no separable "background" to hold
-   still, and turning the whole fan is the mark's own look already.
+   ON it, and spinning the whole tile as one image made the square itself —
+   its rounded corners, its fill colour — read as part of the loading
+   animation instead of as chrome the suits sit on. `GamesSuitMark` below
+   reproduces that SVG (`public/games/symbol.svg`) inline, but WITHOUT its
+   `<rect>` tile: just the four suit `<g>`s, on whatever surface the spinner
+   is placed on. bela-turniri's mark stays on the BrandMark path: its
+   fan-of-cards artwork is a single interlocking shape, not glyphs on a tile,
+   so dropping a "background" from it isn't the same operation.
 
    Small inline spinners (buttons, badges, `size="xs" | "sm"`) stay Chakra's
    `Spinner`: four suits are illegible under ~24 px — the logo README says the
@@ -64,14 +63,16 @@ const ORBIT_CSS = { transformOrigin: "50% 50%", ...ORBIT_KEYFRAMES } as const
 const SVG_ORBIT_CSS = { transformOrigin: "50px 50px", ...ORBIT_KEYFRAMES } as const
 
 /**
- * bela.games's mark, inlined from `public/games/symbol.svg` — kept byte-for-
- * byte identical to that file (same viewBox, same four paths, same fills) so
- * the two never drift apart.
+ * bela.games's mark, inlined from `public/games/symbol.svg` — same viewBox,
+ * same four paths, same fills, so it never drifts from that file — MINUS its
+ * `<rect>` background tile (2026-09-29, user follow-up: "idalje se u
+ * spinneru prikazuje pozadina" — dropping only the rotation wasn't enough,
+ * the tile itself has to go). What is left is just the four glyphs, on
+ * whatever surface the spinner sits on.
  */
 function GamesSuitMark({ px }: { px: number }) {
     return (
         <svg viewBox="0 0 100 100" width={px} height={px} aria-hidden="true">
-            <rect width="100" height="100" rx="22.5" fill="#F4EFE4" />
             <chakra.g css={SVG_ORBIT_CSS}>
                 <g transform="translate(18 18) scale(0.29440)" fill="#E24B4A">
                     <path d="M50 88C22 66 10 52 10 33a20 20 0 0 1 40-8a20 20 0 0 1 40 8c0 19-12 33-40 55Z" />

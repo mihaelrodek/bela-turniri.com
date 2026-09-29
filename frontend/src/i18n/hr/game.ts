@@ -336,6 +336,10 @@ export const game = {
     "table.waiting": "Čekaj…",
     "table.spectatingIntro": "Gledaš igru",
     "table.spectatorCount": "Gledatelji: {count}",
+    // Promo umjesto prazne ruke gledatelja (2026-09-29, korisnički zahtjev).
+    "table.spectatorPromoTitle": "Igraj svoju partiju bele",
+    "table.spectatorPromoSubtitle": "Besplatno, online, s prijateljima ili s botovima.",
+    "table.spectatorPromoCta": "Igraj belu",
 
     // Brze reakcije za stolom (protokol `chat.react`).
     "table.reactions": "Reakcije",

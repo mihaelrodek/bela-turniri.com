@@ -4,7 +4,7 @@ import {
     CloseButton, Drawer, Portal, VStack,
 } from "@chakra-ui/react"
 import { Link as RouterLink, useLocation, useMatch, useResolvedPath, useNavigate } from "react-router-dom"
-import { CardsIcon } from "./MobileTabBar"
+import { CardsIcon, LiveRoomsBadge } from "./MobileTabBar"
 import {
     FiCalendar, FiEdit3, FiExternalLink, FiHome, FiLogOut, FiMap, FiMenu, FiMoon, FiSun, FiUser, FiVolume2,
 } from "react-icons/fi"
@@ -611,6 +611,7 @@ function GamesSwitch() {
                 <chakra.a
                     key={item.to}
                     asChild
+                    position="relative"
                     display="inline-flex"
                     alignItems="center"
                     gap="1.5"
@@ -628,13 +629,25 @@ function GamesSwitch() {
                     <RouterLink to={item.to} aria-current={item.active ? "page" : undefined}>
                         {item.icon}
                         {item.label}
-                        {item.to === gameLobbyPath && liveRooms > 0 && (
-                            <HStack as="span" gap="1" display="inline-flex" alignItems="center">
-                                <LiveDot />
-                                <Box as="span" fontFamily="mono" fontVariantNumeric="tabular-nums" fontSize="xs">
-                                    {plural("common.nav.liveRooms", liveRooms)}
-                                </Box>
-                            </HStack>
+                        {/* Floating shoulder bubble, same shape MobileTabBar's
+                            raised "Igraj" disc wears on bela-turniri.com
+                            (2026-09-29, user request), not inline text inside
+                            the pill. Shown only while "Igraj" is NOT the
+                            current tab — "samo ako si na blok" — both because
+                            the count answers a question you've already
+                            answered by being there, and because it already
+                            covers "inside an active table" for free: a table
+                            page isn't `/blok` either, so `onBlok` is false and
+                            "Igraj" reads as active there too. */}
+                        {item.to === gameLobbyPath && liveRooms > 0 && onBlok && (
+                            <LiveRoomsBadge
+                                count={liveRooms}
+                                ariaLabel={plural("common.nav.liveRoomsAria", liveRooms)}
+                                position="absolute"
+                                top="-6px"
+                                right="-6px"
+                                zIndex="1"
+                            />
                         )}
                     </RouterLink>
                 </chakra.a>
@@ -822,6 +835,15 @@ export default function NavBar() {
      */
     const isMobile = useBreakpointValue({ base: true, md: false }, { ssr: false }) ?? false
 
+    // NavBar itself is not hidden on the table page (`/igra/soba/:id`) — only
+    // MobileTabBar is — so its desktop capsule keeps rendering there too, and
+    // the "Igraj" pill's live-room count would otherwise answer a question
+    // that no longer applies while already seated at one (2026-09-29, user
+    // report). Same `/igra/soba/` prefix `GamesSwitch` below and
+    // `GameRoomExitGuard.tsx` key off.
+    const { pathname } = useLocation()
+    const inRoom = pathname.startsWith("/igra/soba/")
+
     /* Built on every render rather than once at import time: `useTranslation`
        only re-renders the component that called it, so the labels have to be
        recomputed here for a language switch to reach them. Same reasoning as
@@ -847,7 +869,7 @@ export default function NavBar() {
     const liveRooms = gameStats?.rooms ?? 0
     // Floats above the "Igraj" pill's top edge like a notification bubble, so
     // the label itself stays as short as every other tab.
-    const liveRoomsBadge = liveRooms > 0 ? (
+    const liveRoomsBadge = liveRooms > 0 && !inRoom ? (
         <HStack
             as="span"
             position="absolute"

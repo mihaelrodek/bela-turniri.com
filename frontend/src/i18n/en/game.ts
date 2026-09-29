@@ -303,6 +303,10 @@ export const game: GameDict = {
     "table.waiting": "Wait…",
     "table.spectatingIntro": "You're watching",
     "table.spectatorCount": "Spectators: {count}",
+    // Promo instead of a spectator's empty hand (2026-09-29, user request).
+    "table.spectatorPromoTitle": "Play your own bela",
+    "table.spectatorPromoSubtitle": "Free, online, with friends or with bots.",
+    "table.spectatorPromoCta": "Play Bela",
 
     // Quick reactions at the table (`chat.react` protocol).
     "table.reactions": "Reactions",

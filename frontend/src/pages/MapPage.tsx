@@ -305,7 +305,6 @@ const MAP_MOBILE_MIN_H = "340px"
  *  normal page flow. Kept well short of the viewport so the map + toolbar
  *  are still visible above it on first paint, while staying tall enough to
  *  show a handful of cards before the list itself takes over scrolling. */
-const MAP_MOBILE_LIST_MAX_H = "38vh"
 
 function LegendChip({ color, label }: { color: string; label: string }) {
     return (
@@ -390,10 +389,11 @@ function TournamentListItem({
     )
 }
 
-/** Shared header (visible count + "clear selection") and scroll region for
- *  the list of tournaments currently placed on the map. Used both as the
- *  desktop sidebar and as the mobile panel below the map — `maxH` is the
- *  only thing that differs between the two placements. */
+/** Header (visible count + "clear selection") and scroll region for the list
+ *  of tournaments currently placed on the map. Desktop sidebar only — phones
+ *  get the quick-select chips above the map instead (2026-09-29: a second
+ *  copy of this used to sit below the map on mobile too, repeating the same
+ *  tournaments the chips already named). */
 function TournamentMapList({
     placed,
     placedAll,
@@ -788,14 +788,15 @@ export default function MapPage() {
                 )}
             </Box>
 
-            {/* Quick-select chips — mobile only. The full list sits below the
-                map (see the ordering note further down), out of the first
-                screen; this lets a tap jump straight to a pin without
-                scrolling down for it first. Reuses the exact same selection
-                state a list row or clicking a pin already drives — one
-                mechanism, three ways to trigger it. Desktop skips this: its
-                list column sits right beside the map, already serving the
-                same "quick jump" job. */}
+            {/* Quick-select chips — mobile only, and now the phone's ONLY
+                tournament list (2026-09-29): a `TournamentMapList` used to
+                also sit below the map, repeating the same tournaments as
+                bigger cards, which read as the same information twice on one
+                screen. This reuses the exact same selection state a click on
+                a pin already drives — one mechanism, two ways to trigger it,
+                both above the fold. Desktop skips this: its list column sits
+                right beside the map, already serving the same "quick jump"
+                job. */}
             {placed.length > 0 && (
                 <Box
                     display={{ base: "block", md: "none" }}
@@ -879,24 +880,18 @@ export default function MapPage() {
             )}
 
             {/* Main split — a fixed-width list column beside a flexible map
-                on md+; one column on phones.
+                on md+; on phones, just the map.
 
-                Mobile ordering: the map comes FIRST, the list SECOND. This
-                page's shell (unlike the sibling futsal app's) lets the
-                whole route scroll normally — the bottom tab bar's clearance
-                is already reserved by the app-level Container padding, not
-                by pinning this page to the viewport — so there is no need
-                to cram the list above the fold. Putting the map first means
-                it gets a full, immediately usable height on first paint
-                (see MAP_MOBILE_H above); the list is one scroll away below
-                it, capped to its own independently-scrolling region so
-                browsing it never fights the map for space or hides behind
-                the tab bar. Three children are declared below in DOM order
-                (desktop list, map, mobile list); the two that aren't shown
-                at a given breakpoint are `display: none`, which removes
-                them from the grid entirely, so no `order` juggling is
-                needed to get map-then-list on phones and list-beside-map
-                on md+. */}
+                The full `TournamentMapList` used to also repeat below the map
+                on phones — the same set of tournaments as the quick-select
+                chips above the map (`placed`), just as bigger cards instead
+                of pill-sized chips, so the two blocks were saying the same
+                thing twice on the same screen (2026-09-29, user report). Now
+                the chips ARE the phone's list — tap one, the map jumps to it
+                and opens its popup, same as tapping a card used to — and the
+                desktop sidebar (below) is unaffected; its list still earns
+                its place there since nothing else names the pins on that
+                width. */}
             {/* minmax(0, 1fr), not 1fr: a bare `1fr` track is at least as wide as
                 its widest child's min-content, so a long nowrap address in the
                 phone list pushed the whole column (map included) past the
@@ -1126,21 +1121,6 @@ export default function MapPage() {
                     </HStack>
                 </Box>
 
-                {/* Mobile list — below the map, see the ordering note above
-                    the grid. Its own scroll region (MAP_MOBILE_LIST_MAX_H)
-                    keeps it from growing the page without bound. */}
-                <Box display={{ base: "block", md: "none" }}>
-                    <TournamentMapList
-                        placed={placed}
-                        placedAll={placedAll}
-                        selectedUuid={selectedUuid}
-                        onSelect={selectTournament}
-                        onClear={() => setSelectedUuid(null)}
-                        maxH={MAP_MOBILE_LIST_MAX_H}
-                        tt={tt}
-                        plural={plural}
-                    />
-                </Box>
             </Grid>
         </VStack>
     )

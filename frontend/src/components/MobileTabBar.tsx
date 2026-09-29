@@ -25,7 +25,11 @@ function warmMapRoute() {
     void preloadVectorBasemap()
 }
 
-function LiveRoomsBadge({ count, ariaLabel, ...rest }: { count: number; ariaLabel: string } & BoxProps) {
+/** Exported: NavBar's `GamesSwitch` (bela.games mobile top bar) reuses this
+ *  same floating shoulder badge over its "Igraj" pill (2026-09-29, user
+ *  request — "neka se prikazuje kao na bela-turniri.com"), rather than the
+ *  inline text it used to show inside the pill itself. */
+export function LiveRoomsBadge({ count, ariaLabel, ...rest }: { count: number; ariaLabel: string } & BoxProps) {
     return (
         <Box
             as="span"
