@@ -230,6 +230,10 @@ export const tournament = {
     "edit.missingDescription": "Nedostaje: {fields}.",
     "edit.pastTitle": "Neispravan termin",
     "edit.pastDescription": "Datum i vrijeme turnira ne mogu biti u prošlosti.",
+    "edit.leaveTitle": "Napustiti uređivanje?",
+    "edit.leaveDescription": "Imaš nespremljene izmjene turnira. Ako odeš, izgubit ćeš ih.",
+    "edit.leaveConfirm": "Odbaci i napusti",
+    "edit.leaveCancel": "Nastavi uređivati",
 
     "poster.allowedTypes": "Dozvoljeno: JPG, PNG ili WEBP.",
     "poster.maxSize": "Maksimalna veličina je {mb} MB.",

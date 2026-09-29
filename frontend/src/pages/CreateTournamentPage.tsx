@@ -353,11 +353,11 @@ export default function CreateTournamentPage() {
     /**
      * Seed the whole form from a tournament the organiser ran before, via the
      * same `tournamentFormFromDto` the "Uredi" page uses — so a new field on
-     * that DTO only needs wiring in one place. Date/time and the map pin are
+     * that DTO only needs wiring in one place. Date/time are
      * deliberately NOT copied: `startDate`/`startTime` reset to "now" like a
      * brand-new form (the organiser always needs a fresh date anyway), and
-     * `pickedCoords` clears because `TournamentDetails` carries no lat/lng —
-     * the backend re-geocodes `location` on create regardless.
+     * `pickedCoords` is copied from the template's saved pin, so the
+     * reused location keeps its exact spot.
      */
     function applyTemplate(details: TournamentDetails) {
         setForm({
@@ -366,7 +366,11 @@ export default function CreateTournamentPage() {
             startTime: nowTime(),
             posterUrl: details.bannerUrl ?? "",
         })
-        setPickedCoords(null)
+        setPickedCoords(
+            details.latitude != null && details.longitude != null
+                ? { lat: details.latitude, lng: details.longitude }
+                : null,
+        )
         if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl)
         setPosterFile(null)
         setPosterPreviewUrl(null)
@@ -457,7 +461,13 @@ export default function CreateTournamentPage() {
         // Empty maxPairs → null ("no cap"), a filled one clamped to 2, money
         // normalised, the phone recombined, `status: "DRAFT"` and the typed
         // poster URL added — all of it in the one builder the edit form uses.
-        const payload = tournamentFormToPayload(form, "create")
+        const payload = {
+            ...tournamentFormToPayload(form, "create"),
+            // The exact pin, so the backend does not re-geocode the address
+            // text onto a different spot. Null = let the server geocode.
+            latitude: pickedCoords?.lat ?? null,
+            longitude: pickedCoords?.lng ?? null,
+        }
 
         try {
             setSubmitting(true)
@@ -681,7 +691,12 @@ export default function CreateTournamentPage() {
                                     </Field.Label>
                                     <LocationAutocomplete
                                         value={form.location}
-                                        onChange={(v) => onChange("location", v)}
+                                        onChange={(v) => {
+                                            onChange("location", v)
+                                            // Retyped by hand: drop the stale pin (a picked
+                                            // suggestion re-sets it right after onChange).
+                                            setPickedCoords(null)
+                                        }}
                                         onPickSuggestion={(s) => {
                                             setPickedCoords({ lat: s.latitude, lng: s.longitude })
                                         }}

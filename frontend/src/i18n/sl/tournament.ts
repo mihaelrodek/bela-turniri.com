@@ -169,6 +169,10 @@ export const tournament: TournamentDict = {
     "edit.missingDescription": "Manjka: {fields}.",
     "edit.pastTitle": "Neveljaven termin",
     "edit.pastDescription": "Datum in ura turnirja ne moreta biti v preteklosti.",
+    "edit.leaveTitle": "Zapustiti urejanje?",
+    "edit.leaveDescription": "Imaš neshranjene spremembe turnirja. Če odideš, jih boš izgubil.",
+    "edit.leaveConfirm": "Zavrzi in zapusti",
+    "edit.leaveCancel": "Nadaljuj z urejanjem",
 
     "poster.allowedTypes": "Dovoljeno: JPG, PNG ali WEBP.",
     "poster.maxSize": "Največja velikost je {mb} MB.",

@@ -38,10 +38,14 @@ const NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
 const REGION_CODES = ["HR", "SI", "BA", "RS", "AT", "HU", "DE", "IT"]
 const NOMINATIM_COUNTRY_CODES = "hr,ba,si,rs,me"
 
-/** Roughly the middle of Croatia — biases (not restricts) Google's ranking
- *  towards the region the organisers actually live in. */
-const BIAS_CENTER = { latitude: 45.8, longitude: 16.0 }
-const BIAS_RADIUS_M = 400000
+/** Croatia + Slovenia — biases (not restricts) Google's ranking towards the
+ *  region the organisers actually live in. A rectangle, not a circle: a
+ *  circle bias is capped at 50 km, and the old 400 km radius made Google
+ *  answer 400 on every keystroke, silently dropping to Nominatim. */
+const BIAS_RECT = {
+    low: { latitude: 42.3, longitude: 13.3 },
+    high: { latitude: 46.9, longitude: 19.5 },
+}
 
 export const MIN_QUERY_CHARS = 3
 
@@ -285,7 +289,7 @@ async function searchGoogle(
             languageCode: locale,
             regionCode: "HR",
             includedRegionCodes: REGION_CODES,
-            locationBias: { circle: { center: BIAS_CENTER, radius: BIAS_RADIUS_M } },
+            locationBias: { rectangle: BIAS_RECT },
         }),
     })
     if (!res.ok) throw new Error(`Google autocomplete ${res.status}`)

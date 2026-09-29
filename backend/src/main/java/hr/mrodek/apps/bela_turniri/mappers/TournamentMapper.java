@@ -81,6 +81,11 @@ public interface TournamentMapper {
             @Mapping(target = "slug", ignore = true),
             @Mapping(target = "createdAt", ignore = true),
             @Mapping(target = "updatedAt", ignore = true),
+            // Coordinates are owned by TournamentController.applyLocation
+            // (picked pin or geocode), never copied blindly from the body.
+            @Mapping(target = "latitude", ignore = true),
+            @Mapping(target = "longitude", ignore = true),
+            @Mapping(target = "geocodedAt", ignore = true),
 
             @Mapping(target = "name", source = "name"),
             @Mapping(target = "location", source = "location"),
@@ -124,6 +129,11 @@ public interface TournamentMapper {
             @Mapping(target = "slug", ignore = true),
             @Mapping(target = "createdAt", ignore = true),
             @Mapping(target = "updatedAt", ignore = true),
+            // Coordinates are owned by TournamentController.applyLocation
+            // (picked pin or geocode), never copied blindly from the body.
+            @Mapping(target = "latitude", ignore = true),
+            @Mapping(target = "longitude", ignore = true),
+            @Mapping(target = "geocodedAt", ignore = true),
             @Mapping(target = "status", ignore = true),
             @Mapping(target = "winnerName", ignore = true),
             // Podium fields are set via the /podium endpoint, never via

@@ -42,11 +42,14 @@ export function useTournamentEditForm(
     const [editForm, setEditForm] = useState<TournamentForm | null>(null)
 
     // Same purpose as `pickedCoords` on CreateTournamentPage — drives the
-    // map picker's marker in edit mode. Not sent to the backend; server
-    // re-geocodes editForm.location on save. Reset to null whenever edit
-    // mode opens (we don't seed from t.latitude/t.longitude because the
-    // current TournamentDetails DTO doesn't surface coordinates).
+    // map picker's marker in edit mode. Seeded from the saved pin when edit
+    // mode opens and sent with the save, so the backend keeps exactly this
+    // point; the form clears it when the location is retyped by hand, and
+    // the server then geocodes the new text instead.
     const [editPickedCoords, setEditPickedCoords] = useState<{ lat: number; lng: number } | null>(null)
+    // The form + pin as edit mode opened them. `editDirty` compares against
+    // this so the leave guard asks only when something really changed.
+    const [editBaseline, setEditBaseline] = useState<string | null>(null)
     const [savingDetails, setSavingDetails] = useState(false)
 
     // Poster edit state. Mirrors CreateTournamentPage's poster picker.
@@ -147,8 +150,11 @@ export function useTournamentEditForm(
 
     function enterDetailsEdit() {
         if (!t) return
-        setEditForm(tournamentFormFromDto(t))
-        setEditPickedCoords(null)
+        const form = tournamentFormFromDto(t)
+        const coords = t.latitude != null && t.longitude != null ? { lat: t.latitude, lng: t.longitude } : null
+        setEditForm(form)
+        setEditPickedCoords(coords)
+        setEditBaseline(JSON.stringify([form, coords]))
         setEditingDetails(true)
     }
 
@@ -182,7 +188,11 @@ export function useTournamentEditForm(
             // 1) Save the JSON payload first (text fields). The poster
             //    is on a separate endpoint so we don't block details
             //    saves if a poster upload fails mid-flight.
-            let updated = await updateTournament(uuid, tournamentFormToPayload(editForm, "update"))
+            let updated = await updateTournament(uuid, {
+                ...tournamentFormToPayload(editForm, "update"),
+                latitude: editPickedCoords?.lat ?? null,
+                longitude: editPickedCoords?.lng ?? null,
+            })
             // 2) Apply the poster change, if any.
             if (posterFile) {
                 updated = await uploadTournamentPoster(uuid, posterFile)
@@ -209,6 +219,13 @@ export function useTournamentEditForm(
         }
     }
 
+    /** True when the open edit form differs from what it opened with. */
+    const editDirty = useMemo(() => {
+        if (!editingDetails || !editForm) return false
+        if (posterFile || posterRemove) return true
+        return JSON.stringify([editForm, editPickedCoords]) !== editBaseline
+    }, [editingDetails, editForm, editPickedCoords, editBaseline, posterFile, posterRemove])
+
     function patchEdit<K extends keyof TournamentForm>(key: K, value: TournamentForm[K]) {
         setEditForm((f) => (f ? { ...f, [key]: value } : f))
     }
@@ -216,6 +233,7 @@ export function useTournamentEditForm(
     return {
         editingDetails,
         editForm,
+        editDirty,
         patchEdit,
         enterDetailsEdit,
         cancelDetailsEdit,

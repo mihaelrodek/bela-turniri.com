@@ -70,8 +70,26 @@ public record CreateTournamentRequest(
         @DecimalMin(value = "0.0", inclusive = true, message = "validation.tournament.rewardThird.negative")
         BigDecimal rewardThird,
 
-        TournamentStatus status                // DRAFT | STARTED | FINISHED (default DRAFT if null)
+        TournamentStatus status,               // DRAFT | STARTED | FINISHED (default DRAFT if null)
+
+        // Pin the organiser picked (map click or autocomplete suggestion).
+        // Optional: when absent the server geocodes `location` instead.
+        Double latitude,
+        Double longitude
 ) {
+    @AssertTrue(message = "latitude and longitude must both be set and in range")
+    public boolean isCoordinatesValid() {
+        if (latitude == null && longitude == null) return true;
+        return latitude != null && longitude != null
+                && latitude >= -90 && latitude <= 90
+                && longitude >= -180 && longitude <= 180;
+    }
+
+    /** True when the request carries a usable pin. */
+    public boolean hasCoordinates() {
+        return latitude != null && longitude != null;
+    }
+
     @AssertTrue(message = "targetScore must be 501, 701 or 1001")
     public boolean isTargetScoreAllowed() {
         return targetScore == null || targetScore == 501 || targetScore == 701 || targetScore == 1001;

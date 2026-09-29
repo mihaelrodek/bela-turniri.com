@@ -16,6 +16,7 @@ import { FiCreditCard, FiDollarSign, FiInfo, FiShuffle, FiUsers } from "react-ic
 import { deleteTournament } from "../api/tournaments"
 import { useAuth } from "../auth/authContextValue"
 import CjenikTab from "../components/CjenikTab"
+import ConfirmDialog from "../components/ConfirmDialog"
 import RacuniSection from "../components/RacuniSection"
 import TournamentResultsCard from "../components/TournamentResultsCard"
 import WaiterCodeGate from "../components/WaiterCodeGate"
@@ -29,6 +30,7 @@ import { useCanManageTournament } from "../hooks/useCanManageTournament"
 import { useOrganiserBlokLinks } from "../hooks/useOrganiserBlokLinks"
 import { useTournamentData } from "../hooks/useTournamentData"
 import { useTournamentEditForm } from "../hooks/useTournamentEditForm"
+import { useLeaveGuard } from "../hooks/useLeaveGuard"
 import { useTournamentHead } from "../hooks/useTournamentHead"
 import { useTournamentPairsEditor } from "../hooks/useTournamentPairsEditor"
 import { useTournamentRounds } from "../hooks/useTournamentRounds"
@@ -473,6 +475,19 @@ export default function TournamentDetailsPage() {
        the cast is safe because `sections` above is the only source of keys. */
     const selectSection = (key: string) => setTab(key as SectionKey)
 
+    /* Unsaved edits: any navigation — another section, another page — waits
+       for a "discard?" answer; reload / tab close get the browser's prompt. */
+    const leaveGuard = useLeaveGuard(editor.editDirty)
+    /* Leaving Detalji ends edit mode, so coming back shows the details, not
+       a half-finished form. Through a ref: the editor object is new on
+       every render, and only a section change should trigger this. */
+    const cancelEditRef = useRef(editor.cancelDetailsEdit)
+    cancelEditRef.current = editor.cancelDetailsEdit
+    const editingDetails = editor.editingDetails
+    useEffect(() => {
+        if (tab !== "details" && editingDetails) cancelEditRef.current()
+    }, [tab, editingDetails])
+
     const startDetailsEdit = () => {
         // The edit form lives in the Detalji view — jump there first.
         setTab("details")
@@ -771,6 +786,20 @@ export default function TournamentDetailsPage() {
                 rounds={rounds}
                 pairById={pairById}
                 onClose={() => setInfoPairId(null)}
+            />
+
+            <ConfirmDialog
+                open={leaveGuard.blocked}
+                title={tr("tournament.edit.leaveTitle")}
+                description={tr("tournament.edit.leaveDescription")}
+                confirmLabel={tr("tournament.edit.leaveConfirm")}
+                cancelLabel={tr("tournament.edit.leaveCancel")}
+                destructive
+                onConfirm={() => {
+                    editor.cancelDetailsEdit()
+                    leaveGuard.confirm()
+                }}
+                onCancel={leaveGuard.cancel}
             />
 
             <TournamentPageDialogs

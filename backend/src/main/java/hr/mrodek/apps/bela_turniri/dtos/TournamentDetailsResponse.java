@@ -16,6 +16,9 @@ public record TournamentDetailsResponse(
         String slug,
         String name,
         String location,
+        /** Map pin — picked on the map / from a suggestion, else geocoded from {@code location}. */
+        Double latitude,
+        Double longitude,
         String details,
         OffsetDateTime startAt,
         String bannerUrl,

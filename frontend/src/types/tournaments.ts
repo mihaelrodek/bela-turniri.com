@@ -40,6 +40,9 @@ export type TournamentDetails = {
     slug?: string | null;
     name: string;
     location?: string | null;
+    /** Map pin — the one the organiser picked, else geocoded from `location`. */
+    latitude?: number | null;
+    longitude?: number | null;
     details?: string | null;
     startAt?: string | null;
 
@@ -101,6 +104,9 @@ export type CreateTournamentPayload = {
 
     // optional basics
     location?: string | null;
+    // Pin picked on the map / from a suggestion. Omitted = server geocodes `location`.
+    latitude?: number | null;
+    longitude?: number | null;
     details?: string | null;
     startAt?: string | null;          // ISO with offset
     status?: TournamentStatus | null; // default DRAFT (server-side safe)

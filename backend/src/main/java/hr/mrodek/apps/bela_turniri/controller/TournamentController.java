@@ -109,6 +109,24 @@ public class TournamentController {
         });
     }
 
+    /**
+     * Sets the map pin on create / update. A pin the organiser picked (map
+     * click or autocomplete suggestion) wins — it is exactly where they
+     * clicked, whereas geocoding the address string can miss or land on the
+     * town centre. Without one, the location is geocoded, but only when it
+     * changed, which saves Nominatim hits.
+     */
+    private void applyLocation(Tournaments t, CreateTournamentRequest req, boolean locationChanged) {
+        var loc = t.getLocation();
+        if (loc != null && !loc.isBlank() && req.hasCoordinates()) {
+            t.setLatitude(req.latitude());
+            t.setLongitude(req.longitude());
+            t.setGeocodedAt(OffsetDateTime.now());
+            return;
+        }
+        if (locationChanged) applyGeocoding(t);
+    }
+
     /** Resolve location → lat/lng on create / update. Failure is non-fatal. */
     private void applyGeocoding(Tournaments t) {
         var loc = t.getLocation();
@@ -156,7 +174,7 @@ public class TournamentController {
         assertStartInFuture(req.startAt());
         Tournaments t = tournamentMapper.toEntity(req);
         stampCreator(t);
-        applyGeocoding(t);
+        applyLocation(t, req, true);
         // Generate slug before save so the unique index sees it on first
         // INSERT — the entity already has name + startAt populated by the
         // mapper at this point.
@@ -208,7 +226,7 @@ public class TournamentController {
             t.setResource(r);
         }
 
-        applyGeocoding(t);
+        applyLocation(t, req, true);
         t.setSlug(tournamentSlugService.generateUnique(t, null));
         Tournaments saved = tournamentsRepo.save(t);
         URI location = URI.create("/tournaments/" + saved.getSlug());
@@ -277,10 +295,7 @@ public class TournamentController {
         tournamentMapper.applyUpdate(t, req);
         t.setUpdatedAt(OffsetDateTime.now());
 
-        // Re-geocode only when the location actually changed — saves Nominatim hits.
-        if (!Objects.equals(previousLocation, t.getLocation())) {
-            applyGeocoding(t);
-        }
+        applyLocation(t, req, !Objects.equals(previousLocation, t.getLocation()));
 
         // Regenerate the slug if the name or start date changed — those are the
         // only inputs that go into the slug. We pass the current id so the row's

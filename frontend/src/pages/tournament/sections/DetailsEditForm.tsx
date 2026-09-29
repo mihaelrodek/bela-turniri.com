@@ -222,7 +222,13 @@ export default function DetailsEditForm({
                                 <Field.Label>{tr("tournament.tile.location")} <Field.RequiredIndicator /></Field.Label>
                                 <LocationAutocomplete
                                     value={editForm.location}
-                                    onChange={(v) => patchEdit("location", v)}
+                                    onChange={(v) => {
+                                        patchEdit("location", v)
+                                        // Retyped by hand: the old pin no longer matches
+                                        // the text. A picked suggestion re-sets it right
+                                        // after (onPickSuggestion fires after onChange).
+                                        setEditPickedCoords(null)
+                                    }}
                                     onPickSuggestion={(s) => {
                                         setEditPickedCoords({ lat: s.latitude, lng: s.longitude })
                                     }}

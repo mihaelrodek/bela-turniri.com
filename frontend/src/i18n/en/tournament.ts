@@ -186,6 +186,10 @@ export const tournament: TournamentDict = {
     "edit.missingDescription": "Missing: {fields}.",
     "edit.pastTitle": "Invalid date/time",
     "edit.pastDescription": "The tournament's date and time can't be in the past.",
+    "edit.leaveTitle": "Leave editing?",
+    "edit.leaveDescription": "You have unsaved changes to this tournament. If you leave, they will be lost.",
+    "edit.leaveConfirm": "Discard and leave",
+    "edit.leaveCancel": "Keep editing",
 
     "poster.allowedTypes": "Allowed: JPG, PNG or WEBP.",
     "poster.maxSize": "Maximum size is {mb} MB.",
