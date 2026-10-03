@@ -48,8 +48,8 @@ public class ProcessedOperation {
     @Column(name = "client_op_id", nullable = false, length = 100, unique = true)
     private String clientOpId;
 
-    /** Firebase UID of the caller that first ran this operation. */
-    @Column(name = "user_uid", length = 64)
+    /** Firebase UID or namespaced caller identity (e.g. waiter + SHA-256 digest). */
+    @Column(name = "user_uid", length = 255)
     private String userUid;
 
     /** Human-readable route, e.g. {@code "PUT /tournaments/{uuid}/rounds/{roundId}/matches/{matchId}"}. */

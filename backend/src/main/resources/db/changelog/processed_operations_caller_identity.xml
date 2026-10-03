@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      WaiterCallerIdentity stores waiter:<64 hex characters>, which cannot fit
+      the original varchar(64). Every waiter bill mutation carrying an operation
+      ID therefore failed while claiming the operation, before changing the bill.
+      Allow both that identity and owner:<uid> without changing stored values or
+      replay comparisons. Older application versions also work with this width.
+    -->
+    <changeSet id="2026-10-03-processed-operations-caller-identity" author="mrodek">
+        <modifyDataType tableName="processed_operations"
+                        columnName="user_uid"
+                        newDataType="varchar(255)"/>
+
+        <!-- Application rollback keeps the wider column: shrinking it could
+             discard replay identities written after rollout. No data is removed. -->
+        <rollback>
+            <sql>SELECT 1;</sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

@@ -204,4 +204,7 @@
     <!-- 2026-10-03: pairs soft delete (deleted_at / deleted_by_uid). Append-only. -->
     <include file="db/changelog/pairs_soft_delete.xml" relativeToChangelogFile="false"/>
 
+    <!-- Waiter replay identities include a prefix plus a SHA-256 digest (71 characters). -->
+    <include file="db/changelog/processed_operations_caller_identity.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>
