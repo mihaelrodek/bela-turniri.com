@@ -5,99 +5,62 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7483514e-fcbd-482d-8847-e29bb494cbf9" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/pairs_soft_delete.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/test/java/hr/mrodek/apps/bela_turniri/services/PairSoftDeleteTest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/rules/rulesPdf.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/RulesEditPanel.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Caddyfile" beforeDir="false" afterPath="$PROJECT_DIR$/Caddyfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/SitemapController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/SitemapController.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/TournamentController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/WaiterBillController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/controller/WaiterBillController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/CreateTournamentRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/CreateTournamentRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/MatchBillDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/MatchBillDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/TournamentCardDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/TournamentCardDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/TournamentDetailsResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/TournamentDetailsResponse.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/WaiterBillSummaryDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/WaiterBillSummaryDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/mappers/TournamentMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/mappers/TournamentMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/MatchDrink.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/MatchDrink.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/Tournaments.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/Tournaments.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/MatchDrinkRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/MatchDrinkRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/MatchBillService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/MatchBillService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/WaiterBillService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/WaiterBillService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PairDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/dtos/PairDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/mappers/PairMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/mappers/PairMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/Pairs.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/model/Pairs.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/PairsRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/repository/PairsRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/AdminService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/AdminService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/ContentReportService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/ContentReportService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/PublicProfileService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/PublicProfileService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/RepassageService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/RepassageService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/TournamentPairService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/TournamentPairService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/TournamentRulesNormaliser.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/hr/mrodek/apps/bela_turniri/services/TournamentRulesNormaliser.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/db/changelog/changelog-master.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/resources/i18n/messages_en.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/i18n/messages_en.properties" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/resources/i18n/messages_hr.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/i18n/messages_hr.properties" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/resources/i18n/messages_sl.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/i18n/messages_sl.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/App.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/cjenik.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/cjenik.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/test/java/hr/mrodek/apps/bela_turniri/services/TournamentRulesNormaliserTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/test/java/hr/mrodek/apps/bela_turniri/services/TournamentRulesNormaliserTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/api/tournaments.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/tournaments.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/api/waiterAccess.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/waiterAccess.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/blok/BLOK.md" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/BLOK.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/components/BlokHeader.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/components/BlokHeader.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/components/BlokLinkDialog.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/components/BlokLinkDialog.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/components/BlokSeriesGames.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/components/BlokSeriesGames.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/components/DeclarationChips.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/components/DeclarationChips.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/components/Keypad.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/components/Keypad.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/components/RoundEntrySheet.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/components/RoundEntrySheet.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/components/RoundsList.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/components/RoundsList.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/blok/pages/BlokPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/pages/BlokPage.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/blok/store.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/store.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/blok/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/blok/types.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/BlokGamesList.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/BlokGamesList.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/CalendarPageSkeleton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/CalendarPageSkeleton.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/CalendarSubscribeButton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/CalendarSubscribeButton.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/CjenikTab.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/CjenikTab.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/components/CookieConsent.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/CookieConsent.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ListingCard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ListingCard.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ListingRow.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ListingRow.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MobileTabBar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/NavBar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/RacuniSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/RacuniSection.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/SiteFooter.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/SiteFooter.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/SuffixInput.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/SuffixInput.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/WaiterBillDialog.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/WaiterBillDialog.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/listingShared.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/listingShared.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/ErrorBoundary.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ErrorBoundary.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/PairsSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/PairsSection.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/TournamentSidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/TournamentSidebar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/rules/RulesDocument.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/rules/RulesDocument.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/rules/TournamentRulesEditor.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/rules/TournamentRulesEditor.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/components/tournamentQr.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/tournamentQr.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/datepicker.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/datepicker.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/DeckSuitIcon.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/DeckSuitIcon.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/GameLobbySkeleton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/GameLobbySkeleton.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/GameSettingsSheet.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/GameSettingsSheet.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/components/GameTableSkeleton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/components/GameTableSkeleton.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/hooks/useSlowConnection.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/hooks/useSlowConnection.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/pages/GameLobbyPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/pages/GameLobbyPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/game/pages/GameRoomPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/game/pages/GameRoomPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/admin.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/blok.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/blok.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/common.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/hooks/useTournamentData.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/hooks/useTournamentData.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/hooks/useTournamentPairsEditor.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/hooks/useTournamentPairsEditor.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/forms.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/forms.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/game.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/legal.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/legal.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/i18n/en/tournament.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/en/tournament.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/admin.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/blok.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/blok.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/common.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/forms.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/forms.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/game.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/legal.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/legal.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/i18n/hr/tournament.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/hr/tournament.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/admin.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/blok.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/blok.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/common.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/forms.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/forms.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/game.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/game.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/legal.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/legal.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/i18n/sl/tournament.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/i18n/sl/tournament.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/CalendarPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/CalendarPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/CreateTournamentPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/CreateTournamentPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/MapPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/MapPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/NotFoundPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/NotFoundPage.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentDetailsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentDetailsPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TournamentsPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsEditForm.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/DetailsEditForm.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/site.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/site.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/types/tournaments.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/types/tournaments.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/utils/tournamentForm.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/utils/tournamentForm.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/utils/tournamentSection.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/utils/tournamentSection.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/tsconfig.app.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tsconfig.app.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/rulesPrint.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/rulesPrint.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/TournamentChrome.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/TournamentChrome.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/PairsSectionContainer.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/PairsSectionContainer.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/RulesSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/tournament/sections/RulesSection.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/queryClient.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/queryClient.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/types/pairs.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/types/pairs.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/utils/tournamentRules.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/utils/tournamentRules.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/vite.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/vite.config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/packages/bots/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/game/packages/bots/src/index.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -129,61 +92,61 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="0.05111759095167042" />
-      <entry key="MS500" value="1.9914859573958574" />
-      <entry key="S2" value="4.508649178105454" />
-      <entry key="S5" value="5.347490380879975" />
-      <entry key="S10" value="5.663573119894133" />
-      <entry key="S30" value="5.885512590704106" />
-      <entry key="S60" value="5.942457693334089" />
-      <entry key="M2" value="5.971153779859917" />
-      <entry key="M5" value="5.988443442342586" />
-      <entry key="M10" value="5.99421870509533" />
-      <entry key="M15" value="5.996145132825829" />
-      <entry key="M30" value="5.998072231044355" />
-      <entry key="H1" value="5.999036031664467" />
-      <entry key="H2" value="5.999517994870999" />
-      <entry key="H4" value="5.999815960232158" />
-      <entry key="D1" value="69.95739053226431" />
-      <entry key="W1" value="1336.7483235860052" />
+      <entry key="MS100" value="2.2841434825501907" />
+      <entry key="MS500" value="6.616773501343657" />
+      <entry key="S2" value="16.710612447926678" />
+      <entry key="S5" value="27.874479872863944" />
+      <entry key="S10" value="35.16167612274473" />
+      <entry key="S30" value="41.884502239076134" />
+      <entry key="S60" value="43.87102877826988" />
+      <entry key="M2" value="44.91700678727476" />
+      <entry key="M5" value="45.566191811348325" />
+      <entry key="M10" value="46.26467518357323" />
+      <entry key="M15" value="48.27066705140467" />
+      <entry key="M30" value="58.120756831820366" />
+      <entry key="H1" value="73.82297211167565" />
+      <entry key="H2" value="88.57339738007298" />
+      <entry key="H4" value="98.90045909373148" />
+      <entry key="D1" value="168.93895969548822" />
+      <entry key="W1" value="1428.2562628507687" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.0" />
-      <entry key="S2" value="1.0" />
-      <entry key="S5" value="1.0" />
-      <entry key="S10" value="1.0" />
-      <entry key="S30" value="1.0" />
-      <entry key="S60" value="1.0" />
-      <entry key="M2" value="1.0" />
-      <entry key="M5" value="1.0" />
-      <entry key="M10" value="1.0" />
-      <entry key="M15" value="1.0" />
-      <entry key="M30" value="1.0" />
-      <entry key="H1" value="1.0" />
-      <entry key="H2" value="1.0000000000000318" />
-      <entry key="H4" value="1.0000001785015644" />
-      <entry key="D1" value="1.0936745506118604" />
-      <entry key="W1" value="3.057407187013147" />
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="5.39653269869541E-261" />
+      <entry key="S10" value="7.346109649804722E-131" />
+      <entry key="S30" value="4.188120180180457E-44" />
+      <entry key="S60" value="2.0464897214939638E-22" />
+      <entry key="M2" value="1.4305557386886869E-11" />
+      <entry key="M5" value="4.594159796070442E-5" />
+      <entry key="M10" value="0.0067990270509560875" />
+      <entry key="M15" value="0.036577242571787176" />
+      <entry key="M30" value="0.21685425804321543" />
+      <entry key="H1" value="0.6011758389389354" />
+      <entry key="H2" value="1.0671790683719" />
+      <entry key="H4" value="1.4505825856334718" />
+      <entry key="D1" value="1.9807795570980626" />
+      <entry key="W1" value="4.019974207663909" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.15421397047333602" />
-      <entry key="MS500" value="2.616867996786667" />
-      <entry key="S2" value="5.395562182422517" />
-      <entry key="S5" value="6.300337198197501" />
-      <entry key="S10" value="6.639659429478173" />
-      <entry key="S30" value="6.877464724966262" />
-      <entry key="S60" value="6.938424070143644" />
-      <entry key="M2" value="6.969134537250046" />
-      <entry key="M5" value="6.987635160770481" />
-      <entry key="M10" value="6.993814466797319" />
-      <entry key="M15" value="6.9958756189511115" />
-      <entry key="M30" value="6.997937463267295" />
-      <entry key="H1" value="6.998968645065696" />
-      <entry key="H2" value="6.999484300894044" />
-      <entry key="H4" value="6.999799291558019" />
-      <entry key="D1" value="71.05105905683608" />
-      <entry key="W1" value="1339.8057170982681" />
+      <entry key="MS100" value="2.2410085533486983" />
+      <entry key="MS500" value="6.581592331219113" />
+      <entry key="S2" value="16.68124691426456" />
+      <entry key="S5" value="27.8532879127519" />
+      <entry key="S10" value="35.147987384435794" />
+      <entry key="S30" value="41.878986528242805" />
+      <entry key="S60" value="43.86813001170415" />
+      <entry key="M2" value="44.91552029460577" />
+      <entry key="M5" value="45.56563391720908" />
+      <entry key="M10" value="46.27116540301677" />
+      <entry key="M15" value="48.30702307214901" />
+      <entry key="M30" value="58.33745864229471" />
+      <entry key="H1" value="74.42403240512391" />
+      <entry key="H2" value="89.6404969768272" />
+      <entry key="H4" value="100.35099346936586" />
+      <entry key="D1" value="170.91972665054124" />
+      <entry key="W1" value="1432.2762225067831" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{

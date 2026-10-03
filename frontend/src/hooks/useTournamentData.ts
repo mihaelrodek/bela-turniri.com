@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Dispatch, SetStateAction } from "react"
 import { useQuery } from "@tanstack/react-query"
 
-import { fetchTournamentDetails, fetchTournamentPairs } from "../api/tournaments"
+import { fetchDeletedPairs, fetchTournamentDetails, fetchTournamentPairs } from "../api/tournaments"
 import { fetchRounds } from "../api/round"
 import { listPairRequestsForTournament, type PairRequest } from "../api/pairRequests"
 import { fetchBlokLinks, type OrganiserBlokLink } from "../api/blokLink"
@@ -136,6 +136,7 @@ const keysFor = (uuid: string | undefined) => {
         rounds: qk.rounds(id),
         requests: qk.pairRequestsForTournament(id),
         blokLinks: qk.blokLinks(id),
+        deletedPairs: qk.tournamentPairsDeleted(id),
     }
 }
 
@@ -371,6 +372,28 @@ export function useTournamentData(uuid: string | undefined) {
     })
     const blokLinks = useMemo(() => blokLinksQ.data ?? [], [blokLinksQ.data])
 
+    /**
+     * "Obrisani parovi" (2026-10-03): the soft-deleted pairs the organiser can
+     * still restore. Organiser/admin only (the endpoint 403s everyone else) and
+     * only while the tournament has not started — once it has, restore is
+     * impossible server-side and the section is hidden, so there is nothing to
+     * keep fresh. Refetched on every `pairs` live scope, like the roster itself.
+     */
+    const canRestorePairs = canEditTournament && !!t && t.status !== "STARTED" && t.status !== "FINISHED"
+    const deletedPairsQ = useQuery({
+        queryKey: keys.deletedPairs,
+        enabled: enabled && canRestorePairs,
+        queryFn: () => fetchDeletedPairs(uuid as string, { silent: isRefresh(keys.deletedPairs) }),
+    })
+    const deletedPairs = useMemo(
+        () => (canRestorePairs ? (deletedPairsQ.data ?? []) : []),
+        [canRestorePairs, deletedPairsQ.data],
+    )
+    const refetchDeletedPairs = useCallback(
+        () => queryClient.refetchQueries({ queryKey: keys.deletedPairs }),
+        [keys.deletedPairs],
+    )
+
     const setBlokLinks = useCallback<Dispatch<SetStateAction<OrganiserBlokLink[]>>>((update) => {
         queryClient.setQueryData<OrganiserBlokLink[]>(keys.blokLinks, (old) => {
             const prev = old ?? []
@@ -457,9 +480,10 @@ export function useTournamentData(uuid: string | undefined) {
         // this key for a spectator would fire the request anyway (manual
         // refetches ignore `enabled`) straight into a 403.
         if (canEditTournament) jobs.push(queryClient.refetchQueries({ queryKey: keys.blokLinks }))
+        if (canRestorePairs) jobs.push(queryClient.refetchQueries({ queryKey: keys.deletedPairs }))
         await Promise.all(jobs)
         lastFetchAtRef.current = Date.now()
-    }, [uuid, keys, canEditTournament])
+    }, [uuid, keys, canEditTournament, canRestorePairs])
 
     /**
      * The background refresh the poll, the websocket and pull-to-refresh all
@@ -514,6 +538,9 @@ export function useTournamentData(uuid: string | undefined) {
             const jobs: Promise<unknown>[] = []
             if (wants("details")) jobs.push(queryClient.refetchQueries({ queryKey: keys.details }))
             if (wants("pairs")) jobs.push(queryClient.refetchQueries({ queryKey: keys.pairs }))
+            if (canRestorePairs && wants("pairs")) {
+                jobs.push(queryClient.refetchQueries({ queryKey: keys.deletedPairs }))
+            }
             if (wants("rounds")) jobs.push(queryClient.refetchQueries({ queryKey: keys.rounds }))
             // Same reasoning as refreshAll: only ask for this when the viewer
             // can actually see it. The backend broadcasts the `match` scope
@@ -532,7 +559,7 @@ export function useTournamentData(uuid: string | undefined) {
             console.warn("Osvježavanje uživo nije uspjelo", e)
         }
         return true
-    }, [uuid, keys, canEditTournament])
+    }, [uuid, keys, canEditTournament, canRestorePairs])
 
     /* ---------- Auth-aware reload ----------
        The backend redacts the organiser's contact phone for anonymous viewers
@@ -564,6 +591,7 @@ export function useTournamentData(uuid: string | undefined) {
         void queryClient.invalidateQueries({ queryKey: keys.rounds })
         void queryClient.invalidateQueries({ queryKey: keys.requests })
         void queryClient.invalidateQueries({ queryKey: keys.blokLinks })
+        void queryClient.invalidateQueries({ queryKey: keys.deletedPairs })
     }, [authLoading, user?.uid, keys])
 
     /* Switching tournaments switches every query key, but the local overlay
@@ -843,6 +871,7 @@ export function useTournamentData(uuid: string | undefined) {
         rounds, setRounds,
         pairRequests, setPairRequests,
         blokLinks, setBlokLinks,
+        deletedPairs, refetchDeletedPairs,
         collapsedRounds, setCollapsedRounds,
         allowRepeats, setAllowRepeats,
         loading, error,

@@ -1502,11 +1502,13 @@ ne izmišljaj nove ključeve za herc/karo/pik/tref.
   novi `sessionId` doznaje iz sljedećeg upisa rezultata (šalje se uz svaki).
   Zatim `settingsPending` pokreće dohvat turnira (ponavlja se svakih 30 s dok ne
   uspije) i `applyTournamentSettings`: cilj, prolaz/dosta, smjer,
-  `declarationsRule` i `seriesTarget = rules.matchGames` (zadano 2), uz
+  `declarationsRule`, `seriesTarget = rules.matchGames` (zadano 2) i
+  `newGameDealer` iz `rules.nextDealer` (`NEXT` → `"next"`, `WINNER` → `"winner"`), uz
   `settingsFromTournament`; jedan toast.
 - **Kraj veze → zadano**: `clearLink`, `patchLink` na REJECTED/REVOKED i
-  `resetSession` vraćaju 1001 / prolaz / udesno / `"all"` / otvorena serija, ali
-  samo dok je oznaka postavljena; ručna promjena bilo koje od tih postavki skida
+  `resetSession` vraćaju 1001 / prolaz / udesno / `"all"` / `newGameDealer = "next"` /
+  otvorena serija, ali
+  samo dok je oznaka postavljena; ručna promjena bilo koje od tih postavki (uključujući „Tko dijeli sljedeću partiju”) skida
   oznaku. Podjele se ne diraju; već ZAVRŠENA partija zadržava cilj i pravilo kraja.
 - **Sažet unos**: `RoundEntrySheet` mjeri vidljivu visinu (`visualViewport`) i bira
   korak (≥900 / 800–899 / 700–799 / 600–699 / 480–599 / <480 skrol) koji skalira

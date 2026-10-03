@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      2026-10-03: SOFT DELETE OF PAIRS ("Obrisani parovi").
+
+      Deleting a pair in DRAFT no longer removes the row: it stamps
+      deleted_at (+ the deleting uid, audit only) and every read path filters
+      `deleted_at is null`, so the pair vanishes from the roster but the
+      organiser can restore it until the tournament starts. NULL = live, which
+      is every existing row — no backfill. The partial index keeps the hot
+      "live pairs of tournament X" lookup as cheap as before.
+    -->
+    <changeSet id="2026-10-03-pairs-soft-delete" author="mrodek">
+        <addColumn tableName="pairs">
+            <column name="deleted_at" type="timestamptz"/>
+            <column name="deleted_by_uid" type="varchar(64)"/>
+        </addColumn>
+        <sql>create index if not exists idx_pairs_tournament_live on pairs (tournament_id) where deleted_at is null</sql>
+        <rollback>
+            <sql>drop index if exists idx_pairs_tournament_live</sql>
+            <dropColumn tableName="pairs" columnName="deleted_by_uid"/>
+            <dropColumn tableName="pairs" columnName="deleted_at"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -71,7 +71,7 @@ public class AdminService {
      */
     public AttachPairResult attachPair(Long pairId, String userUid) {
         Pairs pair = pairsRepo.findById(pairId);
-        if (pair == null) throw ApiCodes.notFound();
+        if (pair == null || pair.getDeletedAt() != null) throw ApiCodes.notFound();
 
         // Defensive — the UI hides claimed pairs but a parallel admin
         // attaching at the same time would otherwise silently overwrite.

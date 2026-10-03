@@ -75,7 +75,19 @@ export default class ErrorBoundary extends Component<Props, State> {
         if (this.state.offline) return <OfflineNotice />
         return (
             <Box minH="100dvh" display="flex" alignItems="center" justifyContent="center" p="6">
-                <VStack gap="4" textAlign="center" maxW="sm">
+                {/* A card, so the text and buttons stay readable over the page's
+                    card artwork (2026-10-03, owner). */}
+                <VStack
+                    gap="4"
+                    textAlign="center"
+                    maxW="md"
+                    bg="bg.panel"
+                    borderWidth="1px"
+                    borderColor="border.emphasized"
+                    rounded="xl"
+                    shadow="sm"
+                    p={{ base: "6", md: "8" }}
+                >
                     {/* No emoji here: the joker rendered as a white card on a
                         dark page, which read as a stray card left over from
                         the app's own deck rather than as an error mark. */}
@@ -86,6 +98,8 @@ export default class ErrorBoundary extends Component<Props, State> {
                     <HStack gap="3">
                         <Button
                             variant="outline"
+                            bg="bg.subtle"
+                            borderColor="border.emphasized"
                             onClick={() => window.location.assign("/")}
                         >
                             {t("common.errorBoundary.home")}

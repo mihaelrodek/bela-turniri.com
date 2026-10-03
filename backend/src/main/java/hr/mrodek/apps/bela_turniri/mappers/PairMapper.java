@@ -77,7 +77,11 @@ public abstract class PairMapper {
             // to reach an anonymously registered pair on the next bulk save.
             @Mapping(target = "contactPhone",        ignore = true),
             @Mapping(target = "createdAt",           ignore = true),
-            @Mapping(target = "updatedAt",           ignore = true)
+            @Mapping(target = "updatedAt",           ignore = true),
+            // Soft-delete state is owned by TournamentPairService only; a
+            // client payload must never delete or resurrect a row.
+            @Mapping(target = "deletedAt",           ignore = true),
+            @Mapping(target = "deletedByUid",        ignore = true)
     })
     public abstract void updateEntity(@MappingTarget Pairs entity, PairDto dto);
 
@@ -135,7 +139,8 @@ public abstract class PairMapper {
                 displayNames.nameOf(co),
                 includeClaimToken ? e.getClaimToken() : null,
                 includeContactPhone ? e.getContactPhone() : null,
-                null
+                null,
+                e.getDeletedAt()
         );
     }
 

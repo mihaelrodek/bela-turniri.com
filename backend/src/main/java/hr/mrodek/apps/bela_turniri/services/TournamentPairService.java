@@ -13,6 +13,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.NotFoundException;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -133,10 +134,19 @@ public class TournamentPairService {
                 .map(Integer::longValue)
                 .collect(Collectors.toSet());
 
-        // 1) delete removed rows first
+        // 1) remove absent rows first. In DRAFT that is a soft delete (the
+        // organiser can restore it from "Obrisani parovi"); once the
+        // tournament has started the row may be referenced by matches, so
+        // the legacy hard delete is left exactly as it was.
+        boolean draft = isDraft(tournament);
+        String uid = currentUser.uidOrNull();
         for (var e : existing) {
             if (e.getId() != null && !payloadIds.contains(e.getId())) {
-                pairRepo.delete(e);
+                if (draft) {
+                    softDelete(e, uid);
+                } else {
+                    pairRepo.delete(e);
+                }
             }
         }
 
@@ -215,16 +225,62 @@ public class TournamentPairService {
     }
 
     /**
-     * Delete a single pair. Refused once the tournament has started:
+     * Delete a single pair — a SOFT delete: the row stays with
+     * {@code deleted_at} set and the organiser can {@link #restore} it until
+     * the tournament starts. Refused once the tournament has started:
      * matches reference {@code pair_id}, so removing a pair mid-run would
      * orphan historical results.
      */
     public void deletePair(Tournaments t, Long pairId) {
-        if (t.getStatus() == TournamentStatus.STARTED || t.getStatus() == TournamentStatus.FINISHED) {
+        if (!isDraft(t)) {
             throw ApiCodes.conflict("TOURNAMENT_ALREADY_STARTED");
         }
-        pairRepo.delete(requirePairOfTournament(t, pairId));
+        softDelete(requirePairOfTournament(t, pairId), currentUser.uidOrNull());
         broadcast(t, hr.mrodek.apps.bela_turniri.realtime.LiveBroadcaster.SCOPE_PAIRS);
+    }
+
+    /**
+     * The organiser's "Obrisani parovi" list, most recently deleted first.
+     * Caller must have asserted edit access: rows carry the contact phone.
+     */
+    public List<PairDto> listDeleted(Tournaments t) {
+        return toDtoListForViewer(t, pairRepo.findDeletedByTournament_Id(t.getId()));
+    }
+
+    /**
+     * Bring a soft-deleted pair back. Only while the tournament is in DRAFT
+     * (409 {@code TOURNAMENT_ALREADY_STARTED} otherwise) and only while the
+     * roster has room (409 {@code PAIRS_FULL} when {@code maxPairs} is set and
+     * already reached). 404 when the id is not a deleted pair of this
+     * tournament. Every other field — name, paid flag, contact, claim token —
+     * is untouched, so the pair returns exactly as it left.
+     */
+    public PairDto restore(Tournaments t, Long pairId) {
+        if (!isDraft(t)) {
+            throw ApiCodes.conflict("TOURNAMENT_ALREADY_STARTED");
+        }
+        Pairs pair = pairRepo.findByIdOptional(pairId)
+                .filter(p -> p.getDeletedAt() != null)
+                .filter(p -> p.getTournament() != null
+                        && Objects.equals(p.getTournament().getId(), t.getId()))
+                .orElseThrow(() -> new NotFoundException(messages.t("pair.notFound")));
+        if (t.getMaxPairs() != null
+                && pairRepo.countActiveByTournament_Id(t.getId()) >= t.getMaxPairs()) {
+            throw ApiCodes.conflict("PAIRS_FULL");
+        }
+        pair.setDeletedAt(null);
+        pair.setDeletedByUid(null);
+        broadcast(t, hr.mrodek.apps.bela_turniri.realtime.LiveBroadcaster.SCOPE_PAIRS);
+        return toDto(pair);
+    }
+
+    private static boolean isDraft(Tournaments t) {
+        return t.getStatus() != TournamentStatus.STARTED && t.getStatus() != TournamentStatus.FINISHED;
+    }
+
+    private static void softDelete(Pairs pair, String byUid) {
+        pair.setDeletedAt(OffsetDateTime.now());
+        pair.setDeletedByUid(byUid);
     }
 
     /* ===================== Shared helpers ===================== */
@@ -241,7 +297,8 @@ public class TournamentPairService {
     private Pairs requirePairOfTournament(Tournaments t, Long pairId) {
         Pairs pair = pairRepo.findByIdOptional(pairId)
                 .orElseThrow(() -> new NotFoundException(messages.t("pair.notFound")));
-        if (pair.getTournament() == null
+        if (pair.getDeletedAt() != null
+                || pair.getTournament() == null
                 || !Objects.equals(pair.getTournament().getId(), t.getId())) {
             throw new NotFoundException(messages.t("pair.notFound"));
         }

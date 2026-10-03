@@ -201,4 +201,7 @@
          defaults). Append-only. -->
     <include file="db/changelog/tournament_rules.xml" relativeToChangelogFile="false"/>
 
+    <!-- 2026-10-03: pairs soft delete (deleted_at / deleted_by_uid). Append-only. -->
+    <include file="db/changelog/pairs_soft_delete.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>

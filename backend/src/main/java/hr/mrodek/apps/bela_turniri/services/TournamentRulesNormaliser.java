@@ -52,6 +52,17 @@ public final class TournamentRulesNormaliser {
     public static final int MIN_MATCH_GAMES = 1;
     public static final int MAX_MATCH_GAMES = 5;
 
+    public static final List<String> NEXT_DEALERS = List.of("NEXT", "WINNER");
+
+    /**
+     * Rules whose text the SPA derives from the tournament settings (target,
+     * prolaz/dosta, match games, direction, next dealer, round length). They are
+     * locked: an override or removal of one is stripped, not rejected — documents
+     * stored before they were locked may carry one. Mirrors FIXED_ITEM_IDS in
+     * utils/tournamentRules.ts.
+     */
+    public static final Set<String> FIXED_IDS = Set.of("game.1", "game.2", "game.3", "deal.2", "deal.3", "tour.1", "decl.off", "decl.belaOnly");
+
     public static final List<String> SECTIONS = List.of("game", "deal", "trump", "decl", "tour", "conduct");
     public static final List<String> PENALTIES =
             List.of("DEAL", "WARNING_DEAL", "WARNING", "REDEAL", "SCORE_162", "EXPEL");
@@ -90,6 +101,15 @@ public final class TournamentRulesNormaliser {
                 throw bad(msg, "tournament.rules.matchGames");
             }
             out.put("matchGames", mg.intValue());
+        }
+
+        JsonNode nd = raw.get("nextDealer");
+        if (nd != null && !nd.isNull()) {
+            if (!nd.isTextual() || !NEXT_DEALERS.contains(nd.textValue())) {
+                throw bad(msg, "tournament.rules.nextDealer");
+            }
+            // NEXT is the default: stored only when it differs.
+            if (!"NEXT".equals(nd.textValue())) out.put("nextDealer", nd.textValue());
         }
 
         ObjectNode sectionsOut = F.objectNode();
@@ -140,6 +160,7 @@ public final class TournamentRulesNormaliser {
                 if (text.isEmpty()) text = null;
             }
             boolean removed = item.path("removed").asBoolean(false);
+            if (!foul && FIXED_IDS.contains(id)) continue; // locked rule: drop any stored override
 
             ObjectNode o = F.objectNode();
             o.put("id", id);

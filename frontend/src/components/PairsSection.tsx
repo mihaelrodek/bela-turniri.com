@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import type { ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { ReactNode, RefObject } from "react"
 import {
     Badge,
     Box,
     Button,
     Card,
+    Checkbox,
     HStack,
     IconButton,
     Input,
+    InputGroup,
     Text,
     VStack,
     chakra,
@@ -23,6 +25,8 @@ import {
     FiInfo,
     FiPhone,
     FiPlus,
+    FiRotateCcw,
+    FiSearch,
     FiTrash2,
     FiUser,
     FiUserPlus,
@@ -35,9 +39,11 @@ import type { PairShort } from "../types/pairs"
 import type { PairRequest } from "../api/pairRequests"
 import { useAuth } from "../auth/authContextValue"
 import EmptyState from "./EmptyState"
+import SyncIndicator from "./SyncIndicator"
 import ReportDialog from "./ReportDialog"
-import { CONTENT_STICKY_TOP, NAVBAR_H } from "./navChrome"
+import { CONTENT_STICKY_TOP, NAVBAR_H, NAVBAR_TOP } from "./navChrome"
 import { usePlural, useTranslation } from "../i18n"
+import { formatDateTime } from "../utils/format"
 
 /* ──────────────────────────────────────────────────────────────────────────
    "Parovi" — the tournament's pair roster as a master/detail.
@@ -71,16 +77,49 @@ import { usePlural, useTranslation } from "../i18n"
    strictly better than an accordion that reflows the column under the
    pointer.
 
+   2026-10-03: "Dodaj par" no longer creates an empty row that is then named
+   in the panel. A QUICK-ADD field sits permanently above the roster: type a
+   name, Enter, and the pair is persisted at once (see QuickAddBar and the
+   page's quickAddPair), flashed and scrolled to at the top of the active
+   block, with the caret kept in the field for the next one. The "Dodaj par"
+   buttons only focus that field. From 8 pairs on a search box sits above the
+   list; it filters what is LISTED, never what is counted.
+
+   2026-10-03 (layout): the three counter chips left the top strip. At lg+ they
+   sit in the right column under the detail panel; below lg they sit between
+   the quick-add card and the first row. The strip keeps only the
+   self-registration button, so the organiser's tab starts at the quick-add card.
+
+   2026-10-03 (soft delete): a removed pair is kept server-side and listed in
+   "Obrisani parovi" directly after the roster, with a "Vrati" button, until
+   the tournament starts.
+
    This component is presentation only. Every mutation is a prop: the page
    owns the pair state, the offline write queue, the poll/socket refresh and
    the temp-row (negative id) convention, none of which this file knows about.
    ────────────────────────────────────────────────────────────────────── */
 
 /** Where the pinned panes come to rest — navbar + the Container's py={6}. */
-const PANE_TOP = CONTENT_STICKY_TOP
 /** Viewport left for a pinned pane, minus a 16px breathing gap. The split
  *  only exists at lg+, where the navbar is always at its `md` height. */
-const PANE_MAX_H = `calc(100dvh - ${NAVBAR_H.md + 24}px - 16px - var(--safe-top))`
+/** The sticky site footer (~64px) now lives at the bottom of the viewport on
+ *  desktop, so a pinned pane must stop above it — otherwise its last rows sit
+ *  behind the footer and cannot be scrolled into view (2026-10-03, reported). */
+const SITE_FOOTER_H = 64
+/** Height of the pinned quick-add card (measured, see `qaRef`), CSS var set on the root. */
+const QA_H = "var(--pairs-qa-h, 0px)"
+const PANE_MAX_H = `calc(100dvh - ${NAVBAR_H.md + 24}px - ${QA_H} - 24px - ${SITE_FOOTER_H}px - var(--safe-top))`
+/** Height of the tournament page's pinned mobile band (title + section pills),
+ *  measured into a CSS var; 0 on lg+, where it is display:none. */
+const BAND_H = "var(--pairs-band-h, 0px)"
+// Phone: everything pinned here must sit BELOW that band, not just the navbar —
+// flush against it (no gap), so the list cannot show through between the two;
+// the breathing room is the pinned card's own opaque top padding.
+const QA_TOP = { base: `calc(${NAVBAR_TOP.base} + ${BAND_H})`, lg: CONTENT_STICKY_TOP.md }
+const PANE_TOP_BELOW_QA = {
+    base: `calc(${NAVBAR_TOP.base} + ${BAND_H} + ${QA_H})`,
+    md: `calc(${CONTENT_STICKY_TOP.md} + ${QA_H})`,
+}
 
 /** Avatar with initials, used by the pair cards, the panel and the info dialog. */
 export function PairAvatar({ name, eliminated }: { name: string; eliminated?: boolean }) {
@@ -153,12 +192,15 @@ export function CounterChip({
     label,
     palette,
     size = "sm",
+    fill = false,
 }: {
     icon: ReactNode
     value: number
     label: string
     palette?: "green" | "yellow"
     size?: "sm" | "xs"
+    /** Share the row's width equally with the other chips, content centred. */
+    fill?: boolean
 }) {
     const dense = size === "xs"
     return (
@@ -172,7 +214,9 @@ export function CounterChip({
             bg={palette ? `${palette}.subtle` : "bg.subtle"}
             color={palette ? `${palette}.fg` : "fg.muted"}
             minW="0"
-            flexShrink={0}
+            flexShrink={fill ? 1 : 0}
+            flex={fill ? "1 1 auto" : undefined}
+            justifyContent={fill ? "center" : undefined}
         >
             <Box flexShrink={0} display="flex" aria-hidden>
                 {icon}
@@ -196,14 +240,265 @@ export function CounterChip({
 
 type PodiumRank = "first" | "second" | "third" | null
 
+/** Result of persisting a quick-added pair — `id` 0 means "saved, row not
+ *  located". On failure `error` is already user-facing text. */
+export type QuickAddResult = { ok: true; id: number } | { ok: false; error: string }
+export type QuickAddPair = (name: string, paid: boolean) => Promise<QuickAddResult>
+
+/** Restore a soft-deleted pair; on failure `error` is already user-facing text
+ *  (the roster-full / already-started 409s are mapped by the editor hook). */
+export type RestorePair = (
+    pairId: number,
+) => Promise<{ ok: true; pair: PairShort } | { ok: false; error: string }>
+
+/** Case/diacritics-insensitive, whitespace-collapsed comparison key. Used by
+ *  the duplicate warning and the roster search. */
+function fold(v: string | null | undefined): string {
+    return (v ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/gi, "d")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim()
+}
+
+/** Searching only earns its row once the roster is long enough to scroll. */
+const SEARCH_MIN_PAIRS = 8
+const PAIR_NAME_MAX = 200
+/** How long a freshly added row stays highlighted. */
+const FLASH_MS = 1500
+
+function readQuickPaid(key: string): boolean {
+    try {
+        return localStorage.getItem(key) === "1"
+    } catch {
+        return false
+    }
+}
+function writeQuickPaid(key: string, v: boolean) {
+    try {
+        localStorage.setItem(key, v ? "1" : "0")
+    } catch {
+        /* storage blocked — the choice just is not remembered */
+    }
+}
+
+/* The permanent quick-add row. Enter adds; a duplicate name asks first.
+   The input is never disabled while a save is in flight (a disabled input
+   drops focus and, on iOS, the keyboard) — submits are just ignored. A real,
+   already-mounted input also means "Dodaj par" can focus it inside the tap
+   gesture, which is all iOS needs, so the old off-screen keyboard proxy is
+   gone. */
+function QuickAddBar({
+    inputRef,
+    storageKey,
+    existingNames,
+    disabled,
+    disabledTitle,
+    fullMessage,
+    onQuickAddPair,
+    onAdded,
+}: {
+    inputRef: RefObject<HTMLInputElement | null>
+    storageKey: string
+    existingNames: string[]
+    disabled: boolean
+    disabledTitle: string
+    /** Short message shown instead of the hint when the roster is full. */
+    fullMessage: string | null
+    onQuickAddPair: QuickAddPair
+    onAdded: (id: number) => void
+}) {
+    const { t: tr } = useTranslation()
+    const [value, setValue] = useState("")
+    const [paid, setPaid] = useState(() => readQuickPaid(storageKey))
+    const [dup, setDup] = useState(false)
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [announce, setAnnounce] = useState("")
+    const busyRef = useRef(false)
+
+    const name = value.replace(/\s+/g, " ").trim()
+
+    async function submit(force: boolean) {
+        if (busyRef.current || disabled || !name) return
+        if (!force && existingNames.some((n) => fold(n) === fold(name))) {
+            setDup(true)
+            return
+        }
+        busyRef.current = true
+        setBusy(true)
+        setError(null)
+        setDup(false)
+        const res = await onQuickAddPair(name, paid)
+        busyRef.current = false
+        setBusy(false)
+        if (res.ok) {
+            setValue("")
+            setAnnounce(tr("tournament.pairs.quickAdded", { name }))
+            if (res.id) onAdded(res.id)
+        } else {
+            setError(res.error)
+        }
+        inputRef.current?.focus({ preventScroll: true })
+    }
+
+    const hasError = !!error
+    return (
+        // A card of its own (2026-10-03, owner): the field, the "Označi plaćeno"
+        // switch and the button read as one control instead of loose parts.
+        <VStack
+            align="stretch"
+            gap="1.5"
+            data-tour="quick-add-pair"
+            bg="bg.panel"
+            borderWidth="1px"
+            borderColor="border.emphasized"
+            rounded="xl"
+            shadow="sm"
+            p={{ base: "3", md: "3.5" }}
+        >
+            <Box
+                display="flex"
+                flexWrap={{ base: "wrap", md: "nowrap" }}
+                alignItems="center"
+                gap="2"
+            >
+                <InputGroup
+                    startElement={<FiUserPlus />}
+                    w="auto"
+                    flex={{ base: "1 1 100%", md: "1 1 0" }}
+                    minW="0"
+                >
+                    <Input
+                        ref={inputRef}
+                        value={value}
+                        onChange={(e) => {
+                            setValue(e.target.value)
+                            if (dup) setDup(false)
+                            if (error) setError(null)
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault()
+                                // While the duplicate warning is up, Enter must
+                                // not silently confirm it — use the buttons.
+                                if (!dup) void submit(false)
+                            } else if (e.key === "Escape" && dup) {
+                                e.preventDefault()
+                                setDup(false)
+                            }
+                        }}
+                        placeholder={tr("tournament.pairs.quickPlaceholder")}
+                        aria-label={tr("tournament.pairs.quickLabel")}
+                        aria-invalid={hasError || undefined}
+                        maxLength={PAIR_NAME_MAX}
+                        enterKeyHint="done"
+                        autoComplete="off"
+                        // 16px minimum: iOS zooms the page on focus below it.
+                        fontSize="16px"
+                        bg="bg.panel"
+                        disabled={disabled}
+                        title={disabled ? disabledTitle : undefined}
+                    />
+                </InputGroup>
+                <Checkbox.Root
+                    checked={paid}
+                    onCheckedChange={(e) => {
+                        const v = e.checked === true
+                        setPaid(v)
+                        writeQuickPaid(storageKey, v)
+                    }}
+                    disabled={disabled}
+                    flexShrink={0}
+                    px="3"
+                    py="2"
+                    rounded="lg"
+                    borderWidth="1px"
+                    borderColor="border.subtle"
+                    bg="bg.subtle"
+                >
+                    <Checkbox.HiddenInput />
+                    <Checkbox.Control />
+                    <Checkbox.Label fontSize="sm" fontWeight="normal">
+                        {tr("tournament.pairs.quickPaid")}
+                    </Checkbox.Label>
+                </Checkbox.Root>
+                <Button
+                    size="sm"
+                    colorPalette="blue"
+                    onClick={() => void submit(false)}
+                    disabled={disabled || !name || dup}
+                    loading={busy}
+                    flexShrink={0}
+                    ml={{ base: "auto", md: "0" }}
+                    minH="40px"
+                >
+                    <FiPlus /> {tr("tournament.pairs.quickAdd")}
+                </Button>
+            </Box>
+            <Box aria-live="polite" role="status">
+                {dup && (
+                    <HStack gap="2" wrap="wrap" color="yellow.fg" fontSize="sm">
+                        <Text>{tr("tournament.pairs.quickDuplicate")}</Text>
+                        <Button size="xs" variant="outline" colorPalette="yellow" onClick={() => void submit(true)}>
+                            {tr("tournament.pairs.quickDuplicateAnyway")}
+                        </Button>
+                        <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={() => {
+                                setDup(false)
+                                inputRef.current?.focus({ preventScroll: true })
+                            }}
+                        >
+                            {tr("tournament.pairs.quickCancel")}
+                        </Button>
+                    </HStack>
+                )}
+                {error && (
+                    <Text fontSize="sm" color="red.fg">
+                        {error}
+                    </Text>
+                )}
+                {!error && !dup && disabled && fullMessage && (
+                    <Text fontSize="sm" color="fg.muted">
+                        {fullMessage}
+                    </Text>
+                )}
+            </Box>
+            {/* Screen-reader-only confirmation; the highlight is the visual one. */}
+            <Box
+                aria-live="polite"
+                role="status"
+                position="absolute"
+                w="1px"
+                h="1px"
+                overflow="hidden"
+                clipPath="inset(50%)"
+                whiteSpace="nowrap"
+            >
+                {announce}
+            </Box>
+        </VStack>
+    )
+}
 export type PairsSectionProps = {
     /** Tournament status drives the podium marks and every lock below. */
     status: string | null | undefined
     winnerName?: string | null
     secondName: string | null
     thirdName: string | null
+    /** Keys the remembered "Odmah plaćeno" choice per tournament. */
+    tournamentUuid?: string
     /** The whole roster — used for the counters only. */
     pairs: PairShort[]
+    /** Soft-deleted pairs ("Obrisani parovi"); the container passes [] unless
+     *  the viewer may restore them (organiser/admin, tournament not started). */
+    deletedPairs: PairShort[]
+    restoringPairId: number | null
+    onRestorePair: RestorePair
     /** Already bucketed + podium-ordered by the page's `pairsView` memo. */
     displayActivePairs: PairShort[]
     displayEliminatedPairs: PairShort[]
@@ -226,8 +521,8 @@ export type PairsSectionProps = {
     buyingLifePairId: number | null
     /** Pair ids whose paid flag is still sitting in the offline queue. */
     pendingPairPaid: Map<number, boolean>
-    /** Adds an unsaved (negative id) row and returns its temp id. */
-    onAddPair: () => number
+    /** Persists a brand-new named pair at once (quick-add field). */
+    onQuickAddPair: QuickAddPair
     onChangePairName: (id: number, name: string) => void
     onPairNameBlur: (p: PairShort) => void
     /** Drops an unsaved row outright; saved pairs go through the dialog. */
@@ -255,6 +550,9 @@ export default function PairsSection(props: PairsSectionProps) {
         secondName,
         thirdName,
         pairs,
+        deletedPairs,
+        restoringPairId,
+        onRestorePair,
         displayActivePairs,
         displayEliminatedPairs,
         paidCount,
@@ -271,7 +569,8 @@ export default function PairsSection(props: PairsSectionProps) {
         approvingPairId,
         buyingLifePairId,
         pendingPairPaid,
-        onAddPair,
+        onQuickAddPair,
+        tournamentUuid,
         onChangePairName,
         onPairNameBlur,
         onRemoveTempPair,
@@ -307,13 +606,19 @@ export default function PairsSection(props: PairsSectionProps) {
         () => [...displayActivePairs, ...displayEliminatedPairs].filter((p) => !!p.pendingApproval),
         [displayActivePairs, displayEliminatedPairs],
     )
-    // Unsaved (temp id) rows go FIRST, right under the "Dodaj par" button:
-    // appended at the bottom, a new pair opened its name field off-screen and
-    // the phone scrolled the whole roster to reach it.
+    // Pairs quick-added in this visit go FIRST (newest on top), so the row the
+    // organiser just typed is where the eye already is instead of at the
+    // bottom of a long roster. Unsaved (temp id) rows follow, then the rest in
+    // the page's own order.
+    const [recentIds, setRecentIds] = useState<number[]>([])
     const activeRows = useMemo(() => {
         const rows = displayActivePairs.filter((p) => !p.pendingApproval)
-        return [...rows.filter((p) => p.id < 0), ...rows.filter((p) => p.id >= 0)]
-    }, [displayActivePairs])
+        const recent = recentIds
+            .map((id) => rows.find((p) => p.id === id))
+            .filter((p): p is PairShort => !!p)
+        const rest = rows.filter((p) => !recentIds.includes(p.id))
+        return [...recent, ...rest.filter((p) => p.id < 0), ...rest.filter((p) => p.id >= 0)]
+    }, [displayActivePairs, recentIds])
     const eliminatedRows = useMemo(
         () => displayEliminatedPairs.filter((p) => !p.pendingApproval),
         [displayEliminatedPairs],
@@ -337,24 +642,11 @@ export default function PairsSection(props: PairsSectionProps) {
         if (selectedPair) lastSelectedNameRef.current = selectedPair.name
     }, [selectedPair])
 
-    // The temp id "Dodaj par" just selected. The row reaches `pairs` a beat
-    // AFTER the selection: pairs live in the react-query cache, whose
-    // observers are notified asynchronously. Without this the effect below
-    // saw "selected id not in pairs" in that gap and cleared the selection.
-    const pendingNewPairIdRef = useRef<number | null>(null)
-    // Off-screen input focused synchronously inside the "Dodaj par" tap:
-    // iOS raises the keyboard only for a focus() inside the user gesture,
-    // and the real name field does not exist yet. The panel then moves
-    // focus into its field (see PairDetailPanel) and the keyboard stays up.
-    const keyboardProxyRef = useRef<HTMLInputElement | null>(null)
-
     useEffect(() => {
         if (selectedPairId == null) return
         if (pairs.some((p) => p.id === selectedPairId)) {
-            if (pendingNewPairIdRef.current === selectedPairId) pendingNewPairIdRef.current = null
             return
         }
-        if (pendingNewPairIdRef.current === selectedPairId) return
         // Only a TEMP row can come back under a new id. A saved pair that
         // disappeared was deleted, and re-selecting a namesake (two pairs may
         // legitimately share a name) would be the wrong guess.
@@ -363,12 +655,120 @@ export default function PairsSection(props: PairsSectionProps) {
         setSelectedPairId(reborn ? reborn.id : null)
     }, [pairs, selectedPairId])
 
-    function handleAddPair() {
-        keyboardProxyRef.current?.focus({ preventScroll: true })
-        const tempId = onAddPair()
-        pendingNewPairIdRef.current = tempId
-        setSelectedPairId(tempId)
+    /* ── Quick add + search ─────────────────────────────────────────── */
+    const quickInputRef = useRef<HTMLInputElement | null>(null)
+    const [flashId, setFlashId] = useState<number | null>(null)
+    const flashTimerRef = useRef<number | undefined>(undefined)
+    const scrolledFlashRef = useRef<number | null>(null)
+    const [query, setQuery] = useState("")
+
+    const handleAdded = useCallback((id: number) => {
+        setRecentIds((r) => [id, ...r.filter((x) => x !== id)])
+        setFlashId(id)
+        scrolledFlashRef.current = null
+        window.clearTimeout(flashTimerRef.current)
+        flashTimerRef.current = window.setTimeout(() => setFlashId(null), FLASH_MS)
+    }, [])
+    useEffect(() => () => window.clearTimeout(flashTimerRef.current), [])
+
+    /* "Obrisani parovi": collapsed by default from 4 rows up, open below that.
+       The choice is lifted here because the list is mounted twice (lg+ pane
+       and the single column) and both copies must agree. */
+    const [deletedOpenChoice, setDeletedOpenChoice] = useState<boolean | null>(null)
+    const [restoreError, setRestoreError] = useState<string | null>(null)
+    // Collapsed by default (owner, 2026-10-03); opens only when the organiser asks.
+    const deletedOpen = deletedOpenChoice ?? false
+    const showDeleted = canEdit && !tournamentAlready && !tournamentLocked && deletedPairs.length > 0
+    async function handleRestore(p: PairShort) {
+        setRestoreError(null)
+        const r = await onRestorePair(p.id)
+        if (r.ok) handleAdded(r.pair.id)
+        else setRestoreError(r.error)
     }
+
+    // Scroll the new row into view once it exists in the DOM. The pairs prop
+    // can lag the add by a render (react-query notifies asynchronously), so
+    // this re-runs on `pairs` until the row is found. Both list copies are
+    // mounted; the hidden one has no offsetParent.
+    useEffect(() => {
+        if (flashId == null || scrolledFlashRef.current === flashId) return
+        const nodes = Array.from(document.querySelectorAll<HTMLElement>(`[data-pair-row="${flashId}"]`))
+        const el = nodes.find((n) => n.offsetParent !== null)
+        if (!el) return
+        scrolledFlashRef.current = flashId
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        el.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" })
+    }, [flashId, pairs, activeRows])
+
+    const showSearch = pairs.length >= SEARCH_MIN_PAIRS || query !== ""
+    const foldedQuery = fold(query)
+    // The selected pair always stays listed: filtering must never yank the row
+    // whose panel (or accordion) the organiser has open.
+    const matches = (p: PairShort) =>
+        !foldedQuery || p.id === selectedPairId || fold(p.name).includes(foldedQuery)
+    const visiblePending = pendingPairs.filter(matches)
+    const visibleActive = activeRows.filter(matches)
+    const visibleEliminated = eliminatedRows.filter(matches)
+    const noResults =
+        foldedQuery !== "" &&
+        visiblePending.length + visibleActive.length + visibleEliminated.length === 0
+
+    // The quick-add card is pinned under the navbar; the panes and the search
+    // pin BELOW it, so its measured height goes into a CSS variable on the root.
+    const rootRef = useRef<HTMLDivElement>(null)
+    const qaRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        const el = qaRef.current
+        const root = rootRef.current
+        const band = document.querySelector<HTMLElement>("[data-tournament-band]")
+        if (!root) return
+        const apply = () => {
+            root.style.setProperty("--pairs-qa-h", el ? `${Math.ceil(el.getBoundingClientRect().height)}px` : "0px")
+            root.style.setProperty("--pairs-band-h", band ? `${Math.ceil(band.getBoundingClientRect().height)}px` : "0px")
+        }
+        apply()
+        const ro = new ResizeObserver(apply)
+        if (el) ro.observe(el)
+        if (band) ro.observe(band)
+        window.addEventListener("resize", apply)
+        return () => {
+            ro.disconnect()
+            window.removeEventListener("resize", apply)
+        }
+    }, [canEdit, tournamentLocked])
+
+    const searchBox = showSearch ? (
+        <InputGroup
+            startElement={<FiSearch />}
+            endElement={
+                query ? (
+                    <IconButton
+                        aria-label={tr("tournament.pairs.searchClear")}
+                        size="2xs"
+                        variant="ghost"
+                        onClick={() => setQuery("")}
+                    >
+                        <FiX />
+                    </IconButton>
+                ) : undefined
+            }
+            w="full"
+            flexShrink={0}
+        >
+            <Input
+                size="sm"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === "Escape" && query) setQuery("")
+                }}
+                placeholder={tr("tournament.pairs.searchPlaceholder")}
+                aria-label={tr("tournament.pairs.searchPlaceholder")}
+                fontSize="16px"
+                bg="bg.panel"
+            />
+        </InputGroup>
+    ) : null
 
     /* Removing a pair — the one destructive action, shared by the panel's
        "Ukloni" and the inline reject on a pending row. An unsaved (temp id)
@@ -420,6 +820,7 @@ export default function PairsSection(props: PairsSectionProps) {
         const hasServerId = typeof p.id === "number" && p.id > 0
         const isPending = !!p.pendingApproval
         const selected = p.id === selectedPairId
+        const flashing = p.id === flashId
         const rank = podiumRankOf(p)
         const isPodium = rank != null
         const paid = !!p.paid
@@ -465,6 +866,7 @@ export default function PairsSection(props: PairsSectionProps) {
                 tabIndex={0}
                 aria-expanded={selected}
                 data-tour={tourAnchor ? "detail-first-pair" : undefined}
+                data-pair-row={p.id}
                 onClick={toggle}
                 onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -473,9 +875,10 @@ export default function PairsSection(props: PairsSectionProps) {
                     }
                 }}
                 cursor="pointer"
-                borderWidth={selected || isPodium || isPending ? "2px" : "1px"}
+                borderWidth={selected || flashing || isPodium || isPending ? "2px" : "1px"}
                 borderColor={
                     selected ? "blue.solid"
+                        : flashing ? "green.solid"
                         : rank === "first" ? "yellow.solid"
                         : rank === "second" ? "border.emphasized"
                         : rank === "third" ? "tan"
@@ -487,6 +890,7 @@ export default function PairsSection(props: PairsSectionProps) {
                 py="2.5"
                 bg={
                     selected ? "blue.subtle"
+                        : flashing ? "green.subtle"
                         : rank === "first" ? "yellow.subtle"
                         : rank === "third" ? "tan.subtle"
                         : isPending ? "yellow.subtle"
@@ -494,7 +898,8 @@ export default function PairsSection(props: PairsSectionProps) {
                         : "bg.panel"
                 }
                 opacity={!isPodium && eliminated ? 0.85 : 1}
-                transition="border-color 0.12s, background 0.12s"
+                transition={flashing ? "border-color 0.12s, background 0.12s" : "border-color 0.6s, background 0.6s"}
+                css={{ "@media (prefers-reduced-motion: reduce)": { transition: "none" } }}
             >
                 <HStack gap="2.5" align="center">
                     <PairAvatar name={p.name} eliminated={eliminated && !isPodium} />
@@ -672,7 +1077,27 @@ export default function PairsSection(props: PairsSectionProps) {
        (its panel is the right-hand pane). Both copies stay mounted and are
        toggled by `display`, exactly as before. */
     const renderList = (inline: boolean) =>
-        pairs.length === 0 ? (
+        pairs.length > 0 && noResults ? (
+            <Box
+                borderWidth="1px"
+                borderColor="border.subtle"
+                borderStyle="dashed"
+                rounded="xl"
+                bg="bg.panel"
+            >
+                <EmptyState
+                    compact
+                    icon={FiSearch}
+                    title={tr("tournament.pairs.searchNoResults")}
+                    description={tr("tournament.pairs.searchNoResultsDescription")}
+                    action={
+                        <Button size="xs" variant="outline" onClick={() => setQuery("")}>
+                            {tr("tournament.pairs.searchClearFilter")}
+                        </Button>
+                    }
+                />
+            </Box>
+        ) : pairs.length === 0 ? (
             <Box
                 borderWidth="1px"
                 borderColor="border.subtle"
@@ -698,28 +1123,28 @@ export default function PairsSection(props: PairsSectionProps) {
             </Box>
         ) : (
             <VStack align="stretch" gap="4">
-                {pendingPairs.length > 0 && (
+                {visiblePending.length > 0 && (
                     <Box>
-                        <GroupHeading label={tr("tournament.pairs.pendingHeading")} count={pendingPairs.length} />
+                        <GroupHeading label={tr("tournament.pairs.pendingHeading")} count={visiblePending.length} />
                         <VStack align="stretch" gap="2">
-                            {pendingPairs.map((p) => renderPairRow(p, !!p.isEliminated, p.id === tourAnchorId, inline))}
+                            {visiblePending.map((p) => renderPairRow(p, !!p.isEliminated, p.id === tourAnchorId, inline))}
                         </VStack>
                     </Box>
                 )}
 
                 {/* No heading here on purpose — see the active chip in the
                     header strip. The other two groups keep theirs. */}
-                {activeRows.length > 0 && (
+                {visibleActive.length > 0 && (
                     <VStack align="stretch" gap="2">
-                        {activeRows.map((p) => renderPairRow(p, !!p.isEliminated, p.id === tourAnchorId, inline))}
+                        {visibleActive.map((p) => renderPairRow(p, !!p.isEliminated, p.id === tourAnchorId, inline))}
                     </VStack>
                 )}
 
-                {eliminatedRows.length > 0 && (
+                {visibleEliminated.length > 0 && (
                     <Box>
-                        <GroupHeading label={tr("tournament.pairs.eliminatedHeading")} count={eliminatedRows.length} />
+                        <GroupHeading label={tr("tournament.pairs.eliminatedHeading")} count={visibleEliminated.length} />
                         <VStack align="stretch" gap="2">
-                            {eliminatedRows.map((p) => renderPairRow(p, true, p.id === tourAnchorId, inline))}
+                            {visibleEliminated.map((p) => renderPairRow(p, true, p.id === tourAnchorId, inline))}
                         </VStack>
                     </Box>
                 )}
@@ -728,210 +1153,236 @@ export default function PairsSection(props: PairsSectionProps) {
 
     /* ---------- The RIGHT pane ---------- */
     const detailPane = selectedPair ? renderDetailPanel(selectedPair) : (
-        <Box
+        // Roughly the height of a selected pair's panel: a small icon and two
+        // short lines, NOT the tall `EmptyState` block it used to be
+        // (2026-10-03, owner: "still bigger than the selected pair").
+        <HStack
             borderWidth="1px"
             borderColor="border.subtle"
             rounded="xl"
             bg="bg.panel"
-            minH={{ base: "auto", lg: "320px" }}
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
+            gap="3"
+            px={{ base: "3", md: "4" }}
+            py="3.5"
+            align="center"
+            // Same height as a selected pair's panel: ~106 CSS px (name row +
+            // action row + padding). An earlier 222px came from reading a 2x
+            // retina screenshot as 1x — the panel is half of that.
+            minH={{ base: "auto", lg: "106px" }}
         >
-            <EmptyState
-                compact
-                icon={FiUsers}
-                title={tr("tournament.pairs.detailEmptyTitle")}
-                description={tr("tournament.pairs.detailEmptyDescription")}
-            />
-        </Box>
+            <Box
+                flexShrink={0}
+                boxSize="40px"
+                rounded="full"
+                bg="brand.subtle"
+                color="brand.fg"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+            >
+                <FiUsers size={18} />
+            </Box>
+            <Box minW="0">
+                <Text fontWeight="semibold" fontSize="sm">{tr("tournament.pairs.detailEmptyTitle")}</Text>
+                <Text fontSize="xs" color="fg.muted">{tr("tournament.pairs.detailEmptyDescription")}</Text>
+            </Box>
+        </HStack>
     )
 
     const openRequests = pairRequests.filter((r) => r.status === "OPEN")
 
+    /* The three counters. They no longer sit in a strip above the quick-add
+       card: at lg+ they live in the right column under the detail panel, below
+       lg they sit between the quick-add card and the first row (the old phone
+       scroll row, relocated). Always the whole, unfiltered roster. */
+    const counterChips = (dense: boolean) => {
+        const iconSize = dense ? 12 : 13
+        const size = dense ? "xs" : "sm"
+        return (
+            <>
+                <CounterChip
+                    fill
+                    size={size}
+                    icon={<FiUsers size={iconSize} />}
+                    value={pairs.length}
+                    // "∞" when there's no cap — consistent with the count
+                    // shown on the tournament cards / list.
+                    label={
+                        capacity != null
+                            ? plural("tournament.pairs.capacityOf", pairs.length, { max: capacity })
+                            : plural("tournament.pairs.capacityUnlimited", pairs.length)
+                    }
+                    palette={overCapacity ? "yellow" : undefined}
+                />
+                {!tournamentAlready && (
+                    <CounterChip
+                        fill
+                        size={size}
+                        icon={<FiDollarSign size={iconSize} />}
+                        value={paidCount}
+                        label={plural("tournament.pairs.paidEntry", paidCount)}
+                        palette={paidCount === pairs.length && pairs.length > 0 ? "green" : undefined}
+                    />
+                )}
+                {/* The AKTIVNI group has no heading of its own — it is the
+                    default bucket — so its count lives here. ČEKAJU ODOBRENJE
+                    and ELIMINIRANI keep theirs. */}
+                <CounterChip
+                    fill
+                    size={size}
+                    icon={<FiCheck size={iconSize} />}
+                    value={activeRows.length}
+                    label={plural("tournament.pairs.activeCount", activeRows.length)}
+                />
+                {overCapacity && (
+                    <Badge variant="solid" colorPalette="yellow" size="sm" flexShrink={0}>
+                        {tr("tournament.pairs.overCapacity", { n: pairs.length - (capacity ?? 0) })}
+                    </Badge>
+                )}
+            </>
+        )
+    }
+    // Both rows span the whole width available and centre their chips, which
+    // share it equally (2026-10-03, owner). Below lg the row wraps instead of
+    // scrolling sideways, so nothing is hidden off-screen.
+    // The organiser's sync pill ("Spremam…", "N promjena čeka", offline) is
+    // part of THIS screen: it sits right under the counters, centred, instead
+    // of up beside the tournament's name (2026-10-03, owner). Hidden while
+    // idle, like before.
+    const syncPill = canEdit ? (
+        <Box w="full" display="flex" justifyContent="center">
+            <SyncIndicator tournamentUuid={tournamentUuid} hideWhenIdle />
+        </Box>
+    ) : null
+    const chipsWrapRow = (
+        <VStack align="stretch" gap="2">
+            <HStack gap="2" wrap="wrap" w="full" justify="center" minW="0">
+                {counterChips(false)}
+            </HStack>
+            {syncPill}
+        </VStack>
+    )
+    const chipsScrollRow = (
+        <VStack align="stretch" gap="1.5">
+            <HStack gap="1.5" wrap="wrap" w="full" justify="center" minW="0">
+                {counterChips(true)}
+            </HStack>
+            {syncPill}
+        </VStack>
+    )
+
+    /* The list column: search (from SEARCH_MIN_PAIRS pairs on) right above the
+       list it filters, then the list, then — directly after it — "Obrisani
+       parovi". Both mounted copies get the same pieces. */
+    const deletedBlock = showDeleted ? (
+        <DeletedPairsSection
+            pairs={deletedPairs}
+            open={deletedOpen}
+            onToggle={() => setDeletedOpenChoice(!deletedOpen)}
+            restoringPairId={restoringPairId}
+            error={restoreError}
+            onRestore={(p) => void handleRestore(p)}
+        />
+    ) : null
+    const renderListColumn = (inline: boolean) => (
+        <VStack align="stretch" gap="4" pb="4">
+            {/* The search stays pinned while the pairs scroll: at the top of the
+                scrolling pane on lg+, under the pinned quick-add card on phones. */}
+            {searchBox && (
+                <Box
+                    position="sticky"
+                    top={inline ? PANE_TOP_BELOW_QA : "0"}
+                    zIndex={4}
+                    bg="bg.canvas"
+                    pb="2"
+                    pt={inline ? "0" : "1"}
+                >
+                    {searchBox}
+                </Box>
+            )}
+            {renderList(inline)}
+            {deletedBlock}
+        </VStack>
+    )
+
     return (
-        <VStack align="stretch" gap="4">
-            <input
-                ref={keyboardProxyRef}
-                aria-hidden="true"
-                tabIndex={-1}
-                readOnly
-                style={{
-                    position: "fixed",
-                    top: "40%",
-                    left: 0,
-                    width: 1,
-                    height: 1,
-                    opacity: 0,
-                    fontSize: 16,
-                    pointerEvents: "none",
-                }}
-            />
-            {/* Header strip: counter chips on the left, roster actions on the
-                right, no card. There is no "Spremi promjene" any more — the
-                name input auto-saves on blur (see the page's onPairNameBlur)
-                and kotizacija goes through the offline queue, so a manual save
-                button had nothing left to do. */}
-            {/* md+: unchanged from before — chips wrap among themselves, the
-                buttons keep their own line-end. Gated to md+ only because at
-                390px this produced a ragged three-line block with the
-                register button wedged between the second and third chip; the
-                base/sm replacement below solves that instead of reflowing
-                this one. */}
-            <HStack justify="space-between" align="center" gap="2" rowGap="2" display={{ base: "none", md: "flex" }}>
-                {/* The chips take the slack and wrap among themselves; the
-                    buttons keep their own line-end and never get pushed onto a
-                    row of their own at 390px. */}
-                <HStack gap="2" wrap="wrap" minW="0" flex="1">
-                    <CounterChip
-                        icon={<FiUsers size={13} />}
-                        value={pairs.length}
-                        // "∞" when there's no cap — consistent with the count
-                        // shown on the tournament cards / list.
-                        label={
-                            capacity != null
-                                ? plural("tournament.pairs.capacityOf", pairs.length, { max: capacity })
-                                : plural("tournament.pairs.capacityUnlimited", pairs.length)
-                        }
-                        palette={overCapacity ? "yellow" : undefined}
-                    />
-                    {!tournamentAlready && (
-                        <CounterChip
-                            icon={<FiDollarSign size={13} />}
-                            value={paidCount}
-                            label={plural("tournament.pairs.paidEntry", paidCount)}
-                            palette={paidCount === pairs.length && pairs.length > 0 ? "green" : undefined}
-                        />
-                    )}
-                    {/* The AKTIVNI group no longer carries a heading of its own —
-                        it is the default bucket and "AKTIVNI · 3 para" directly
-                        above three obviously-active rows said nothing the rows
-                        did not. The count it did carry lives here instead, so
-                        it is still one glance away. ČEKAJU ODOBRENJE and
-                        ELIMINIRANI keep their headings: those groups are not
-                        self-evident and would be unexplained without them. */}
-                    <CounterChip
-                        icon={<FiCheck size={13} />}
-                        value={activeRows.length}
-                        label={plural("tournament.pairs.activeCount", activeRows.length)}
-                    />
-                    {overCapacity && (
-                        <Badge variant="solid" colorPalette="yellow" size="sm">
-                            {tr("tournament.pairs.overCapacity", { n: pairs.length - (capacity ?? 0) })}
-                        </Badge>
-                    )}
-                </HStack>
-                <HStack gap="2" wrap="wrap" justify="flex-end" flexShrink={0}>
-                    {/* Self-registration is offered to everyone. Anonymous users
-                        get bounced to /prijava with state.from for return-redirect. */}
-                    {showSelfRegisterButton && (
+        <VStack ref={rootRef} align="stretch" gap="4">
+            {/* Top strip: only what is left of it — the self-registration
+                button for non-organisers. For the organiser there is nothing
+                here, so the quick-add card is the first thing on the tab.
+                md+ keeps the compact right-aligned button, below md it is a
+                full-width primary action. */}
+            {showSelfRegisterButton && (
+                <>
+                    <HStack justify="flex-end" display={{ base: "none", md: "flex" }}>
                         <Button size="xs" variant="solid" colorPalette="blue" onClick={onSelfRegisterClick}>
                             <FiPlus />{" "}
                             {userAlreadyRegistered
                                 ? tr("tournament.pairs.registerAnother")
                                 : tr("tournament.pairs.registerPair")}
                         </Button>
-                    )}
-                    {/* Organizer / admin: full pair management */}
-                    {!tournamentLocked && canEdit && (
-                        <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={handleAddPair}
-                            disabled={tournamentAlready || atCapacity}
-                            title={
-                                atCapacity
-                                    ? tr("tournament.pairs.atCapacityTitle", { max: capacity ?? 0 })
-                                    : tr("tournament.pairs.addPairTitle")
-                            }
-                        >
-                            <FiPlus /> {tr("tournament.pairs.addPair")}
-                        </Button>
-                    )}
-                </HStack>
-            </HStack>
-
-            {/* base/sm: the chips get their own single scrollable row instead
-                of wrapping into a ragged column, and "+ Prijavi par" (plus the
-                organiser's own buttons) drops to a full-width row underneath
-                so it reads as the primary action instead of floating between
-                chips. Two separate blocks rather than one responsive layout
-                because the desktop wrap arrangement and this scroll-row one
-                are different enough (nowrap vs wrap, chip size, button width)
-                that forcing them through shared props would obscure both. */}
-            <VStack align="stretch" gap="2" display={{ base: "flex", md: "none" }}>
-                <HStack
-                    gap="1.5"
-                    overflowX="auto"
-                    overflowY="hidden"
-                    overscrollBehavior="contain"
-                    pb="0.5"
-                    css={{ scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}
-                >
-                    <CounterChip
-                        size="xs"
-                        icon={<FiUsers size={12} />}
-                        value={pairs.length}
-                        label={
-                            capacity != null
-                                ? plural("tournament.pairs.capacityOf", pairs.length, { max: capacity })
-                                : plural("tournament.pairs.capacityUnlimited", pairs.length)
-                        }
-                        palette={overCapacity ? "yellow" : undefined}
-                    />
-                    {!tournamentAlready && (
-                        <CounterChip
-                            size="xs"
-                            icon={<FiDollarSign size={12} />}
-                            value={paidCount}
-                            label={plural("tournament.pairs.paidEntry", paidCount)}
-                            palette={paidCount === pairs.length && pairs.length > 0 ? "green" : undefined}
-                        />
-                    )}
-                    <CounterChip
-                        size="xs"
-                        icon={<FiCheck size={12} />}
-                        value={activeRows.length}
-                        label={plural("tournament.pairs.activeCount", activeRows.length)}
-                    />
-                    {overCapacity && (
-                        <Badge variant="solid" colorPalette="yellow" size="sm" flexShrink={0}>
-                            {tr("tournament.pairs.overCapacity", { n: pairs.length - (capacity ?? 0) })}
-                        </Badge>
-                    )}
-                </HStack>
-                {/* "+ Prijavi par" is the primary action on this tab for
-                    everyone but the organiser, so it gets a full-width row to
-                    itself. `showSelfRegisterButton` already excludes the
-                    organiser view (see PairsSectionContainer), so this and
-                    the organiser's "Dodaj par" below are mutually exclusive
-                    today; each stays a plain `w="full"` button rather than a
-                    half-width pair for a state that cannot occur. */}
-                {showSelfRegisterButton && (
-                    <Button size="sm" variant="solid" colorPalette="blue" w="full" onClick={onSelfRegisterClick}>
+                    </HStack>
+                    <Button
+                        size="sm"
+                        variant="solid"
+                        colorPalette="blue"
+                        w="full"
+                        display={{ base: "inline-flex", md: "none" }}
+                        onClick={onSelfRegisterClick}
+                    >
                         <FiPlus />{" "}
                         {userAlreadyRegistered
                             ? tr("tournament.pairs.registerAnother")
                             : tr("tournament.pairs.registerPair")}
                     </Button>
-                )}
-                {!tournamentLocked && canEdit && (
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        w="full"
-                        onClick={handleAddPair}
-                        disabled={tournamentAlready || atCapacity}
-                        title={
-                            atCapacity
-                                ? tr("tournament.pairs.atCapacityTitle", { max: capacity ?? 0 })
-                                : tr("tournament.pairs.addPairTitle")
-                        }
-                    >
-                        <FiPlus /> {tr("tournament.pairs.addPair")}
-                    </Button>
-                )}
-            </VStack>
+                </>
+            )}
+
+            {/* Quick add: organiser only, hidden once FINISHED (same gate as the
+                "Dodaj par" buttons above). Locked-while-running and full
+                rosters keep it visible but disabled, with the buttons' titles. */}
+            {!tournamentLocked && canEdit && (
+                <Box
+                    ref={qaRef}
+                    position="sticky"
+                    top={QA_TOP}
+                    zIndex={6}
+                    bg="bg.canvas"
+                    pb="3"
+                    pt={{ base: "2", lg: "0" }}
+                    _before={{
+                        display: { base: "none", lg: "block" },
+                        content: '""',
+                        position: "absolute",
+                        left: "0",
+                        right: "0",
+                        top: "-24px",
+                        height: "24px",
+                        bg: "bg.canvas",
+                    }}
+                >
+                <QuickAddBar
+                    inputRef={quickInputRef}
+                    storageKey={`bela:pairs:quickPaid:${tournamentUuid ?? ""}`}
+                    existingNames={pairs.map((p) => p.name)}
+                    disabled={tournamentAlready || atCapacity}
+                    disabledTitle={
+                        atCapacity
+                            ? tr("tournament.pairs.atCapacityTitle", { max: capacity ?? 0 })
+                            : tr("tournament.pairs.addPairTitle")
+                    }
+                    fullMessage={atCapacity ? tr("tournament.pairs.quickFull") : null}
+                    onQuickAddPair={onQuickAddPair}
+                    onAdded={handleAdded}
+                />
+                </Box>
+            )}
+
+            {/* Below lg (and at lg+ only while there is no split to put them in):
+                the counter chips between the quick-add card and the first row. */}
+            <Box display={{ base: "block", lg: pairs.length === 0 ? "block" : "none" }}>
+                {chipsScrollRow}
+            </Box>
 
             {/* Open pair-finding requests — visible only before the tournament
                 starts and only if at least one is OPEN. Collapsible so the
@@ -1019,7 +1470,12 @@ export default function PairsSection(props: PairsSectionProps) {
             {/* With no pairs at all there is nothing to select, so the split
                 collapses to the single "Još nema parova" state rather than
                 pairing it with a second, redundant "Odaberi par" box. */}
-            {pairs.length === 0 && renderList(false)}
+            {pairs.length === 0 && (
+                <VStack align="stretch" gap="4">
+                    {renderList(false)}
+                    {deletedBlock}
+                </VStack>
+            )}
 
             {/* lg+: list beside panel, each pinned under the navbar so a long
                 roster scrolls without dragging the panel off screen. */}
@@ -1032,25 +1488,30 @@ export default function PairsSection(props: PairsSectionProps) {
             >
                 <Box
                     position="sticky"
-                    top={PANE_TOP}
+                    top={PANE_TOP_BELOW_QA}
                     maxH={PANE_MAX_H}
                     overflowY="auto"
                     overscrollBehavior="contain"
                     pr="1"
                     css={{ scrollbarGutter: "stable" }}
                 >
-                    {renderList(false)}
+                    {renderListColumn(false)}
                 </Box>
                 <Box
                     position="sticky"
-                    top={PANE_TOP}
+                    top={PANE_TOP_BELOW_QA}
                     maxH={PANE_MAX_H}
                     overflowY="auto"
                     overscrollBehavior="contain"
                     pr="1"
                     css={{ scrollbarGutter: "stable" }}
                 >
-                    {detailPane}
+                    {/* The counters sit under the panel (or under the "Odaberi
+                        par" empty state), left-aligned and wrapping. */}
+                    <VStack align="stretch" gap="3">
+                        {detailPane}
+                        {chipsWrapRow}
+                    </VStack>
                 </Box>
             </Box>
 
@@ -1060,9 +1521,103 @@ export default function PairsSection(props: PairsSectionProps) {
                 className={pairs.length === 0 ? undefined : "fold-master-detail-single"}
                 display={pairs.length === 0 ? "none" : { base: "block", lg: "none" }}
             >
-                {renderList(true)}
+                {renderListColumn(true)}
             </Box>
         </VStack>
+    )
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   "Obrisani parovi" — the soft-deleted pairs, right after the roster.
+
+   A pair removed in DRAFT is only hidden server-side; this is where the
+   organiser gets it back with "Vrati" (until the tournament starts — the
+   container stops rendering the section then). Rows are deliberately quiet:
+   avatar, muted name, when it was deleted, one button.
+   ────────────────────────────────────────────────────────────────────── */
+function DeletedPairsSection({
+    pairs,
+    open,
+    onToggle,
+    restoringPairId,
+    error,
+    onRestore,
+}: {
+    pairs: PairShort[]
+    open: boolean
+    onToggle: () => void
+    restoringPairId: number | null
+    error: string | null
+    onRestore: (p: PairShort) => void
+}) {
+    const { t: tr } = useTranslation()
+    return (
+        <Box borderWidth="1px" borderColor="border.subtle" rounded="xl" bg="bg.panel" data-deleted-pairs>
+            <HStack
+                as="button"
+                w="full"
+                px="3"
+                py="2.5"
+                gap="2"
+                justify="space-between"
+                aria-expanded={open}
+                onClick={onToggle}
+                cursor="pointer"
+            >
+                <HStack gap="2" minW="0">
+                    <Box color="fg.muted" display="flex" aria-hidden>
+                        {open ? <FiChevronDown /> : <FiChevronRight />}
+                    </Box>
+                    <Text fontSize="sm" fontWeight="semibold" color="fg.muted" truncate>
+                        {tr("tournament.pairs.deleted.title")} ({pairs.length})
+                    </Text>
+                </HStack>
+            </HStack>
+            {open && (
+                <VStack align="stretch" gap="0" borderTopWidth="1px" borderColor="border.subtle">
+                    {error && (
+                        <Box px="3" py="2" bg="red.subtle" role="alert">
+                            <Text fontSize="sm" color="red.fg">{error}</Text>
+                        </Box>
+                    )}
+                    {pairs.map((p) => (
+                        <HStack
+                            key={p.id}
+                            px="3"
+                            py="2"
+                            gap="3"
+                            borderBottomWidth="1px"
+                            borderColor="border.subtle"
+                            _last={{ borderBottomWidth: "0" }}
+                        >
+                            <PairAvatar name={p.name} eliminated />
+                            <Box flex="1" minW="0">
+                                <Text fontSize="sm" color="fg.muted" fontWeight="medium" truncate>
+                                    {p.name}
+                                </Text>
+                                {p.deletedAt && (
+                                    <Text fontSize="xs" color="fg.muted">
+                                        {tr("tournament.pairs.deleted.deletedAt", {
+                                            when: formatDateTime(p.deletedAt),
+                                        })}
+                                    </Text>
+                                )}
+                            </Box>
+                            <Button
+                                size="xs"
+                                variant="outline"
+                                aria-label={tr("tournament.pairs.deleted.restoreAria", { name: p.name })}
+                                loading={restoringPairId === p.id}
+                                disabled={restoringPairId != null}
+                                onClick={() => onRestore(p)}
+                            >
+                                <FiRotateCcw /> {tr("tournament.pairs.deleted.restore")}
+                            </Button>
+                        </HStack>
+                    ))}
+                </VStack>
+            )}
+        </Box>
     )
 }
 

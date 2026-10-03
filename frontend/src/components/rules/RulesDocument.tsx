@@ -1,11 +1,13 @@
-import { useEffect, type ReactNode } from "react"
-import { Box, Button, Flex, Grid, Heading, HStack, SimpleGrid, Text, VStack } from "@chakra-ui/react"
-import { FiAlertTriangle, FiAward, FiClock, FiFlag, FiLayers, FiPrinter, FiShuffle, FiUsers } from "react-icons/fi"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { Box, Button, Flex, Grid, Heading, HStack, SimpleGrid, Spinner, Text, VStack } from "@chakra-ui/react"
+import { FiAlertTriangle, FiAward, FiClock, FiDownload, FiEdit2, FiFlag, FiLayers, FiShuffle, FiUsers } from "react-icons/fi"
 import type { Suit } from "@bela/engine"
 import "../../pages/rulesPrint.css"
 import { usePlural, useTranslation } from "../../i18n"
 import { brand, siteName } from "../../site"
 import DeckSuitIcon from "../../game/components/DeckSuitIcon"
+import { t as tStatic } from "../../i18n"
+import { showError } from "../../toaster"
 import SectionCard from "../SectionCard"
 import { CONTENT_STICKY_TOP } from "../navChrome"
 import { siteQrImageUrl, tournamentQrImageUrl } from "../tournamentQr"
@@ -32,7 +34,8 @@ import {
    The suits block and the declaration value table are fixed reference
    content; the numbered lists around them and the foul table are the
    editable part. The print mechanism (`body.print-rules`, rulesPrint.css) is
-   the one /pravila always had; with a `tournament` the letterhead carries the
+   the one /pravila always had (Ctrl+P); the button downloads a PDF built from
+   it by the lazy `rulesPdf.ts` (html2canvas-pro + jsPDF); with a `tournament` the letterhead carries the
    tournament name (it repeats on every printed page) and the title block
    names it prominently.
    ────────────────────────────────────────────────────────────────────── */
@@ -125,25 +128,48 @@ export type RulesDocumentProps = {
     /** The tournament's five game parameters; defaults to the global rulebook's. */
     game?: GameParams
     /** Present on a tournament's tab: names the tournament in title, letterhead and print. */
-    tournament?: { name: string; subtitle?: string; qrRef?: string }
+    tournament?: { name: string; subtitle?: string; location?: string; qrRef?: string }
     /** Pin the glance row under the navbar. Off inside the tournament page, whose own
      *  mobile band is already pinned there. */
     sticky?: boolean
+    /** Organiser/admin only: jump to editing this tournament (rules live in its edit form). */
+    onEdit?: () => void
 }
 
-export default function RulesDocument({ rules = null, game = GLOBAL_GAME_PARAMS, tournament, sticky = true }: RulesDocumentProps) {
+export default function RulesDocument({ rules = null, game = GLOBAL_GAME_PARAMS, tournament, sticky = true, onEdit }: RulesDocumentProps) {
     const { t } = useTranslation()
     const plural = usePlural()
     const resolved = resolveRules(rules, t, game, { plural })
 
-    // Printing (2026-10-03, owner): "Ispis" opens the browser's print dialog,
-    // where "Spremi kao PDF" is the PDF. `rulesPrint.css` lays the page out as
-    // a compact two-column A4 sheet; the body class scopes those rules to
-    // this document only, so printing any other page is untouched.
+    // Ctrl+P on desktop still prints (2026-10-03): `rulesPrint.css` lays the
+    // page out as a compact two-column A4 sheet; the body class scopes those
+    // rules to this document only, so printing any other page is untouched.
+    // The BUTTON no longer opens the print dialog (owner: mobile print engines
+    // broke the layout): it downloads a PDF built from this same markup and
+    // stylesheet by `rulesPdf.ts`, a lazy chunk loaded on the first click.
     useEffect(() => {
         document.body.classList.add("print-rules")
         return () => document.body.classList.remove("print-rules")
     }, [])
+
+    const rootRef = useRef<HTMLDivElement>(null)
+    const [busy, setBusy] = useState(false)
+    const qrRef = tournament?.qrRef
+    const downloadPdf = useCallback(async () => {
+        const root = rootRef.current
+        if (!root || busy) return
+        setBusy(true)
+        try {
+            const { renderRulesPdf, savePdf } = await import("./rulesPdf")
+            const blob = await renderRulesPdf(root)
+            const slug = tournament ? (qrRef ?? "turnir").replace(/[^a-zA-Z0-9._-]/g, "") || "turnir" : ""
+            await savePdf(blob, tournament ? `pravila-${slug}.pdf` : "pravila-bele.pdf")
+        } catch {
+            showError(tStatic("legal.rules.downloadFailed"))
+        } finally {
+            setBusy(false)
+        }
+    }, [busy, tournament, qrRef])
 
     const glanceKeys = GLANCE.filter((key) => key !== "bela" || !game.declarationsEnabled)
     const glanceValue: Record<(typeof GLANCE)[number], string> = {
@@ -156,11 +182,24 @@ export default function RulesDocument({ rules = null, game = GLOBAL_GAME_PARAMS,
         direction: t(game.dealDirection === "left" ? "legal.rules.glance.directionValue" : "legal.rules.glance.directionValueRight"),
     }
 
-    const declRows = game.declarationsEnabled ? DECLARATIONS : game.allowBela ? DECLARATIONS.filter((d) => d.key === "bela") : []
+    // No declarations: the value table is hidden (no bela row either); the one fixed
+    // rule in the group says it, or that only bela counts.
+    const declRows = game.declarationsEnabled ? DECLARATIONS : []
     const { sections, fouls } = resolved
 
     return (
-        <VStack className="rules-print" align="stretch" gap="5" maxW="860px" mx="auto" py={{ base: "2", md: "4" }} pb="10">
+        <VStack
+            ref={rootRef}
+            className="rules-print"
+            align="stretch"
+            gap="5"
+            maxW="860px"
+            mx="auto"
+            // Embedded in a tournament tab the strip must start at the sidebar
+            // card's top edge (md+), so no top padding there; /pravila keeps it.
+            pt={{ base: "2", md: tournament ? "0" : "4" }}
+            pb="10"
+        >
             {/* Branded letterhead — print only, fixed so it is on EVERY printed
                 page (2026-10-03, owner). Left: logo and site name. Centre:
                 the title of the document, fixed in the middle of the header.
@@ -186,7 +225,11 @@ export default function RulesDocument({ rules = null, game = GLOBAL_GAME_PARAMS,
                     />
                 </Flex>
             </Box>
-            <Box className="rules-titleblock">
+            {/* On a tournament's own tab nothing sits above the settings on screen
+                (owner, 2026-10-03: the sidebar already names the tournament and the
+                tab is called "Pravila"); the block is `print-only` there, so the
+                printed sheet still carries the tournament's name and date. */}
+            <Box className={tournament ? "rules-titleblock print-only" : "rules-titleblock"}>
                 <Heading className="rules-h1" size="xl" mb="2">{tournament ? t("legal.rules.tournament.title") : t("legal.rules.title")}</Heading>
                 {tournament && (
                     // In flow (not in the fixed letterhead) so the name can be big and wrap.
@@ -197,6 +240,14 @@ export default function RulesDocument({ rules = null, game = GLOBAL_GAME_PARAMS,
                         </Text>
                         {tournament.subtitle && (
                             <Text fontSize="sm" color="fg.muted" mt="0.5">{tournament.subtitle}</Text>
+                        )}
+                        {/* The place on a line of its own, size-limited so a long
+                            address wraps (max two lines) instead of running under
+                            the QR code (2026-10-03, owner). */}
+                        {tournament.location && (
+                            <Text className="rules-location" fontSize="sm" color="fg.muted" maxW="62%" lineClamp={2}>
+                                {tournament.location}
+                            </Text>
                         )}
                     </Box>
                 )}
@@ -217,8 +268,12 @@ export default function RulesDocument({ rules = null, game = GLOBAL_GAME_PARAMS,
                 top={sticky ? CONTENT_STICKY_TOP : undefined}
                 zIndex={5}
                 bg={sticky ? "bg.canvas" : "transparent"}
-                py="2"
+                pt={{ base: "2", md: tournament ? "0" : "2" }}
+                pb="2"
                 gap="2"
+                // Phone: the download button is one more cell of the tiles grid
+                // (below); md+: it sits beside the grid, stretched to its height.
+                direction={{ base: "column", md: "row" }}
                 align="stretch"
                 // `CONTENT_STICKY_TOP` leaves the 24px of container padding between
                 // the navbar and this row, and cards scrolled up into that strip
@@ -234,7 +289,7 @@ export default function RulesDocument({ rules = null, game = GLOBAL_GAME_PARAMS,
                     bg: "bg.canvas",
                 } : undefined}
             >
-                <SimpleGrid className="rules-glance" data-n={glanceKeys.length} columns={{ base: 2, md: glanceKeys.length >= 6 ? 3 : 4, xl: glanceKeys.length }} gap="2" flex="1" minW="0">
+                <SimpleGrid className="rules-glance" data-n={glanceKeys.length} columns={{ base: 2, md: Math.ceil(glanceKeys.length / 2) }} gap="2" flex="1" minW="0">
                     {glanceKeys.map((key) => (
                         <Box key={key} borderWidth="1px" borderColor="border.subtle" bg="bg.panel" rounded="lg" px="3" py="1.5" minW="0">
                             <Text fontSize="2xs" color="fg.muted" textTransform="uppercase" letterSpacing="0.04em" truncate>
@@ -245,10 +300,53 @@ export default function RulesDocument({ rules = null, game = GLOBAL_GAME_PARAMS,
                             </Text>
                         </Box>
                     ))}
+                    {/* Phone twin of the button: the next cell after the last tile
+                        (full row when the tile count is even). Not a tile — no-print,
+                        hidden from md up, and outside `data-n`. */}
+                    <Button
+                        className="no-print"
+                        display={{ base: "flex", md: "none" }}
+                        gridColumn={{ base: glanceKeys.length % 2 === 0 ? "1 / -1" : "auto", md: "auto" }}
+                        h="auto"
+                        minH="44px"
+                        rounded="lg"
+                        variant="outline"
+                        borderColor="border.subtle"
+                        bg="bg.panel"
+                        disabled={busy}
+                        onClick={downloadPdf}
+                    >
+                        {busy ? <Spinner size="sm" /> : <><FiDownload /> {t("legal.rules.download")}</>}
+                    </Button>
+                    {onEdit && (
+                        <Button
+                            className="no-print"
+                            display={{ base: "flex", md: "none" }}
+                            gridColumn={{ base: (glanceKeys.length + 1) % 2 === 0 ? "1 / -1" : "auto", md: "auto" }}
+                            h="auto"
+                            minH="44px"
+                            rounded="lg"
+                            variant="outline"
+                            borderColor="border.subtle"
+                            bg="bg.panel"
+                            onClick={onEdit}
+                        >
+                            <FiEdit2 /> {t("legal.rules.edit")}
+                        </Button>
+                    )}
                 </SimpleGrid>
-                <Button className="no-print" alignSelf="stretch" h="auto" minH="44px" variant="outline" onClick={() => window.print()}>
-                    <FiPrinter /> <Box as="span" display={{ base: "none", md: "inline" }}>{t("legal.rules.print")}</Box>
-                </Button>
+                {/* Desktop: the two actions to the right of the tiles, stacked so
+                    they span both tile rows. "Uredi" only for the organiser/admin. */}
+                <Flex className="no-print" display={{ base: "none", md: "flex" }} direction="column" gap="2" alignSelf="stretch">
+                    {onEdit && (
+                        <Button flex="1" minH="44px" variant="outline" onClick={onEdit}>
+                            <FiEdit2 /> {t("legal.rules.edit")}
+                        </Button>
+                    )}
+                    <Button flex="1" minH="44px" variant="outline" disabled={busy} onClick={downloadPdf}>
+                        {busy ? <Spinner size="sm" /> : <><FiDownload /> {t("legal.rules.download")}</>}
+                    </Button>
+                </Flex>
             </Flex>
 
             {/* Print is ALWAYS exactly two A4 sheets with a fixed split (2026-10-03,
@@ -311,11 +409,6 @@ export default function RulesDocument({ rules = null, game = GLOBAL_GAME_PARAMS,
                 <Box className="rules-item" order={4}>
                 <SectionCard icon={<FiAward />} title={t("legal.rules.decl.heading")}>
                     <VStack align="stretch" gap="3">
-                        {!game.declarationsEnabled && (
-                            <Text fontSize="sm" fontWeight="semibold" color="fg">
-                                {t(game.allowBela ? "legal.rules.tournament.declOff.bela" : "legal.rules.tournament.declOff.none")}
-                            </Text>
-                        )}
                         {(declRows.length > 0 || sections.decl.length > 0) && (
                         <Grid
                             className="rules-decl-grid"
@@ -384,7 +477,7 @@ export default function RulesDocument({ rules = null, game = GLOBAL_GAME_PARAMS,
 
             {/* Last line of the page, and of the printed sheet (pinned to the
                 bottom edge in print): paying the entry fee accepts these rules. */}
-            <Text className="rules-notice" textAlign="center" fontSize="xs" color="fg.muted" pt="2">
+            <Text className="rules-notice" textAlign="center" fontSize="sm" fontWeight="bold" color="fg" pt="3">
                 {t("legal.rules.printNotice")}
             </Text>
         </VStack>

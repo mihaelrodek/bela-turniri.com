@@ -143,10 +143,17 @@ export function useTournamentEditForm(
      */
     const editStartInPast = useMemo(() => {
         if (!editForm?.startDate || !editForm?.startTime) return false
+        // Only a start the organiser MOVED can be "in the past" (2026-10-03,
+        // reported): the date a tournament was created with is not re-judged
+        // when they save something unrelated, such as its rules.
+        if (t?.startAt) {
+            const saved = tournamentFormFromDto(t)
+            if (saved.startDate === editForm.startDate && saved.startTime === editForm.startTime) return false
+        }
         const iso = toLocalOffsetIso(editForm.startDate, editForm.startTime)
         if (!iso) return false
         return new Date(iso).getTime() < Date.now()
-    }, [editForm?.startDate, editForm?.startTime])
+    }, [editForm?.startDate, editForm?.startTime, t])
 
     function enterDetailsEdit() {
         if (!t) return

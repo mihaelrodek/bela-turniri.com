@@ -749,6 +749,17 @@ export default defineConfig({
                     if (id.includes("node_modules/@capacitor-community/")) {
                         return undefined
                     }
+                    // PDF download of the rulebook (2026-10-03): `jspdf`,
+                    // `html2canvas-pro` and their helpers are reached only from
+                    // `components/rules/rulesPdf.ts`, itself a dynamic import
+                    // behind the "Preuzmi PDF" click. Forcing them into "vendor"
+                    // would ship ~600 kB to every visitor and into the shell
+                    // precache; left to Rollup they form lazy chunks of their own.
+                    if (
+                        /node_modules\/(jspdf|html2canvas-pro|html2canvas|text-segmentation|utrie|css-line-break|base64-arraybuffer|canvg|dompurify|fflate|fast-png|iobuffer|core-js|@zip\.js|rgbcolor|stackblur-canvas|svg-pathdata|raf|pako)\//.test(id)
+                    ) {
+                        return undefined
+                    }
                     return "vendor"
                 },
             },

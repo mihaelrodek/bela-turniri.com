@@ -46,6 +46,7 @@ import BracketSection from "./tournament/sections/BracketSection"
 import DetailsSection from "./tournament/sections/DetailsSection"
 import PairsSectionContainer from "./tournament/sections/PairsSectionContainer"
 import RulesSection from "./tournament/sections/RulesSection"
+import RulesEditPanel from "./tournament/sections/RulesEditPanel"
 import type { PairShort } from "../types/pairs"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -121,6 +122,7 @@ export default function TournamentDetailsPage() {
         rounds, setRounds,
         pairRequests,
         blokLinks, setBlokLinks,
+        deletedPairs, refetchDeletedPairs,
         collapsedRounds, setCollapsedRounds,
         allowRepeats, setAllowRepeats,
         loading, error,
@@ -138,7 +140,7 @@ export default function TournamentDetailsPage() {
     const editor = useTournamentEditForm(uuid, t, setT)
     const pairsEd = useTournamentPairsEditor({
         uuid, pairs, setPairs, dirtyPairIdsRef, pendingPaidRef, cancelInFlight,
-        requireOnlineFor, enqueueOp,
+        requireOnlineFor, enqueueOp, refetchDeletedPairs,
     })
     const roundsCtl = useTournamentRounds({
         uuid, t, setT, rounds, setRounds, setPairs, setCollapsedRounds,
@@ -488,14 +490,48 @@ export default function TournamentDetailsPage() {
     const cancelEditRef = useRef(editor.cancelDetailsEdit)
     cancelEditRef.current = editor.cancelDetailsEdit
     const editingDetails = editor.editingDetails
+    /* The Pravila tab has its own rules-only edit mode (`RulesEditPanel`): it
+       runs on the same edit-form state, but is shown on the "rules" tab, so
+       leaving THAT tab is what cancels it. */
+    const [rulesEditing, setRulesEditing] = useState(false)
     useEffect(() => {
-        if (tab !== "details" && editingDetails) cancelEditRef.current()
-    }, [tab, editingDetails])
+        if (!editingDetails) setRulesEditing(false)
+    }, [editingDetails])
+    useEffect(() => {
+        const allowed = rulesEditing ? "rules" : "details"
+        if (tab !== allowed && editingDetails) cancelEditRef.current()
+    }, [tab, editingDetails, rulesEditing])
+
+    /* "Uredi" from any OTHER tab (Pravila, Parovi, …): `setTab` only navigates —
+       `tab` is still the old section on the next render — and the effect above
+       cancels an edit that is entered while `tab !== "details"`, so entering
+       edit mode right away got it cancelled at once and nothing opened
+       (2026-10-03, reported from the Pravila tab). Remember the request and
+       enter edit mode when the Detalji view is actually showing. */
+    const pendingEditRef = useRef(false)
+    const enterEditRef = useRef(editor.enterDetailsEdit)
+    enterEditRef.current = editor.enterDetailsEdit
+    useEffect(() => {
+        if (tab === "details" && pendingEditRef.current) {
+            pendingEditRef.current = false
+            enterEditRef.current()
+        }
+    }, [tab])
 
     const startDetailsEdit = () => {
         // The edit form lives in the Detalji view — jump there first.
-        setTab("details")
+        if (tab !== "details") {
+            pendingEditRef.current = true
+            setTab("details")
+            return
+        }
         editor.enterDetailsEdit()
+    }
+
+    /* "Uredi" on the Pravila tab: a rules-only form on this very tab. */
+    const startRulesEdit = () => {
+        editor.enterDetailsEdit()
+        setRulesEditing(true)
     }
 
     const chromeProps = {
@@ -592,6 +628,9 @@ export default function TournamentDetailsPage() {
                             uuid={uuid}
                             pairs={pairs}
                             pairsView={pairsView}
+                            deletedPairs={deletedPairs}
+                            restoringPairId={pairsEd.restoringPairId}
+                            onRestorePair={pairsEd.restoreDeletedPair}
                             pairRequests={pairRequests}
                             canEditTournament={canEditTournament}
                             viewerUid={user?.uid}
@@ -600,7 +639,7 @@ export default function TournamentDetailsPage() {
                             approvingPairId={pairsEd.approvingPairId}
                             buyingLifePairId={pairsEd.buyingLifePairId}
                             pendingPairPaid={pendingPairPaid}
-                            onAddPair={pairsEd.addPair}
+                            onQuickAddPair={pairsEd.quickAddPair}
                             onChangePairName={pairsEd.changePairName}
                             onPairNameBlur={pairsEd.onPairNameBlur}
                             onRemoveTempPair={pairsEd.removePair}
@@ -666,7 +705,18 @@ export default function TournamentDetailsPage() {
                             />
                         </Box>
                     ) : tab === "rules" ? (
-                        <RulesSection t={t} />
+                        rulesEditing && editor.editingDetails && editor.editForm ? (
+                            <RulesEditPanel
+                                editForm={editor.editForm}
+                                patchEdit={editor.patchEdit}
+                                saving={editor.savingDetails}
+                                dirty={editor.editDirty}
+                                onCancel={editor.cancelDetailsEdit}
+                                onSave={editor.saveDetailsEdit}
+                            />
+                        ) : (
+                            <RulesSection t={t} onEdit={showEditAction ? startRulesEdit : undefined} />
+                        )
                     ) : tab === "racuni" ? (
                         /* Two renderings of one URL. The organiser and anyone
                            already holding a waiter session get the bills; a

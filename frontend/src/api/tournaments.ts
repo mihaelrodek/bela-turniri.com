@@ -340,11 +340,40 @@ export async function approvePair(tournamentUuid: string, pairId: number): Promi
     return data
 }
 
-export async function deletePair(tournamentUuid: string, pairId: number): Promise<void> {
+/**
+ * Soft delete (the pair lands in "Obrisani parovi" and can be restored until
+ * the tournament starts). `opts.silent` lets the caller raise its own toast —
+ * the pairs editor does, to attach an "Opozovi" action to it.
+ */
+export async function deletePair(
+    tournamentUuid: string,
+    pairId: number,
+    opts?: { silent?: boolean },
+): Promise<void> {
     await http.delete(
         `/tournaments/${tournamentUuid}/pairs/${pairId}`,
-        { successMessage: t("common.toast.pairDeleted") },
+        { successMessage: t("common.toast.pairDeleted"), silent: opts?.silent },
     )
+}
+
+/** Organiser/admin only: the soft-deleted pairs, newest deletion first. */
+export async function fetchDeletedPairs(uuid: string, opts?: { silent?: boolean }): Promise<PairShort[]> {
+    const { data } = await http.get<PairShort[]>(`/tournaments/${uuid}/pairs/deleted`, { silent: opts?.silent })
+    return data
+}
+
+/**
+ * Restore a soft-deleted pair (DRAFT only). The caller maps the bare 409 codes
+ * (TOURNAMENT_ALREADY_STARTED, PAIRS_FULL) itself, so the interceptor's error
+ * toast is suppressed for 409 and the success toast is the caller's too.
+ */
+export async function restorePair(uuid: string, pairId: number): Promise<PairShort> {
+    const { data } = await http.post<PairShort>(
+        `/tournaments/${uuid}/pairs/${pairId}/restore`,
+        undefined,
+        { successMessage: t("tournament.pairs.deleted.restored"), silentErrorStatuses: [409] },
+    )
+    return data
 }
 
 export async function deleteTournament(tournamentUuid: string): Promise<void> {

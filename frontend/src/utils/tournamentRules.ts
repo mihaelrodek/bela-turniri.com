@@ -17,6 +17,12 @@
      persisted drink labels — it was written in one language).
    * Defaults not mentioned are shown as they are, so a tournament that was
      never edited stays NULL and still gets the full, current rulebook.
+   * FIXED rules (`FIXED_ITEM_IDS`: game.1, game.2, game.3, deal.2, deal.3,
+     tour.1) are derived from the settings above the rulebook — target,
+     prolaz/dosta, match games, deal direction, who deals next, round length.
+     They are always present, can be neither edited nor deleted, and
+     `resolveRules` / `pruneRules` ignore any stored override of them (old
+     documents may carry one; the backend strips it).
    * The five game parameters (target score, prolaz/dosta, direction,
      declarations, bela) are NOT in here: they keep their own columns. They
      only parametrise the default texts (`{target}`, the `.dosta` / `.right`
@@ -28,6 +34,7 @@
    ────────────────────────────────────────────────────────────────────── */
 
 export type ItemSection = "game" | "deal" | "trump" | "decl" | "tour" | "conduct"
+export type NextDealer = "NEXT" | "WINNER"
 export type PenaltyCode = "DEAL" | "WARNING_DEAL" | "WARNING" | "REDEAL" | "SCORE_162" | "EXPEL"
 
 export type StoredItem = { id: string; text: string | null; removed?: boolean }
@@ -37,6 +44,8 @@ export type StoredRules = {
     roundMinutes?: number
     /** Games a pair must win to take the match (1–5, default 2); 2026-10-03. */
     matchGames?: number
+    /** Who deals the next game: the next player in turn (default) or the winning pair. */
+    nextDealer?: NextDealer
     sections?: Partial<Record<ItemSection, StoredItem[]>>
     fouls?: StoredFoul[]
 }
@@ -57,6 +66,15 @@ export const RULES_LIMITS = {
 
 export const DEFAULT_ROUND_MINUTES = 70
 export const DEFAULT_MATCH_GAMES = 2
+export const DEFAULT_NEXT_DEALER: NextDealer = "NEXT"
+
+/* `decl.off` / `decl.belaOnly` are not in DEFAULT_ITEM_IDS: they exist only while
+   declarations are switched off, when the "Zvanja" group shows exactly that one
+   fixed rule INSTEAD of decl.1–8 (2026-10-03, owner). Stored overrides of
+   decl.1–8 are left alone and apply again when declarations are switched back on. */
+
+/** Rules whose text is derived from the settings: locked in the editor, never overridable. */
+export const FIXED_ITEM_IDS: ReadonlySet<string> = new Set(["game.1", "game.2", "game.3", "deal.2", "deal.3", "tour.1", "decl.off", "decl.belaOnly"])
 
 /** Display order of the rulebook. `foul` is the table between decl and tour. */
 export const RULE_SECTION_ORDER = ["game", "deal", "trump", "decl", "foul", "tour", "conduct"] as const
@@ -140,6 +158,8 @@ export type ResolvedItem = {
     isDefault: boolean
     /** The organiser replaced the default text (custom rules are never "edited"). */
     edited: boolean
+    /** Derived from the settings: locked (no edit, no delete). */
+    fixed?: boolean
     /** Deleted default rule, kept ONLY when the editor asks for it
      *  (`includeRemoved`) so it can be shown greyed out with a restore button. */
     removed?: boolean
@@ -148,14 +168,16 @@ export type ResolvedFoul = ResolvedItem & { penalty: PenaltyCode; penaltyChanged
 export type ResolvedRules = {
     roundMinutes: number
     matchGames: number
+    nextDealer: NextDealer
     sections: Record<ItemSection, ResolvedItem[]>
     fouls: ResolvedFoul[]
 }
 
-/** Dictionary key (below `legal.rules.`) of a default rule's text, picking the parameter variant. */
-function defaultKey(id: string, p: GameParams): string {
-    if (id === "game.1" && p.gameEndRule === "dosta") return "game.1.dosta"
+/** Dictionary key (below `legal.rules.`) of a default rule's text, picking the setting variant. */
+function defaultKey(id: string, p: GameParams, nextDealer: NextDealer): string {
+    if ((id === "game.1" || id === "game.2") && p.gameEndRule === "dosta") return `${id}.dosta`
     if (id === "deal.2" && p.dealDirection === "right") return "deal.2.right"
+    if (id === "deal.3" && nextDealer === "WINNER") return "deal.3.winner"
     return id
 }
 
@@ -167,18 +189,19 @@ export function matchGamesPhrase(games: number, plural?: PluralTranslate): strin
     return plural ? plural("legal.rules.matchGames", games) : String(games)
 }
 
-export function defaultItemText(
-    id: string,
-    t: Translate,
-    p: GameParams,
-    roundMinutes = DEFAULT_ROUND_MINUTES,
-    matchGames = DEFAULT_MATCH_GAMES,
-    plural?: PluralTranslate,
-): string {
-    return t(`legal.rules.${defaultKey(id, p)}`, {
+/** The settings that parametrise default texts, besides the five game columns. */
+export type RuleSettings = {
+    roundMinutes?: number
+    matchGames?: number
+    nextDealer?: NextDealer
+    plural?: PluralTranslate
+}
+
+export function defaultItemText(id: string, t: Translate, p: GameParams, x: RuleSettings = {}): string {
+    return t(`legal.rules.${defaultKey(id, p, x.nextDealer ?? DEFAULT_NEXT_DEALER)}`, {
         target: p.targetScore,
-        minutes: roundMinutes,
-        games: matchGamesPhrase(matchGames, plural),
+        minutes: x.roundMinutes ?? DEFAULT_ROUND_MINUTES,
+        games: matchGamesPhrase(x.matchGames ?? DEFAULT_MATCH_GAMES, x.plural),
     })
 }
 
@@ -202,8 +225,9 @@ export function newCustomId(): string {
 /**
  * Merge the stored overrides over the defaults for rendering. `t` resolves
  * default texts in the VIEWER's language; stored texts are shown verbatim.
- * With declarations switched off the unedited declaration rules are dropped
- * (they are about announcing them) — the organiser's own are kept.
+ * With declarations switched off the "Zvanja" group is ONE fixed rule (no
+ * declarations / only bela) followed by the organiser's own rules; decl.1–8 are
+ * not shown at all and their stored overrides are kept untouched.
  */
 export function resolveRules(
     stored: StoredRules | null | undefined,
@@ -214,18 +238,26 @@ export function resolveRules(
     const includeRemoved = !!opts?.includeRemoved
     const roundMinutes = stored?.roundMinutes ?? DEFAULT_ROUND_MINUTES
     const matchGames = stored?.matchGames ?? DEFAULT_MATCH_GAMES
+    const nextDealer = stored?.nextDealer === "WINNER" ? "WINNER" : DEFAULT_NEXT_DEALER
+    const settings: RuleSettings = { roundMinutes, matchGames, nextDealer, plural: opts?.plural }
     const sections = {} as Record<ItemSection, ResolvedItem[]>
     for (const section of Object.keys(DEFAULT_ITEM_IDS) as ItemSection[]) {
         const overrides = new Map((stored?.sections?.[section] ?? []).map((o) => [o.id, o]))
         const out: ResolvedItem[] = []
-        for (const id of DEFAULT_ITEM_IDS[section]) {
-            const o = overrides.get(id)
+        if (section === "decl" && !p.declarationsEnabled) {
+            const id = p.allowBela ? "decl.belaOnly" : "decl.off"
+            out.push({ id, text: t(`legal.rules.${id}`), isDefault: true, fixed: true, edited: false })
+        }
+        for (const id of section === "decl" && !p.declarationsEnabled ? [] : DEFAULT_ITEM_IDS[section]) {
+            const fixed = FIXED_ITEM_IDS.has(id)
+            // Fixed rules ignore whatever an old document stored for them.
+            const o = fixed ? undefined : overrides.get(id)
             if (o?.removed && !includeRemoved) continue
-            if (section === "decl" && !p.declarationsEnabled && !o?.text) continue
             out.push({
                 id,
-                text: o?.text ?? defaultItemText(id, t, p, roundMinutes, matchGames, opts?.plural),
+                text: o?.text ?? defaultItemText(id, t, p, settings),
                 isDefault: true,
+                fixed: fixed || undefined,
                 edited: !!o?.text,
                 removed: o?.removed ? true : undefined,
             })
@@ -257,7 +289,7 @@ export function resolveRules(
         if (DEFAULT_FOULS.some((d) => d.id === o.id) || o.removed || !o.text) continue
         fouls.push({ id: o.id, text: o.text, isDefault: false, edited: false, penalty: o.penalty, penaltyChanged: false })
     }
-    return { roundMinutes, matchGames, sections, fouls }
+    return { roundMinutes, matchGames, nextDealer, sections, fouls }
 }
 
 /* ───────────── editor operations (pure: stored → stored) ─────────────
@@ -272,9 +304,11 @@ export function pruneRules(stored: StoredRules | null | undefined): StoredRules 
     const out: StoredRules = { v: 1 }
     if (stored.roundMinutes != null && stored.roundMinutes !== DEFAULT_ROUND_MINUTES) out.roundMinutes = stored.roundMinutes
     if (stored.matchGames != null && stored.matchGames !== DEFAULT_MATCH_GAMES) out.matchGames = stored.matchGames
+    if (stored.nextDealer === "WINNER") out.nextDealer = "WINNER"
     const sections: Partial<Record<ItemSection, StoredItem[]>> = {}
     for (const section of Object.keys(DEFAULT_ITEM_IDS) as ItemSection[]) {
         const list = (stored.sections?.[section] ?? []).filter((o) => {
+            if (FIXED_ITEM_IDS.has(o.id)) return false
             if (DEFAULT_ITEM_IDS[section].includes(o.id)) return !!o.removed || !!o.text
             return !o.removed && !!o.text
         })
@@ -303,6 +337,7 @@ const withSection = (s: StoredRules | null, section: ItemSection, list: StoredIt
     ({ ...(s ?? { v: 1 }), v: 1, sections: { ...(s?.sections ?? {}), [section]: list } })
 
 export function setItemText(s: StoredRules | null, section: ItemSection, id: string, text: string, defaultText: string | null): StoredRules | null {
+    if (FIXED_ITEM_IDS.has(id)) return s
     const clean = text.trim().slice(0, RULES_LIMITS.maxText)
     // Typing the default back in = no edit (keeps it translatable).
     const value = defaultText != null && clean === defaultText.trim() ? null : clean || null
@@ -311,6 +346,7 @@ export function setItemText(s: StoredRules | null, section: ItemSection, id: str
 }
 
 export function removeItem(s: StoredRules | null, section: ItemSection, id: string): StoredRules | null {
+    if (FIXED_ITEM_IDS.has(id)) return s
     const list = s?.sections?.[section] ?? []
     if (isCustomId(id) || !DEFAULT_ITEM_IDS[section].includes(id)) {
         return pruneRules(withSection(s, section, list.filter((o) => o.id !== id)))
@@ -320,6 +356,7 @@ export function removeItem(s: StoredRules | null, section: ItemSection, id: stri
 
 /** Bring a deleted default rule back (its own text edit, if it had one, is kept). */
 export function restoreItem(s: StoredRules | null, section: ItemSection, id: string): StoredRules | null {
+    if (FIXED_ITEM_IDS.has(id)) return s
     const list = s?.sections?.[section] ?? []
     const existing = list.find((o) => o.id === id)
     return pruneRules(withSection(s, section, upsertItem(list, { id, text: existing?.text ?? null })))
@@ -391,6 +428,19 @@ export function setMatchGames(s: StoredRules | null, games: number | null): Stor
     return pruneRules(base)
 }
 
+/** `"NEXT"` clears it back to the default. */
+export function setNextDealer(s: StoredRules | null, who: NextDealer): StoredRules | null {
+    const base: StoredRules = { ...(s ?? { v: 1 }), v: 1 }
+    if (who === "WINNER") base.nextDealer = "WINNER"
+    else delete base.nextDealer
+    return pruneRules(base)
+}
+
+/** Who deals the next game, from a stored (or API) rules document; "NEXT" when untouched. */
+export function resolveNextDealer(stored: { nextDealer?: unknown } | null | undefined): NextDealer {
+    return stored?.nextDealer === "WINNER" ? "WINNER" : DEFAULT_NEXT_DEALER
+}
+
 /** Games to win a match from a stored (or API) rules document; 2 when untouched. */
 export function resolveMatchGames(stored: { matchGames?: unknown } | null | undefined): number {
     const n = stored?.matchGames
@@ -403,7 +453,7 @@ export function resolveMatchGames(stored: { matchGames?: unknown } | null | unde
 export function countCustomisations(s: StoredRules | null | undefined): number {
     const p = pruneRules(s)
     if (!p) return 0
-    let n = (p.roundMinutes != null ? 1 : 0) + (p.matchGames != null ? 1 : 0)
+    let n = (p.roundMinutes != null ? 1 : 0) + (p.matchGames != null ? 1 : 0) + (p.nextDealer != null ? 1 : 0)
     for (const list of Object.values(p.sections ?? {})) n += list?.length ?? 0
     return n + (p.fouls?.length ?? 0)
 }

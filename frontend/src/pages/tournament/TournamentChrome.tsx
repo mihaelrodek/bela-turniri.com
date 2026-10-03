@@ -111,7 +111,9 @@ export function TournamentTopBar({
                     {/* Only the organiser ever queues anything, and only they
                         need to know whether it has landed. Hidden entirely
                         while there is nothing to say. */}
-                    {canEditTournament && (
+                    {/* Not on the Parovi tab: there the pill lives inside the pairs
+                        screen itself (2026-10-03, owner), not up by the title. */}
+                    {canEditTournament && active !== "pairs" && (
                         <SyncIndicator tournamentUuid={uuid} hideWhenIdle />
                     )}
                     {showEditAction && (
@@ -207,7 +209,7 @@ export function TournamentSideNav({
             onSelect={onSelect}
             tourAnchors={tourAnchors}
             topSlot={
-                canEditTournament ? (
+                canEditTournament && active !== "pairs" ? (
                     <HStack justify="flex-end" gap="2">
                         <SyncIndicator tournamentUuid={uuid} hideWhenIdle />
                     </HStack>

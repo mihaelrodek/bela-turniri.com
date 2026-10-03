@@ -205,7 +205,8 @@ public class ContentReportService {
             case TOURNAMENT -> tournamentRepo.findByUuidOrSlug(targetId).orElse(null);
             case PAIR -> parseLong(targetId) == null
                     ? null
-                    : pairRepo.findByIdOptional(parseLong(targetId)).orElse(null);
+                    : pairRepo.findByIdOptional(parseLong(targetId))
+                            .filter(p -> p.getDeletedAt() == null).orElse(null);
             case PROFILE -> profileRepo.findByUid(targetId).orElse(null);
         };
     }

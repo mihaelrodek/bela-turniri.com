@@ -54,8 +54,27 @@ public record PairDto(
         // Absolute /preuzmi-par/{token} URL, returned ONLY in the response to an
         // anonymous self-registration so the submitter can keep the link and
         // later attach the pair to an account. Never set in list responses.
-        String claimUrl
+        String claimUrl,
+
+        // Soft-delete stamp. Null for every live pair; set only in the
+        // organiser's "Obrisani parovi" list (GET /tournaments/{id}/pairs/deleted).
+        java.time.OffsetDateTime deletedAt
 ) {
+    /** The 17-arg shape that predates deletedAt. */
+    public PairDto(
+            Integer id, String name, Boolean isEliminated, Boolean extraLife,
+            Integer wins, Integer losses, Boolean paid,
+            String submittedByUid, Boolean pendingApproval,
+            String submittedBySlug, String submittedByName,
+            String coSubmittedByUid, String coSubmittedBySlug, String coSubmittedByName,
+            String claimToken, String contactPhone, String claimUrl
+    ) {
+        this(id, name, isEliminated, extraLife, wins, losses, paid,
+                submittedByUid, pendingApproval, submittedBySlug, submittedByName,
+                coSubmittedByUid, coSubmittedBySlug, coSubmittedByName, claimToken,
+                contactPhone, claimUrl, null);
+    }
+
     /** Backwards-compat constructor for callers that don't yet enrich submitter info. */
     public PairDto(
             Integer id, String name, Boolean isEliminated, Boolean extraLife,
@@ -99,6 +118,6 @@ public record PairDto(
         return new PairDto(id, name, isEliminated, extraLife, wins, losses, paid,
                 submittedByUid, pendingApproval, submittedBySlug, submittedByName,
                 coSubmittedByUid, coSubmittedBySlug, coSubmittedByName, claimToken,
-                contactPhone, claimUrl);
+                contactPhone, claimUrl, deletedAt);
     }
 }

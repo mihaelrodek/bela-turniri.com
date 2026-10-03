@@ -14,8 +14,8 @@ import { tournamentQrRef } from "../../../components/tournamentQr"
    tournament, so the title block, the print letterhead and the glance strip
    carry its name, date, place and values. Not sticky: the tournament page's
    own mobile band already pins itself under the navbar. */
-export default function RulesSection({ t }: { t: TournamentDetails }) {
-    const subtitle = [t.startAt ? formatDate(t.startAt) : "", t.location ?? ""].filter(Boolean).join(" · ")
+export default function RulesSection({ t, onEdit }: { t: TournamentDetails; onEdit?: () => void }) {
+    const subtitle = t.startAt ? formatDate(t.startAt) : ""
     return (
         <Suspense
             fallback={
@@ -28,8 +28,9 @@ export default function RulesSection({ t }: { t: TournamentDetails }) {
             <RulesDocumentLazy
                 rules={t.rules ?? null}
                 game={gameParamsFromDto(t)}
-                tournament={{ name: t.name, subtitle: subtitle || undefined, qrRef: tournamentQrRef(t.uuid, t.slug) }}
+                tournament={{ name: t.name, subtitle: subtitle || undefined, location: t.location || undefined, qrRef: tournamentQrRef(t.uuid, t.slug) }}
                 sticky={false}
+                onEdit={onEdit}
             />
         </Suspense>
     )

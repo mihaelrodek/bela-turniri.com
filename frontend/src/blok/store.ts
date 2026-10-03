@@ -1040,7 +1040,7 @@ function withDealDirection(g: BlokGame, direction: BlokDealDirection): BlokGame 
    A manual change of any of the five settings (`manualEdit`) drops the mark,
    so a deliberate choice made after linking survives the link ending. */
 
-type TableSettings = Pick<BlokGame, "target" | "seriesTarget" | "gameEndRule" | "dealDirection" | "declarationsRule">
+type TableSettings = Pick<BlokGame, "target" | "seriesTarget" | "gameEndRule" | "dealDirection" | "declarationsRule" | "newGameDealer">
 
 const sameSettings = (a: TableSettings, b: TableSettings) =>
     a.target === b.target
@@ -1048,6 +1048,7 @@ const sameSettings = (a: TableSettings, b: TableSettings) =>
     && a.gameEndRule === b.gameEndRule
     && a.dealDirection === b.dealDirection
     && a.declarationsRule === b.declarationsRule
+    && a.newGameDealer === b.newGameDealer
 
 function withoutSettingsMark(g: BlokGame): BlokGame {
     if (!g.link?.settingsFromTournament) return g
@@ -1063,7 +1064,7 @@ function manualEdit(prev: BlokGame, next: BlokGame): BlokGame {
 
 /**
  * Back to the defaults — target 1001, "prolaz", deal to the right, all
- * declarations, open series — for a game whose settings came from a tournament.
+ * declarations, next player deals the new game, open series — for a game whose settings came from a tournament.
  * Rounds are NEVER touched (everything derived is recomputed under the new
  * settings). A game that is already FINISHED keeps its target and end rule:
  * its result is a fact, and changing them would silently reopen it.
@@ -1075,6 +1076,7 @@ function withTableDefaults(g: BlokGame): BlokGame {
         ...g,
         seriesTarget: null,
         declarationsRule: DEFAULT_DECLARATIONS_RULE,
+        newGameDealer: DEFAULT_NEW_GAME_DEALER,
         ...(finished ? {} : { target: DEFAULT_TARGET, gameEndRule: DEFAULT_GAME_END_RULE }),
     }
     return withoutSettingsMark(withDealDirection(reset, DEFAULT_DEAL_DIRECTION))
@@ -1086,6 +1088,8 @@ export interface TournamentTableSettings {
     gameEndRule?: BlokGameEndRule
     dealDirection?: BlokDealDirection
     declarationsRule?: BlokDeclarationsRule
+    /** Who deals the next game (`rules.nextDealer`: NEXT → "next", WINNER → "winner"), 2026-10-03. */
+    newGameDealer?: BlokNewGameDealer
     /** Games that win the series ("Dobivene partije za meč"), or `null` = open. */
     seriesTarget?: number | null
 }
@@ -1098,6 +1102,7 @@ function applyTournamentSettings(settings: TournamentTableSettings): void {
         if (settings.target !== undefined) next.target = sanitizeTarget(settings.target)
         if (settings.gameEndRule !== undefined) next.gameEndRule = sanitizeGameEndRule(settings.gameEndRule)
         if (settings.declarationsRule !== undefined) next.declarationsRule = sanitizeDeclarationsRule(settings.declarationsRule)
+        if (settings.newGameDealer !== undefined) next.newGameDealer = sanitizeNewGameDealer(settings.newGameDealer)
         if (settings.seriesTarget !== undefined) next.seriesTarget = sanitizeSeriesTarget(settings.seriesTarget)
         if (settings.dealDirection !== undefined) next = withDealDirection(next, settings.dealDirection)
         if (!next.link) return next
@@ -1158,7 +1163,8 @@ function startLinkedGame(keepForUpload: boolean): boolean {
  * this one never touches `dealer.first`: there is no sequence to re-derive.
  */
 function setNewGameDealer(mode: BlokNewGameDealer): void {
-    updateCurrent((g) => ({ ...g, newGameDealer: sanitizeNewGameDealer(mode) }))
+    // A manual choice ends the "copied from the tournament" claim (see manualEdit).
+    updateCurrent((g) => manualEdit(g, { ...g, newGameDealer: sanitizeNewGameDealer(mode) }))
 }
 
 /** Show or hide the "Sljedeći dijeli" strip. Purely a display choice: the

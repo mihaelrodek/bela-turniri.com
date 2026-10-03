@@ -279,7 +279,7 @@ export function TournamentMobileBar({
 }) {
     const { t: tr } = useTranslation()
     return (
-        <StickyPageHeader display={{ base: "block", lg: "none" }}>
+        <StickyPageHeader data-tournament-band display={{ base: "block", lg: "none" }}>
             <HStack align="flex-start" gap="2" mb="2.5">
                 <Box flex="1" minW="0">
                     <Heading

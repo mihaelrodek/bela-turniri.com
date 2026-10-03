@@ -21,7 +21,17 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
     @Inject EntityManager em;
 
     public List<Pairs> findByTournament_Id(Long tournamentId) {
-        return list("tournament.id", tournamentId);
+        return list("tournament.id = ?1 and deletedAt is null", tournamentId);
+    }
+
+    /** Soft-deleted pairs of a tournament, most recently deleted first. */
+    public List<Pairs> findDeletedByTournament_Id(Long tournamentId) {
+        return list("tournament.id = ?1 and deletedAt is not null order by deletedAt desc, id desc", tournamentId);
+    }
+
+    /** Live (not soft-deleted) pair count of one tournament. */
+    public long countActiveByTournament_Id(Long tournamentId) {
+        return count("tournament.id = ?1 and deletedAt is null", tournamentId);
     }
 
     /**
@@ -39,6 +49,7 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
      */
     public List<Pairs> findUnclaimedByTournamentId(Long tournamentId) {
         return list("tournament.id = ?1 " +
+                        "and deletedAt is null " +
                         "and submittedByUid is null " +
                         "and coSubmittedByUid is null " +
                         "and pendingApproval = false",
@@ -48,7 +59,7 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
     /** Single-pair lookup by claim token (the share URL). */
     public java.util.Optional<Pairs> findByClaimToken(String token) {
         if (token == null || token.isBlank()) return java.util.Optional.empty();
-        return find("claimToken", token).firstResultOptional();
+        return find("claimToken = ?1 and deletedAt is null", token).firstResultOptional();
     }
 
     /**
@@ -62,7 +73,7 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
         String needle = name.trim().toLowerCase();
         if (needle.isEmpty()) return false;
         return count(
-                "submittedByUid = ?1 and coSubmittedByUid is not null " +
+                "deletedAt is null and submittedByUid = ?1 and coSubmittedByUid is not null " +
                 "and lower(trim(name)) = ?2",
                 userUid, needle
         ) > 0;
@@ -100,7 +111,8 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
         StringBuilder jpql = new StringBuilder("""
                 from Pairs p
                 join fetch p.tournament t
-                where p.submittedByUid = :uid
+                where p.deletedAt is null
+                  and (p.submittedByUid = :uid
                    or p.coSubmittedByUid = :uid
                 """);
         Parameters params = Parameters.with("uid", uid);
@@ -108,13 +120,13 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
             jpql.append(" or (p.submittedByUid is null and p.coSubmittedByUid is null and lower(trim(p.name)) in :names)");
             params = params.and("names", lowered);
         }
-        jpql.append(" order by t.startAt desc nulls last");
+        jpql.append(") order by t.startAt desc nulls last");
 
         return list(jpql.toString(), params);
     }
 
     public boolean existsByTournament_IdAndPaidFalse(Long tournamentId) {
-        return count("tournament.id = ?1 and paid = false", tournamentId) > 0;
+        return count("tournament.id = ?1 and paid = false and deletedAt is null", tournamentId) > 0;
     }
 
     /**
@@ -129,7 +141,7 @@ public class PairsRepository implements AppRepository<Pairs, Long> {
         return em.createQuery("""
                         select p.tournament.id, count(p)
                         from Pairs p
-                        where p.tournament.id in :ids
+                        where p.tournament.id in :ids and p.deletedAt is null
                         group by p.tournament.id
                         """)
                 .setParameter("ids", ids)

@@ -51,6 +51,7 @@ public class RepassageService {
         }
 
         Pairs p = pairsRepo.findByIdOptional(pairId)
+                .filter(x -> x.getDeletedAt() == null)
                 .filter(x -> Objects.equals(x.getTournament().getId(), t.getId()))
                 .orElseThrow(() -> new NoSuchElementException(messages.t("pair.notFound")));
 

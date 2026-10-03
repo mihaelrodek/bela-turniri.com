@@ -6,11 +6,12 @@ import {
     buyExtraLife,
     deletePair,
     replacePairs,
+    restorePair,
     selfRegisterPair,
 } from "../api/tournaments"
 import { listPresets, type UserPairPreset } from "../api/userPairPresets"
 import { useAuth } from "../auth/authContextValue"
-import { showError } from "../toaster"
+import { showError, toaster } from "../toaster"
 import { useTranslation } from "../i18n"
 import { errorMessage } from "../utils/apiError"
 import { rememberAnonRegistration } from "../utils/anonSelfReg"
@@ -33,6 +34,8 @@ type Args = {
     cancelInFlight: () => void
     requireOnlineFor: (title: string) => boolean
     enqueueOp: EnqueuePairPaid
+    /** Re-reads "Obrisani parovi" after a delete / restore. */
+    refetchDeletedPairs: () => unknown
 }
 
 /**
@@ -54,6 +57,7 @@ export function useTournamentPairsEditor({
     cancelInFlight,
     requireOnlineFor,
     enqueueOp,
+    refetchDeletedPairs,
 }: Args) {
     const { t: tr } = useTranslation()
     const { user } = useAuth()
@@ -66,6 +70,7 @@ export function useTournamentPairsEditor({
     // holds the pair the user is about to delete.
     const [pendingDeletePair, setPendingDeletePair] = useState<PairShort | null>(null)
     const [deletingPair, setDeletingPair] = useState(false)
+    const [restoringPairId, setRestoringPairId] = useState<number | null>(null)
 
     // Self-register pair dialog
     const [selfRegOpen, setSelfRegOpen] = useState(false)
@@ -158,15 +163,58 @@ export function useTournamentPairsEditor({
         }
     }
 
-    /** Appends an unsaved row and hands back its temp id so the caller can
-     *  open it straight away — the detail panel is where it gets named. */
-    function addPair(): number {
-        const tempId = -Date.now()
-        setPairs((ps) => [
-            ...ps,
-            { id: tempId, name: "", isEliminated: false, extraLife: false, wins: 0, losses: 0, paid: false } as PairShort,
-        ])
-        return tempId
+    /**
+     * Quick-add (2026-10-03): persists a NEW pair with a real name at once.
+     * There is no single-pair create endpoint — the roster is only ever
+     * written by the bulk PUT /pairs — so this builds the same payload the
+     * blur save does, drops any blank temp rows (they would make the bulk
+     * endpoint reject the whole call), appends the new pair with its `paid`
+     * flag, and swaps in the server's answer. Not queued: structural, so it
+     * refuses offline through requireOnlineFor, like onPairNameBlur.
+     *
+     * Resolves with the new pair's real id, or an inline error message; the
+     * caller keeps the typed text on failure. The axios interceptor has
+     * already toasted a failed request.
+     */
+    async function quickAddPair(
+        rawName: string,
+        paid: boolean,
+    ): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+        const name = rawName.replace(/\s+/g, " ").trim()
+        if (!uuid) return { ok: false, error: tr("tournament.pairs.quickError") }
+        if (!name) return { ok: false, error: tr("tournament.pairs.nameEmpty") }
+        if (savingPairsRef.current) return { ok: false, error: tr("tournament.pairs.quickBusy") }
+        if (!requireOnlineFor(tr("tournament.pairs.notSavedTitle"))) {
+            return { ok: false, error: tr("tournament.pairs.quickOffline") }
+        }
+        savingPairsRef.current = true
+        setSavingPairs(true)
+        try {
+            const knownIds = new Set(pairs.filter((p) => p.id > 0).map((p) => p.id))
+            const payload = [
+                ...buildPairsPayload().filter((p) => p.name.trim() !== ""),
+                { id: undefined, name, isEliminated: false, extraLife: false, wins: 0, losses: 0, paid },
+            ]
+            const saved = await replacePairs(uuid, payload)
+            setPairs(saved)
+            pendingPaidRef.current.clear()
+            dirtyPairIdsRef.current.clear()
+            cancelInFlight()
+            // The server may append or re-sort; the new row is the one id we
+            // did not know. Same-named namesake is the fallback.
+            const created =
+                saved.find((p) => p.id > 0 && !knownIds.has(p.id)) ??
+                saved.find((p) => p.name === name)
+            return created ? { ok: true, id: created.id } : { ok: true, id: 0 }
+        } catch (e) {
+            const msg = errorMessage(e, tr("tournament.pairs.quickError"))
+            // A bare machine code (CONFLICT_CODE) is for the SPA to switch on,
+            // never to show.
+            return { ok: false, error: /^[A-Z0-9_]+$/.test(msg) ? tr("tournament.pairs.quickError") : msg }
+        } finally {
+            savingPairsRef.current = false
+            setSavingPairs(false)
+        }
     }
 
     function changePairName(id: number, name: string) {
@@ -376,15 +424,71 @@ export function useTournamentPairsEditor({
         }
     }
 
+    /**
+     * Bring a soft-deleted pair back into the roster (DRAFT only — the server
+     * answers 409 once the tournament has started). Resolves with the restored
+     * row, or an inline-ready message: the roster-full / already-started 409s
+     * are mapped here because the section shows them next to the list instead
+     * of as a toast.
+     */
+    async function restoreDeletedPair(
+        pairId: number,
+    ): Promise<{ ok: true; pair: PairShort } | { ok: false; error: string }> {
+        if (!uuid) return { ok: false, error: tr("tournament.pairs.deleted.error") }
+        if (restoringPairId != null) return { ok: false, error: tr("tournament.pairs.quickBusy") }
+        if (!requireOnlineFor(tr("tournament.pairs.notSavedTitle"))) {
+            return { ok: false, error: tr("tournament.pairs.quickOffline") }
+        }
+        setRestoringPairId(pairId)
+        try {
+            const restored = await restorePair(uuid, pairId)
+            setPairs((ps) => (ps.some((x) => x.id === restored.id) ? ps : [...ps, restored]))
+            cancelInFlight()
+            void refetchDeletedPairs()
+            return { ok: true, pair: restored }
+        } catch (e) {
+            // The row may already be gone (restored in another tab) — resync.
+            void refetchDeletedPairs()
+            const data = (e as { response?: { data?: unknown } })?.response?.data
+            const code = typeof data === "string" ? data : ""
+            if (code === "PAIRS_FULL") return { ok: false, error: tr("tournament.pairs.deleted.full") }
+            if (code === "TOURNAMENT_ALREADY_STARTED") {
+                return { ok: false, error: tr("tournament.pairs.deleted.started") }
+            }
+            const msg = errorMessage(e, tr("tournament.pairs.deleted.error"))
+            return { ok: false, error: /^[A-Z0-9_]+$/.test(msg) ? tr("tournament.pairs.deleted.error") : msg }
+        } finally {
+            setRestoringPairId(null)
+        }
+    }
+
     /** Runs once the organiser confirms in the delete-pair dialog. */
     async function confirmDeletePair() {
         if (!pendingDeletePair || !uuid) return
         const target = pendingDeletePair
         try {
             setDeletingPair(true)
-            await deletePair(uuid, target.id)
+            await deletePair(uuid, target.id, { silent: true })
             setPairs((ps) => ps.filter((x) => x.id !== target.id))
             setPendingDeletePair(null)
+            void refetchDeletedPairs()
+            // Own toast (the request was silent) so it can carry "Opozovi":
+            // a mis-tap is undone in one click, and the pair also stays
+            // restorable from "Obrisani parovi" after the toast is gone.
+            toaster.create({
+                type: "success",
+                title: tr("tournament.pairs.deleted.toastTitle"),
+                description: tr("tournament.pairs.deleted.toastHint"),
+                duration: 8000,
+                action: {
+                    label: tr("tournament.pairs.deleted.undo"),
+                    onClick: () => {
+                        void restoreDeletedPair(target.id).then((r) => {
+                            if (!r.ok) showError(r.error)
+                        })
+                    },
+                },
+            })
         } catch (err) {
             // Pair stays in the list — it also still exists server-side.
             // Interceptor toasted.
@@ -402,6 +506,8 @@ export function useTournamentPairsEditor({
         setPendingDeletePair,
         deletingPair,
         confirmDeletePair,
+        restoringPairId,
+        restoreDeletedPair,
         // self-registration
         selfRegOpen,
         setSelfRegOpen,
@@ -421,7 +527,7 @@ export function useTournamentPairsEditor({
         setSelfRegError,
         submitSelfRegister,
         // roster editing
-        addPair,
+        quickAddPair,
         changePairName,
         removePair,
         onPairNameBlur,

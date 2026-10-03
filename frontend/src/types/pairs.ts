@@ -31,6 +31,8 @@ export type PairShort = {
      * belongs to no account yet.
      */
     claimUrl?: string;
+    /** ISO stamp of a soft delete — set only on rows of the organiser's "Obrisani parovi" list. */
+    deletedAt?: string | null;
 };
 
 // Local-only helper for brand-new rows before the server assigns an id.

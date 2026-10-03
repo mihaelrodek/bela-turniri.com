@@ -15,6 +15,7 @@ export default function NotFoundPage() {
             <Box
                 borderWidth="1px"
                 borderColor="border.emphasized"
+                bg="bg.panel"
                 rounded="xl"
                 shadow="sm"
                 p={{base: "6", md: "8"}}
@@ -30,6 +31,10 @@ export default function NotFoundPage() {
                         asChild
                         variant="outline"
                         size="sm"
+                        // An opaque fill, so the outline reads against the card
+                        // art instead of vanishing into it (2026-10-03, reported).
+                        bg="bg.subtle"
+                        borderColor="border.emphasized"
                     >
                         <RouterLink to={homePath}>
                             <FiArrowLeft/> {isGamesSite ? t("forms.shared.backHome") : t("forms.shared.backToTournaments")}

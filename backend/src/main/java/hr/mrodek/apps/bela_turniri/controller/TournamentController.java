@@ -289,9 +289,18 @@ public class TournamentController {
     @Transactional
     public Response update(@PathParam("uuid") String uuid, @Valid CreateTournamentRequest req) {
         Tournaments t = access.loadForEdit(uuid);
-        // Block moving the date into the past on edit too. Editing a
-        // currently-running or finished tournament's date isn't sensible.
-        assertStartInFuture(req.startAt());
+        // Block MOVING the date into the past on edit. An unchanged start is
+        // never re-checked (2026-10-03, reported): saving only the rules — or
+        // any other field — of a tournament whose date has since passed (or
+        // that is already running) must not fail on a date nobody touched.
+        // Compared to the minute, so timezone round-trips of the same instant
+        // do not count as a change.
+        OffsetDateTime newStart = req.startAt();
+        OffsetDateTime oldStart = t.getStartAt();
+        boolean startUnchanged = newStart != null && oldStart != null
+                && newStart.toInstant().truncatedTo(java.time.temporal.ChronoUnit.MINUTES)
+                        .equals(oldStart.toInstant().truncatedTo(java.time.temporal.ChronoUnit.MINUTES));
+        if (!startUnchanged) assertStartInFuture(newStart);
 
         // Mapper applies all updatable fields in place. Status, winner, poster, and
         // matchmaking preference are intentionally NOT touched here — they're owned by
@@ -736,6 +745,31 @@ public class TournamentController {
     ) {
         pairService.deletePair(access.loadForEdit(uuid), pairId);
         return Response.noContent().build();
+    }
+
+    /** Organiser/admin: the soft-deleted pairs ("Obrisani parovi"), newest deletion first. */
+    @GET
+    @Path("/{uuid}/pairs/deleted")
+    @Authenticated
+    @Transactional
+    public List<PairDto> listDeletedPairs(@PathParam("uuid") String uuid) {
+        return pairService.listDeleted(access.loadForEdit(uuid));
+    }
+
+    /**
+     * Organiser/admin: restore a soft-deleted pair. DRAFT only (409
+     * TOURNAMENT_ALREADY_STARTED), 409 PAIRS_FULL when maxPairs is reached,
+     * 404 when the pair is not a deleted pair of this tournament.
+     */
+    @POST
+    @Path("/{uuid}/pairs/{pairId}/restore")
+    @Authenticated
+    @Transactional
+    public PairDto restorePair(
+            @PathParam("uuid") String uuid,
+            @PathParam("pairId") Long pairId
+    ) {
+        return pairService.restore(access.loadForEdit(uuid), pairId);
     }
 
     /**

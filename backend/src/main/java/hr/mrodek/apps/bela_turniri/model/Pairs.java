@@ -77,6 +77,20 @@ public class Pairs {
     @Column(name = "co_submitted_by_uid", length = 64)
     private String coSubmittedByUid;
 
+    /**
+     * Soft delete (2026-10-03). Non-null = the organiser removed this pair
+     * while the tournament was still in DRAFT; it is hidden from every read
+     * path and can be restored until the tournament starts. Deliberately NOT
+     * a Hibernate @Where: the deleted-list and restore queries must see
+     * these rows, so every query filters {@code deletedAt is null} itself.
+     */
+    @Column(name = "deleted_at")
+    private OffsetDateTime deletedAt;
+
+    /** Firebase UID of whoever deleted the pair (audit only, never exposed). */
+    @Column(name = "deleted_by_uid", length = 64)
+    private String deletedByUid;
+
     @CreationTimestamp
     @Column(name = "created_at")
     private OffsetDateTime createdAt;

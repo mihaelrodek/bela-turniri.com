@@ -18,7 +18,7 @@ import { blokActions, isRecordableGame, useBlok } from "../store"
 import type { Suit } from "@bela/engine"
 import { randomSuit } from "../../game/util/cards"
 import { BLOK_SIDES, creditedDeclarationTotals, type BlokDeclarationsRule, type BlokRound, type BlokSide } from "../types"
-import { resolveMatchGames } from "../../utils/tournamentRules"
+import { resolveMatchGames, resolveNextDealer } from "../../utils/tournamentRules"
 import BelotCelebration from "../components/BelotCelebration"
 import BlokHeader from "../components/BlokHeader"
 import BlokLinkDialog from "../components/BlokLinkDialog"
@@ -463,7 +463,8 @@ export default function BlokPage() {
        first, the effect simply stops (the defaults are already in place).
        Applied: target, prolaz/dosta, deal direction, the declarations rule
        (`declarationsEnabled`/`allowBela`: all / belaOnly / off) and the series
-       length `rules.matchGames` (default 2). The store marks them
+       length `rules.matchGames` (default 2) and who deals the next game
+       (`rules.nextDealer` → `newGameDealer`). The store marks them
        tournament-owned, so the link ending restores the defaults. */
     const settingsPending = link !== null && link.status === "APPROVED" && !link.pendingStart && link.settingsPending === true
     const tournamentUuid = link?.tournamentUuid ?? ""
@@ -492,6 +493,7 @@ export default function BlokPage() {
                             : {}),
                         declarationsRule,
                         seriesTarget: resolveMatchGames(tournament.rules),
+                        newGameDealer: resolveNextDealer(tournament.rules) === "WINNER" ? "winner" : "next",
                     })
                     showSuccess(t("blok.link.settingsApplied"))
                 })

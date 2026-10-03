@@ -34,9 +34,9 @@ class TournamentRulesNormaliserTest {
     void trimsTextDropsBlankAndKeepsRemoved() throws Exception {
         JsonNode out = TournamentRulesNormaliser.normalise(json("""
                 {"v":1,"roundMinutes":60,"matchGames":3,"sections":{"game":[
-                  {"id":"game.1","text":"  Do 701.  "},
-                  {"id":"game.2","text":"   "},
-                  {"id":"game.3","text":null,"removed":true,"junk":1},
+                  {"id":"game.4","text":"  Do 701.  "},
+                  {"id":"game.5","text":"   "},
+                  {"id":"game.6","text":null,"removed":true,"junk":1},
                   {"id":"c-1","text":"Moje pravilo"}]},
                  "fouls":[{"id":"d.1","text":null,"penalty":"WARNING"}]}
                 """), k -> k);
@@ -66,6 +66,29 @@ class TournamentRulesNormaliserTest {
         assertEquals("tournament.rules.matchGames", bad("{\"v\":1,\"matchGames\":0}"));
         assertEquals("tournament.rules.matchGames", bad("{\"v\":1,\"matchGames\":6}"));
         assertEquals("tournament.rules.matchGames", bad("{\"v\":1,\"matchGames\":\"2\"}"));
+    }
+
+    @Test
+    void stripsFixedRulesAndValidatesNextDealer() throws Exception {
+        JsonNode out = TournamentRulesNormaliser.normalise(json("""
+                {"v":1,"nextDealer":"WINNER","sections":{"game":[
+                  {"id":"game.1","text":"stari tekst"},{"id":"game.3","text":null,"removed":true},
+                  {"id":"game.4","text":"moj"}],
+                 "deal":[{"id":"deal.2","text":"x"},{"id":"deal.3","text":"y"}],
+                 "tour":[{"id":"tour.1","text":"z"}],
+                 "decl":[{"id":"decl.off","text":"q"},{"id":"decl.belaOnly","text":"q"},{"id":"decl.2","text":"keep"}]}}
+                """), k -> k);
+        assertEquals("WINNER", out.get("nextDealer").asText());
+        assertEquals(1, out.get("sections").get("game").size());
+        assertEquals("game.4", out.get("sections").get("game").get(0).get("id").asText());
+        assertEquals(false, out.get("sections").has("deal"));
+        assertEquals(false, out.get("sections").has("tour"));
+        assertEquals(1, out.get("sections").get("decl").size()); // decl.off / decl.belaOnly stripped, decl.2 kept
+        // Only fixed overrides + default dealer => nothing customised.
+        assertNull(TournamentRulesNormaliser.normalise(
+                json("{\"v\":1,\"nextDealer\":\"NEXT\",\"sections\":{\"tour\":[{\"id\":\"tour.1\",\"text\":\"z\"}]}}"), k -> k));
+        assertEquals("tournament.rules.nextDealer", bad("{\"v\":1,\"nextDealer\":\"LOSER\"}"));
+        assertEquals("tournament.rules.nextDealer", bad("{\"v\":1,\"nextDealer\":1}"));
     }
 
     @Test

@@ -61,7 +61,7 @@ export function publicTournamentUrl(uuid: string, slug?: string | null): string 
 /** Base64 payload of a Blob, without the `data:…;base64,` prefix —
  *  `Filesystem.writeFile` wants raw base64 when no `encoding` is given (the
  *  PNG is binary, so there is no text encoding to name). */
-function blobToBase64(blob: Blob): Promise<string> {
+export function blobToBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader()
         reader.onerror = () => reject(reader.error ?? new Error("FileReader failed"))

@@ -77,6 +77,8 @@ export const qk = {
     /** Single tournament, keyed by UUID **or** slug — whatever is in the URL. */
     tournamentDetails: (idOrSlug: string) => ["tournamentDetails", idOrSlug] as const,
     tournamentPairs: (uuid: string) => ["tournamentPairs", uuid] as const,
+    /** Organiser-only soft-deleted pairs ("Obrisani parovi"). */
+    tournamentPairsDeleted: (uuid: string) => ["tournamentPairsDeleted", uuid] as const,
     rounds: (uuid: string) => ["rounds", uuid] as const,
     cjenik: (uuid: string) => ["cjenik", uuid] as const,
     /** The signed-in user's own profile — one shared entry (see hooks/useMyProfile). */
@@ -165,6 +167,8 @@ export const NON_PERSISTED_KEY_ROOTS: ReadonlySet<string> = new Set([
     "publicProfile",
     // Pair lists expose the submitter's contact details to the organiser.
     "tournamentPairs",
+    // Same rows, same contact details — and organiser-only on top of it.
+    "tournamentPairsDeleted",
     // The detail payload widens for the organiser (paid flags, contacts).
     "tournamentDetails",
     // The cache holds local row shapes (`_dirty` / `_editing` score drafts);

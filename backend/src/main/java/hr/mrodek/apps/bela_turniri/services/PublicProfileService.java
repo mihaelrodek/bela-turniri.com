@@ -228,6 +228,7 @@ public class PublicProfileService {
                 .orElseThrow(() -> new NotFoundException(messages.t("profile.notFound", slug)));
 
         var pair = pairRepo.findByIdOptional(pairId)
+                .filter(p -> p.getDeletedAt() == null)
                 .orElseThrow(() -> new NotFoundException(messages.t("pair.notFound.withId", String.valueOf(pairId))));
 
         // Make sure this pair actually belongs to that profile — either by uid

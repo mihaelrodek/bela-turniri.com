@@ -2,6 +2,7 @@ import { Suspense, useMemo, useState } from "react"
 import { Box, Button, chakra, Dialog, Heading, HStack, Input, NativeSelect, Portal, Text, VStack } from "@chakra-ui/react"
 
 import PairsSection from "../../../components/PairsSection"
+import type { QuickAddPair, RestorePair } from "../../../components/PairsSection"
 import SelfRegisterNudgeDialog from "../../../components/SelfRegisterNudgeDialog"
 import { useAuth } from "../../../auth/authContextValue"
 import { useTranslation } from "../../../i18n"
@@ -32,6 +33,10 @@ export type PairsSectionContainerProps = {
     uuid: string | undefined
     pairs: PairShort[]
     pairsView: PairsView
+    /** Soft-deleted pairs the organiser may restore (empty for everyone else). */
+    deletedPairs: PairShort[]
+    restoringPairId: number | null
+    onRestorePair: RestorePair
     pairRequests: PairRequest[]
     canEditTournament: boolean
     viewerUid?: string | null
@@ -41,7 +46,7 @@ export type PairsSectionContainerProps = {
     approvingPairId: number | null
     buyingLifePairId: number | null
     pendingPairPaid: Map<number, boolean>
-    onAddPair: () => number
+    onQuickAddPair: QuickAddPair
     onChangePairName: (id: number, name: string) => void
     onPairNameBlur: (p: PairShort) => void
     onRemoveTempPair: (id: number) => void
@@ -92,6 +97,9 @@ export default function PairsSectionContainer({
     uuid,
     pairs,
     pairsView,
+    deletedPairs,
+    restoringPairId,
+    onRestorePair,
     pairRequests,
     canEditTournament,
     viewerUid,
@@ -100,7 +108,7 @@ export default function PairsSectionContainer({
     approvingPairId,
     buyingLifePairId,
     pendingPairPaid,
-    onAddPair,
+    onQuickAddPair,
     onChangePairName,
     onPairNameBlur,
     onRemoveTempPair,
@@ -188,6 +196,9 @@ export default function PairsSectionContainer({
                 secondName={pairsView.secondName}
                 thirdName={pairsView.thirdName}
                 pairs={pairs}
+                deletedPairs={canEditTournament && !tournamentAlready ? deletedPairs : []}
+                restoringPairId={restoringPairId}
+                onRestorePair={onRestorePair}
                 displayActivePairs={pairsView.displayActivePairs}
                 displayEliminatedPairs={pairsView.displayEliminatedPairs}
                 paidCount={pairsView.paidCount}
@@ -204,7 +215,8 @@ export default function PairsSectionContainer({
                 approvingPairId={approvingPairId}
                 buyingLifePairId={buyingLifePairId}
                 pendingPairPaid={pendingPairPaid}
-                onAddPair={onAddPair}
+                onQuickAddPair={onQuickAddPair}
+                tournamentUuid={uuid}
                 onChangePairName={onChangePairName}
                 onPairNameBlur={onPairNameBlur}
                 onRemoveTempPair={onRemoveTempPair}

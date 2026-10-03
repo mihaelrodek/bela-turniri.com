@@ -11,7 +11,13 @@
    the four numbers, then two A4 sheets of TWO equal columns each, bottoms
    lined up (see `.rules-sheet` below) — and the "paying the entry fee accepts
    these rules" line pinned to the foot of every sheet. Shared by /pravila and
-   the tournament tab, both rendered by components/rules/RulesDocument. */
+   the tournament tab, both rendered by components/rules/RulesDocument.
+
+   The "Preuzmi PDF" button (2026-10-03) does not use the print dialog: the
+   lazy components/rules/rulesPdf.ts imports this file as raw text, swaps
+   `@media print` for `@media all` and `body.print-rules` for `.pdf-capture`,
+   and rasterises each sheet off-screen — keep rules here free of selectors
+   that only work on `body`. Desktop Ctrl+P still uses it as written. */
 
 .print-only,
 .print-only-flex {
@@ -122,7 +128,7 @@
         position: absolute;
         left: 0;
         top: 22mm;
-        width: 56%;
+        width: 74%;
         border-bottom: 1.5px solid #2e6343;
     }
 
@@ -147,8 +153,8 @@
     }
 
     body.print-rules .rules-print .rules-lh-qr img {
-        width: 44mm !important;
-        height: 44mm !important;
+        width: 41mm !important;
+        height: 41mm !important;
     }
 
     /* Reserve the band beside the QR so the strip of settings starts below it,
@@ -191,9 +197,15 @@
         display: grid !important;
         /* ALWAYS one row, however many settings there are (7 when declarations
            are off): the count comes from the markup, the font steps down. */
-        grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)) !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
         gap: 5px !important;
     }
+
+    /* The count is a data attribute on the grid (a CSS variable was never
+       set, so every strip fell back to 4 columns and wrapped). */
+    body.print-rules .rules-glance[data-n="5"] { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+    body.print-rules .rules-glance[data-n="6"] { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
+    body.print-rules .rules-glance[data-n="7"] { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; }
 
     body.print-rules .rules-glance > * {
         padding: 4px 6px !important;
@@ -361,8 +373,8 @@
         bottom: 9mm;
         padding: 4px 0 0 !important;
         border-top: 1.5px solid #2e6343;
-        font-size: 10pt !important;
-        font-weight: 600 !important;
+        font-size: 10.5pt !important;
+        font-weight: 800 !important;
         color: #111 !important;
         background: transparent;
     }

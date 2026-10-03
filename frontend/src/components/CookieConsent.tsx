@@ -107,7 +107,7 @@ export default function CookieConsent() {
                 position="fixed"
                 inset="0"
                 bg="blackAlpha.500"
-                zIndex={1000}
+                zIndex={1400}
                 aria-hidden="true"
             />
             <Box
@@ -116,10 +116,11 @@ export default function CookieConsent() {
                 position="fixed"
                 left={{ base: "0", md: "max(var(--chakra-spacing-3), var(--safe-left))" }}
                 right={{ base: "0", md: "max(var(--chakra-spacing-3), var(--safe-right))" }}
-                bottom={{ base: "0", md: "4" }}
+                // md+: clear of the sticky footer (~60px) instead of hiding behind it
+                bottom={{ base: "0", md: "76px" }}
                 maxW={{ base: "none", md: "2xl" }}
                 mx={{ base: 0, md: "auto" }}
-                zIndex={1001}
+                zIndex={1401}
                 bg="bg.panel"
                 borderWidth={{ base: "0", md: "1px" }}
                 borderTopWidth="1px"

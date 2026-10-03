@@ -7,6 +7,7 @@ import {
     FiChevronRight,
     FiClock,
     FiEdit2,
+    FiLock,
     FiFlag,
     FiLayers,
     FiPlus,
@@ -39,6 +40,7 @@ import {
     setFoulText,
     setItemText,
     setMatchGames,
+    setNextDealer,
     setRoundMinutes,
     type ItemSection,
     type PenaltyCode,
@@ -246,7 +248,7 @@ export default function TournamentRulesEditor({
     // The editor shows EVERY default rule, even the declaration ones a "no
     // declarations" tournament hides in the public document: the organiser may
     // flip that switch back.
-    const resolved = resolveRules(rules, t, { ...game, declarationsEnabled: true }, { includeRemoved: true, plural })
+    const resolved = resolveRules(rules, t, game, { includeRemoved: true, plural })
     const changed = countCustomisations(rules)
 
     const [open, setOpen] = useState<Set<RuleSectionKey>>(() => new Set<RuleSectionKey>(["foul"]))
@@ -284,8 +286,41 @@ export default function TournamentRulesEditor({
             ? null
             : isFoul
               ? defaultFoulText(item.id, t)
-              : defaultItemText(item.id, t, game, resolved.roundMinutes, resolved.matchGames, plural)
+              : defaultItemText(item.id, t, game, { ...resolved, plural })
         const edited = item.edited || !!item.penaltyChanged
+
+        // Rules derived from the settings above (2026-10-03, owner): shown with
+        // a lock and an "Iz postavki" badge, no edit, no delete, nothing to
+        // restore. To change one, change the setting it comes from.
+        if (item.fixed) {
+            return (
+                <HStack key={item.id} align="start" gap="2.5" py="2" borderTopWidth={index === 0 ? "0" : "1px"} borderColor="border.subtle">
+                    <Box
+                        flexShrink={0}
+                        boxSize="22px"
+                        rounded="full"
+                        bg="brand.subtle"
+                        color="brand.fg"
+                        fontSize="xs"
+                        fontWeight="bold"
+                        fontFamily="mono"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        mt="1px"
+                        aria-hidden="true"
+                    >
+                        {shownNumber + 1}
+                    </Box>
+                    <Text flex="1" minW="0" fontSize="sm" lineHeight="1.5" color="fg.soft" whiteSpace="pre-line" overflowWrap="anywhere">
+                        {item.text}
+                        <Badge ml="2" size="xs" colorPalette="gray" variant="subtle" verticalAlign="middle">
+                            <FiLock /> {r("fromSettings")}
+                        </Badge>
+                    </Text>
+                </HStack>
+            )
+        }
 
         // A deleted default rule stays in its place, greyed out and struck
         // through, with a single "Vrati" — so one wrong click is one click to
@@ -490,6 +525,36 @@ export default function TournamentRulesEditor({
                     options={(["right", "left"] as const).map((v) => ({ value: v, label: t(`forms.createTournament.dealDirection.${v}`) }))}
                     onPick={(v) => onGameChange({ dealDirection: v })}
                 />
+                {/* Who deals the next game (rules.nextDealer) — drives the fixed
+                    "nova partija" rule and the blok's newGameDealer when linked. */}
+                <ChoiceField
+                    label={r("nextDealer.label")}
+                    value={resolved.nextDealer}
+                    options={[
+                        { value: "NEXT" as const, label: r("nextDealer.next") },
+                        { value: "WINNER" as const, label: r("nextDealer.winner") },
+                    ]}
+                    onPick={(v) => onRulesChange(setNextDealer(rules, v))}
+                />
+                {/* Round length (rules.roundMinutes, default 70) — drives the fixed
+                    round-duration rule and the glance strip. Commits on blur / Enter. */}
+                <Field.Root borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" rounded="l2" px="3" py="2">
+                    <HStack w="full" gap="3" justify="space-between">
+                        <Field.Label m="0">{r("roundMinutes.label")}</Field.Label>
+                        <Box w="110px" flexShrink={0}>
+                            <SuffixInput
+                                size="sm"
+                                inputMode="numeric"
+                                suffix="min"
+                                placeholder={String(DEFAULT_ROUND_MINUTES)}
+                                value={minutesDraft ?? String(resolved.roundMinutes)}
+                                onChange={(v) => setMinutesDraft(sanitizeInt(v))}
+                                onEnter={commitMinutes}
+                                onBlur={commitMinutes}
+                            />
+                        </Box>
+                    </HStack>
+                </Field.Root>
                 <ChoiceField
                     label={t("forms.createTournament.declarations.label")}
                     value={game.declarationsEnabled}
@@ -499,7 +564,9 @@ export default function TournamentRulesEditor({
                     ]}
                     onPick={(v) => onGameChange({ declarationsEnabled: v })}
                 />
-                {!game.declarationsEnabled && (
+                {/* Declarations and bela are the LAST two boxes (owner, 2026-10-03):
+                    bela sits beside the declarations box when they are off. */}
+                {!game.declarationsEnabled ? (
                     <ChoiceField
                         label={t("forms.createTournament.allowBela.label")}
                         value={game.allowBela}
@@ -509,7 +576,7 @@ export default function TournamentRulesEditor({
                         ]}
                         onPick={(v) => onGameChange({ allowBela: v })}
                     />
-                )}
+                ) : null}
             </Box>
 
             {/* ── Rulebook groups ── */}
@@ -565,22 +632,6 @@ export default function TournamentRulesEditor({
 
                             {isOpen && (
                                 <VStack align="stretch" gap="0" px="3" pb="3" borderTopWidth="1px" borderColor="border.subtle">
-                                    {key === "tour" && (
-                                        <Field.Root py="3" maxW="220px">
-                                            <Field.Label>{r("roundMinutes.label")}</Field.Label>
-                                            <SuffixInput
-                                                size="sm"
-                                                inputMode="numeric"
-                                                suffix="min"
-                                                placeholder={String(DEFAULT_ROUND_MINUTES)}
-                                                value={minutesDraft ?? String(resolved.roundMinutes)}
-                                                onChange={(v) => setMinutesDraft(sanitizeInt(v))}
-                                                onEnter={commitMinutes}
-                                                onBlur={commitMinutes}
-                                            />
-                                            <Field.HelperText>{r("roundMinutes.hint")}</Field.HelperText>
-                                        </Field.Root>
-                                    )}
                                     {(key === "trump" || key === "decl") && (
                                         <Text fontSize="xs" color="fg.muted" pt="2.5">
                                             {r("fixedNote")}
