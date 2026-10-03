@@ -2,9 +2,8 @@ import { useCallback, useRef, useState, type MouseEvent, type PointerEvent } fro
 import { Box, Grid, Text, VStack } from "@chakra-ui/react"
 
 import SuitGlyph from "../../game/components/SuitGlyph"
-import { suitKey } from "../../game/util/cards"
 import { useTranslation } from "../../i18n"
-import { BLOK_SIDES, type BlokRound, type BlokSide } from "../types"
+import { BLOK_SIDES, blokSuitKey, type BlokRound, type BlokSide } from "../types"
 import { sidePalette } from "./blokSide"
 import DealScoreCell from "./DealScoreCell"
 
@@ -241,8 +240,8 @@ function RoundRow({
                 {...(round.trump
                     ? {
                         role: "img",
-                        "aria-label": t(suitKey(round.trump)),
-                        title: t(suitKey(round.trump)),
+                        "aria-label": t(blokSuitKey(round.trump)),
+                        title: t(blokSuitKey(round.trump)),
                     }
                     : { "aria-hidden": "true" as const })}
             >

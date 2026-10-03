@@ -21,6 +21,8 @@ export default function SuffixInput({
     inputMode = "decimal",
     disabled,
     size,
+    onEnter,
+    onBlur,
 }: {
     value: string
     onChange: (v: string) => void
@@ -30,6 +32,10 @@ export default function SuffixInput({
     disabled?: boolean
     /** Chakra input size — defaults to the field's own default ("md"). */
     size?: "xs" | "sm" | "md" | "lg"
+    /** Called when Enter is pressed in the field (default Enter does nothing). */
+    onEnter?: () => void
+    /** Called when the field loses focus (2026-10-03: the rules editor commits the round length on blur). */
+    onBlur?: () => void
 }) {
     return (
         <Box position="relative" w="full">
@@ -39,8 +45,18 @@ export default function SuffixInput({
                 placeholder={placeholder}
                 inputMode={inputMode}
                 size={size}
+                onBlur={onBlur}
                 pr="9"
                 disabled={disabled}
+                onKeyDown={
+                    onEnter
+                        ? (e) => {
+                              if (e.key !== "Enter") return
+                              e.preventDefault()
+                              onEnter()
+                          }
+                        : undefined
+                }
             />
             <Box
                 position="absolute"

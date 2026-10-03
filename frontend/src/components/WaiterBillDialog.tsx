@@ -6,21 +6,28 @@ import {
     Dialog,
     HStack,
     IconButton,
+    Input,
     Portal,
     Spinner,
     Text,
     VStack,
 } from "@chakra-ui/react"
-import { FiX } from "react-icons/fi"
+import { FiTrash2, FiX } from "react-icons/fi"
 import {
     type DrinkPriceDto,
     type MatchBillDto,
     fetchTournamentCjenik,
 } from "../api/cjenik"
 import {
+    addExtraDrink,
     addWaiterDrink,
+    deleteExtraBill,
+    fetchExtraBill,
     fetchWaiterBill,
+    removeExtraDrink,
     removeWaiterDrink,
+    renameExtraBill,
+    setExtraBillPaid,
     setWaiterBillPaid,
     waiterErrorText,
 } from "../api/waiterAccess"
@@ -31,6 +38,7 @@ import { showError } from "../toaster"
    has to list a per-render `t` closure among its dependencies; `useTranslation`
    for everything rendered, which must repaint on a language switch. */
 import { t as tStatic, useTranslation } from "../i18n"
+import ConfirmDialog from "./ConfirmDialog"
 
 /* ──────────────────────────────────────────────────────────────────────────
    WaiterBillDialog — one match's bill, for someone holding a waiter token.
@@ -74,9 +82,11 @@ export default function WaiterBillDialog({
     tournamentRef,
     token,
     matchId,
+    extraBillId = null,
     heading,
     subheading,
     onChanged,
+    onDeleted,
 }: {
     open: boolean
     onClose: () => void
@@ -85,15 +95,40 @@ export default function WaiterBillDialog({
     /** The waiter session token, sent as `X-Waiter-Token` — or null for the
      *  organiser, whose ordinary Firebase bearer is authorisation enough. */
     token: string | null
-    matchId: number
+    /** Null for an "Ostalo" bill (2026-10-03) — then `extraBillId` is set and every
+     *  call below goes to the extra-bill endpoints instead; the dialog is otherwise
+     *  the same. */
+    matchId: number | null
+    extraBillId?: number | null
     /** "Runda 2 · Stol 4" — the row's own label, so no second fetch. */
     heading: string
     /** "Ivan i Marko — Ana i Petra". */
     subheading: string
     /** Fired after every successful mutation so the list can repaint. */
     onChanged?: (bill: MatchBillDto) => void
+    /** "Ostalo" bill deleted — the list drops the row and closes the dialog. */
+    onDeleted?: () => void
 }) {
     const { t } = useTranslation()
+    const isExtra = extraBillId != null
+    /* One adapter per call, so the markup below reads the same for both kinds.
+       Both are stable for the lifetime of the dialog (it is keyed per row). */
+    const api = {
+        fetch: () => (isExtra
+            ? fetchExtraBill(tournamentRef, extraBillId, token)
+            : fetchWaiterBill(tournamentRef, matchId as number, token)),
+        add: (priceId: number, opId: string) => (isExtra
+            ? addExtraDrink(tournamentRef, extraBillId, token, priceId, 1, opId)
+            : addWaiterDrink(tournamentRef, matchId as number, token, priceId, 1, opId)),
+        remove: (drinkId: number, opId: string) => (isExtra
+            ? removeExtraDrink(tournamentRef, extraBillId, token, drinkId, opId)
+            : removeWaiterDrink(tournamentRef, matchId as number, token, drinkId, opId)),
+        paid: (paid: boolean, opId: string) => (isExtra
+            ? setExtraBillPaid(tournamentRef, extraBillId, token, paid, opId)
+            : setWaiterBillPaid(tournamentRef, matchId as number, token, paid, opId)),
+    }
+    const [labelDraft, setLabelDraft] = useState("")
+    const [deleteOpen, setDeleteOpen] = useState(false)
     const [bill, setBill] = useState<MatchBillDto | null>(null)
     const [cjenik, setCjenik] = useState<DrinkPriceDto[]>([])
     const [loading, setLoading] = useState(true)
@@ -125,7 +160,7 @@ export default function WaiterBillDialog({
         let cancelled = false
         setLoading(true)
         void Promise.all([
-            fetchWaiterBill(tournamentRef, matchId, token),
+            api.fetch(),
             // A tournament with no cjenik is a normal state (the organiser
             // has not set prices yet), so a failure here must not take the
             // bill down with it — the drinks already on it still render.
@@ -134,6 +169,7 @@ export default function WaiterBillDialog({
             .then(([b, c]) => {
                 if (cancelled || !mountedRef.current) return
                 setBill(b)
+                setLabelDraft(b.label ?? "")
                 setCjenik(c)
             })
             .catch((e) => {
@@ -147,7 +183,9 @@ export default function WaiterBillDialog({
                 if (!cancelled && mountedRef.current) setLoading(false)
             })
         return () => { cancelled = true }
-    }, [tournamentRef, matchId, token])
+        // `api` is rebuilt every render; these three fully determine it.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tournamentRef, matchId, extraBillId, token])
 
     /**
      * Run one mutation with the busy latch held. Every waiter write returns
@@ -169,6 +207,23 @@ export default function WaiterBillDialog({
         }
     }, [busy, applyBill])
 
+    /** Organiser deletes (after a confirm) even a bill with drinks; a waiter only an empty one. */
+    const canDelete = isExtra && !!bill && !bill.paidAt && (token === null || bill.drinks.length === 0)
+
+    async function onDelete() {
+        if (busy || extraBillId == null) return
+        setBusy(true)
+        try {
+            await deleteExtraBill(tournamentRef, extraBillId, token, newOpId())
+            setDeleteOpen(false)
+            onDeleted?.()
+        } catch (e) {
+            showError(tStatic("tournament.waiter.actionFailed"), waiterErrorText(e, "") || undefined)
+        } finally {
+            if (mountedRef.current) setBusy(false)
+        }
+    }
+
     const isPaid = !!bill?.paidAt
     /* Same freeze rule the backend enforces: a settled bill is closed. */
     const editable = !!bill && !isPaid && !busy
@@ -189,7 +244,7 @@ export default function WaiterBillDialog({
                                 <Box minW="0">
                                     <Dialog.Title fontSize="md">{heading}</Dialog.Title>
                                     <Text fontSize="sm" color="fg.muted" lineClamp={2}>
-                                        {subheading}
+                                        {isExtra ? (bill?.label ?? subheading) : subheading}
                                     </Text>
                                 </Box>
                                 <HStack gap="2" flexShrink={0}>
@@ -220,6 +275,28 @@ export default function WaiterBillDialog({
                                 </HStack>
                             ) : (
                                 <VStack align="stretch" gap="3">
+                                    {/* "Ostalo" bills are nameable; saved on blur / Enter. */}
+                                    {isExtra && !isPaid && (
+                                        <Input
+                                            size="sm"
+                                            value={labelDraft}
+                                            onChange={(e) => setLabelDraft(e.target.value)}
+                                            onBlur={() => {
+                                                if (busy || extraBillId == null) return
+                                                if (labelDraft.trim() === (bill.label ?? "")) return
+                                                void run(async (opId) =>
+                                                    renameExtraBill(tournamentRef, extraBillId, token, labelDraft, opId),
+                                                )
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur() }
+                                            }}
+                                            aria-label={t("tournament.waiter.extra.label")}
+                                            placeholder={t("tournament.waiter.extra.labelPlaceholder")}
+                                            maxLength={60}
+                                            disabled={busy}
+                                        />
+                                    )}
                                     {/* Drinks already on the bill */}
                                     {bill.drinks.length === 0 ? (
                                         <Text color="fg.muted" fontSize="sm">
@@ -255,9 +332,7 @@ export default function WaiterBillDialog({
                                                                 colorPalette="red"
                                                                 disabled={busy}
                                                                 onClick={() => void run((opId) =>
-                                                                    removeWaiterDrink(
-                                                                        tournamentRef, matchId, token, d.id, opId,
-                                                                    ),
+                                                                    api.remove(d.id, opId),
                                                                 )}
                                                             >
                                                                 <FiX />
@@ -317,9 +392,7 @@ export default function WaiterBillDialog({
                                                             disabled={p.id == null || !editable}
                                                             onClick={() => {
                                                                 if (p.id == null) return
-                                                                void run((opId) => addWaiterDrink(
-                                                                    tournamentRef, matchId, token, p.id as number, 1, opId,
-                                                                ))
+                                                                void run((opId) => api.add(p.id as number, opId))
                                                             }}
                                                         >
                                                             {t("tournament.bill.priceChip", {
@@ -337,6 +410,22 @@ export default function WaiterBillDialog({
                         </Dialog.Body>
 
                         <Dialog.Footer gap="2">
+                            {canDelete && (
+                                <IconButton
+                                    aria-label={t("tournament.waiter.extra.delete")}
+                                    title={t("tournament.waiter.extra.delete")}
+                                    variant="ghost"
+                                    colorPalette="red"
+                                    disabled={busy}
+                                    mr="auto"
+                                    onClick={() => {
+                                        if (bill && bill.drinks.length > 0) setDeleteOpen(true)
+                                        else void onDelete()
+                                    }}
+                                >
+                                    <FiTrash2 />
+                                </IconButton>
+                            )}
                             <Button variant="ghost" onClick={onClose} disabled={busy}>
                                 {t("common.close")}
                             </Button>
@@ -347,7 +436,7 @@ export default function WaiterBillDialog({
                                         colorPalette="gray"
                                         loading={busy}
                                         onClick={() => void run((opId) =>
-                                            setWaiterBillPaid(tournamentRef, matchId, token, false, opId),
+                                            api.paid(false, opId),
                                         )}
                                     >
                                         {t("tournament.bill.unpay")}
@@ -358,7 +447,7 @@ export default function WaiterBillDialog({
                                         loading={busy}
                                         disabled={bill.drinks.length === 0 || busy}
                                         onClick={() => void run((opId) =>
-                                            setWaiterBillPaid(tournamentRef, matchId, token, true, opId),
+                                            api.paid(true, opId),
                                         )}
                                     >
                                         {t("tournament.bill.markPaid")}
@@ -369,6 +458,16 @@ export default function WaiterBillDialog({
                     </Dialog.Content>
                 </Dialog.Positioner>
             </Portal>
+            <ConfirmDialog
+                open={deleteOpen}
+                title={t("tournament.waiter.extra.deleteTitle")}
+                description={t("tournament.waiter.extra.deleteBody")}
+                confirmLabel={t("tournament.waiter.extra.deleteConfirm")}
+                destructive
+                busy={busy}
+                onConfirm={() => void onDelete()}
+                onCancel={() => setDeleteOpen(false)}
+            />
         </Dialog.Root>
     )
 }

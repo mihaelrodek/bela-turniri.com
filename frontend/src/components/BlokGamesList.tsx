@@ -3,9 +3,8 @@ import { Box, Grid, Text, VStack } from "@chakra-ui/react"
 import { FiChevronDown, FiChevronRight } from "react-icons/fi"
 import { scoreManualDeal } from "@bela/engine"
 import DealScoreCell from "../blok/components/DealScoreCell"
-import { creditedDeclarationTotals } from "../blok/types"
+import { blokSuitKey, creditedDeclarationTotals } from "../blok/types"
 import SuitGlyph from "../game/components/SuitGlyph"
-import { suitKey } from "../game/util/cards"
 import { useTranslation } from "../i18n"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -278,7 +277,7 @@ export function BlokGamesList({
                                         justifyContent="center"
                                         minW="6"
                                         {...(round.trump
-                                            ? { role: "img" as const, "aria-label": t(suitKey(round.trump)), title: t(suitKey(round.trump)) }
+                                            ? { role: "img" as const, "aria-label": t(blokSuitKey(round.trump)), title: t(blokSuitKey(round.trump)) }
                                             : { "aria-hidden": "true" as const })}
                                     >
                                         {round.trump ? (

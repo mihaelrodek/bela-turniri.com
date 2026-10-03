@@ -1,5 +1,6 @@
 package hr.mrodek.apps.bela_turniri.dtos;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import hr.mrodek.apps.bela_turniri.enums.RepassageUntil;
 import hr.mrodek.apps.bela_turniri.enums.RewardType;
 import hr.mrodek.apps.bela_turniri.enums.TournamentStatus;
@@ -52,6 +53,13 @@ public record CreateTournamentRequest(
         String dealDirection,                   // right | left (default right)
         Boolean declarationsEnabled,            // default true
         Boolean allowBela,                      // relevant without declarations; default true
+
+        // "Pravila turnira" document (see TournamentRulesNormaliser), validated
+        // and normalised in the controller. Three states on update: key absent
+        // (Java null) = leave stored rules alone, explicit JSON null (NullNode)
+        // = reset to the global defaults, object = replace. That keeps older
+        // clients that never send `rules` from wiping an organiser's edits.
+        JsonNode rules,
 
         @Size(max = 200, message = "validation.tournament.contactName.max")
         String contactName,

@@ -12,7 +12,7 @@ import {
     Text,
     VStack,
 } from "@chakra-ui/react"
-import { FiAlertCircle, FiInfo, FiLink2, FiLogIn } from "react-icons/fi"
+import { FiAlertCircle, FiLink2, FiLogIn } from "react-icons/fi"
 
 import EmptyState from "../../components/EmptyState"
 import { hasTranslation, useTranslation } from "../../i18n"
@@ -110,8 +110,6 @@ function useTableLabel() {
 export default function BlokLinkDialog({
     open,
     signedIn,
-    usName,
-    themName,
     sessionId,
     onClose,
     onLinked,
@@ -126,8 +124,6 @@ export default function BlokLinkDialog({
      */
     signedIn: boolean
     /** The local side names, so step three asks in the player's own words. */
-    usName: string
-    themName: string
     /**
      * The series being played (BLOK-LINK.md §6.2). Linking is consent for this
      * series' logbook to be public, so the server is told which record that is
@@ -168,16 +164,17 @@ export default function BlokLinkDialog({
         // same request twice on every open.
     }, [open])
 
-    /* Step one's list. `fetchTournaments("upcoming")` is exactly the DRAFT +
-       STARTED bucket the contract asks for — the backend's other bucket is
-       explicit FINISHED — so there is no client-side status filter to drift. */
+    /* Step one's list: only tournaments that are RUNNING (status STARTED)
+       (2026-10-03, owner) — not the ones still being prepared, not finished
+       ones. `fetchTournaments("upcoming")` is the DRAFT + STARTED bucket, so
+       the DRAFT ones are filtered out here. */
     useEffect(() => {
         if (!open || step.kind !== "tournament") return
         let cancelled = false
         setTournaments({ state: "loading" })
         fetchTournaments("upcoming")
-            .then((items) => {
-                if (!cancelled) setTournaments({ state: "ready", items })
+            .then((all) => {
+                if (!cancelled) setTournaments({ state: "ready", items: all.filter((item) => item.status === "STARTED") })
             })
             .catch(() => {
                 if (!cancelled) setTournaments({ state: "error" })
@@ -282,27 +279,11 @@ export default function BlokLinkDialog({
                                     most is the one who opened this at home and
                                     is now staring at a list of tournaments they
                                     are not playing in. */}
-                                <HStack
-                                    gap="2"
-                                    align="start"
-                                    px="3"
-                                    py="2"
-                                    rounded="l2"
-                                    bg="bg.subtle"
-                                    borderWidth="1px"
-                                    borderColor="border.subtle"
-                                >
-                                    <Box color="fg.muted" flexShrink="0" mt="0.5" display="flex" aria-hidden="true">
-                                        <FiInfo size={14} />
-                                    </Box>
-                                    <Text fontSize="xs" color="fg.muted">
-                                        {t("blok.link.tournamentsOnly")}
+                                {step.kind !== "side" ? (
+                                    <Text fontSize="sm" color="fg.muted">
+                                        {t(stepTitle)}
                                     </Text>
-                                </HStack>
-
-                                <Text fontSize="sm" color="fg.muted">
-                                    {t(stepTitle)}
-                                </Text>
+                                ) : null}
 
                                 {step.kind === "tournament" ? (
                                     <TournamentStep
@@ -328,8 +309,6 @@ export default function BlokLinkDialog({
                                 {step.kind === "side" ? (
                                     <SideStep
                                         target={step.target}
-                                        usName={usName}
-                                        themName={themName}
                                         usPairId={usPairId}
                                         onPick={setUsPairId}
                                         errorKey={submitError}
@@ -542,8 +521,6 @@ function TableStep({
 
 function SideStep({
     target,
-    usName,
-    themName,
     usPairId,
     onPick,
     errorKey,
@@ -553,8 +530,6 @@ function SideStep({
     onSignIn,
 }: {
     target: BlokLinkTargetDto
-    usName: string
-    themName: string
     usPairId: number | null
     onPick: (id: number) => void
     errorKey: string | null
@@ -576,8 +551,9 @@ function SideStep({
 
     return (
         <VStack gap="2" align="stretch">
-            <Text fontSize="sm" color="fg.muted">
-                {t("blok.link.sideQuestion", { side: usName })}
+            <Text fontSize="md" fontWeight="medium">
+                {/* "Which pair are you?" — NOT "who is <old name>": once the request is approved the blok restarts as MI/VI, so the old names are about to disappear (2026-10-03, owner). */}
+                {t("blok.link.sideQuestion")}
             </Text>
 
             {signedIn ? (
@@ -633,7 +609,6 @@ function SideStep({
 
             {pairs.map((pair) => {
                 const selected = usPairId === pair.id
-                const other = pairs.find((p) => p.id !== pair.id)
                 return (
                     <Box
                         as="button"
@@ -661,17 +636,6 @@ function SideStep({
                             truncate
                         >
                             {pair.name}
-                        </Text>
-                        {/* The consequence spelled out, both ways round: this
-                            is the mapping the organiser will read the score
-                            through, and it cannot be corrected later. */}
-                        <Text fontSize="xs" color="fg.muted" truncate>
-                            {t("blok.link.sideMapping", {
-                                us: usName,
-                                usPair: pair.name,
-                                them: themName,
-                                themPair: other?.name ?? "—",
-                            })}
                         </Text>
                     </Box>
                 )

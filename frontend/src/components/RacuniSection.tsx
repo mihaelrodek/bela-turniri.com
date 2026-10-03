@@ -16,6 +16,7 @@ import {
     FiGrid,
     FiLink,
     FiLogOut,
+    FiPlus,
     FiTrash2,
     FiUserPlus,
     FiCreditCard,
@@ -23,6 +24,7 @@ import {
 import {
     type WaiterBillRowDto,
     type WaiterDto,
+    createExtraBill,
     fetchWaiterBills,
     listWaiters,
     revokeAllWaiters,
@@ -30,10 +32,11 @@ import {
     waiterErrorText,
 } from "../api/waiterAccess"
 import type { MatchBillDto } from "../api/cjenik"
+import { newOpId } from "../hooks/useOfflineQueue"
 import { useWaiterSession } from "../hooks/useWaiterSession"
 import { useLiveSocket } from "../hooks/useLiveSocket"
 import { usePolling } from "../hooks/usePolling"
-import { formatEur } from "../utils/format"
+import { formatDateTime, formatEur } from "../utils/format"
 import { showError, showSuccess } from "../toaster"
 /* `tStatic` is the non-reactive translator. The data callbacks below are
    listed in effect dependency arrays, so they must keep a stable identity —
@@ -42,6 +45,7 @@ import { showError, showSuccess } from "../toaster"
    lost: `tStatic` reads the same module-level locale, at the moment the
    message is actually needed. Same precedent as this page's `matchRow`. */
 import { t as tStatic, usePlural, useTranslation } from "../i18n"
+import AddBillDialog from "./AddBillDialog"
 import ConfirmDialog from "./ConfirmDialog"
 import EmptyState from "./EmptyState"
 import { CounterChip } from "./PairsSection"
@@ -50,6 +54,16 @@ import WaiterInviteDialog, { WaiterCodeChip } from "./WaiterInviteDialog"
 
 /* ──────────────────────────────────────────────────────────────────────────
    RacuniSection — the Računi tab.
+
+   2026-10-03 — COLLAPSIBLE WAITERS CARD + "DODAJ RAČUN"
+   ─────────────────────────────────────────────────────
+   The waiters card collapses to one summary line (chevron toggle, remembered
+   per tournament in localStorage; default expanded while there are no waiters,
+   collapsed once there are some). "+ Dodaj račun" opens `AddBillDialog`: pick
+   a Runda + Stol to open that table's bill, or "Ostalo" to create a bill tied
+   to no match. Those come back from the same list as `kind: "EXTRA"` rows and
+   render in a last group after the rounds with the same two-line row, counted
+   in the unpaid chip; `rowKey` keeps match and extra ids from colliding.
 
    TWO READERS, ONE LIST
    ─────────────────────
@@ -86,8 +100,37 @@ import WaiterInviteDialog, { WaiterCodeChip } from "./WaiterInviteDialog"
 
 /** A round and its bills, in table order — the shape the list renders. */
 type BillGroup = {
-    roundNumber: number
+    /** Stable key for the collapse state: "r<n>" for a round, "extra" for the "Ostalo" group. */
+    key: string
+    /** Null for the "Ostalo" group (2026-10-03): bills with no match, listed after the rounds. */
+    roundNumber: number | null
     rows: WaiterBillRowDto[]
+}
+
+/** Identity of a list row across both kinds — a match id and an extra-bill id can collide. */
+const rowKey = (b: WaiterBillRowDto) =>
+    b.kind === "EXTRA" ? `e${b.extraBillId}` : `m${b.matchId}`
+
+/* 2026-10-03: the waiters card is collapsible and the choice is remembered per
+   tournament. Stored as "1" (collapsed) / "0" (expanded); no entry means
+   "decide by content" — expanded while there are no waiters yet (the invite
+   button is the point), collapsed once there are some. localStorage can throw
+   (private mode, blocked site data), hence the try/catch on both sides. */
+const waitersCollapsedKey = (uuid: string) => `bela:racuni:waiters-collapsed:${uuid}`
+function readWaitersCollapsed(uuid: string): boolean | null {
+    try {
+        const v = window.localStorage.getItem(waitersCollapsedKey(uuid))
+        return v === "1" ? true : v === "0" ? false : null
+    } catch {
+        return null
+    }
+}
+function writeWaitersCollapsed(uuid: string, collapsed: boolean) {
+    try {
+        window.localStorage.setItem(waitersCollapsedKey(uuid), collapsed ? "1" : "0")
+    } catch {
+        /* a preference, not data: losing it is fine */
+    }
 }
 
 /** HTTP status of an axios-shaped rejection, or null for a network error. */
@@ -125,6 +168,18 @@ export default function RacuniSection({
     const [revokingOne, setRevokingOne] = useState(false)
     const [revokeAllOpen, setRevokeAllOpen] = useState(false)
     const [revokingAll, setRevokingAll] = useState(false)
+    const [storedCollapsed, setStoredCollapsed] = useState<boolean | null>(
+        () => readWaitersCollapsed(tournamentUuid),
+    )
+    useEffect(() => { setStoredCollapsed(readWaitersCollapsed(tournamentUuid)) }, [tournamentUuid])
+    // Until the first load answers, treat "no waiters yet" as the default so the
+    // card does not flash collapsed and then spring open.
+    const waitersCollapsed = storedCollapsed ?? (!waitersLoading && waiters.length > 0)
+    const toggleWaiters = () => {
+        const next = !waitersCollapsed
+        setStoredCollapsed(next)
+        writeWaitersCollapsed(tournamentUuid, next)
+    }
 
     const loadWaiters = useCallback(async () => {
         if (!canEdit) return
@@ -193,8 +248,10 @@ export default function RacuniSection({
     /* Manual declutter, not automatic: a paid row stays exactly as shown
        until the reader collapses it themselves — see the file banner and
        the round toggle below for the "sažmi kad smeta" ask. */
-    const [collapsedRounds, setCollapsedRounds] = useState<Record<number, boolean>>({})
-    const [expandedPaidRows, setExpandedPaidRows] = useState<Record<number, boolean>>({})
+    const [collapsedRounds, setCollapsedRounds] = useState<Record<string, boolean>>({})
+    const [expandedPaidRows, setExpandedPaidRows] = useState<Record<string, boolean>>({})
+    const [addOpen, setAddOpen] = useState(false)
+    const [addBusy, setAddBusy] = useState(false)
 
     const loadBills = useCallback(async () => {
         if (!canLoadBills) return
@@ -240,49 +297,85 @@ export default function RacuniSection({
      *  the sort is belt-and-braces so a reordered response cannot scramble it. */
     const groups: BillGroup[] = useMemo(() => {
         const byRound = new Map<number, WaiterBillRowDto[]>()
+        const extras: WaiterBillRowDto[] = []
         for (const b of bills) {
+            if (b.kind === "EXTRA" || b.roundNumber == null) { extras.push(b); continue }
             const list = byRound.get(b.roundNumber)
             if (list) list.push(b)
             else byRound.set(b.roundNumber, [b])
         }
-        return [...byRound.entries()]
+        const out: BillGroup[] = [...byRound.entries()]
             .sort((a, b) => a[0] - b[0])
             .map(([roundNumber, rows]) => ({
+                key: `r${roundNumber}`,
                 roundNumber,
                 rows: [...rows].sort((x, y) => (x.tableNo ?? 0) - (y.tableNo ?? 0)),
             }))
+        // "Ostalo" last, in creation order (the backend sends them oldest first).
+        if (extras.length > 0) out.push({ key: "extra", roundNumber: null, rows: extras })
+        return out
     }, [bills])
 
     /** Patch one row from a bill the dialog just wrote, so the list repaints
      *  without a second round trip to the whole collection. */
     const onBillChanged = useCallback((fresh: MatchBillDto) => {
         setBills((rs) => rs.map((r) => (
-            r.matchId !== fresh.matchId ? r : {
+            (fresh.extraBillId != null
+                ? r.kind !== "EXTRA" || r.extraBillId !== fresh.extraBillId
+                : r.kind === "EXTRA" || r.matchId !== fresh.matchId) ? r : {
                 ...r,
+                label: fresh.extraBillId != null ? (fresh.label ?? null) : r.label,
                 total: fresh.total,
                 paid: !!fresh.paidAt,
                 paidAt: fresh.paidAt ?? null,
+                paidByName: fresh.paidByName ?? null,
                 drinkCount: fresh.drinks.length,
             }
         )))
     }, [])
 
     const rowLabel = (b: WaiterBillRowDto) =>
-        b.tableNo != null
+        b.kind === "EXTRA"
+            ? t("tournament.waiter.extra.default")
+            : b.tableNo != null
             ? t("tournament.table", { n: b.tableNo })
             : t("tournament.bracket.bye")
 
     const rowPairs = (b: WaiterBillRowDto) =>
-        t("tournament.waiter.list.versus", {
-            a: b.pair1Name ?? "—",
-            b: b.pair2Name ?? "—",
-        })
+        b.kind === "EXTRA"
+            ? (b.label ?? "")
+            : t("tournament.waiter.list.versus", {
+                a: b.pair1Name ?? "—",
+                b: b.pair2Name ?? "—",
+            })
 
-    const toggleRound = (roundNumber: number) =>
-        setCollapsedRounds((c) => ({ ...c, [roundNumber]: !c[roundNumber] }))
+    const toggleRound = (key: string) =>
+        setCollapsedRounds((c) => ({ ...c, [key]: !c[key] }))
 
-    const togglePaidRow = (matchId: number) =>
-        setExpandedPaidRows((e) => ({ ...e, [matchId]: !e[matchId] }))
+    const togglePaidRow = (key: string) =>
+        setExpandedPaidRows((e) => ({ ...e, [key]: !e[key] }))
+
+    /** "Dodaj račun" → "Za stol": just open that table's existing bill. */
+    const onPickMatch = (row: WaiterBillRowDto) => {
+        setAddOpen(false)
+        setSelected(row)
+    }
+
+    /** "Dodaj račun" → "Ostalo": create the bill, show it in the list, open it. */
+    const onCreateExtra = async (label: string) => {
+        if (addBusy) return
+        setAddBusy(true)
+        try {
+            const row = await createExtraBill(tournamentUuid, billToken, label, newOpId())
+            setBills((rs) => (rs.some((r) => rowKey(r) === rowKey(row)) ? rs : [...rs, row]))
+            setAddOpen(false)
+            setSelected(row)
+        } catch (e) {
+            showError(tStatic("tournament.waiter.extra.createFailed"), waiterErrorText(e, "") || undefined)
+        } finally {
+            setAddBusy(false)
+        }
+    }
 
     return (
         <VStack align="stretch" gap="4">
@@ -297,44 +390,78 @@ export default function RacuniSection({
                     p={{ base: "4", md: "5" }}
                 >
                     <VStack align="stretch" gap="3">
-                        <HStack justify="space-between" align="start" gap="2" wrap="wrap">
-                            <Box>
-                                <HStack gap="2" align="center" mb="1">
+                        <HStack justify="space-between" align="center" gap="2" wrap="wrap">
+                            {/* `1 1 12rem`, not `flex="1"` (basis 0): in a wrapping row
+                                a zero basis let the title column collapse to a sliver
+                                and the description wrapped one word per line beside
+                                the buttons (2026-10-03, reported). The description now
+                                sits under the whole row instead of inside this box. */}
+                            <Box minW="0" flex="1 1 12rem">
+                                {/* The whole title row toggles the card, like the round headings below. */}
+                                <HStack
+                                    as="button"
+                                    onClick={toggleWaiters}
+                                    gap="2"
+                                    align="center"
+                                    cursor="pointer"
+                                    w="full"
+                                    minW="0"
+                                    textAlign="left"
+                                    aria-expanded={!waitersCollapsed}
+                                    aria-label={waitersCollapsed
+                                        ? t("tournament.waiter.manage.expand")
+                                        : t("tournament.waiter.manage.collapse")}
+                                >
+                                    <Box color="fg.muted" display="flex" alignItems="center">
+                                        {waitersCollapsed ? <FiChevronRight size={14} /> : <FiChevronDown size={14} />}
+                                    </Box>
                                     <Box color="brand.fg" display="flex" alignItems="center">
                                         <FiCreditCard size={15} />
                                     </Box>
                                     <Text fontFamily="heading" fontWeight="semibold" letterSpacing="-0.015em">
                                         {t("tournament.waiter.manage.heading")}
                                     </Text>
+                                    {waitersCollapsed && (
+                                        <Text fontSize="sm" color="fg.muted" minW="0" lineClamp={1}>
+                                            {waiters.length > 0
+                                                ? `· ${plural("tournament.waiter.manage.summary", waiters.length)}`
+                                                : (waitersLoading ? "" : `· ${t("tournament.waiter.manage.summaryNone")}`)}
+                                        </Text>
+                                    )}
                                 </HStack>
-                                <Text fontSize="sm" color="fg.muted" maxW="lg">
-                                    {t("tournament.waiter.manage.description")}
-                                </Text>
                             </Box>
-                            <HStack gap="2" flexShrink={0}>
-                                {waiters.length > 0 && (
-                                    <Button
-                                        size="xs"
-                                        variant="outline"
-                                        colorPalette="red"
-                                        onClick={() => setRevokeAllOpen(true)}
-                                    >
-                                        <FiTrash2 /> {t("tournament.waiter.manage.revokeAll")}
-                                    </Button>
-                                )}
-                                {!isFinished && (
-                                    <Button
-                                        size="xs"
-                                        colorPalette="blue"
-                                        onClick={() => setInviteOpen(true)}
-                                    >
-                                        <FiUserPlus /> {t("tournament.waiter.manage.invite")}
-                                    </Button>
-                                )}
-                            </HStack>
+                            {!waitersCollapsed && (
+                                <HStack gap="2" flexShrink={0}>
+                                    {waiters.length > 0 && (
+                                        <Button
+                                            size="xs"
+                                            variant="outline"
+                                            colorPalette="red"
+                                            onClick={() => setRevokeAllOpen(true)}
+                                        >
+                                            <FiTrash2 /> {t("tournament.waiter.manage.revokeAll")}
+                                        </Button>
+                                    )}
+                                    {!isFinished && (
+                                        <Button
+                                            size="xs"
+                                            colorPalette="blue"
+                                            onClick={() => setInviteOpen(true)}
+                                        >
+                                            <FiUserPlus /> {t("tournament.waiter.manage.invite")}
+                                        </Button>
+                                    )}
+                                </HStack>
+                            )}
                         </HStack>
 
-                        {waitersLoading && waiters.length === 0 ? (
+                        {!waitersCollapsed && (
+                            <Text fontSize="sm" color="fg.muted" maxW="lg">
+                                {t("tournament.waiter.manage.description")}
+                            </Text>
+                        )}
+
+                        {waitersCollapsed ? null : waitersLoading && waiters.length === 0 ? (
                             <HStack justify="center" py="4" gap="2">
                                 <Spinner size="sm" />
                                 <Text fontSize="sm" color="fg.muted">{t("common.loading")}</Text>
@@ -424,6 +551,14 @@ export default function RacuniSection({
                     />
                 </HStack>
                 <HStack gap="2" flexShrink={0}>
+                    {/* 2026-10-03: quick way to a table's bill, or a standalone
+                        "Ostalo" bill. Organiser and waiter alike; not hidden for
+                        a finished tournament because bills stay editable there. */}
+                    {canLoadBills && (
+                        <Button size="xs" colorPalette="blue" onClick={() => setAddOpen(true)}>
+                            <FiPlus /> {t("tournament.waiter.extra.add")}
+                        </Button>
+                    )}
                     {/* A waiter's phone would otherwise carry this tournament's
                         Računi tab forever. The organiser has no use for it —
                         they never held a session to begin with. */}
@@ -458,13 +593,13 @@ export default function RacuniSection({
             ) : (
                 <VStack align="stretch" gap="4">
                     {groups.map((g) => {
-                        const roundCollapsed = !!collapsedRounds[g.roundNumber]
+                        const roundCollapsed = !!collapsedRounds[g.key]
                         const unpaidInRound = g.rows.filter((r) => !r.paid).length
                         return (
-                            <Box key={g.roundNumber}>
+                            <Box key={g.key}>
                                 <HStack
                                     as="button"
-                                    onClick={() => toggleRound(g.roundNumber)}
+                                    onClick={() => toggleRound(g.key)}
                                     gap="1.5"
                                     mb="1.5"
                                     cursor="pointer"
@@ -482,7 +617,9 @@ export default function RacuniSection({
                                         letterSpacing="wider"
                                         textTransform="uppercase"
                                     >
-                                        {t("tournament.round.heading", { n: g.roundNumber })}
+                                        {g.roundNumber == null
+                                            ? t("tournament.waiter.extra.default")
+                                            : t("tournament.round.heading", { n: g.roundNumber })}
                                     </Text>
                                     {roundCollapsed && unpaidInRound > 0 && (
                                         <Badge variant="subtle" colorPalette="yellow" size="sm">
@@ -493,13 +630,13 @@ export default function RacuniSection({
                                 {!roundCollapsed && (
                                     <VStack align="stretch" gap="2">
                                         {g.rows.map((b) => {
-                                            const expanded = !b.paid || !!expandedPaidRows[b.matchId]
+                                            const expanded = !b.paid || !!expandedPaidRows[rowKey(b)]
                                             if (!expanded) {
                                                 return (
                                                     <HStack
-                                                        key={b.matchId}
+                                                        key={rowKey(b)}
                                                         as="button"
-                                                        onClick={() => togglePaidRow(b.matchId)}
+                                                        onClick={() => togglePaidRow(rowKey(b))}
                                                         justify="space-between"
                                                         gap="2"
                                                         borderWidth="1px"
@@ -532,83 +669,96 @@ export default function RacuniSection({
                                                     </HStack>
                                                 )
                                             }
+                                            /* Two lines, the same on a phone and a
+                                               desktop (2026-10-03, owner: the old
+                                               side-by-side layout wrapped badly
+                                               once expanded). Line 1: table, pair
+                                               names, price. Line 2: status — and,
+                                               for a settled bill, WHO took the
+                                               money and WHEN — with the actions on
+                                               the right. */
                                             return (
                                                 <Box
-                                                    key={b.matchId}
+                                                    key={rowKey(b)}
                                                     borderWidth="1px"
                                                     borderColor={b.paid ? "border.subtle" : "border.emphasized"}
                                                     borderLeftWidth="3px"
                                                     borderLeftColor={b.paid ? "green.solid" : "yellow.solid"}
                                                     rounded="md"
                                                     bg="bg.panel"
-                                                    // A settled bill is done with: it stays
-                                                    // readable but stops competing with the
-                                                    // ones still owing, the same "finished
-                                                    // reads muted" rule the cards use.
-                                                    opacity={b.paid ? 0.65 : 1}
-                                                    px="2.5"
-                                                    py="2"
-                                                    display="flex"
-                                                    flexDirection={{ base: "column", sm: "row" }}
-                                                    alignItems={{ base: "stretch", sm: "center" }}
-                                                    gap="2"
+                                                    px="3"
+                                                    py="2.5"
                                                 >
-                                                    <HStack gap="2" minW="0" flex="1">
-                                                        <Badge
-                                                            variant="subtle"
-                                                            colorPalette="gray"
-                                                            size="sm"
+                                                    <HStack justify="space-between" align="center" gap="3">
+                                                        <HStack gap="2" minW="0" flex="1">
+                                                            <Badge variant="subtle" colorPalette="gray" size="sm" flexShrink={0}>
+                                                                {rowLabel(b)}
+                                                            </Badge>
+                                                            <Text fontSize="sm" minW="0" lineClamp={1} color={b.paid ? "fg.muted" : "fg.soft"}>
+                                                                {rowPairs(b)}
+                                                            </Text>
+                                                        </HStack>
+                                                        <Text
+                                                            fontSize="md"
+                                                            fontWeight="bold"
+                                                            fontFamily="mono"
+                                                            fontVariantNumeric="tabular-nums"
                                                             flexShrink={0}
                                                         >
-                                                            {rowLabel(b)}
-                                                        </Badge>
-                                                        <Text fontSize="sm" minW="0" lineClamp={1} color="fg.soft">
-                                                            {rowPairs(b)}
+                                                            {formatEur(b.total)}
                                                         </Text>
+                                                        {/* Fixed-width slot on EVERY row, so the price and
+                                                            the "Otvori račun" button sit in the same column
+                                                            whether or not a collapse chevron is there
+                                                            (2026-10-03, reported: beside the button, the
+                                                            chevron pushed it left on paid rows only). */}
+                                                        <Box w="28px" h="28px" flexShrink={0} ml="-1">
+                                                            {b.paid && (
+                                                                <IconButton
+                                                                    aria-label={t("tournament.waiter.list.collapsePaid")}
+                                                                    title={t("tournament.waiter.list.collapsePaid")}
+                                                                    size="xs"
+                                                                    variant="ghost"
+                                                                    onClick={() => togglePaidRow(rowKey(b))}
+                                                                >
+                                                                    <FiChevronDown />
+                                                                </IconButton>
+                                                            )}
+                                                        </Box>
                                                     </HStack>
-                                                    <HStack gap="3" flexShrink={0} justify="flex-end">
-                                                        {/* Stacked, not side by side: "Plaćeno" and
-                                                            "Neplaćeno" are different widths, and on one
-                                                            line that shoved the price left/right by row —
-                                                            right-aligned and stacked, both stay put. */}
-                                                        <VStack gap="0.5" align="flex-end" minW="4.5rem">
-                                                            <Text
-                                                                fontSize="sm"
-                                                                fontWeight="bold"
-                                                                fontFamily="mono"
-                                                                fontVariantNumeric="tabular-nums"
-                                                            >
-                                                                {formatEur(b.total)}
-                                                            </Text>
+                                                    <HStack justify="space-between" align="center" gap="3" mt="2">
+                                                        <HStack gap="2" minW="0" flex="1">
                                                             <Badge
                                                                 variant="subtle"
                                                                 size="sm"
                                                                 colorPalette={b.paid ? "green" : "yellow"}
+                                                                flexShrink={0}
                                                             >
                                                                 {b.paid
                                                                     ? t("tournament.bill.paid")
                                                                     : t("tournament.waiter.list.unpaid")}
                                                             </Badge>
-                                                        </VStack>
-                                                        <Button
-                                                            size="xs"
-                                                            variant={b.paid ? "outline" : "solid"}
-                                                            colorPalette="blue"
-                                                            onClick={() => setSelected(b)}
-                                                        >
-                                                            {t("tournament.waiter.list.openBill")}
-                                                        </Button>
-                                                        {b.paid && (
-                                                            <IconButton
-                                                                aria-label={t("tournament.waiter.list.collapsePaid")}
-                                                                title={t("tournament.waiter.list.collapsePaid")}
+                                                            {b.paid && b.paidAt && (
+                                                                <Text fontSize="xs" color="fg.muted" minW="0" lineClamp={1}>
+                                                                    {b.paidByName
+                                                                        ? t("tournament.bill.paidByAt", {
+                                                                            name: b.paidByName,
+                                                                            at: formatDateTime(b.paidAt),
+                                                                        })
+                                                                        : formatDateTime(b.paidAt)}
+                                                                </Text>
+                                                            )}
+                                                        </HStack>
+                                                        <HStack gap="1.5" flexShrink={0}>
+                                                            <Button
                                                                 size="xs"
-                                                                variant="ghost"
-                                                                onClick={() => togglePaidRow(b.matchId)}
+                                                                variant={b.paid ? "outline" : "solid"}
+                                                                colorPalette="blue"
+                                                                onClick={() => setSelected(b)}
                                                             >
-                                                                <FiChevronDown />
-                                                            </IconButton>
-                                                        )}
+                                                                {t("tournament.waiter.list.openBill")}
+                                                            </Button>
+                                                        </HStack>
                                                     </HStack>
                                                 </Box>
                                             )
@@ -626,15 +776,34 @@ export default function RacuniSection({
                 showing the previous bill for a frame. */}
             {selected && canLoadBills && (
                 <WaiterBillDialog
-                    key={selected.matchId}
+                    key={rowKey(selected)}
                     open
                     onClose={() => setSelected(null)}
                     tournamentRef={tournamentUuid}
                     token={billToken}
-                    matchId={selected.matchId}
-                    heading={`${t("tournament.round.heading", { n: selected.roundNumber })} · ${rowLabel(selected)}`}
+                    matchId={selected.kind === "EXTRA" ? null : selected.matchId}
+                    extraBillId={selected.kind === "EXTRA" ? selected.extraBillId : null}
+                    heading={selected.kind === "EXTRA" || selected.roundNumber == null
+                        ? rowLabel(selected)
+                        : `${t("tournament.round.heading", { n: selected.roundNumber })} · ${rowLabel(selected)}`}
                     subheading={rowPairs(selected)}
                     onChanged={onBillChanged}
+                    onDeleted={() => {
+                        const gone = rowKey(selected)
+                        setBills((rs) => rs.filter((r) => rowKey(r) !== gone))
+                        setSelected(null)
+                    }}
+                />
+            )}
+
+            {addOpen && canLoadBills && (
+                <AddBillDialog
+                    open
+                    onClose={() => setAddOpen(false)}
+                    rows={bills}
+                    busy={addBusy}
+                    onPickMatch={onPickMatch}
+                    onCreateExtra={onCreateExtra}
                 />
             )}
 

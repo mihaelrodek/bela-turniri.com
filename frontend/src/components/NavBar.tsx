@@ -7,6 +7,7 @@ import { Link as RouterLink, useLocation, useMatch, useResolvedPath, useNavigate
 import { CardsIcon, LiveRoomsBadge } from "./MobileTabBar"
 import {
     FiCalendar, FiEdit3, FiExternalLink, FiHome, FiLogOut, FiMap, FiMenu, FiMoon, FiSun, FiUser, FiVolume2,
+    FiBookOpen,
 } from "react-icons/fi"
 import { useAuth } from "../auth/authContextValue"
 import { useColorMode } from "../color-mode-hooks"
@@ -246,6 +247,19 @@ function NavCapsule({ children, tourAnchor }: { children: React.ReactNode; tourA
  * (no navigation involved), same as the theme switch/language picker beside
  * it not needing a route.
  */
+/** "Pravila" row — the unified bela rulebook (/pravila), in every menu
+ *  (2026-09-29, owner request). */
+function PravilaMenuItem() {
+    const { t } = useTranslation()
+    const navigate = useNavigate()
+    return (
+        <Menu.Item value="pravila" onSelect={() => navigate("/pravila")}>
+            <FiBookOpen />
+            {t("common.nav.pravila")}
+        </Menu.Item>
+    )
+}
+
 function NovostiMenuItem() {
     const { t } = useTranslation()
     const unseen = useHasUnseenWhatsNew()
@@ -421,6 +435,7 @@ function GuestMenu({ tourAnchor }: { tourAnchor?: string }) {
             </Menu.Trigger>
             <Menu.Positioner>
                 <Menu.Content minW="220px">
+                    <PravilaMenuItem />
                     <NovostiMenuItem />
                     <PreferencesSection installPrompt={installPrompt} />
                 </Menu.Content>
@@ -503,6 +518,7 @@ function UserMenu({ tourAnchor, compact }: { tourAnchor?: string; compact?: bool
                     <Menu.Item value="profile" onSelect={() => navigate("/profil")}>
                         <FiUser /> {t("common.nav.profil")}
                     </Menu.Item>
+                    <PravilaMenuItem />
                     <NovostiMenuItem />
                     <PreferencesSection installPrompt={installPrompt} />
                     <Menu.Item
@@ -781,6 +797,9 @@ function GamesSideMenu({ tourAnchor }: { tourAnchor?: string }) {
                                         {t("common.nav.login")}
                                     </Button>
                                 )}
+                                <DrawerRow icon={<FiBookOpen />} onClick={() => go("/pravila")}>
+                                    {t("common.nav.pravila")}
+                                </DrawerRow>
                                 <DrawerRow
                                     icon={<FiVolume2 />}
                                     onClick={() => {

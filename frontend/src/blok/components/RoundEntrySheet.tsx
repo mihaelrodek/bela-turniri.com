@@ -5,12 +5,14 @@ import { scoreManualDeal, type RoundOutcome } from "@bela/engine"
 import ConfirmDialog from "../../components/ConfirmDialog"
 import { useTranslation } from "../../i18n"
 import SuitGlyph from "../../game/components/SuitGlyph"
-import { SUITS, suitKey } from "../../game/util/cards"
+import { SUITS } from "../../game/util/cards"
 import {
     BLOK_SIDES,
     DEAL_CARD_POINTS,
     STIGLJA_POINTS,
+    blokSuitKey,
     creditedDeclarationTotals,
+    type BlokDeclarationsRule,
     type BlokRound,
     type BlokSide,
     type BlokSuit,
@@ -95,8 +97,96 @@ import Keypad from "./Keypad"
    buttons can close the drawer underneath.
    ────────────────────────────────────────────────────────────────────── */
 
-/** The drawer defines a smaller value on shorter phone screens. */
+/** The sheet defines a smaller value on shorter screens (`STEP_VARS`). */
 const CONTROL_H = "var(--blok-entry-control-h, 52px)"
+
+/* ─────────── fitting the sheet to the height that is REALLY there ───────────
+   2026-10-03, owner: in the installed PWA the whole sheet fits, but in a
+   Safari/Chrome TAB the browser's own toolbars eat ~100 px and the ADUT row
+   was cut off behind the pad. `100dvh` already follows those bars, so the
+   sheet is exactly as tall as the visible area — what has to change is the
+   CONTENT: the steps below shrink keys, controls, gaps and paddings (never
+   the digits' legibility) as the visible height falls, down to ~560 px where
+   everything still fits without scrolling. Above 900 px nothing changes from
+   the comfortable look.
+
+   The step is read from `visualViewport.height` (falls back to
+   `innerHeight`), which tracks the collapsing/expanding toolbar. It is a JS
+   measurement rather than `@media (max-height)` because on iOS the media
+   query reports the LAYOUT viewport and can disagree with the visible one.
+
+     step   visible height    control  key
+     xl     >= 900            52       56   (today's roomy look)
+     lg     800 - 899         46       46   (today's compact look)
+     md     700 - 799         44       42
+     sm     600 - 699         40       38
+     xs     480 - 599         36       36   (title hidden, tightest paddings)
+     xxs    < 480             as xs, and the whole sheet scrolls — a phone on
+                              its side has no height for pinned cards + pad.
+
+   Below 600 the controls are under the 40 px tap-target wish on purpose: the
+   alternative is hiding something. */
+type SheetStep = "xl" | "lg" | "md" | "sm" | "xs" | "xxs"
+
+function stepFor(height: number): SheetStep {
+    if (height >= 900) return "xl"
+    if (height >= 800) return "lg"
+    if (height >= 700) return "md"
+    if (height >= 600) return "sm"
+    if (height >= 480) return "xs"
+    return "xxs"
+}
+
+const vars = (
+    control: number, section: number, row: number, key: number, keyGap: number,
+    cardPy: number, cardFs: number, chip: number, hdrPt: number, cardsPb: number,
+    footPb: number, btnMt: number, bodyPy: number, title: "block" | "none",
+) => ({
+    "--blok-entry-control-h": `${control}px`,
+    "--blok-entry-section-gap": `${section}px`,
+    "--blok-entry-row-gap": `${row}px`,
+    "--blok-key-h": `${key}px`,
+    "--blok-key-gap": `${keyGap}px`,
+    "--blok-card-py": `${cardPy}px`,
+    "--blok-card-fs": `${cardFs}px`,
+    "--blok-chip-h": `${chip}px`,
+    "--blok-hdr-pt": `${hdrPt}px`,
+    "--blok-cards-pb": `${cardsPb}px`,
+    "--blok-foot-pb": `${footPb}px`,
+    "--blok-btn-mt": `${btnMt}px`,
+    "--blok-body-py": `${bodyPy}px`,
+    "--blok-title-display": title,
+})
+
+const STEP_VARS: Record<SheetStep, Record<string, string>> = {
+    xl: vars(52, 16, 12, 56, 8, 8, 36, 36, 16, 12, 16, 12, 8, "block"),
+    lg: vars(46, 8, 12, 46, 8, 8, 36, 36, 16, 12, 16, 12, 8, "block"),
+    md: vars(44, 8, 12, 42, 8, 6, 32, 34, 12, 8, 12, 8, 4, "block"),
+    sm: vars(40, 6, 10, 38, 6, 4, 28, 32, 8, 6, 8, 6, 2, "block"),
+    xs: vars(36, 4, 8, 36, 5, 3, 24, 30, 6, 4, 6, 4, 0, "none"),
+    xxs: vars(36, 4, 8, 36, 5, 3, 24, 30, 6, 4, 6, 4, 0, "none"),
+}
+
+/** Visible height in CSS px, live (toolbar show/hide, rotation, resize). */
+function useVisibleHeight(): number {
+    const read = () =>
+        typeof window === "undefined" ? 900 : Math.round(window.visualViewport?.height ?? window.innerHeight)
+    const [height, setHeight] = useState(read)
+    useEffect(() => {
+        const update = () => setHeight(read())
+        update()
+        const vv = window.visualViewport
+        vv?.addEventListener("resize", update)
+        window.addEventListener("resize", update)
+        window.addEventListener("orientationchange", update)
+        return () => {
+            vv?.removeEventListener("resize", update)
+            window.removeEventListener("resize", update)
+            window.removeEventListener("orientationchange", update)
+        }
+    }, [])
+    return height
+}
 
 export default function RoundEntrySheet({
     open,
@@ -107,6 +197,7 @@ export default function RoundEntrySheet({
     onCancel,
     onSave,
     onDelete,
+    declarationsRule = "all",
 }: {
     open: boolean
     /** Who called this deal, as the sheet was OPENED — the "MI +" / "VI +"
@@ -126,7 +217,12 @@ export default function RoundEntrySheet({
      *  in the footer. Called ONLY after the user confirmed in the sheet's own
      *  ConfirmDialog — it means "delete now", not "ask about deleting". */
     onDelete?: () => void
+    /** Which declarations the table plays with (2026-10-03): "all", "belaOnly"
+     *  (only the 20) or "off" (no Zvanja section). Offering only — scoring of
+     *  what is already in a deal is untouched. */
+    declarationsRule?: BlokDeclarationsRule
 }) {
+    const step = stepFor(useVisibleHeight())
     return (
         <Drawer.Root
             open={open}
@@ -155,13 +251,13 @@ export default function RoundEntrySheet({
                         maxW={{ base: "100%", md: "520px" }}
                         mx="auto"
                         roundedTop={{ base: "0", md: "l3" }}
+                        data-step={step}
                         css={{
-                            "--blok-entry-control-h": "52px",
-                            "--blok-entry-section-gap": "16px",
-                            "@media (max-height: 900px)": {
-                                "--blok-entry-control-h": "46px",
-                                "--blok-entry-section-gap": "8px",
-                            },
+                            ...STEP_VARS[step],
+                            // Landscape phone: nothing to pin, the sheet scrolls as one.
+                            ...(step === "xxs"
+                                ? { overflowY: "auto", "& [data-part='body']": { flex: "none", overflow: "visible" } }
+                                : {}),
                         }}
                     >
                         <EntryForm
@@ -172,6 +268,7 @@ export default function RoundEntrySheet({
                             onCancel={onCancel}
                             onSave={onSave}
                             onDelete={onDelete}
+                            declarationsRule={declarationsRule}
                         />
                     </Drawer.Content>
                 </Drawer.Positioner>
@@ -188,6 +285,7 @@ function EntryForm({
     onCancel,
     onSave,
     onDelete,
+    declarationsRule,
 }: {
     caller: BlokSide
     names: Record<BlokSide, string>
@@ -196,6 +294,7 @@ function EntryForm({
     onCancel: () => void
     onSave: (round: Omit<BlokRound, "id">) => void
     onDelete?: () => void
+    declarationsRule: BlokDeclarationsRule
 }) {
     const { t } = useTranslation()
     /* `BlokGame.names` starts EMPTY and `rename(side, "")` resets it back —
@@ -486,7 +585,7 @@ function EntryForm({
                 dialog — and each chip carries the full "Zvao MI" sentence as
                 its accessible name, so `round.calledBy` still does the
                 speaking and nothing announces a bare side name. */}
-            <Drawer.Header px="4" pt="4" pb="2" display="block">
+            <Drawer.Header px="4" pt="var(--blok-hdr-pt, 16px)" pb="2" display="block">
                 <Drawer.Title
                     fontSize="xs"
                     fontWeight="bold"
@@ -494,6 +593,7 @@ function EntryForm({
                     textTransform="uppercase"
                     letterSpacing="wide"
                     mb="1.5"
+                    display="var(--blok-title-display, block)"
                 >
                     {t("blok.entry.caller")}
                 </Drawer.Title>
@@ -510,7 +610,7 @@ function EntryForm({
                         return (
                             <Button
                                 key={side}
-                                h="36px"
+                                h="var(--blok-chip-h, 36px)"
                                 minW="0"
                                 flex="1"
                                 px="4"
@@ -549,7 +649,7 @@ function EntryForm({
                 one of the three things (with its colour and its name) that
                 identify it across every screen of the blok, so it must not
                 shuffle between deals. */}
-            <HStack px="4" pb="3" gap="2" align="stretch" flex="0 0 auto">
+            <HStack px="4" pb="var(--blok-cards-pb, 12px)" gap="2" align="stretch" flex="0 0 auto">
                 {BLOK_SIDES.map((side) => (
                     <SideCard
                         key={side}
@@ -567,7 +667,7 @@ function EntryForm({
                 ))}
             </HStack>
 
-            <Drawer.Body px="4" py="2">
+            <Drawer.Body px="4" py="var(--blok-body-py, 8px)">
                 <VStack align="stretch" gap="var(--blok-entry-section-gap, 16px)">
                     <DeclarationChips
                         added={declarations[active]}
@@ -586,6 +686,7 @@ function EntryForm({
                         dealBelot={belot !== null}
                         onToggleBelot={toggleBelot}
                         palette={sidePalette(active)}
+                        rule={declarationsRule}
                     />
 
                     <VStack align="stretch" gap="2">
@@ -634,7 +735,7 @@ function EntryForm({
                                             textTransform="capitalize"
                                             lineHeight="1"
                                         >
-                                            {t(suitKey(suit))}
+                                            {t(blokSuitKey(suit))}
                                         </Text>
                                     </Button>
                                 )
@@ -645,7 +746,7 @@ function EntryForm({
             </Drawer.Body>
 
             <Drawer.Footer
-                pt="2"
+                pt="var(--blok-body-py, 8px)"
                 display="block"
                 /* The sheet is `h: 100dvh` on a phone and therefore paints all
                    the way to the bottom edge; this is the LAST element in it,
@@ -657,7 +758,7 @@ function EntryForm({
                    terms keep the `4` gutter and only grow past it beside a
                    landscape cutout. */
                 css={{
-                    paddingBottom: "calc(var(--chakra-spacing-4) + var(--safe-bottom))",
+                    paddingBottom: "calc(var(--blok-foot-pb, 16px) + var(--safe-bottom))",
                     paddingInlineStart: "max(var(--chakra-spacing-4), var(--safe-left))",
                     paddingInlineEnd: "max(var(--chakra-spacing-4), var(--safe-right))",
                 }}
@@ -685,7 +786,7 @@ function EntryForm({
                     disabled Spremi already says it, and the side cards show
                     exactly which figure is missing. A sentence under the pad
                     only repeated that, one thumb-width from the buttons. */}
-                <HStack gap="2" mt="3">
+                <HStack gap="2" mt="var(--blok-btn-mt, 12px)">
                     {onDelete && (
                         <IconButton
                             /* Leftmost and icon-only, so it is one control wide
@@ -805,7 +906,7 @@ function SideCard({
             alignItems="stretch"
             textAlign="start"
             px="3"
-            py="2"
+            py="var(--blok-card-py, 8px)"
             rounded="l3"
             borderWidth="2px"
             borderColor={isActive ? "colorPalette.solid" : "border.subtle"}
@@ -848,7 +949,7 @@ function SideCard({
             <Box as="span" display="flex" alignItems="baseline" gap="1.5">
                 <Text
                     as="span"
-                    fontSize="4xl"
+                    fontSize="var(--blok-card-fs, 36px)"
                     lineHeight="1"
                     fontWeight="bold"
                     fontFamily="mono"

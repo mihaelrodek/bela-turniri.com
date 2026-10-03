@@ -1,0 +1,369 @@
+/* Print layout for /pravila (2026-10-03, owner: "ispis" to PDF on one A4).
+   Everything is scoped by `body.print-rules`, which RulesPage sets while it
+   is mounted, so no other page's printing changes.
+
+   The page is hidden by VISIBILITY, not by display, and the rules block is
+   lifted to the top of the sheet: the navbar, footer, tab bar, cookie banner,
+   toaster and floating buttons are many components in different places, and
+   one blanket rule beats naming each of them.
+
+   Layout: letterhead, title (a tournament's name too, on its Pravila tab),
+   the four numbers, then two A4 sheets of TWO equal columns each, bottoms
+   lined up (see `.rules-sheet` below) — and the "paying the entry fee accepts
+   these rules" line pinned to the foot of every sheet. Shared by /pravila and
+   the tournament tab, both rendered by components/rules/RulesDocument. */
+
+.print-only,
+.print-only-flex {
+    display: none;
+}
+
+@media print {
+    /* Margin 0 on purpose (2026-10-03, owner): the browser prints its own
+       header ("10/3/26, 10:36 AM  Bela turniri") and footer (URL, page
+       number) inside the page margin, and the only way a page can switch
+       that off is to leave it no margin. The real margin is the padding on
+       `.rules-print` below, repeated on every page (`box-decoration-break:
+       clone`), with the letterhead and the foot line `position: fixed` so
+       they repeat on every page too. */
+    @page {
+        size: A4;
+        margin: 0;
+    }
+
+    body.print-rules {
+        background: #fff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* The page's own card-fan artwork, as on screen (2026-10-03, owner): the
+       same faded file the app background uses — its alpha is already ~10 %,
+       so it prints as an outline of the cards behind the text, not a
+       picture. Fixed, so it repeats on every page; the cards below have no
+       white fill, so it shows through. */
+    body.print-rules::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: url(/bg-cards-faded.png) center / 100% auto no-repeat;
+        pointer-events: none;
+    }
+
+    body.print-rules * {
+        visibility: hidden !important;
+    }
+
+    body.print-rules .rules-print,
+    body.print-rules .rules-print * {
+        visibility: visible !important;
+    }
+
+    body.print-rules .rules-print {
+        position: absolute !important;
+        left: 0;
+        top: 0;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        /* 9mm page margin + room for the fixed letterhead (top) and the
+           fixed foot line (bottom), cloned onto every page of the sheet. */
+        padding: 34mm 10mm 16mm !important;
+        box-sizing: border-box;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+        gap: 9px !important;
+        font-size: 10pt !important;
+        line-height: 1.32 !important;
+        color: #111 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Keep the suit icon's vector stand-in hidden behind the printed image. */
+    body.print-rules .rules-print [data-suit-underlay="hidden"] {
+        visibility: hidden !important;
+    }
+
+    body.print-rules .rules-print .no-print {
+        display: none !important;
+    }
+
+    body.print-rules .rules-print .print-only {
+        display: block !important;
+    }
+
+    /* The letterhead is fixed, so it is printed at the top of EVERY page.
+       Three columns (2026-10-03, owner): the brand on the left, the document
+       title FIXED in the middle, a QR code to scan on the right. */
+    body.print-rules .rules-print .rules-letterhead {
+        display: grid !important;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 8px;
+        position: fixed !important;
+        top: 9mm;
+        left: 9mm;
+        right: 9mm;
+        height: 46mm;
+        align-items: start;
+        padding-top: 5mm !important;
+        box-sizing: border-box;
+        background: transparent;
+        padding-bottom: 4px !important;
+    }
+
+    /* The rule under the header stops a little past the middle of the page —
+       about where the left column ends — instead of running the full width,
+       so the QR code in the corner has the space to itself (2026-10-03,
+       owner). */
+    body.print-rules .rules-print .rules-letterhead::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 22mm;
+        width: 56%;
+        border-bottom: 1.5px solid #2e6343;
+    }
+
+    body.print-rules .rules-print .rules-lh-brand p {
+        font-size: 16pt !important;
+        font-weight: 700 !important;
+    }
+
+    body.print-rules .rules-print .rules-lh-title {
+        font-size: 18pt !important;
+        line-height: 1.1 !important;
+        margin: 0 !important;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    /* A bigger QR (twice the size, 2026-10-03, owner), in the top-right corner
+       of the page. The tournament name block fills the space left of it, and
+       the strip of settings starts below it. */
+    body.print-rules .rules-print .rules-lh-qr {
+        align-self: start;
+    }
+
+    body.print-rules .rules-print .rules-lh-qr img {
+        width: 44mm !important;
+        height: 44mm !important;
+    }
+
+    /* Reserve the band beside the QR so the strip of settings starts below it,
+       for the global rulebook too (whose in-flow title is hidden). */
+    body.print-rules .rules-print .rules-titleblock {
+        min-height: 21mm;
+    }
+
+    /* The title lives in the letterhead on paper, so the in-flow one hides; a
+       tournament's name stays, right under the header. */
+    body.print-rules .rules-print .rules-h1 {
+        display: none !important;
+    }
+
+    body.print-rules .rules-print h1 {
+        font-size: 21pt !important;
+        margin: 0 !important;
+        line-height: 1.1 !important;
+    }
+
+    body.print-rules .rules-print p,
+    body.print-rules .rules-print span,
+    body.print-rules .rules-print li {
+        font-size: 10pt !important;
+        line-height: 1.32 !important;
+    }
+
+    /* The strip of four numbers: a plain row, no sticky behaviour. */
+    body.print-rules .rules-sticky::before {
+        display: none !important;
+    }
+
+    body.print-rules .rules-sticky {
+        position: static !important;
+        padding: 0 !important;
+        background: transparent !important;
+    }
+
+    body.print-rules .rules-glance {
+        display: grid !important;
+        /* ALWAYS one row, however many settings there are (7 when declarations
+           are off): the count comes from the markup, the font steps down. */
+        grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)) !important;
+        gap: 5px !important;
+    }
+
+    body.print-rules .rules-glance > * {
+        padding: 4px 6px !important;
+        border-radius: 6px !important;
+        background: rgba(243, 247, 244, 0.7) !important;
+        border: 0.5pt solid #cfe0d5 !important;
+    }
+
+    body.print-rules .rules-glance p {
+        margin: 0 !important;
+    }
+
+    body.print-rules .rules-glance p {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }
+
+    body.print-rules .rules-glance p:first-child {
+        font-size: 5.6pt !important;
+    }
+
+    body.print-rules .rules-glance p:last-child {
+        font-size: 11pt !important;
+        font-weight: 700 !important;
+        line-height: 1.15 !important;
+    }
+
+    body.print-rules .rules-glance[data-n="7"] p:last-child {
+        font-size: 8.4pt !important;
+    }
+
+    body.print-rules .rules-glance[data-n="6"] p:last-child {
+        font-size: 9.6pt !important;
+    }
+
+    /* Exactly TWO A4 sheets with a fixed split (2026-10-03, owner):
+       sheet 1 = game, deal, trump, tournament flow; sheet 2 = declarations,
+       conduct, fouls. DOM: .rules-columns > .rules-sheet > .rules-col >
+       .rules-item. A sheet is two equal columns; each column stretches its
+       last card so the bottoms line up; the second sheet starts a new page.
+       (On screen all three wrappers are `display: contents`.) */
+    body.print-rules .rules-columns {
+        display: block !important;
+    }
+
+    body.print-rules .rules-sheet {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px !important;
+        align-items: stretch;
+        /* Fill the sheet (2026-10-03, owner: lots of empty space): cards
+           stretch to these heights, the last card of each column taking
+           the slack. Sheet 1 also carries the title block. */
+        min-height: 185mm;
+    }
+
+    body.print-rules .rules-sheet + .rules-sheet {
+        break-before: page;
+        page-break-before: always;
+        /* The fixed letterhead (with its big QR) repeats here too, so the
+           second sheet starts below it as well. */
+        padding-top: 22mm;
+        min-height: 205mm;
+    }
+
+    body.print-rules .rules-col {
+        display: flex !important;
+        flex-direction: column;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    body.print-rules .rules-item {
+        order: 0 !important;
+        display: flex;
+        flex-direction: column;
+    }
+
+    body.print-rules .rules-item:last-child {
+        flex: 1;
+    }
+
+    body.print-rules .rules-item > * {
+        flex: 1;
+        margin: 0 !important;
+        box-shadow: none !important;
+        border-radius: 5px !important;
+        border: 0.5pt solid #cfd6d1 !important;
+        background: rgba(255, 255, 255, 0.55) !important;
+        break-inside: avoid;
+    }
+
+    /* Card chrome: tight header and body, the heading in the brand green. */
+    body.print-rules .rules-item > * > * {
+        padding: 5px 10px !important;
+    }
+
+    body.print-rules .rules-item h2,
+    body.print-rules .rules-item h3,
+    body.print-rules .rules-item [class*="title"] {
+        font-size: 13pt !important;
+        color: #2e6343 !important;
+    }
+
+    body.print-rules .rules-print ol {
+        gap: 4px !important;
+    }
+
+    body.print-rules .rules-num {
+        width: 16px !important;
+        height: 16px !important;
+        min-width: 16px !important;
+        font-size: 8.5pt !important;
+        margin-top: 0 !important;
+    }
+
+    /* Declarations: table above the rule list, in the single column. */
+    body.print-rules .rules-decl-grid {
+        display: block !important;
+    }
+
+    body.print-rules .rules-decl-grid > * + * {
+        margin-top: 5px !important;
+    }
+
+    /* Table rows: tight, striped lightly so the eye can follow the line. */
+    body.print-rules .rules-row {
+        padding: 3px 8px !important;
+        gap: 6px !important;
+    }
+
+    body.print-rules .rules-row:nth-of-type(even) {
+        background: rgba(247, 248, 247, 0.7) !important;
+    }
+
+    /* The penalty pill: small, one line (it used to wrap to two fat lines
+       and make its row twice as tall). */
+    body.print-rules .rules-row > div > div {
+        font-size: 8.4pt !important;
+        line-height: 1.35 !important;
+        padding: 1px 7px !important;
+        max-width: none !important;
+        white-space: pre-line !important;
+        border-radius: 8px !important;
+    }
+
+    /* The four suits: one row, equal size. */
+    body.print-rules .rules-suits {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 6px !important;
+    }
+
+    body.print-rules .rules-suits > * {
+        padding: 4px 7px !important;
+        gap: 6px !important;
+    }
+
+    /* The last line of the sheet, pinned to the bottom edge. */
+    body.print-rules .rules-notice {
+        position: fixed !important;
+        left: 9mm;
+        right: 9mm;
+        bottom: 9mm;
+        padding: 4px 0 0 !important;
+        border-top: 1.5px solid #2e6343;
+        font-size: 10pt !important;
+        font-weight: 600 !important;
+        color: #111 !important;
+        background: transparent;
+    }
+}

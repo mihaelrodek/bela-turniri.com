@@ -175,24 +175,53 @@ export default function CjenikTab({
         return () => window.removeEventListener("beforeunload", onBeforeUnload)
     }, [canEdit, dirty])
 
+    /* A row that was just added gets the caret and is scrolled into view
+       (2026-10-03, owner: "Dodaj piće" "sometimes adds two empty rows" and
+       the screen felt illogical). The row lands at the END of a long list,
+       off-screen, so nothing visibly happened, and a second click added a
+       second blank one. Now: the new row is focused and centred, and while a
+       blank row already exists "Dodaj piće" just jumps to it instead of
+       stacking another. `focusRef` is consumed by the effect below once the
+       row is in the DOM. */
+    const listRef = useRef<HTMLDivElement>(null)
+    const focusRef = useRef<{ key: string; field: "name" | "price" } | null>(null)
+    useEffect(() => {
+        const target = focusRef.current
+        if (!target) return
+        focusRef.current = null
+        const rowEl = listRef.current?.querySelector<HTMLElement>(`[data-row="${target.key}"]`)
+        const input = rowEl?.querySelector<HTMLElement>(`[data-field="${target.field}"] input`)
+        rowEl?.scrollIntoView({ block: "center", behavior: "smooth" })
+        input?.focus({ preventScroll: true })
+    }, [items])
+
     const addRow = () => {
-        setItems((rows) => [
-            ...rows,
-            { _localKey: nextKey(), id: null, name: "", price: "" },
-        ])
+        const blank = items.find((r) => r.name.trim() === "" && r.price.trim() === "")
+        if (blank) {
+            focusRef.current = { key: blank._localKey, field: "name" }
+            // No state change to trigger the effect — run it directly.
+            const rowEl = listRef.current?.querySelector<HTMLElement>(`[data-row="${blank._localKey}"]`)
+            rowEl?.scrollIntoView({ block: "center", behavior: "smooth" })
+            rowEl?.querySelector<HTMLElement>('[data-field="name"] input')?.focus({ preventScroll: true })
+            focusRef.current = null
+            return
+        }
+        const key = nextKey()
+        focusRef.current = { key, field: "name" }
+        setItems((rows) => [...rows, { _localKey: key, id: null, name: "", price: "" }])
         setDirty(true)
     }
 
     const addPresetRow = (label: string) => {
-        // If the same preset is already in the list we skip silently rather
-        // than dupe — the user can always edit prices on the existing row.
+        // The chips of drinks already in the list are disabled, so this only
+        // runs for a new one. The caret goes to the PRICE — the name is filled
+        // in, and the price is the one thing the panel's hint asks for.
         if (items.some((r) => r.name.trim().toLowerCase() === label.toLowerCase())) {
             return
         }
-        setItems((rows) => [
-            ...rows,
-            { _localKey: nextKey(), id: null, name: label, price: "" },
-        ])
+        const key = nextKey()
+        focusRef.current = { key, field: "price" }
+        setItems((rows) => [...rows, { _localKey: key, id: null, name: label, price: "" }])
         setDirty(true)
     }
 
@@ -602,17 +631,48 @@ export default function CjenikTab({
                             />
                         </Box>
                     ) : (
-                        <VStack align="stretch" gap="2">
-                            {items.map((row) => (
+                        <Box
+                            ref={listRef}
+                            borderWidth="1px"
+                            borderColor="border.subtle"
+                            rounded="xl"
+                            bg="bg.panel"
+                            overflow="hidden"
+                        >
+                            {/* Column labels — md+ only; on a phone each field
+                                carries its own placeholder. */}
+                            <Box
+                                display={{ base: "none", md: "grid" }}
+                                gridTemplateColumns="minmax(0, 1fr) 130px 40px"
+                                gap="3"
+                                px="3"
+                                py="1.5"
+                                bg="bg.subtle"
+                                borderBottomWidth="1px"
+                                borderColor="border.subtle"
+                                fontSize="2xs"
+                                fontWeight="semibold"
+                                letterSpacing="wider"
+                                textTransform="uppercase"
+                                color="fg.muted"
+                            >
+                                <Text>{t("admin.cjenik.col.name")}</Text>
+                                <Text>{t("admin.cjenik.col.price")}</Text>
+                                <span />
+                            </Box>
+                            {items.map((row, index) => (
                                 /* 390px: the name owns the first line with the
                                    delete button beside it, and the amount gets
                                    a full-width field of its own underneath —
                                    name + price + bin squeezed onto one phone
                                    line leaves a ~180px name field and a price
                                    target too small to hit at a bar. From md up
-                                   it is one line again. */
+                                   it is one line again. Rows are divided, not
+                                   individually boxed: forty cards stacked up
+                                   read as noise, a ruled list reads as a menu. */
                                 <Box
                                     key={row._localKey}
+                                    data-row={row._localKey}
                                     display="grid"
                                     gridTemplateAreas={{
                                         base: `"name remove" "price price"`,
@@ -620,28 +680,35 @@ export default function CjenikTab({
                                     }}
                                     gridTemplateColumns={{
                                         base: "minmax(0, 1fr) auto",
-                                        md: "minmax(0, 1fr) 150px auto",
+                                        md: "minmax(0, 1fr) 130px 40px",
                                     }}
-                                    gap="2"
+                                    gap={{ base: "2", md: "3" }}
                                     alignItems="center"
-                                    borderWidth="1px"
+                                    borderTopWidth={index === 0 ? "0" : "1px"}
                                     borderColor="border.subtle"
-                                    rounded="lg"
-                                    bg="bg.panel"
-                                    px="2.5"
+                                    px="3"
                                     py="2"
                                 >
-                                    <Box gridArea="name" minW="0">
+                                    <Box gridArea="name" minW="0" data-field="name">
                                         <Input
+                                            size="sm"
                                             placeholder={t("admin.cjenik.nameInput.placeholder")}
                                             value={row.name}
                                             onChange={(e) =>
                                                 patchRow(row._localKey, { name: e.target.value })
                                             }
+                                            onKeyDown={(e) => {
+                                                // Enter walks name → price, like a form.
+                                                if (e.key !== "Enter") return
+                                                e.preventDefault()
+                                                const price = (e.currentTarget.closest("[data-row]") as HTMLElement | null)
+                                                    ?.querySelector<HTMLElement>('[data-field="price"] input')
+                                                price?.focus()
+                                            }}
                                             aria-label={t("admin.cjenik.nameInput.placeholder")}
                                         />
                                     </Box>
-                                    <Box gridArea="price" minW="0">
+                                    <Box gridArea="price" minW="0" data-field="price">
                                         <SuffixInput
                                             value={row.price}
                                             size="sm"
@@ -656,10 +723,19 @@ export default function CjenikTab({
                                             onChange={(v) =>
                                                 patchRow(row._localKey, { price: sanitizeMoney(v) })
                                             }
+                                            // Enter on the price of the LAST row
+                                            // starts the next drink: type, Enter,
+                                            // type, Enter — no mouse.
+                                            onEnter={
+                                                index === items.length - 1 && row.name.trim() !== ""
+                                                    ? addRow
+                                                    : undefined
+                                            }
                                         />
                                     </Box>
-                                    <Box gridArea="remove">
+                                    <Box gridArea="remove" display="flex" justifyContent="flex-end">
                                         <IconButton
+                                            size="sm"
                                             aria-label={t("admin.cjenik.removeButton.aria")}
                                             title={t("admin.cjenik.removeButton.aria")}
                                             variant="ghost"
@@ -672,7 +748,21 @@ export default function CjenikTab({
                                     </Box>
                                 </Box>
                             ))}
-                        </VStack>
+                            {/* The add button where the list ends, so a long
+                                list does not need a trip back up to the strip. */}
+                            <Box borderTopWidth="1px" borderColor="border.subtle" p="2">
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    w="full"
+                                    justifyContent="center"
+                                    onClick={addRow}
+                                    disabled={saving}
+                                >
+                                    <FiPlus /> {t("admin.cjenik.addButton")}
+                                </Button>
+                            </Box>
+                        </Box>
                     )}
                 </Box>
 

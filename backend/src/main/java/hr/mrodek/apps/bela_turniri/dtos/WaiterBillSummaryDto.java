@@ -31,6 +31,18 @@ public record WaiterBillSummaryDto(
         BigDecimal total,
         boolean paid,
         OffsetDateTime paidAt,
+        /** Display snapshot of who settled it (organiser's name or a waiter's invited name); null while unpaid or for bills settled before this was recorded. */
+        String paidByName,
         int drinkCount,
-        String matchStatus
+        String matchStatus,
+        /**
+         * 2026-10-03: {@code "MATCH"} (every pre-existing line) or
+         * {@code "EXTRA"} — an "Ostalo" bill with no match: {@code matchId},
+         * {@code roundNumber}, {@code tableNo}, pair names and
+         * {@code matchStatus} are all null, {@code extraBillId} and
+         * {@code label} are set.
+         */
+        String kind,
+        Long extraBillId,
+        String label
 ) {}

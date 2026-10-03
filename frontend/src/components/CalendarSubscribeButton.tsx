@@ -70,6 +70,7 @@ export default function CalendarSubscribeButton() {
                 opens repeats it in full). */}
             <Button
                 size="sm"
+                h="40px"
                 variant="outline"
                 px={{ base: "2", md: "4" }}
                 onClick={() => setOpen(true)}

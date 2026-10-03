@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { Box, Button, Flex, HStack, Text, useBreakpointValue, VStack } from "@chakra-ui/react"
+import { Box, Button, Flex, HStack, Spinner, Text, useBreakpointValue, VStack } from "@chakra-ui/react"
 import { FiArrowLeft } from "react-icons/fi"
 import type { Card, RoomState, Seat, Suit } from "@bela/protocol"
 import { trickWinner } from "@bela/engine"
@@ -16,6 +16,7 @@ import DeclarationsReveal, { BelaFlash, BelotFlash, TrumpFlash } from "../compon
 import GameOverDialog from "../components/GameOverDialog"
 import GameSettingsSheet from "../components/GameSettingsSheet"
 import GameTableSkeleton from "../components/GameTableSkeleton"
+import SuitSpinner from "../../components/SuitSpinner"
 import Hand from "../components/Hand"
 import { HAND_CARD_SIZE, handRowWidth } from "../components/handLayout"
 import JoinByCodeDialog from "../components/JoinByCodeDialog"
@@ -876,28 +877,24 @@ export default function GameRoomPage() {
     if (!room) {
         return (
             <>
-                {socket.status !== "closed" && !accessCodeOpen ? (
-                    // Joining: the table's own shape in grey (2026-09-29), the
-                    // same skeleton App.tsx shows while this chunk downloads.
+                {!accessCodeOpen && (
+                    // Joining — and a dropped socket retrying, which flips
+                    // connecting ↔ closed every attempt: the table's own shape
+                    // in grey with a spinner, not text that keeps changing
+                    // (2026-09-29, user report). Once it is slow, a steady way
+                    // back to the lobby appears and stays.
                     <GameTableSkeleton
                         status={
-                            <VStack gap="1" role="status">
-                                <Text fontSize="sm" color="fg.muted">{t("game.room.joining")}</Text>
-                                {slowConnection && <Text fontSize="xs" color="live">{t("game.connection.slow")}</Text>}
+                            <VStack gap="2" role="status">
+                                <SuitSpinner size="md" label={t("game.room.joining")} />
+                                {slowConnection && (
+                                    <Button size="xs" variant="outline" onClick={() => navigate(gameLobbyPath)}>
+                                        <FiArrowLeft /> {t("game.room.backToLobby")}
+                                    </Button>
+                                )}
                             </VStack>
                         }
                     />
-                ) : (
-                    <Flex direction="column" align="center" justify="center" minH="50vh" gap="3">
-                        {socket.status === "closed" && (
-                            <>
-                                <Text color="fg.muted">{t("game.connection.closed")}</Text>
-                                <Button size="sm" variant="outline" onClick={() => navigate(gameLobbyPath)}>
-                                    <FiArrowLeft /> {t("game.room.backToLobby")}
-                                </Button>
-                            </>
-                        )}
-                    </Flex>
                 )}
                 <JoinByCodeDialog open={accessCodeOpen} error={socket.error}
                     onOpenChange={(open) => {
@@ -1143,12 +1140,13 @@ export default function GameRoomPage() {
                         boxShadow="none"
                         {...PLAY_AREA}
                     >
-                        {/* "Veza je pala" strip: top of the felt, under the
-                            header. Renders null unless a seat hold is
-                            running, so it costs no height the rest of the
-                            time — the wrapper is here to keep it out of the
-                            flex column's shrinking. */}
-                        <Box px="2" flexShrink={0}>
+                        {/* "Veza je pala": a popup FLOATING over the top of
+                            the table, above the score panel (2026-10-03,
+                            owner) — it used to sit in the flex column
+                            between header and score, shoving the whole
+                            table down while it was showing. Renders null
+                            unless the connection is down or just restored. */}
+                        <Box position="absolute" top="2" left="0" right="0" px="2" zIndex={30} pointerEvents="none">
                             <ReconnectBanner holdUntil={socket.holdUntil} status={socket.status} />
                         </Box>
 
@@ -1170,8 +1168,11 @@ export default function GameRoomPage() {
                                         gameEndRule={room.gameEndRule}
                                         chips={
                                             <>
+                                                {/* Spinner only: the status flips with every
+                                                    retry, and the ReconnectBanner below already
+                                                    says what is going on (2026-09-29). */}
                                                 {socket.status !== "open" && (
-                                                    <StatusChip tone="warn">{slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}</StatusChip>
+                                                    <StatusChip tone="warn"><Spinner size="xs" borderWidth="2px" aria-label={t("game.connection.connecting")} /></StatusChip>
                                                 )}
                                             </>
                                         }

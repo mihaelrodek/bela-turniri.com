@@ -60,8 +60,14 @@ export type WaiterRedeemDto = {
  * drink rows. The full bill comes from `fetchWaiterBill` when a row is opened.
  */
 export type WaiterBillRowDto = {
-    matchId: number
-    roundNumber: number
+    /** "MATCH" for every per-match line; "EXTRA" for an "Ostalo" bill (2026-10-03),
+     *  which has no match, round, table or pairs — only `extraBillId` + `label`.
+     *  Optional so an older cached payload still reads as a match line. */
+    kind?: "MATCH" | "EXTRA"
+    matchId: number | null
+    extraBillId?: number | null
+    label?: string | null
+    roundNumber: number | null
     /** Null for a BYE — nobody sits at a table for it. */
     tableNo: number | null
     pair1Name: string | null
@@ -70,9 +76,11 @@ export type WaiterBillRowDto = {
     total: number | string
     paid: boolean
     paidAt: string | null
+    /** Who settled it — the organiser's name or a waiter's invited name; null if unpaid or settled before this was recorded. */
+    paidByName?: string | null
     drinkCount: number
     /** "SCHEDULED" | "LIVE" | "FINISHED" | … — treated as an opaque string. */
-    matchStatus: string
+    matchStatus: string | null
 }
 
 /** Body of the add-drink call — the same shape `addMatchDrink` already sends. */
@@ -265,6 +273,113 @@ export async function setWaiterBillPaid(
 ): Promise<MatchBillDto> {
     const { data } = await http.patch<MatchBillDto>(
         `/tournaments/${idOrSlug}/waiter/bills/${matchId}/paid`,
+        { paid },
+        billConfig(token, opId),
+    )
+    return data
+}
+
+
+/* =========================================================
+   "Ostalo" bills — a tournament-scoped bill with no match
+   (2026-10-03). Same auth, same X-Client-Op-Id, same MatchBillDto
+   back as the per-match calls above.
+   ========================================================= */
+
+const extraBase = (idOrSlug: string) => `/tournaments/${idOrSlug}/waiter/extra-bills`
+
+/** Create an "Ostalo" bill; `label` is optional free text (max 60). Returns its list row. */
+export async function createExtraBill(
+    idOrSlug: string,
+    token: string | null,
+    label: string,
+    opId?: string,
+): Promise<WaiterBillRowDto> {
+    const { data } = await http.post<WaiterBillRowDto>(
+        extraBase(idOrSlug),
+        { label: label.trim() || null },
+        billConfig(token, opId),
+    )
+    return data
+}
+
+export async function fetchExtraBill(
+    idOrSlug: string,
+    extraBillId: number,
+    token: string | null,
+): Promise<MatchBillDto> {
+    const { data } = await http.get<MatchBillDto>(
+        `${extraBase(idOrSlug)}/${extraBillId}`,
+        billConfig(token),
+    )
+    return data
+}
+
+export async function renameExtraBill(
+    idOrSlug: string,
+    extraBillId: number,
+    token: string | null,
+    label: string,
+    opId?: string,
+): Promise<MatchBillDto> {
+    const { data } = await http.patch<MatchBillDto>(
+        `${extraBase(idOrSlug)}/${extraBillId}`,
+        { label: label.trim() || null },
+        billConfig(token, opId),
+    )
+    return data
+}
+
+/** A waiter may only delete an empty bill; the organiser any (the UI confirms first). */
+export async function deleteExtraBill(
+    idOrSlug: string,
+    extraBillId: number,
+    token: string | null,
+    opId?: string,
+): Promise<void> {
+    await http.delete(`${extraBase(idOrSlug)}/${extraBillId}`, billConfig(token, opId))
+}
+
+export async function addExtraDrink(
+    idOrSlug: string,
+    extraBillId: number,
+    token: string | null,
+    priceId: number,
+    quantity: number = 1,
+    opId?: string,
+): Promise<MatchBillDto> {
+    const body: AddDrinkBody = { priceId, quantity }
+    const { data } = await http.post<MatchBillDto>(
+        `${extraBase(idOrSlug)}/${extraBillId}/drinks`,
+        body,
+        billConfig(token, opId),
+    )
+    return data
+}
+
+export async function removeExtraDrink(
+    idOrSlug: string,
+    extraBillId: number,
+    token: string | null,
+    drinkId: number,
+    opId?: string,
+): Promise<MatchBillDto> {
+    const { data } = await http.delete<MatchBillDto>(
+        `${extraBase(idOrSlug)}/${extraBillId}/drinks/${drinkId}`,
+        billConfig(token, opId),
+    )
+    return data
+}
+
+export async function setExtraBillPaid(
+    idOrSlug: string,
+    extraBillId: number,
+    token: string | null,
+    paid: boolean,
+    opId?: string,
+): Promise<MatchBillDto> {
+    const { data } = await http.patch<MatchBillDto>(
+        `${extraBase(idOrSlug)}/${extraBillId}/paid`,
         { paid },
         billConfig(token, opId),
     )

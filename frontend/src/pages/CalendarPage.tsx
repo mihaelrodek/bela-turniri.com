@@ -6,9 +6,8 @@ import {
     Button,
     Heading,
     HStack,
-    IconButton,
-    Stack,
     Text,
+    VisuallyHidden,
     VStack,
 } from "@chakra-ui/react"
 import { Link as RouterLink } from "react-router-dom"
@@ -20,7 +19,7 @@ import { haversineKm } from "../utils/distance"
 import { useUserLocation } from "../hooks/useUserLocation"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 import { showError } from "../toaster"
-import { usePlural, useTranslation } from "../i18n"
+import { useTranslation } from "../i18n"
 import EmptyState from "../components/EmptyState"
 import CalendarSubscribeButton from "../components/CalendarSubscribeButton"
 import CalendarEventRow from "../components/CalendarEventRow"
@@ -66,7 +65,6 @@ const EMPTY_TOURNAMENTS: CalendarTournament[] = []
 
 export default function CalendarPage() {
     const { t } = useTranslation()
-    const plural = usePlural()
 
     useDocumentHead({
         title: t("pages.calendar.seo.title"),
@@ -224,38 +222,48 @@ export default function CalendarPage() {
     }
 
     const monthLabel = `${t(`pages.calendar.month.${MONTH_KEYS[cursor.month]}`)} ${cursor.year}`
+    const prevMonthLabel = t(`pages.calendar.month.${MONTH_KEYS[(cursor.month + 11) % 12]}`)
+    const nextMonthLabel = t(`pages.calendar.month.${MONTH_KEYS[(cursor.month + 1) % 12]}`)
 
     /* ── Render ──────────────────────────────────────────────────────── */
     return (
         <VStack align="stretch" gap="5">
-            {/* Page header: what this is, how much of it there is, and the two
-                actions that apply to the whole screen. */}
-            <Stack
-                direction={{ base: "column", md: "row" }}
-                justify="space-between"
-                align={{ base: "stretch", md: "center" }}
+            {/* One toolbar, both views (2026-09-29, owner): the view toggle on
+                the left, the month and its neighbours in the CENTRE, the two
+                actions on the right. On a phone the month row goes first,
+                centred, and toggle + actions share the row under it. The old title + "N nadolazećih turnira" line and the
+                separate month row under it are gone — the month IS the
+                heading of this page. The h1 stays for screen readers and SEO.
+                Wraps to two rows when the width runs out. */}
+            <VisuallyHidden asChild><h1>{t("pages.calendar.title")}</h1></VisuallyHidden>
+            <Box
+                display="grid"
+                gridTemplateColumns={{ base: "auto 1fr", lg: "1fr auto 1fr" }}
+                gridTemplateAreas={{ base: `"nav nav" "view actions"`, lg: `"view nav actions"` }}
+                alignItems="center"
                 gap="3"
             >
-                <Box>
-                    <Heading size="lg">{t("pages.calendar.title")}</Heading>
-                    <Text fontSize="sm" color="fg.muted" mt="0.5">
-                        {loading ? " " : plural("pages.calendar.upcomingCount", upcoming.length)}
-                    </Text>
-                </Box>
-                {/* The toggle + "U blizini" + "Pretplati se" share one row
-                    even at 390px — none of them wrap to a second line. The
-                    two action buttons KEEP their text everywhere (that label
-                    is the point of them); it's the view toggle that goes
-                    icon-only below md, exactly like the grid/list toggle on
-                    the tournaments page. */}
-                <HStack gap="2" wrap="nowrap" flexShrink="0">
+                <Box gridArea="view" justifySelf="start">
                     <ViewToggle value={view} onChange={setView} />
+                </Box>
+                <Box gridArea="nav" justifySelf="center" minW="0">
+                    <MonthNavigation
+                        monthLabel={monthLabel}
+                        prevLabel={prevMonthLabel}
+                        nextLabel={nextMonthLabel}
+                        onPrevious={() => stepMonth(-1)}
+                        onNext={() => stepMonth(1)}
+                        onToday={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
+                    />
+                </Box>
+                <HStack gridArea="actions" justifySelf="end" gap="2" wrap="nowrap" flexShrink="0">
                     {/* Distance opt-in. Deliberately one button rather than the
                         tournaments list's full filter panel — the calendar shows
                         everything and only labels what is close. */}
                     {geoStatus !== "unsupported" && (
                         <Button
                             size="sm"
+                            h={TOOLBAR_H}
                             variant={nearMeEnabled ? "solid" : "outline"}
                             colorPalette="brand"
                             px={{ base: "2", md: "4" }}
@@ -270,7 +278,7 @@ export default function CalendarPage() {
                     )}
                     <CalendarSubscribeButton />
                 </HStack>
-            </Stack>
+            </Box>
 
             {geoStatus === "denied" && (
                 <Text fontSize="xs" color="fg.muted">
@@ -286,12 +294,6 @@ export default function CalendarPage() {
 
             {view === "agenda" ? (
                 <VStack align="stretch" gap="4">
-                    <MonthNavigation
-                        monthLabel={monthLabel}
-                        onPrevious={() => stepMonth(-1)}
-                        onNext={() => stepMonth(1)}
-                        onToday={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
-                    />
                     {loading ? (
                         <VStack align="stretch" gap="2">
                             <CalendarEventRowSkeleton />
@@ -329,13 +331,6 @@ export default function CalendarPage() {
                 </VStack>
             ) : (
                 <VStack align="stretch" gap="3">
-                    <MonthNavigation
-                        monthLabel={monthLabel}
-                        onPrevious={() => stepMonth(-1)}
-                        onNext={() => stepMonth(1)}
-                        onToday={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
-                    />
-
                     <CalendarMonthGrid
                         year={cursor.year}
                         month={cursor.month}
@@ -373,47 +368,103 @@ export default function CalendarPage() {
     )
 }
 
+/**
+ * Previous / current / next month in one compact group. The neighbours are
+ * named ("‹ Kolovoz", "Listopad ›") so a click says where it goes; on a phone
+ * the names drop and the arrows remain.
+ */
+/** One height for every control in the toolbar (2026-09-29, owner): the
+ *  view toggle's outer box (2px padding + 1px border around 34px buttons)
+ *  comes to the same 40px. */
+const TOOLBAR_H = "40px"
+/** Previous/next month slot: arrow + the longest month name ("September"). */
+const NEIGHBOUR_W = "124px"
+
 function MonthNavigation({
     monthLabel,
+    prevLabel,
+    nextLabel,
     onPrevious,
     onNext,
     onToday,
 }: {
     monthLabel: string
+    prevLabel: string
+    nextLabel: string
     onPrevious: () => void
     onNext: () => void
     onToday: () => void
 }) {
     const { t } = useTranslation()
 
+    // One box, like the view toggle beside it (2026-09-29, owner): the
+    // arrows, the month and "Danas" read as a single control, 40px tall.
+    // Every slot has a FIXED width sized for the longest name in any locale
+    // ("Prosinac", "September 2026"): with content-sized slots the whole
+    // group resized and the arrows moved under the pointer on every click.
     return (
-        <Box display="grid" gridTemplateColumns="1fr auto 1fr" alignItems="center" gap="2">
-            <IconButton
-                aria-label={t("pages.calendar.prevMonth")}
+        <HStack
+            gap="0.5"
+            p="0.5"
+            minW="0"
+            bg="bg.subtle"
+            rounded="lg"
+            borderWidth="1px"
+            borderColor="border.subtle"
+            role="group"
+        >
+            <Button
+                aria-label={`${t("pages.calendar.prevMonth")}: ${prevLabel}`}
                 size="sm"
-                variant="outline"
-                justifySelf="start"
+                h="34px"
+                variant="ghost"
+                color="fg.muted"
+                w={{ base: "34px", md: NEIGHBOUR_W }}
+                px={{ base: "0", md: "3" }}
+                justifyContent={{ base: "center", md: "flex-start" }}
                 onClick={onPrevious}
             >
                 <FiChevronLeft />
-            </IconButton>
-            <Heading size="md" textTransform="capitalize" textAlign="center" whiteSpace="nowrap">
+                <Box as="span" display={{ base: "none", md: "inline" }} truncate>{prevLabel}</Box>
+            </Button>
+            <Heading
+                as="h2"
+                size="md"
+                textTransform="capitalize"
+                textAlign="center"
+                whiteSpace="nowrap"
+                w={{ base: "150px", md: "176px" }}
+                flexShrink={0}
+                px="2"
+                h="34px"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                bg="bg.panel"
+                rounded="md"
+                boxShadow="xs"
+            >
                 {monthLabel}
             </Heading>
-            <HStack gap="1" justifySelf="end">
-                <IconButton
-                    aria-label={t("pages.calendar.nextMonth")}
-                    size="sm"
-                    variant="outline"
-                    onClick={onNext}
-                >
-                    <FiChevronRight />
-                </IconButton>
-                <Button size="sm" variant="ghost" onClick={onToday}>
-                    {t("pages.calendar.today")}
-                </Button>
-            </HStack>
-        </Box>
+            <Button
+                aria-label={`${t("pages.calendar.nextMonth")}: ${nextLabel}`}
+                size="sm"
+                h="34px"
+                variant="ghost"
+                color="fg.muted"
+                w={{ base: "34px", md: NEIGHBOUR_W }}
+                px={{ base: "0", md: "3" }}
+                justifyContent={{ base: "center", md: "flex-end" }}
+                onClick={onNext}
+            >
+                <Box as="span" display={{ base: "none", md: "inline" }} truncate>{nextLabel}</Box>
+                <FiChevronRight />
+            </Button>
+            <Box w="1px" h="20px" bg="border" mx="0.5" aria-hidden="true" />
+            <Button size="sm" h="34px" variant="ghost" onClick={onToday}>
+                {t("pages.calendar.today")}
+            </Button>
+        </HStack>
     )
 }
 
@@ -432,7 +483,7 @@ function ViewToggle({ value, onChange }: { value: View; onChange: (v: View) => v
     return (
         <HStack
             gap="1"
-            p="1"
+            p="0.5"
             bg="bg.subtle"
             rounded="lg"
             borderWidth="1px"
@@ -446,6 +497,7 @@ function ViewToggle({ value, onChange }: { value: View; onChange: (v: View) => v
                     <Button
                         key={id}
                         size="sm"
+                        h="34px"
                         px={{ base: "2", md: "4" }}
                         variant={active ? "solid" : "ghost"}
                         colorPalette={active ? "brand" : "gray"}

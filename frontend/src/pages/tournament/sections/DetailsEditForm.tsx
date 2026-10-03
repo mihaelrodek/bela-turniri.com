@@ -1,4 +1,4 @@
-import type { ChangeEvent, ReactNode } from "react"
+import { Suspense, type ChangeEvent, type ReactNode } from "react"
 import {
     Box,
     Button,
@@ -13,7 +13,7 @@ import {
     Textarea,
     VStack,
 } from "@chakra-ui/react"
-import { FiDollarSign, FiGift, FiImage, FiInfo, FiPhone, FiSettings, FiX } from "react-icons/fi"
+import { FiAward, FiDollarSign, FiGift, FiImage, FiInfo, FiPhone, FiX } from "react-icons/fi"
 import DatePicker, { registerLocale } from "react-datepicker"
 import { hr, sl, enGB } from "date-fns/locale"
 import "react-datepicker/dist/react-datepicker.css"
@@ -22,6 +22,7 @@ import "../../../datepicker.css"
 import { LocationAutocomplete } from "../../../components/LocationAutocomplete"
 import LocationMapPicker from "../../../components/LocationMapPicker"
 import { MOBILE_TABBAR_CLEARANCE } from "../../../components/navChrome"
+import { TournamentRulesEditorLazy } from "../../../components/rules/lazyRules"
 import PerPairHint from "../../../components/PerPairHint"
 import SectionCard from "../../../components/SectionCard"
 import SuffixInput from "../../../components/SuffixInput"
@@ -441,126 +442,26 @@ export default function DetailsEditForm({
                 </VStack>
             </SectionCard>
 
+            {/* "Pravila turnira" (2026-10-03, owner): the five game rules that used
+                to open the fees card below, plus the editable rulebook. Same
+                editor as the create wizard's second step; its state is the
+                form's `rules` field, so the page's unsaved-changes guard
+                (`editDirty`) covers it with no extra wiring. */}
+            <SectionCard icon={<FiAward />} title={tr("tournament.edit.sectionRules")}>
+                <Suspense fallback={<Text fontSize="sm" color="fg.muted">{tr("forms.createTournament.rules.loading")}</Text>}>
+                    <TournamentRulesEditorLazy
+                        rules={editForm.rules}
+                        onRulesChange={(next) => patchEdit("rules", next)}
+                        game={editForm}
+                        onGameChange={(patch) => {
+                            for (const [key, value] of Object.entries(patch)) patchEdit(key as keyof TournamentForm, value as never)
+                        }}
+                    />
+                </Suspense>
+            </SectionCard>
+
             <SectionCard icon={<FiDollarSign />} title={tr("tournament.edit.sectionFees")}>
                 <VStack align="stretch" gap="4">
-                    <HStack gap="2" fontSize="sm" fontWeight="medium">
-                        <FiSettings />
-                        <Text>{tr("tournament.edit.gameRules")}</Text>
-                    </HStack>
-                    <Box
-                        display="grid"
-                        gridTemplateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }}
-                        gap="4"
-                    >
-                        <Field.Root>
-                            <Field.Label>{tr("tournament.edit.targetScore")}</Field.Label>
-                            <HStack gap="2">
-                                {([501, 701, 1001] as const).map((score) => (
-                                    <Button
-                                        key={score}
-                                        flex="1"
-                                        size="sm"
-                                        colorPalette="blue"
-                                        fontFamily="mono" fontVariantNumeric="tabular-nums"
-                                        variant={editForm.targetScore === score ? "solid" : "outline"}
-                                        aria-pressed={editForm.targetScore === score}
-                                        onClick={() => patchEdit("targetScore", score)}
-                                    >
-                                        {score}
-                                    </Button>
-                                ))}
-                            </HStack>
-                        </Field.Root>
-                        <Field.Root>
-                            <Field.Label>{tr("tournament.edit.gameEndRule")}</Field.Label>
-                            <HStack gap="2">
-                                {(["prolaz", "dosta"] as const).map((rule) => (
-                                    <Button
-                                        key={rule}
-                                        flex="1"
-                                        size="sm"
-                                        colorPalette="blue"
-                                        variant={editForm.gameEndRule === rule ? "solid" : "outline"}
-                                        aria-pressed={editForm.gameEndRule === rule}
-                                        onClick={() => patchEdit("gameEndRule", rule)}
-                                    >
-                                        {tr(`tournament.rule.end.${rule}`)}
-                                    </Button>
-                                ))}
-                            </HStack>
-                        </Field.Root>
-                        <Field.Root>
-                            <Field.Label>{tr("tournament.edit.dealDirection")}</Field.Label>
-                            <HStack gap="2">
-                                {(["right", "left"] as const).map((direction) => (
-                                    <Button
-                                        key={direction}
-                                        flex="1"
-                                        size="sm"
-                                        colorPalette="blue"
-                                        variant={editForm.dealDirection === direction ? "solid" : "outline"}
-                                        aria-pressed={editForm.dealDirection === direction}
-                                        onClick={() => patchEdit("dealDirection", direction)}
-                                    >
-                                        {tr(`tournament.rule.direction.${direction}`)}
-                                    </Button>
-                                ))}
-                            </HStack>
-                        </Field.Root>
-                        <Field.Root>
-                            <Field.Label>{tr("tournament.edit.declarations")}</Field.Label>
-                            <HStack gap="2">
-                                <Button
-                                    flex="1"
-                                    size="sm"
-                                    colorPalette="blue"
-                                    variant={editForm.declarationsEnabled ? "solid" : "outline"}
-                                    aria-pressed={editForm.declarationsEnabled}
-                                    onClick={() => patchEdit("declarationsEnabled", true)}
-                                >
-                                    {tr("tournament.rule.declarations.enabled")}
-                                </Button>
-                                <Button
-                                    flex="1"
-                                    size="sm"
-                                    colorPalette="blue"
-                                    variant={!editForm.declarationsEnabled ? "solid" : "outline"}
-                                    aria-pressed={!editForm.declarationsEnabled}
-                                    onClick={() => patchEdit("declarationsEnabled", false)}
-                                >
-                                    {tr("tournament.rule.declarations.disabled")}
-                                </Button>
-                            </HStack>
-                        </Field.Root>
-                        {!editForm.declarationsEnabled && (
-                            <Field.Root gridColumn={{ base: "auto", md: "1 / -1" }}>
-                                <Field.Label>{tr("tournament.edit.allowBela")}</Field.Label>
-                                <HStack gap="2" maxW={{ base: "full", md: "260px" }}>
-                                    <Button
-                                        flex="1"
-                                        size="sm"
-                                        colorPalette="blue"
-                                        variant={editForm.allowBela ? "solid" : "outline"}
-                                        aria-pressed={editForm.allowBela}
-                                        onClick={() => patchEdit("allowBela", true)}
-                                    >
-                                        {tr("tournament.rule.yes")}
-                                    </Button>
-                                    <Button
-                                        flex="1"
-                                        size="sm"
-                                        colorPalette="blue"
-                                        variant={!editForm.allowBela ? "solid" : "outline"}
-                                        aria-pressed={!editForm.allowBela}
-                                        onClick={() => patchEdit("allowBela", false)}
-                                    >
-                                        {tr("tournament.rule.no")}
-                                    </Button>
-                                </HStack>
-                            </Field.Root>
-                        )}
-                    </Box>
-
                 {/* Single row matches CreateTournamentPage: Kotizacija +
                     Repasaž + Drugi repasaž (opc.) + Repasaž moguć do, all
                     inline. */}

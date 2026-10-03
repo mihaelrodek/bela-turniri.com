@@ -13,8 +13,8 @@ import { Box, Flex, Grid, Skeleton, SkeletonCircle, VStack } from "@chakra-ui/re
    hand tray — two rows of four cards on a phone, one row of eight from `md`,
    at the same card widths `handLayout` uses (56 / 72 px, mađarica ratio).
 
-   `status` is drawn over the centre, so the page can keep its "Ulazak u
-   sobu…" / slow-connection text on screen without a second layout.
+   `status` is drawn over the centre, so the page can keep its joining spinner (and,
+   once slow, a back-to-lobby button) on screen without a second layout.
 
    Lives outside the game's lazy chunk on purpose: App.tsx imports it, and it
    must be on screen BEFORE that chunk has arrived. Chakra skeletons only —

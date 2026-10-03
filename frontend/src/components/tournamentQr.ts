@@ -47,6 +47,12 @@ export function tournamentQrImageUrl(ref: string, size = 512): string {
     return `${API_BASE}/tournaments/${encodeURIComponent(ref)}/qr.png?size=${size}`
 }
 
+/** The SITE's own QR (opens the app's public address) — the printed global
+ *  rulebook uses it; a tournament's rules print uses `tournamentQrImageUrl`. */
+export function siteQrImageUrl(size = 512): string {
+    return `${API_BASE}/site/qr.png?size=${size}`
+}
+
 /** Public https://… URL a scan opens — mirrors the backend's own construction. */
 export function publicTournamentUrl(uuid: string, slug?: string | null): string {
     return `${window.location.origin}/turniri/${tournamentQrRef(uuid, slug)}`

@@ -5,6 +5,7 @@ import {
     BLOK_SIDES,
     BLOK_STORAGE_KEY,
     DEFAULT_DEAL_DIRECTION,
+    DEFAULT_DECLARATIONS_RULE,
     DEFAULT_GAME_END_RULE,
     DEFAULT_NEW_GAME_DEALER,
     DEFAULT_TARGET,
@@ -15,6 +16,7 @@ import {
     type BlokDealerSeat,
     type BlokDealDirection,
     type BlokDealerSetup,
+    type BlokDeclarationsRule,
     type BlokGameEndRule,
     type BlokLink,
     type BlokLinkStatus,
@@ -171,6 +173,8 @@ export interface BlokGameSetup {
     seriesTarget?: number | null
     /** How a single game ends — "prolaz" (the default) or "dosta". */
     gameEndRule?: BlokGameEndRule
+    /** Which declarations are offered — "all" (default), "belaOnly" or "off". */
+    declarationsRule?: BlokDeclarationsRule
     dealer?: BlokDealerSetup
     /** Which way the deal goes round the table. */
     dealDirection?: BlokDealDirection
@@ -191,6 +195,7 @@ export function emptyGame(setup: BlokGameSetup = {}): BlokGame {
         target: sanitizeTarget(setup.target ?? DEFAULT_TARGET),
         seriesTarget: sanitizeSeriesTarget(setup.seriesTarget),
         gameEndRule: sanitizeGameEndRule(setup.gameEndRule),
+        declarationsRule: sanitizeDeclarationsRule(setup.declarationsRule),
         dealer: sanitizeDealerSetup(setup.dealer),
         dealDirection: sanitizeDealDirection(setup.dealDirection),
         newGameDealer: sanitizeNewGameDealer(setup.newGameDealer),
@@ -334,6 +339,10 @@ function sanitizeGameEndRule(value: unknown): BlokGameEndRule {
     return value === "dosta" ? "dosta" : DEFAULT_GAME_END_RULE
 }
 
+function sanitizeDeclarationsRule(value: unknown): BlokDeclarationsRule {
+    return value === "belaOnly" || value === "off" ? value : DEFAULT_DECLARATIONS_RULE
+}
+
 function isSide(value: unknown): value is BlokSide {
     return value === "us" || value === "them"
 }
@@ -457,6 +466,9 @@ function sanitizeLink(value: unknown): BlokLink | undefined {
         ...(typeof l.writeToken === "string" && l.writeToken !== ""
             ? { writeToken: l.writeToken }
             : {}),
+        ...(l.settingsFromTournament === true ? { settingsFromTournament: true as const } : {}),
+        ...(l.pendingStart === true ? { pendingStart: true as const } : {}),
+        ...(l.settingsPending === true ? { settingsPending: true as const } : {}),
     }
 }
 
@@ -559,6 +571,8 @@ function sanitizeGame(value: unknown): BlokGame | null {
         // which DOES re-judge games stored before the setting existed — see
         // `sanitizeGameEndRule`. Still v1, still nothing rewritten on disk.
         gameEndRule: sanitizeGameEndRule(g.gameEndRule),
+        // Absent = "all" — every game saved before the setting existed.
+        declarationsRule: sanitizeDeclarationsRule(g.declarationsRule),
         dealer: sanitizeDealerSetup(g.dealer),
         // Absent means "right" — but a game written while the direction still
         // lived on `dealer` is read forward rather than reset, so a table that
@@ -930,7 +944,7 @@ function rename(side: BlokSide, name: string): void {
 }
 
 function setTarget(target: number): void {
-    updateCurrent((g) => ({ ...g, target: sanitizeTarget(target) }))
+    updateCurrent((g) => manualEdit(g, { ...g, target: sanitizeTarget(target) }))
 }
 
 /**
@@ -943,7 +957,7 @@ function setTarget(target: number): void {
  * from this field.
  */
 function setSeriesTarget(seriesTarget: number | null): void {
-    updateCurrent((g) => ({ ...g, seriesTarget: sanitizeSeriesTarget(seriesTarget) }))
+    updateCurrent((g) => manualEdit(g, { ...g, seriesTarget: sanitizeSeriesTarget(seriesTarget) }))
 }
 
 /**
@@ -956,7 +970,17 @@ function setSeriesTarget(seriesTarget: number | null): void {
  * player just chose.
  */
 function setGameEndRule(gameEndRule: BlokGameEndRule): void {
-    updateCurrent((g) => ({ ...g, gameEndRule: sanitizeGameEndRule(gameEndRule) }))
+    updateCurrent((g) => manualEdit(g, { ...g, gameEndRule: sanitizeGameEndRule(gameEndRule) }))
+}
+
+/**
+ * Which declarations the entry sheet offers (2026-10-03). Changes what is
+ * OFFERED only: deals already saved keep scoring exactly as they were entered.
+ * Driven by linking to a tournament table (`applyTournamentSettings`); there is
+ * no manual switch in "Postavke".
+ */
+function setDeclarationsRule(declarationsRule: BlokDeclarationsRule): void {
+    updateCurrent((g) => manualEdit(g, { ...g, declarationsRule: sanitizeDeclarationsRule(declarationsRule) }))
 }
 
 function setDealerSetup(dealer: BlokDealerSetup): void {
@@ -986,20 +1010,143 @@ function setDealerSetup(dealer: BlokDealerSetup): void {
  * At deal 0 the two branches agree, because there is no rotation to re-derive.
  */
 function setDealDirection(direction: BlokDealDirection): void {
+    updateCurrent((g) => manualEdit(g, withDealDirection(g, direction)))
+}
+
+/** The pure half of `setDealDirection`, shared with the tournament apply/restore. */
+function withDealDirection(g: BlokGame, direction: BlokDealDirection): BlokGame {
+    const next = sanitizeDealDirection(direction)
+    if (next === g.dealDirection) return g
+    if (!g.dealer.chosen) return { ...g, dealDirection: next }
+    const showing = dealerAt(g.dealer.first, g.dealDirection, g.rounds.length)
+    return {
+        ...g,
+        dealDirection: next,
+        dealer: {
+            ...g.dealer,
+            first: firstDealerFor(showing, next, g.rounds.length),
+        },
+    }
+}
+
+/* ─────────── table settings that came from a tournament (2026-10-03) ───────────
+   Linking a blok to a tournament table copies the tournament's agreements onto
+   it (`applyTournamentSettings`, called by BlokPage once). They are marked with
+   `link.settingsFromTournament` so that, when the link ENDS, ONE helper
+   (`withTableDefaults`) can put them back to the defaults — and ONLY them: a
+   blok whose settings the player chose is never touched. Ending = `clearLink`
+   (unlink, dismissing a dead link), `patchLink` flipping to REJECTED/REVOKED
+   (organiser/server revoked, tournament over) and `resetSession` ("Nova igra").
+   A manual change of any of the five settings (`manualEdit`) drops the mark,
+   so a deliberate choice made after linking survives the link ending. */
+
+type TableSettings = Pick<BlokGame, "target" | "seriesTarget" | "gameEndRule" | "dealDirection" | "declarationsRule">
+
+const sameSettings = (a: TableSettings, b: TableSettings) =>
+    a.target === b.target
+    && a.seriesTarget === b.seriesTarget
+    && a.gameEndRule === b.gameEndRule
+    && a.dealDirection === b.dealDirection
+    && a.declarationsRule === b.declarationsRule
+
+function withoutSettingsMark(g: BlokGame): BlokGame {
+    if (!g.link?.settingsFromTournament) return g
+    const link = { ...g.link }
+    delete link.settingsFromTournament
+    return { ...g, link }
+}
+
+/** A player's own change to a setting ends the "copied from the tournament" claim. */
+function manualEdit(prev: BlokGame, next: BlokGame): BlokGame {
+    return sameSettings(prev, next) ? next : withoutSettingsMark(next)
+}
+
+/**
+ * Back to the defaults — target 1001, "prolaz", deal to the right, all
+ * declarations, open series — for a game whose settings came from a tournament.
+ * Rounds are NEVER touched (everything derived is recomputed under the new
+ * settings). A game that is already FINISHED keeps its target and end rule:
+ * its result is a fact, and changing them would silently reopen it.
+ */
+function withTableDefaults(g: BlokGame): BlokGame {
+    if (!g.link?.settingsFromTournament) return g
+    const finished = g.finishedAt !== null
+    const reset: BlokGame = {
+        ...g,
+        seriesTarget: null,
+        declarationsRule: DEFAULT_DECLARATIONS_RULE,
+        ...(finished ? {} : { target: DEFAULT_TARGET, gameEndRule: DEFAULT_GAME_END_RULE }),
+    }
+    return withoutSettingsMark(withDealDirection(reset, DEFAULT_DEAL_DIRECTION))
+}
+
+/** What a tournament link carries onto the table (absent field = leave as is). */
+export interface TournamentTableSettings {
+    target?: number
+    gameEndRule?: BlokGameEndRule
+    dealDirection?: BlokDealDirection
+    declarationsRule?: BlokDeclarationsRule
+    /** Games that win the series ("Dobivene partije za meč"), or `null` = open. */
+    seriesTarget?: number | null
+}
+
+/** Copy the tournament's agreements onto the table in ONE write and mark them
+ *  as tournament-owned (when a link exists to carry the mark). */
+function applyTournamentSettings(settings: TournamentTableSettings): void {
     updateCurrent((g) => {
-        const next = sanitizeDealDirection(direction)
-        if (next === g.dealDirection) return g
-        if (!g.dealer.chosen) return { ...g, dealDirection: next }
-        const showing = dealerAt(g.dealer.first, g.dealDirection, g.rounds.length)
-        return {
-            ...g,
-            dealDirection: next,
-            dealer: {
-                ...g.dealer,
-                first: firstDealerFor(showing, next, g.rounds.length),
-            },
-        }
+        let next: BlokGame = { ...g }
+        if (settings.target !== undefined) next.target = sanitizeTarget(settings.target)
+        if (settings.gameEndRule !== undefined) next.gameEndRule = sanitizeGameEndRule(settings.gameEndRule)
+        if (settings.declarationsRule !== undefined) next.declarationsRule = sanitizeDeclarationsRule(settings.declarationsRule)
+        if (settings.seriesTarget !== undefined) next.seriesTarget = sanitizeSeriesTarget(settings.seriesTarget)
+        if (settings.dealDirection !== undefined) next = withDealDirection(next, settings.dealDirection)
+        if (!next.link) return next
+        const link = { ...next.link, settingsFromTournament: true as const }
+        delete link.settingsPending
+        return { ...next, link }
     })
+}
+
+/**
+ * The organiser approved: close the old series and start a fresh one for the
+ * linked table (2026-10-03, owner) — "as if the player had tapped Nova igra":
+ * the old game goes through `resetSession` (same archive / pending-upload
+ * rules, so history and the outbox behave identically), and the new game has
+ * no rounds (0:0), a NEW sessionId, empty names (the translated MI/VI), the
+ * defaults for every table agreement and the link carried over with its
+ * `pendingStart` consumed and `settingsPending` raised (the tournament's
+ * settings are applied next, `applyTournamentSettings`).
+ *
+ * Runs only while `link.pendingStart` is set on an APPROVED link, and clears it
+ * in the same write — a reload or a repeated poll can never wipe a game in
+ * progress. Nothing the player scored is lost: unlike a plain "Nova igra", an
+ * unfinished game (and, for a guest, a finished one) is KEPT in the local
+ * archive instead of being thrown away; only finished games of a signed-in
+ * player are queued for upload. The server learns the new sessionId from the
+ * next score push (`sessionId` travels with every push, BLOK-LINK.md §6.2).
+ * Returns whether it ran.
+ */
+function startLinkedGame(keepForUpload: boolean): boolean {
+    const link = getStorage().current?.link
+    if (!link || link.status !== "APPROVED" || !link.pendingStart) return false
+    const playing = getStorage().current
+    const started: BlokLink = {
+        ...link,
+        syncedGames: null,
+        syncedFinal: false,
+        pendingSince: null,
+        settingsPending: true,
+    }
+    delete started.pendingStart
+    delete started.settingsFromTournament
+    const fresh = emptyGame({
+        dealer: { first: "self", chosen: false },
+        newGameDealer: playing?.newGameDealer,
+        showDealer: playing?.showDealer,
+        shareEnabled: playing?.shareEnabled,
+    })
+    resetSession(keepForUpload, { fresh: { ...fresh, link: started }, keepLocal: true })
+    return true
 }
 
 /**
@@ -1056,7 +1203,13 @@ function setLink(link: BlokLink): void {
 /** Merge a few fields into the existing link — the sync hook's `syncedGames`
  *  / `pendingSince` bookkeeping and the status flip on a fatal 409. */
 function patchLink(patch: Partial<BlokLink>): void {
-    updateCurrent((g) => (g.link ? { ...g, link: { ...g.link, ...patch } } : g))
+    updateCurrent((g) => {
+        if (!g.link) return g
+        const patched: BlokGame = { ...g, link: { ...g.link, ...patch } }
+        // A dead link (organiser said no, revoked, tournament over) ends the
+        // tournament's hold on the table's settings.
+        return patch.status === "REJECTED" || patch.status === "REVOKED" ? withTableDefaults(patched) : patched
+    })
 }
 
 /** Forget the link entirely — the blok goes back to being purely local. */
@@ -1066,7 +1219,7 @@ function clearLink(): void {
         // `delete` on a copy rather than a rest-spread: the field must be
         // ABSENT, not present-and-undefined, so a reloaded game is
         // indistinguishable from one that was never linked.
-        const next: BlokGame = { ...g }
+        const next: BlokGame = { ...withTableDefaults(g) }
         delete next.link
         return next
     })
@@ -1136,6 +1289,7 @@ function newGame(): void {
         // And so is "dosta / prolaz" — the table does not change how a
         // game ends between two games of the same evening.
         gameEndRule: playing?.gameEndRule,
+        declarationsRule: playing?.declarationsRule,
         // Where the deal picks up (BLOK.md §3.3.4). The rotation carries on
         // round the table from where the finished game left it — and under
         // "Novu partiju miješa: pobjednik" it keeps stepping past the losing
@@ -1199,6 +1353,7 @@ function discardCurrent(): void {
         sessionId: playing?.sessionId,
         seriesTarget: playing?.seriesTarget,
         gameEndRule: playing?.gameEndRule,
+        declarationsRule: playing?.declarationsRule,
         dealer: playing?.dealer,
         dealDirection: playing?.dealDirection,
         newGameDealer: playing?.newGameDealer,
@@ -1367,7 +1522,16 @@ export function seriesWinnerFrom(
  * Returns the id of the series that was just closed, so the caller can hand it
  * to the uploader without re-reading the store.
  */
-function resetSession(keepForUpload: boolean): string {
+function resetSession(
+    keepForUpload: boolean,
+    opts?: {
+        /** Use this game as the new current one instead of an inherited blank. */
+        fresh?: BlokGame
+        /** Keep EVERY game of the closed series in the local archive (the upload
+         *  marker still applies only to finished ones). */
+        keepLocal?: boolean
+    },
+): string {
     const state = getStorage()
     const playing = state.current
     const current = playing?.sessionId ?? LEGACY_SESSION_ID
@@ -1375,7 +1539,9 @@ function resetSession(keepForUpload: boolean): string {
     let archived =
         playing !== null && isRecordableGame(playing)
             ? [playing, ...state.archive].slice(0, MAX_ARCHIVE)
-            : state.archive
+            : opts?.keepLocal && playing !== null && playing.rounds.length > 0
+                ? [playing, ...state.archive].slice(0, MAX_ARCHIVE)
+                : state.archive
 
     // The legacy id groups everything saved before sessions existed — but it
     // is the SAME constant on every device, and the server is idempotent on
@@ -1417,16 +1583,24 @@ function resetSession(keepForUpload: boolean): string {
         // table plays survives — target, names, the series length and the
         // end-of-game rule — because the same four people usually start the
         // next evening the same way.
-        current: emptyGame({
-            target: playing?.target,
+        // Table settings copied from a tournament die with its link (2026-10-03):
+        // the next evening starts from the defaults, not from last night's
+        // tournament. Settings the player chose themselves carry on as before.
+        current: opts?.fresh ?? emptyGame({
             names: playing?.names,
-            seriesTarget: playing?.seriesTarget,
-            gameEndRule: playing?.gameEndRule,
+            ...(playing?.link?.settingsFromTournament
+                ? {}
+                : {
+                    target: playing?.target,
+                    seriesTarget: playing?.seriesTarget,
+                    gameEndRule: playing?.gameEndRule,
+                    declarationsRule: playing?.declarationsRule,
+                }),
             // A new evening deals from scratch, and nobody has named anybody
             // yet — `chosen: false`, so the first change of direction is free
             // to re-derive the sequence.
             dealer: { first: "self", chosen: false },
-            dealDirection: playing?.dealDirection,
+            dealDirection: playing?.link?.settingsFromTournament ? undefined : playing?.dealDirection,
             newGameDealer: playing?.newGameDealer,
             showDealer: playing?.showDealer,
             shareEnabled: playing?.shareEnabled,
@@ -1434,9 +1608,12 @@ function resetSession(keepForUpload: boolean): string {
         // Everything of the closing series goes, INCLUDING any unfinished game
         // still sitting in the archive: `keep` only spares the games that are
         // about to be uploaded, and an unfinished one is never among them.
-        archive: keep
-            ? archived.filter((g) => g.sessionId !== closing || isRecordableGame(g))
-            : archived.filter((g) => g.sessionId !== closing),
+        archive: archived.filter(
+            (g) =>
+                g.sessionId !== closing
+                || opts?.keepLocal === true
+                || (keep && isRecordableGame(g)),
+        ),
         pendingSessions: keep
             ? sanitizePendingSessions([
                 ...state.pendingSessions.filter((id) => id !== closing),
@@ -1523,6 +1700,9 @@ export const blokActions = {
     setTarget,
     setSeriesTarget,
     setGameEndRule,
+    setDeclarationsRule,
+    applyTournamentSettings,
+    startLinkedGame,
     setDealerSetup,
     setDealDirection,
     setNewGameDealer,
@@ -1569,6 +1749,15 @@ export interface BlokStore {
     setSeriesTarget(seriesTarget: number | null): void
     /** How a single game ends: "prolaz" (default) or "dosta" — BLOK.md §3.5. */
     setGameEndRule(gameEndRule: BlokGameEndRule): void
+    /** Which declarations the entry sheet offers — "all" (default), "belaOnly"
+     *  (only the 20) or "off" (none). Never changes how saved deals score. */
+    setDeclarationsRule(declarationsRule: BlokDeclarationsRule): void
+    /** Copy a tournament's agreements onto the table in one write and mark them
+     *  so that the link ending restores the defaults (see `withTableDefaults`). */
+    applyTournamentSettings(settings: TournamentTableSettings): void
+    /** Organiser approved: archive the old series (like "Nova igra") and start a
+     *  fresh linked game. Once per link; returns whether it ran. */
+    startLinkedGame(keepForUpload: boolean): boolean
     /** Name the dealer by hand at any point — `chosen: true` is what makes that
      *  a decision the direction setting must not overwrite. */
     setDealerSetup(dealer: BlokDealerSetup): void
@@ -1715,6 +1904,9 @@ export function useBlok(): BlokStore {
         setTarget,
         setSeriesTarget,
         setGameEndRule,
+        setDeclarationsRule,
+        applyTournamentSettings,
+        startLinkedGame,
         setDealerSetup,
         setDealDirection,
     setNewGameDealer,

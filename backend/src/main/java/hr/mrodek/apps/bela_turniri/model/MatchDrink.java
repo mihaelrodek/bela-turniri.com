@@ -26,9 +26,18 @@ public class MatchDrink {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    /**
+     * The match this drink is on — null for a drink on an "Ostalo" bill
+     * ({@link #extraBill}); the DB CHECK guarantees exactly one of the two.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "match_id")
     private Matches match;
+
+    /** 2026-10-03: set instead of {@link #match} for an "Ostalo" bill. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "extra_bill_id")
+    private ExtraBill extraBill;
 
     /** Soft link to the cjenik row this came from. Null if that row was deleted. */
     @ManyToOne(fetch = FetchType.LAZY)

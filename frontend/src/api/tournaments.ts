@@ -80,7 +80,7 @@ export async function createTournament(
 
 export async function fetchTournaments(
     status: "upcoming" | "finished" = "upcoming",
-    opts?: { offset?: number; limit?: number; q?: string },
+    opts?: { offset?: number; limit?: number; q?: string; silent?: boolean },
 ): Promise<TournamentCard[]> {
     const params: Record<string, string | number> = { status };
     if (opts?.offset != null) params.offset = opts.offset;
@@ -88,7 +88,7 @@ export async function fetchTournaments(
     // The backend ignores anything under 2 trimmed chars, so an empty or
     // 1-char box never even reaches it as a query param.
     if (opts?.q && opts.q.trim().length >= 2) params.q = opts.q.trim();
-    const { data } = await http.get<TournamentCard[]>("/tournaments", { params });
+    const { data } = await http.get<TournamentCard[]>("/tournaments", { params, silent: opts?.silent });
     return data;
 }
 

@@ -25,14 +25,10 @@ import { FiDelete } from "react-icons/fi"
 
 const DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const
 
-/* Key height follows VIEWPORT HEIGHT rather than width. The compact size also
-   applies to ordinary phone heights: four rows save 40 px, which keeps the
-   trump picker visible without making the user scroll the middle of the
-   sheet. 46 px still clears the 44 px tap-target floor. */
-const KEY_HEIGHT_CSS = {
-    "--blok-key-h": "56px",
-    "@media (max-height: 900px)": { "--blok-key-h": "46px" },
-} as const
+/* Key height and gap come from the entry sheet (`STEP_VARS` in
+   RoundEntrySheet, 2026-10-03), which scales them to the VISIBLE height — 56 px
+   when there is room down to 36 px in a browser tab with its toolbars up. The
+   fallbacks below are the roomy size, so the pad on its own keeps its look. */
 
 const KEY_STYLE = {
     /* The fallback is the full 56 px, so if the variable ever failed to land
@@ -76,7 +72,7 @@ export default function Keypad({
     backspaceLabel: string
 }) {
     return (
-        <Grid templateColumns="repeat(3, 1fr)" gap="2" css={KEY_HEIGHT_CSS} role="group" aria-label={label}>
+        <Grid templateColumns="repeat(3, 1fr)" gap="var(--blok-key-gap, 8px)" role="group" aria-label={label}>
             {DIGITS.map((digit) => (
                 <Button key={digit} {...KEY_STYLE} disabled={disabled} onClick={() => onDigit(digit)}>
                     {digit}

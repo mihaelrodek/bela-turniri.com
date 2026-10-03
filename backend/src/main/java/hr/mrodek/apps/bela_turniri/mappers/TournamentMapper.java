@@ -54,6 +54,7 @@ public interface TournamentMapper {
             @Mapping(target = "dealDirection", source = "dealDirection"),
             @Mapping(target = "declarationsEnabled", source = "declarationsEnabled"),
             @Mapping(target = "allowBela", source = "allowBela"),
+            @Mapping(target = "rules", source = "rules"),
             @Mapping(target = "contactName", source = "contactName"),
             @Mapping(target = "contactPhone", source = "contactPhone"),
             @Mapping(target = "rewardType", source = "rewardType", qualifiedByName = "enumToName"),
@@ -103,6 +104,8 @@ public interface TournamentMapper {
             @Mapping(target = "dealDirection", source = "dealDirection"),
             @Mapping(target = "declarationsEnabled", source = "declarationsEnabled"),
             @Mapping(target = "allowBela", source = "allowBela"),
+            // Owned by TournamentController (normalised + three-state on update).
+            @Mapping(target = "rules", ignore = true),
 
             @Mapping(target = "contactName", source = "contactName"),
             @Mapping(target = "contactPhone", source = "contactPhone"),
@@ -159,6 +162,8 @@ public interface TournamentMapper {
             @Mapping(target = "dealDirection", source = "dealDirection"),
             @Mapping(target = "declarationsEnabled", source = "declarationsEnabled"),
             @Mapping(target = "allowBela", source = "allowBela"),
+            // Owned by TournamentController (normalised + three-state on update).
+            @Mapping(target = "rules", ignore = true),
 
             @Mapping(target = "contactName", source = "contactName"),
             @Mapping(target = "contactPhone", source = "contactPhone"),

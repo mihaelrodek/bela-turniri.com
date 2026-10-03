@@ -103,6 +103,11 @@ export default function DeckSuitIcon({
             <Box
                 position="absolute"
                 inset="0"
+                // Marked so a print stylesheet that forces `visibility: visible`
+                // on a whole block (pages/rulesPrint.css) can still keep this
+                // stand-in hidden once the printed mark is up — otherwise the
+                // vector acorn printed UNDER the image (2026-10-03, reported).
+                data-suit-underlay={ready ? "hidden" : "shown"}
                 // Hidden rather than unmounted: the printed mark has
                 // transparent edges, so a glyph left underneath would show
                 // through them.

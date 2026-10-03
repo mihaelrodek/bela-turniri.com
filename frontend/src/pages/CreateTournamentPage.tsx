@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { isAxiosError } from "axios"
 import {
@@ -22,7 +22,6 @@ import {
     FiGift,
     FiImage,
     FiPhone,
-    FiSettings,
     FiX,
 } from "react-icons/fi"
 import DatePicker, { registerLocale } from "react-datepicker"
@@ -31,7 +30,8 @@ import "react-datepicker/dist/react-datepicker.css"
 import "../datepicker.css"
 
 import { createTournament } from "../api/tournaments"
-import { CONTENT_STICKY_TOP } from "../components/navChrome"
+import { CONTENT_STICKY_TOP, NAVBAR_TOP } from "../components/navChrome"
+import { TournamentRulesEditorLazy } from "../components/rules/lazyRules"
 import { LocationAutocomplete } from "../components/LocationAutocomplete"
 import LoadTournamentTemplateDialog from "../components/LoadTournamentTemplateDialog"
 import LocationMapPicker from "../components/LocationMapPicker"
@@ -62,6 +62,7 @@ import {
     tournamentFormFromDto,
     tournamentFormToPayload,
 } from "../utils/tournamentForm"
+import { countCustomisations } from "../utils/tournamentRules"
 import { invalidateTournamentLists } from "./tournament/cache"
 import type { RewardType, TournamentDetails } from "../types/tournaments"
 
@@ -80,22 +81,27 @@ registerLocale("sl", sl)
 registerLocale("en", enGB)
 
 /**
- * The wizard replaced the single long scroll this page used to be. Three
+ * The wizard replaced the single long scroll this page used to be. Four
  * steps, each one card:
  *
  *   1 „Osnovno“          — name, date, cap, location + map, details,
  *                          poster, organiser contact
- *   2 „Kotizacija i nagrade“ — everything that is money: the entry /
+ *   2 „Pravila turnira“  — (2026-10-03, owner) the five game rules that used
+ *                          to sit on the money step, plus the editable
+ *                          rulebook: the global rules are loaded by default
+ *                          and the organiser edits / deletes / adds. Never
+ *                          blocks „Dalje“.
+ *   3 „Kotizacija i nagrade“ — everything that is money: the entry /
  *                          repasaž prices and the prize split. They used
  *                          to be two separate steps, which meant two
  *                          half-empty cards about the same subject.
- *   3 „Pregled“          — read-only review.
+ *   4 „Pregled“          — read-only review.
  *
  * Publishing is possible only from the last step — see the guard at the
  * top of `handleSubmit`.
  */
-type WizardStep = 1 | 2 | 3
-const LAST_STEP: WizardStep = 3
+type WizardStep = 1 | 2 | 3 | 4
+const LAST_STEP: WizardStep = 4
 
 /* The form model — the type, its blank value and the payload builder — is
    `utils/tournamentForm`, shared with the detail page's "Uredi" form. It
@@ -158,6 +164,12 @@ export default function CreateTournamentPage() {
     const plural = usePlural()
 
     const [form, setForm] = useState<TournamentForm>(emptyTournamentForm)
+
+    // Warm the rules step's chunk + `legal` dictionary while the organiser is
+    // still on step 1, so Dalje does not land on a loading line.
+    useEffect(() => {
+        TournamentRulesEditorLazy.preload().catch(() => {})
+    }, [])
 
     // Latitude/longitude tracked separately from `form` because they
     // exist purely to drive the map picker's marker — they're not sent
@@ -227,12 +239,12 @@ export default function CreateTournamentPage() {
         if (!form.location.trim()) missing.push({ step: 1, label: t("forms.createTournament.missingRequired.location") })
         if (!form.startDate) missing.push({ step: 1, label: t("forms.createTournament.missingRequired.date") })
         if (!form.startTime) missing.push({ step: 1, label: t("forms.createTournament.missingRequired.time") })
-        // Prizes moved from the old step 3 onto step 2 when „Kotizacija“ and
-        // „Nagrade“ were merged. The step tag here is the single place that
+        // Prizes live on the money step (3 since „Pravila turnira“ became
+        // step 2, 2026-10-03). The step tag here is the single place that
         // decides which "Dalje" this blocks, which banner names it and which
         // card the organiser is bounced back to — nothing else re-encodes it.
         if (!form.rewardFirst.trim() || !form.rewardSecond.trim() || !form.rewardThird.trim()) {
-            missing.push({ step: 2, label: t("forms.createTournament.missingRequired.rewards") })
+            missing.push({ step: 3, label: t("forms.createTournament.missingRequired.rewards") })
         }
         return missing
     }, [
@@ -385,6 +397,7 @@ export default function CreateTournamentPage() {
 
     const stepLabels = [
         t("forms.createTournament.wizard.step.basics"),
+        t("forms.createTournament.wizard.step.rules"),
         t("forms.createTournament.wizard.step.money"),
         t("forms.createTournament.wizard.step.review"),
     ]
@@ -522,7 +535,30 @@ export default function CreateTournamentPage() {
             minH={{ base: `calc(100dvh - ${CONTENT_STICKY_TOP.base})`, md: `calc(100dvh - ${CONTENT_STICKY_TOP.md})` }}
             mb="-24px"
         >
-            {/* ===================== Step indicator ===================== */}
+            {/* ===================== Step indicator =====================
+                Pinned directly under the navbar while the step's content
+                scrolls beneath it (2026-10-03, owner). Opaque canvas behind it
+                — and a pseudo-element up to the navbar's edge, because the
+                app Container leaves 24px above this row — so nothing shows
+                through. */}
+            <Box
+                position="sticky"
+                top={NAVBAR_TOP}
+                zIndex={5}
+                bg="bg.canvas"
+                pb="3"
+                mx="-3"
+                px="3"
+                _before={{
+                    content: '""',
+                    position: "absolute",
+                    left: "0",
+                    right: "0",
+                    top: "-24px",
+                    height: "24px",
+                    bg: "bg.canvas",
+                }}
+            >
             <WizardStepper
                 steps={stepLabels}
                 current={step}
@@ -540,6 +576,7 @@ export default function CreateTournamentPage() {
                     })
                 }
             />
+            </Box>
 
             {/* One card per step. `flex 1` makes this region absorb the spare
                 height so the action bar is pushed to the bottom edge. */}
@@ -909,132 +946,32 @@ export default function CreateTournamentPage() {
                 </FormCard>
                 )}
 
-                {/* ===================== Step 2: Kotizacija i nagrade =====================
+                {/* ===================== Step 2: Pravila turnira =====================
+                    (2026-10-03, owner.) The five game rules moved here from the
+                    money step, with the editable rulebook below them. The
+                    editor is lazy: it brings the `legal` dictionary namespace
+                    (the rule texts) with its chunk. */}
+                {step === 2 && (
+                <FormCard>
+                    <Suspense fallback={<Text fontSize="sm" color="fg.muted">{t("forms.createTournament.rules.loading")}</Text>}>
+                        <TournamentRulesEditorLazy
+                            introPopup
+                            rules={form.rules}
+                            onRulesChange={(next) => onChange("rules", next)}
+                            game={form}
+                            onGameChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                        />
+                    </Suspense>
+                </FormCard>
+                )}
+
+                {/* ===================== Step 3: Kotizacija i nagrade =====================
                     Both halves are money, so they share one card instead of
                     two half-empty ones. They stay two clearly separated
                     groups: a heading each, and a hairline rule between them. */}
-                {step === 2 && (
+                {step === 3 && (
                 <FormCard>
                     <VStack align="stretch" gap="3">
-                        {/* ── Group A: rules for every tournament table ── */}
-                        <GroupHeading icon={<FiSettings />}>
-                            {t("forms.createTournament.section.gameRules")}
-                        </GroupHeading>
-                        <Box
-                            display="grid"
-                            gridTemplateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }}
-                            gap="3"
-                            alignItems="start"
-                        >
-                            <Field.Root>
-                                <Field.Label>{t("forms.createTournament.targetScore.label")}</Field.Label>
-                                <HStack gap="2">
-                                    {([501, 701, 1001] as const).map((score) => (
-                                        <Button
-                                            key={score}
-                                            flex="1"
-                                            size="sm"
-                                            colorPalette="brand"
-                                            fontFamily="mono" fontVariantNumeric="tabular-nums"
-                                            variant={form.targetScore === score ? "solid" : "outline"}
-                                            aria-pressed={form.targetScore === score}
-                                            onClick={() => onChange("targetScore", score)}
-                                        >
-                                            {score}
-                                        </Button>
-                                    ))}
-                                </HStack>
-                            </Field.Root>
-                            <Field.Root>
-                                <Field.Label>{t("forms.createTournament.gameEndRule.label")}</Field.Label>
-                                <HStack gap="2">
-                                    {(["prolaz", "dosta"] as const).map((rule) => (
-                                        <Button
-                                            key={rule}
-                                            flex="1"
-                                            size="sm"
-                                            colorPalette="brand"
-                                            variant={form.gameEndRule === rule ? "solid" : "outline"}
-                                            aria-pressed={form.gameEndRule === rule}
-                                            onClick={() => onChange("gameEndRule", rule)}
-                                        >
-                                            {t(`forms.createTournament.gameEndRule.${rule}`)}
-                                        </Button>
-                                    ))}
-                                </HStack>
-                            </Field.Root>
-                            <Field.Root>
-                                <Field.Label>{t("forms.createTournament.dealDirection.label")}</Field.Label>
-                                <HStack gap="2">
-                                    {(["right", "left"] as const).map((direction) => (
-                                        <Button
-                                            key={direction}
-                                            flex="1"
-                                            size="sm"
-                                            colorPalette="brand"
-                                            variant={form.dealDirection === direction ? "solid" : "outline"}
-                                            aria-pressed={form.dealDirection === direction}
-                                            onClick={() => onChange("dealDirection", direction)}
-                                        >
-                                            {t(`forms.createTournament.dealDirection.${direction}`)}
-                                        </Button>
-                                    ))}
-                                </HStack>
-                            </Field.Root>
-                            <Field.Root>
-                                <Field.Label>{t("forms.createTournament.declarations.label")}</Field.Label>
-                                <HStack gap="2">
-                                    <Button
-                                        flex="1"
-                                        size="sm"
-                                        colorPalette="brand"
-                                        variant={form.declarationsEnabled ? "solid" : "outline"}
-                                        aria-pressed={form.declarationsEnabled}
-                                        onClick={() => onChange("declarationsEnabled", true)}
-                                    >
-                                        {t("forms.createTournament.declarations.enabled")}
-                                    </Button>
-                                    <Button
-                                        flex="1"
-                                        size="sm"
-                                        colorPalette="brand"
-                                        variant={!form.declarationsEnabled ? "solid" : "outline"}
-                                        aria-pressed={!form.declarationsEnabled}
-                                        onClick={() => onChange("declarationsEnabled", false)}
-                                    >
-                                        {t("forms.createTournament.declarations.disabled")}
-                                    </Button>
-                                </HStack>
-                            </Field.Root>
-                            {!form.declarationsEnabled && (
-                                <Field.Root gridColumn={{ base: "auto", md: "1 / -1" }}>
-                                    <Field.Label>{t("forms.createTournament.allowBela.label")}</Field.Label>
-                                    <HStack gap="2" maxW={{ base: "full", md: "260px" }}>
-                                        <Button
-                                            flex="1"
-                                            size="sm"
-                                            colorPalette="brand"
-                                            variant={form.allowBela ? "solid" : "outline"}
-                                            aria-pressed={form.allowBela}
-                                            onClick={() => onChange("allowBela", true)}
-                                        >
-                                            {t("forms.createTournament.allowBela.yes")}
-                                        </Button>
-                                        <Button
-                                            flex="1"
-                                            size="sm"
-                                            colorPalette="brand"
-                                            variant={!form.allowBela ? "solid" : "outline"}
-                                            aria-pressed={!form.allowBela}
-                                            onClick={() => onChange("allowBela", false)}
-                                        >
-                                            {t("forms.createTournament.allowBela.no")}
-                                        </Button>
-                                    </HStack>
-                                </Field.Root>
-                            )}
-                        </Box>
-
                         {/* ── Group A: kotizacija + repasaž ── */}
                         <GroupHeading icon={<FiDollarSign />}>
                             {t("forms.createTournament.section.pricing")}
@@ -1196,7 +1133,7 @@ export default function CreateTournamentPage() {
                 </FormCard>
                 )}
 
-                {/* ===================== Step 3: Review before publishing ===================== */}
+                {/* ===================== Step 4: Review before publishing ===================== */}
                 {step === LAST_STEP && (() => {
                     const notEntered = (
                         <chakra.span color="fg.subtle" fontWeight="normal">
@@ -1249,6 +1186,8 @@ export default function CreateTournamentPage() {
                     // don't show an empty row just to say it's empty.
                     const detailsValue = form.details.trim()
 
+                    const customisedRules = countCustomisations(form.rules)
+
                     const rows: ReviewRow[] = [
                         {
                             label: t("forms.createTournament.dateTime.label"),
@@ -1298,6 +1237,12 @@ export default function CreateTournamentPage() {
                                     : t("forms.createTournament.allowBela.no"),
                             }]
                             : []),
+                        {
+                            label: t("forms.createTournament.rules.review.label"),
+                            value: customisedRules > 0
+                                ? t("forms.createTournament.rules.review.customised", { count: customisedRules })
+                                : t("forms.createTournament.rules.review.default"),
+                        },
                         {
                             label: t("forms.createTournament.entryPrice.label"),
                             value:

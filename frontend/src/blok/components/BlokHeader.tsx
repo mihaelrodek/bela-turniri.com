@@ -257,6 +257,7 @@ export default function BlokHeader({
     openGames,
     onGamesOpenChange,
     strip,
+    liveLink,
 }: {
     names: Record<BlokSide, string>
     totals: Record<BlokSide, number>
@@ -314,9 +315,14 @@ export default function BlokHeader({
      * offline blok, which is every blok until someone links one.
      */
     strip?: ReactNode
+    /**
+     * The "uživo" link button, centred under the divider between the scores
+     * (2026-10-03, owner): shown only while a tournament is live and the blok
+     * is not linked yet, so its presence says both things at once.
+     */
+    liveLink?: ReactNode
 }) {
     const { t } = useTranslation()
-    const tp = usePlural()
     const nameFontSize = sideNameFontSize(Math.max(names.us.length, names.them.length))
     /* Held by the PAGE since 2026-09-09: opening this panel makes the score
        card taller, and the verdict card below has to know so it can give the
@@ -342,7 +348,7 @@ export default function BlokHeader({
         // each locale and consistently capitalised.
         t(gameEndRule === "prolaz" ? "blok.rule.prolazInline" : "blok.rule.dostaInline"),
         seriesTarget !== null
-            ? t("blok.series.badgeTarget", { games: tp("blok.series.games", seriesTarget) })
+            ? t("blok.series.badgeTarget", { games: String(seriesTarget) })
             : null,
     ].filter((part): part is string => part !== null)
 
@@ -416,7 +422,28 @@ export default function BlokHeader({
                     ))}
                 </Text>
 
-                <HStack align="start" gap={{ base: "1", md: "4" }}>
+                {/* With a series running, the link button shares the row of the
+                    won-games numbers (the 7 and the 6), centred between them
+                    (2026-10-03, owner). Without a series there is no such row,
+                    so it sits on a line of its own above the scores. */}
+                {liveLink && !showWins ? (
+                    <Box display="flex" justifyContent="center" mt="-1" mb="1">
+                        {liveLink}
+                    </Box>
+                ) : null}
+
+                <HStack align="start" gap={{ base: "1", md: "4" }} position="relative">
+                    {liveLink && showWins ? (
+                        <Box
+                            position="absolute"
+                            top="0"
+                            left="50%"
+                            zIndex={1}
+                            style={{ transform: "translateX(-50%)" }}
+                        >
+                            {liveLink}
+                        </Box>
+                    ) : null}
                     {BLOK_SIDES.map((side, i) => (
                         <Fragment key={side}>
                             {i > 0 && (

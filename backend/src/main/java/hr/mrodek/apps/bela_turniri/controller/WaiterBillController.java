@@ -28,10 +28,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
 
 /**
@@ -112,6 +108,7 @@ public class WaiterBillController {
     @Inject IdempotencyService idempotency;
     @Inject MessageService messages;
     @Inject CurrentUser currentUser;
+    @Inject hr.mrodek.apps.bela_turniri.services.WaiterCallerIdentity callerIdentity;
 
     /** Every match of the tournament with its running total, round then table order. */
     @GET
@@ -248,18 +245,6 @@ public class WaiterBillController {
      * property the comparison needs.
      */
     private String callerIdentity(String token) {
-        if (token != null && !token.isBlank()) return "waiter:" + sha256Hex(token.trim());
-        String uid = currentUser.uidOrNull();
-        return uid == null ? null : "owner:" + uid;
-    }
-
-    /** Lowercase hex SHA-256 of {@code s}. */
-    private static String sha256Hex(String s) {
-        try {
-            MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(sha256.digest(s.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e); // SHA-256 is always present on the JVMs we run
-        }
+        return callerIdentity.of(token);
     }
 }

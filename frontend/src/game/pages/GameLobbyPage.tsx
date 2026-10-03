@@ -22,8 +22,12 @@ import { useGamePrefs } from "../hooks/useGamePrefs"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import { formatCountdown, useHoldCountdown } from "../hooks/useHoldCountdown"
 import { useGameSocket } from "../hooks/useGameSocket"
-import { useSlowConnection } from "../hooks/useSlowConnection"
 import { RoomCardSkeletons } from "../components/GameLobbySkeleton"
+import { useAuth } from "../../auth/authContextValue"
+import { gameLearnPath } from "../../site"
+import { readStickyRoomId } from "../activeRoomKey"
+import LearnPromptDialog from "../learn/LearnPromptDialog"
+import { learnIdentity, readLearnEntry, saveLearnAnswer } from "../learn/learnStorage"
 
 /* ──────────────────────────────────────────────────────────────────────────
    GameLobbyPage (/igra) — one header row (player, stats, create, settings),
@@ -314,7 +318,6 @@ export default function GameLobbyPage() {
     }, [socket.rooms, search, statusFilter, publicOnly, targetFilter])
 
     const connected = socket.status === "open"
-    const slowConnection = useSlowConnection(socket.status)
 
     const create = (options: CreateGameOptions) => {
         wantsRoomRef.current = true
@@ -363,6 +366,41 @@ export default function GameLobbyPage() {
        thing whatever this page does. */
     const active = socket.activeSeat
     const blocked = active !== null
+
+    /* "ZNAŠ LI KARTATI BELU?" (2026-09-29, owner request) — asked once per
+       identity on this browser (`learn/learnStorage.ts`): a guest lands here
+       straight from the name-and-face step, a signed-in player on their
+       first visit.
+
+       It waits until the lobby knows who we are AND has had a moment to be
+       told about a seat we still hold: the server sends `game.active` right
+       after `hello`, and somebody on their way back to a running game must
+       not be stopped by a question. If the game server does not answer at
+       all the question is asked anyway after a few seconds — the tutorial
+       needs no server. It is never shown while a game is held for us, while
+       this tab still belongs to a room, or over another dialog. */
+    const { user } = useAuth()
+    const learnWho = learnIdentity(user?.uid)
+    const [learnAnswered, setLearnAnswered] = useState<string | null>(null)
+    const learnUnasked = useMemo(
+        () => learnAnswered !== learnWho && readLearnEntry(learnWho) === null,
+        [learnWho, learnAnswered],
+    )
+    const [learnReady, setLearnReady] = useState(false)
+    const knowsMe = socket.me !== null
+    useEffect(() => {
+        if (!learnUnasked) return
+        const timer = window.setTimeout(() => setLearnReady(true), knowsMe ? 700 : 4000)
+        return () => window.clearTimeout(timer)
+    }, [learnUnasked, knowsMe])
+    const learnPromptOpen =
+        learnUnasked && learnReady && !blocked && readStickyRoomId() === null
+        && !createOpen && !joinOpen && !settingsOpen
+    const answerLearn = (answer: "knows" | "learn") => {
+        saveLearnAnswer(learnWho, answer)
+        setLearnAnswered(learnWho)
+        if (answer === "learn") navigate(gameLearnPath)
+    }
 
     return (
         <Box maxW="1040px" mx="auto" pb={{ base: `calc(${MOBILE_TABBAR_CLEARANCE} + 96px)`, md: "8" }}>
@@ -554,7 +592,7 @@ export default function GameLobbyPage() {
                     // Grey room cards where the real ones will land, not a
                     // spinner of its own under the filters (2026-09-29).
                     <RoomCardSkeletons
-                        label={slowConnection ? t("game.connection.slow") : t(`game.connection.${socket.status}`)}
+                        label={t("game.connection.connecting")}
                     />
                 ) : rooms.length === 0 ? (
                     <EmptyState
@@ -633,6 +671,11 @@ export default function GameLobbyPage() {
                 busy={!connected}
             />}
             <GameSettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+            <LearnPromptDialog
+                open={learnPromptOpen}
+                onKnows={() => answerLearn("knows")}
+                onLearn={() => answerLearn("learn")}
+            />
             <JoinByCodeDialog open={joinOpen} roomName={privateRoom?.name} error={socket.error}
                 onOpenChange={(open) => { setJoinOpen(open); if (!open) setPrivateRoom(null) }} onSubmit={joinByCode} />
         </Box>

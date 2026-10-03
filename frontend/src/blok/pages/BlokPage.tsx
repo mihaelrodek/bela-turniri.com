@@ -10,13 +10,15 @@ import { useDocumentHead } from "../../hooks/useDocumentHead"
 import { usePlural, useTranslation } from "../../i18n"
 import { publicOrigin } from "../../site"
 import { showError, showSuccess, toaster } from "../../toaster"
+import { fetchTournamentDetails } from "../../api/tournaments"
 import { linkWriteToken, revokeMyBlokLink } from "../blokLinkApi"
 import { blokShareUrl, createBlokShare, revokeBlokShare } from "../blokHistoryApi"
 import { ACTION_BAR_BOTTOM, ACTION_BAR_GAP, ACTION_BAR_RESERVE } from "../actionBar"
-import { isRecordableGame, useBlok } from "../store"
+import { blokActions, isRecordableGame, useBlok } from "../store"
 import type { Suit } from "@bela/engine"
 import { randomSuit } from "../../game/util/cards"
-import { BLOK_SIDES, creditedDeclarationTotals, type BlokRound, type BlokSide } from "../types"
+import { BLOK_SIDES, creditedDeclarationTotals, type BlokDeclarationsRule, type BlokRound, type BlokSide } from "../types"
+import { resolveMatchGames } from "../../utils/tournamentRules"
 import BelotCelebration from "../components/BelotCelebration"
 import BlokHeader from "../components/BlokHeader"
 import BlokLinkDialog from "../components/BlokLinkDialog"
@@ -32,9 +34,19 @@ import { saveSessionNow } from "../components/useBlokHistoryUpload"
 import { useBlokLiveUpload } from "../components/useBlokLiveUpload"
 import { finalizeBlokLink, useBlokLinkSync } from "../components/useBlokLinkSync"
 import { sidePalette, useSideNames } from "../components/blokSide"
+import { useLiveTournament } from "../components/useLiveTournament"
+import { keyframes } from "@emotion/react"
+import { FiLink2 } from "react-icons/fi"
 import { useKeyboardOpen } from "../../platform/useKeyboardOpen"
 import { isNative } from "../../platform"
 import { nativeShare } from "../../platform/nativeIo"
+
+/** The live link button's icon breathes a little — it says "a tournament is
+ *  running" without being a second thing to read (2026-10-03, owner). */
+const linkPulse = keyframes`
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.22); opacity: 0.65; }
+`
 
 /* ──────────────────────────────────────────────────────────────────────────
    BlokPage (/blok) — the scorepad's only screen.
@@ -152,6 +164,8 @@ export default function BlokPage() {
         setTarget,
         setSeriesTarget,
         setGameEndRule,
+        applyTournamentSettings,
+        startLinkedGame,
         setDealerSetup,
         setDealDirection,
         setNewGameDealer,
@@ -201,6 +215,7 @@ export default function BlokPage() {
     const [renameFocus, setRenameFocus] = useState<BlokSide>("us")
     const [targetOpen, setTargetOpen] = useState(false)
     const [linkOpen, setLinkOpen] = useState(false)
+    const liveTournament = useLiveTournament(true)
 
     /* How much room the fixed action bar actually takes, measured. The bar's
        height is not a constant we control: it holds two localised labels and
@@ -414,6 +429,84 @@ export default function BlokPage() {
        `revokeMyBlokLink` silences 404/409 because both mean "already gone",
        and a network failure must not leave the player stuck with a strip they
        cannot dismiss. The server half is fire-and-forget for the same reason. */
+    /* A link was just REQUESTED (picker or one-tap offer). Nothing about the
+       blok changes yet (2026-10-03, owner): the link is only stored, flagged
+       `pendingStart`. The game switch happens when the ORGANISER APPROVES, in
+       the two effects below — a rejected request therefore changes nothing. */
+    const handleLinked = useCallback(
+        (next: Parameters<typeof setLink>[0]) => {
+            setLink({ ...next, pendingStart: true })
+        },
+        [setLink],
+    )
+
+    /* APPROVED → close the old series and start a fresh one for the table.
+       `startLinkedGame` is one store write that archives the old game exactly
+       like "Nova igra" (`resetSession`), mints a new sessionId, empties the
+       names, restores default settings, and consumes `link.pendingStart` —
+       that persisted flag is the once-only guard, so reloads and repeated
+       status polls cannot wipe a game in progress. It covers both ways to
+       become approved (the poll flips a PENDING link; a link created already
+       APPROVED) and a reopened app that finds an approved, unstarted link.
+       Waits for auth to settle: `signedIn` decides whether the old series is
+       queued for upload, and acting on a not-yet-restored session would
+       treat a signed-in player as a guest. */
+    useEffect(() => {
+        if (authLoading || link === null || link.status !== "APPROVED" || !link.pendingStart) return
+        startLinkedGame(signedIn)
+    }, [authLoading, link, signedIn, startLinkedGame])
+
+    /* The fresh linked game still needs the tournament's agreements. One public
+       GET; on failure it is retried every 30 s (and on the next load) until it
+       lands — the new game is never wiped again, and `applyTournamentSettings`
+       clears `settingsPending` so it applies exactly once. If the link ends
+       first, the effect simply stops (the defaults are already in place).
+       Applied: target, prolaz/dosta, deal direction, the declarations rule
+       (`declarationsEnabled`/`allowBela`: all / belaOnly / off) and the series
+       length `rules.matchGames` (default 2). The store marks them
+       tournament-owned, so the link ending restores the defaults. */
+    const settingsPending = link !== null && link.status === "APPROVED" && !link.pendingStart && link.settingsPending === true
+    const tournamentUuid = link?.tournamentUuid ?? ""
+    useEffect(() => {
+        if (!settingsPending || tournamentUuid === "") return
+        let cancelled = false
+        const attempt = () => {
+            void fetchTournamentDetails(tournamentUuid, { silent: true })
+                .then((tournament) => {
+                    if (cancelled) return
+                    const live = blokActions.read().current?.link
+                    if (!live || live.tournamentUuid !== tournamentUuid || !live.settingsPending) return
+                    const declarationsRule: BlokDeclarationsRule =
+                        tournament.declarationsEnabled === false
+                            ? tournament.allowBela === true
+                                ? "belaOnly"
+                                : "off"
+                            : "all"
+                    applyTournamentSettings({
+                        ...(tournament.targetScore ? { target: tournament.targetScore } : {}),
+                        ...(tournament.gameEndRule === "prolaz" || tournament.gameEndRule === "dosta"
+                            ? { gameEndRule: tournament.gameEndRule }
+                            : {}),
+                        ...(tournament.dealDirection === "right" || tournament.dealDirection === "left"
+                            ? { dealDirection: tournament.dealDirection }
+                            : {}),
+                        declarationsRule,
+                        seriesTarget: resolveMatchGames(tournament.rules),
+                    })
+                    showSuccess(t("blok.link.settingsApplied"))
+                })
+                .catch(() => {
+                    /* offline or a blip: the interval asks again */
+                })
+        }
+        attempt()
+        const id = window.setInterval(attempt, 30_000)
+        return () => {
+            cancelled = true
+            window.clearInterval(id)
+        }
+    }, [settingsPending, tournamentUuid, applyTournamentSettings, t])
+
     const unlink = useCallback(
         (uuid: string) => {
             // The write token goes with it when there is one: with no account
@@ -892,6 +985,22 @@ export default function BlokPage() {
                            behind it: on the first game of a series there are no
                            finished games and a control pointing at an empty
                            panel is worse than no control. */
+                        liveLink={
+                            liveTournament && (link === null || link.status === "REJECTED" || link.status === "REVOKED") ? (
+                                <Button
+                                    size="xs"
+                                    variant="subtle"
+                                    colorPalette="green"
+                                    rounded="full"
+                                    onClick={() => setLinkOpen(true)}
+                                >
+                                    <Box as="span" display="inline-flex" animation={`${linkPulse} 1.8s ease-in-out infinite`}>
+                                        <FiLink2 />
+                                    </Box>
+                                    {t("blok.link.liveButton")}
+                                </Button>
+                            ) : undefined
+                        }
                         openGames={gamesOpen}
                         onGamesOpenChange={setGamesOpen}
                         games={
@@ -920,14 +1029,16 @@ export default function BlokPage() {
                                 <BlokLinkSuggestion
                                     signedIn={signedIn}
                                     sessionId={game.sessionId}
-                                    onLinked={setLink}
+                                    onLinked={handleLinked}
                                 />
                             )
                         }
                         menu={
                             <BlokMenu
                                 canDelete={game.rounds.length > 0}
-                                canLink={link === null || link.status === "REJECTED" || link.status === "REVOKED"}
+                                // Only while a tournament is live (2026-10-03, owner): with none running
+                                // there is nothing to link to, so the item is not offered at all.
+                                canLink={liveTournament && (link === null || link.status === "REJECTED" || link.status === "REVOKED")}
                                 onLink={() => setLinkOpen(true)}
                                 canNewGame={canNewGame}
                                 onNewGame={() => setPending({ kind: "newGame" })}
@@ -1087,6 +1198,7 @@ export default function BlokPage() {
                 // A belot is worth THIS game's target, so the sheet has to know
                 // it to draw the Σ it is about to save (BLOK.md §1.2).
                 target={game.target}
+                declarationsRule={game.declarationsRule}
                 initial={entry.mode === "edit" ? entry.round : null}
                 onCancel={() => setEntry({ mode: "closed" })}
                 onSave={onEntrySave}
@@ -1177,11 +1289,9 @@ export default function BlokPage() {
             <BlokLinkDialog
                 open={linkOpen}
                 signedIn={signedIn}
-                usName={names.us}
-                themName={names.them}
                 sessionId={game.sessionId}
                 onClose={() => setLinkOpen(false)}
-                onLinked={setLink}
+                onLinked={handleLinked}
             />
 
             <ConfirmDialog

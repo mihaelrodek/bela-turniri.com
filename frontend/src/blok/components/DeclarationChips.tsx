@@ -1,7 +1,7 @@
 import { Box, Button, chakra, Grid, Text, VStack } from "@chakra-ui/react"
 import { FiX } from "react-icons/fi"
 import { useTranslation, usePlural } from "../../i18n"
-import { DECLARATION_VALUES, declarationCap } from "../types"
+import { BELA_VALUE, DECLARATION_VALUES, declarationCap, type BlokDeclarationsRule } from "../types"
 
 /* ──────────────────────────────────────────────────────────────────────────
    DeclarationChips — the zvanja block of the round-entry sheet (BLOK.md §3.2).
@@ -151,6 +151,7 @@ export default function DeclarationChips({
     dealBelot,
     onToggleBelot,
     palette,
+    rule = "all",
 }: {
     /** The active side's declarations, in the order they were entered. Drives
      *  the `×N` badge and the ✕ — both belong to the side being typed into. */
@@ -188,6 +189,18 @@ export default function DeclarationChips({
      *  side am I typing into". Set once on the root; `colorPalette` is a CSS
      *  variable cascade, so the buttons below just read `colorPalette.*`. */
     palette: "green" | "red"
+    /**
+     * Which declarations the table plays with (2026-10-03, linked tournament):
+     *  - "all"      — everything, as always;
+     *  - "belaOnly" — only the 20 (bela) is offered, labelled as such;
+     *  - "off"      — no declaration values at all, no "Zvanja" heading.
+     * Štiglja stays in EVERY mode: it is the +90 for taking all eight tricks,
+     * a fact of play and not a declaration. Belot (eight cards of one suit,
+     * announced) is offered only under "all". A value or a belot already in
+     * the deal being edited stays visible (so its ✕ can take it back) but
+     * cannot be added again; scoring never looks at the rule.
+     */
+    rule?: BlokDeclarationsRule
 }) {
     const { t } = useTranslation()
     /* Croatian has three plural categories and Slovenian four (it kept the
@@ -195,19 +208,30 @@ export default function DeclarationChips({
        ternary — root CLAUDE.md. */
     const plural = usePlural()
 
+    const allowed = (value: number) => rule === "all" || (rule === "belaOnly" && value === BELA_VALUE)
+    // Allowed values, plus any a loaded deal already carries (to be removable).
+    const shown = DECLARATION_VALUES.filter((value) => allowed(value) || dealAdded.includes(value))
+    const showBelot = rule === "all" || dealBelot
+    const onlyBela = rule === "belaOnly" && shown.every((value) => value === BELA_VALUE)
+    // Cells left in the grid's last row after the values: štiglja takes them
+    // (alone, or beside the belot as the "all" layout's sixth-cell pair).
+    const stigljaSpan = 3 - (shown.length % 3)
+
     return (
         <VStack align="stretch" gap="2" colorPalette={palette}>
-            <Text fontSize="xs" fontWeight="bold" color="fg.muted" textTransform="uppercase" letterSpacing="wide">
-                {t("blok.entry.declarations")}
-            </Text>
+            {shown.length > 0 && (
+                <Text fontSize="xs" fontWeight="bold" color="fg.muted" textTransform="uppercase" letterSpacing="wide">
+                    {t(onlyBela ? "blok.entry.belaOnly" : "blok.entry.declarations")}
+                </Text>
+            )}
 
             {/* `mt="2"` is headroom for the row-1 badges, which hang 6 px above
                 their buttons and would otherwise crowd the label. The column
                 gap stays 8 px (it lines the block up with the rest of the
                 sheet); only the ROW gap grows, because that is the axis the
                 badges actually stick out into. */}
-            <Grid templateColumns="repeat(3, 1fr)" columnGap="2" rowGap="3" mt="2">
-                {DECLARATION_VALUES.map((value) => {
+            <Grid templateColumns="repeat(3, 1fr)" columnGap="2" rowGap="var(--blok-entry-row-gap, 12px)" mt={shown.length > 0 ? "2" : "0"}>
+                {shown.map((value) => {
                     const count = added.filter((entry) => entry === value).length
                     // Across the whole deal, not just this side — one deck.
                     const inDeal = dealAdded.filter((entry) => entry === value).length
@@ -215,8 +239,8 @@ export default function DeclarationChips({
                     // Two different reasons to refuse a tap, one appearance:
                     // the deck has no more of this value, or the deal was
                     // decided by a belot and no declaration can change it.
-                    const atCap = dealBelot || (cap !== null && inDeal >= cap)
-                    const name = `${t("blok.entry.declarations")} ${value}`
+                    const atCap = dealBelot || !allowed(value) || (cap !== null && inDeal >= cap)
+                    const name = rule === "belaOnly" ? t("blok.entry.belaChip") : `${t("blok.entry.declarations")} ${value}`
                     return (
                         <Box key={value} position="relative">
                             <Button
@@ -259,7 +283,7 @@ export default function DeclarationChips({
                                 _disabled={{ opacity: 0.85, cursor: "default" }}
                                 onClick={() => onAdd(value)}
                             >
-                                {value}
+                                {rule === "belaOnly" ? t("blok.entry.belaChip") : value}
                                 {count > 0 && (
                                     /* Decoration only — the button's own name
                                        already says the count in words, so this
@@ -343,7 +367,8 @@ export default function DeclarationChips({
                     four of the ~43 px each half gets on a 320 px phone, and the
                     two halves are one control cut in two — a wide moat between
                     them would say the opposite. */}
-                <Grid templateColumns="repeat(2, 1fr)" gap="1">
+                {showBelot ? (
+                    <Grid templateColumns="repeat(2, 1fr)" gap="1" gridColumn={`span ${stigljaSpan}`}>
                     <Button
                         h={BUTTON_H}
                         rounded="l2"
@@ -390,7 +415,31 @@ export default function DeclarationChips({
                     >
                         {t("blok.entry.belot")}
                     </Button>
-                </Grid>
+                    </Grid>
+                ) : (
+                    /* Štiglja alone (belaOnly / off): it takes whatever is left
+                       of the row, at the normal button size — no half-cell
+                       squeeze, so the full word is set at `sm`. */
+                    <Box gridColumn={`span ${stigljaSpan}`}>
+                        <Button
+                            w="full"
+                            h={BUTTON_H}
+                            rounded="l2"
+                            variant="outline"
+                            aria-pressed={stiglja}
+                            bg={stiglja ? "colorPalette.solid" : "bg.subtle"}
+                            color={stiglja ? "colorPalette.contrast" : "fg.ink"}
+                            borderColor={stiglja ? "colorPalette.solid" : "border.subtle"}
+                            fontSize="sm"
+                            fontWeight="bold"
+                            whiteSpace="nowrap"
+                            _hover={{ bg: stiglja ? "colorPalette.solid" : "bg.muted" }}
+                            onClick={onToggleStiglja}
+                        >
+                            {t("blok.entry.stiglja")}
+                        </Button>
+                    </Box>
+                )}
             </Grid>
         </VStack>
     )

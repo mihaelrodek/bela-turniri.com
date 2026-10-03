@@ -9,7 +9,7 @@ import {
     VStack,
 } from "@chakra-ui/react"
 import { Link as RouterLink, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { FiCreditCard, FiDollarSign, FiInfo, FiShuffle, FiUsers } from "react-icons/fi"
+import { FiAward, FiCreditCard, FiDollarSign, FiInfo, FiShuffle, FiUsers } from "react-icons/fi"
 
 import { deleteTournament } from "../api/tournaments"
 import { useAuth } from "../auth/authContextValue"
@@ -45,6 +45,7 @@ import TournamentPageDialogs from "./tournament/dialogs/TournamentPageDialogs"
 import BracketSection from "./tournament/sections/BracketSection"
 import DetailsSection from "./tournament/sections/DetailsSection"
 import PairsSectionContainer from "./tournament/sections/PairsSectionContainer"
+import RulesSection from "./tournament/sections/RulesSection"
 import type { PairShort } from "../types/pairs"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -454,6 +455,10 @@ export default function TournamentDetailsPage() {
         { key: "details", label: tr("tournament.tab.details"), icon: <FiInfo size={15} />, tour: "detail-tab-details" },
         { key: "pairs", label: tr("tournament.tab.pairs"), icon: <FiUsers size={15} />, tour: "detail-tab-pairs" },
         { key: "bracket", label: tr("tournament.tab.bracket"), icon: <FiShuffle size={15} />, tour: "detail-tab-bracket" },
+        /* Pravila (2026-10-03): public like the others, but no `tour` anchor —
+           the guided tour walks Detalji / Parovi / Ždrijeb / Cjenik. Placed
+           right after Ždrijeb (owner), before Cjenik. */
+        { key: "rules", label: tr("tournament.tab.rules"), icon: <FiAward size={15} /> },
         { key: "cjenik", label: tr("tournament.tab.cjenik"), icon: <FiDollarSign size={15} />, tour: "detail-tab-cjenik" },
     ]
     /* Računi is the one CONDITIONAL section: a random visitor and a pair
@@ -660,6 +665,8 @@ export default function TournamentDetailsPage() {
                                 canUseTemplates={canEditTournament && t.status !== "FINISHED"}
                             />
                         </Box>
+                    ) : tab === "rules" ? (
+                        <RulesSection t={t} />
                     ) : tab === "racuni" ? (
                         /* Two renderings of one URL. The organiser and anyone
                            already holding a waiter session get the bills; a

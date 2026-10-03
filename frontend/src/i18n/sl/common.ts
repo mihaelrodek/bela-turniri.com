@@ -63,6 +63,7 @@ export const common: CommonDict = {
     "nav.pronadjiPara": "Najdi para",
     "nav.login": "Prijava",
     "nav.profil": "Profil",
+    "nav.pravila": "Pravila",
     "nav.novosti": "Novosti",
     "nav.igraj": "Igraj",
     "nav.new": "Novo",
@@ -292,6 +293,7 @@ export const common: CommonDict = {
     "swUpdate.reload": "Osveži",
 
     // --- Cookie/analytics consent (components/CookieConsent.tsx) -----------
+    "cookieConsent.title": "Piškotki",
     "cookieConsent.description":
         "Uporabljamo piškotke za analitiko obiska in izboljšanje strani.",
     "cookieConsent.privacyLink": "Pravilnik o zasebnosti",
@@ -301,6 +303,7 @@ export const common: CommonDict = {
     // --- SiteFooter (rendered once in App.tsx under every routed page) -----
     "footer.contactLink": "Kontakt",
     "footer.privacyLink": "Zasebnost",
+    "footer.rulesLink": "Pravila",
     "footer.termsLink": "Pogoji",
     "footer.copyright": "© {year} {domain}",
 

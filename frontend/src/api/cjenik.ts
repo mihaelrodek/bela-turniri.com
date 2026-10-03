@@ -20,7 +20,8 @@ export type MatchDrinkDto = {
 }
 
 export type MatchBillDto = {
-    matchId: number
+    /** Null for an "Ostalo" bill (2026-10-03) — then `extraBillId` is set. */
+    matchId: number | null
     drinks: MatchDrinkDto[]
     total: number | string
     paidAt?: string | null
@@ -30,6 +31,10 @@ export type MatchBillDto = {
     /** Surfaced once match is FINISHED (and not BYE) so UI can label the bill. */
     loserPairId?: number | null
     loserPairName?: string | null
+    /** Set for an "Ostalo" bill (no match). */
+    extraBillId?: number | null
+    /** Free-text name of an "Ostalo" bill; null = unnamed (UI shows "Ostalo"). */
+    label?: string | null
 }
 
 /* =========================================================

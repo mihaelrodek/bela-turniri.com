@@ -55,6 +55,7 @@ export const tournament = {
     "tab.pairs": "Parovi",
     "tab.bracket": "Ždrijeb",
     "tab.cjenik": "Cjenik",
+    "tab.rules": "Pravila",
 
     /* Accessible name of the horizontally scrollable section switcher that
        replaces the sidebar nav on phones. */
@@ -176,6 +177,7 @@ export const tournament = {
 
     // ═══════════════════════ Detalji tab — edit mode ═══════════════════════
     "edit.sectionBasic": "Osnovno",
+    "edit.sectionRules": "Pravila turnira",
     "edit.sectionFees": "Kotizacija i repasaž",
     "edit.gameRules": "Pravila igre",
     "edit.targetScore": "Igra se do",
@@ -624,6 +626,33 @@ export const tournament = {
     "waiter.chip.unpaid.two": "neplaćena",
     "waiter.chip.unpaid.few": "neplaćena",
     "waiter.chip.unpaid.other": "neplaćenih",
+
+    /* 2026-10-03: collapsible waiters card + "Dodaj račun" / "Ostalo" bills (RacuniSection, AddBillDialog). */
+    "waiter.manage.collapse": "Sažmi konobare",
+    "waiter.manage.expand": "Proširi konobare",
+    "waiter.manage.summary.one": "{n} aktivan konobar",
+    "waiter.manage.summary.two": "{n} aktivna konobara",
+    "waiter.manage.summary.few": "{n} aktivna konobara",
+    "waiter.manage.summary.other": "{n} aktivnih konobara",
+    "waiter.manage.summaryNone": "Nema aktivnih konobara",
+    "waiter.extra.default": "Ostalo",
+    "waiter.extra.add": "Dodaj račun",
+    "waiter.extra.dialogTitle": "Dodaj račun",
+    "waiter.extra.modeTable": "Za stol",
+    "waiter.extra.modeOther": "Ostalo",
+    "waiter.extra.round": "Runda",
+    "waiter.extra.table": "Stol",
+    "waiter.extra.tablePaid": "{table} · plaćeno",
+    "waiter.extra.noTables": "Stolovi se pojavljuju nakon izvlačenja runde. Do tada možeš dodati račun u „Ostalo”.",
+    "waiter.extra.openTable": "Otvori račun",
+    "waiter.extra.label": "Naziv (neobavezno)",
+    "waiter.extra.labelPlaceholder": "npr. Gledatelji",
+    "waiter.extra.create": "Dodaj račun",
+    "waiter.extra.createFailed": "Račun nije dodan.",
+    "waiter.extra.delete": "Obriši račun",
+    "waiter.extra.deleteTitle": "Obrisati račun?",
+    "waiter.extra.deleteBody": "Račun ima stavke. Brisanjem se trajno uklanjaju zajedno s njima.",
+    "waiter.extra.deleteConfirm": "Obriši",
 
     // ═══════════════════════ Offline queue (SyncIndicator) ═══════════════════════
     "offline.description": "Nema veze s internetom. Spoji se na mrežu pa pokušaj ponovno.",

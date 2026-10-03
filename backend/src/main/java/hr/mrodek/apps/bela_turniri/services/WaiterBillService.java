@@ -1,10 +1,12 @@
 package hr.mrodek.apps.bela_turniri.services;
 
 import hr.mrodek.apps.bela_turniri.dtos.WaiterBillSummaryDto;
+import hr.mrodek.apps.bela_turniri.model.ExtraBill;
 import hr.mrodek.apps.bela_turniri.model.MatchDrink;
 import hr.mrodek.apps.bela_turniri.model.Matches;
 import hr.mrodek.apps.bela_turniri.model.Pairs;
 import hr.mrodek.apps.bela_turniri.model.Tournaments;
+import hr.mrodek.apps.bela_turniri.repository.ExtraBillRepository;
 import hr.mrodek.apps.bela_turniri.repository.MatchDrinkRepository;
 import hr.mrodek.apps.bela_turniri.repository.MatchesRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -37,6 +39,7 @@ public class WaiterBillService {
 
     @Inject MatchesRepository matchesRepo;
     @Inject MatchDrinkRepository drinkRepo;
+    @Inject ExtraBillRepository extraRepo;
     @Inject MessageService messages;
 
     /**
@@ -60,7 +63,6 @@ public class WaiterBillService {
         if (tournament == null || tournament.getId() == null) return List.of();
 
         List<Matches> matches = matchesRepo.findByTournament_IdWithRoundAndPairs(tournament.getId());
-        if (matches.isEmpty()) return List.of();
 
         List<Long> matchIds = matches.stream().map(Matches::getId).toList();
         Map<Long, List<MatchDrink>> drinksByMatch = drinkRepo.findByMatchIds(matchIds).stream()
@@ -90,9 +92,42 @@ public class WaiterBillService {
                     total,
                     m.getPaidAt() != null,
                     m.getPaidAt(),
+                    m.getPaidByName(),
                     drinkCount,
-                    m.getStatus() != null ? m.getStatus().name() : null
+                    m.getStatus() != null ? m.getStatus().name() : null,
+                    "MATCH",
+                    null,
+                    null
             ));
+        }
+
+        // 2026-10-03: "Ostalo" bills go after every match line (the SPA
+        // groups them last). Two more queries, again independent of count.
+        List<ExtraBill> extras = extraRepo.findByTournamentId(tournament.getId());
+        if (!extras.isEmpty()) {
+            Map<Long, List<MatchDrink>> drinksByExtra = drinkRepo
+                    .findByExtraBillIds(extras.stream().map(ExtraBill::getId).toList()).stream()
+                    .collect(Collectors.groupingBy(d -> d.getExtraBill().getId()));
+            for (ExtraBill e : extras) {
+                BigDecimal total = BigDecimal.ZERO;
+                int drinkCount = 0;
+                for (MatchDrink d : drinksByExtra.getOrDefault(e.getId(), List.of())) {
+                    total = total.add(d.getPriceSnapshot().multiply(BigDecimal.valueOf(d.getQuantity())));
+                    drinkCount += d.getQuantity();
+                }
+                out.add(new WaiterBillSummaryDto(
+                        null, null, null, null, null,
+                        total,
+                        e.getPaidAt() != null,
+                        e.getPaidAt(),
+                        e.getPaidByName(),
+                        drinkCount,
+                        null,
+                        "EXTRA",
+                        e.getId(),
+                        e.getLabel()
+                ));
+            }
         }
         return out;
     }

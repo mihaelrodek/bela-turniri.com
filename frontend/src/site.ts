@@ -104,6 +104,9 @@ export const homePath = "/"
  *  everywhere. */
 export const gameLobbyPath: string = isGamesSite ? "/" : "/igra"
 
+/** "Nauči kartati belu" — the tutorial and its practice game (2026-09-29).
+ *  Under /igra on every site, like the rooms, so `isGameRoute` covers it. */
+export const gameLearnPath = "/igra/ucenje"
 /** True on any online-game page (lobby or room), on either kind of site. */
 export function isGameRoute(pathname: string): boolean {
     return pathname === "/igra"

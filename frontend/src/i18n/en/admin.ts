@@ -87,6 +87,8 @@ export const admin: AdminDict = {
     "cjenik.priceInput.placeholder": "Price",
     "cjenik.removeButton.aria": "Remove",
     // The leading "+" moved into a real icon on the button.
+    "cjenik.col.name": "Name",
+    "cjenik.col.price": "Price",
     "cjenik.addButton": "Add drink",
     "cjenik.saveButton": "Save",
     "cjenik.discardButton": "Discard",

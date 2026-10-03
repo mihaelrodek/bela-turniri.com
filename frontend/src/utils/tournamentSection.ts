@@ -23,6 +23,9 @@ export const SECTION_SLUG = {
     pairs: "parovi",
     bracket: "zdrijeb",
     cjenik: "cjenik",
+    /* "Pravila" (2026-10-03): that tournament's own rulebook, public like the
+       other three. Caddy's crawler matcher lists the same slug. */
+    rules: "pravila",
     /* `racuni` resolves for EVERYONE, even though the nav item is only
        rendered for the organiser and for someone already holding a waiter
        session. That is what makes the organiser's `?kod=` share link work: it

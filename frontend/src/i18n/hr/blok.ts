@@ -6,8 +6,10 @@
 
    Domenski pojmovi (bela igrača, ne standardni hrvatski): zvanja, štiglja,
    pad, podjela, adut, zvao — v. BLOK.md §1 i root CLAUDE.md i18n invarijante.
-   Imena boja aduta i njihova ikona dolaze iz `game` namespacea (`suit.*` +
-   `SuitGlyph`) — ne dupliciraj ih ovdje.
+   Ikona boje aduta dolazi iz `SuitGlyph`, a IME iz ovog namespacea (`suit.*`,
+   2026-10-03): ruta /blok učitava samo `blok`, pa je `game.suit.*` ondje bio
+   neučitan i na listu se vidio sirov ključ. Francuska imena (Herc/Kara/Pik/Tref),
+   ne mađarska iz `game`.
 
    Brojevi idu kroz `usePlural()` / `tPlural()` s `.one/.two/.few/.other`
    granama (`.two` postoji zbog slovenske dvojine; hrvatski ga nikad ne
@@ -71,6 +73,8 @@ export const blok = {
     // Sami gumbi kao pristupačno ime nose puni `round.calledBy` („Zvao MI”).
     "entry.caller": "Zvao",
     "entry.declarations": "Zvanja",
+    "entry.belaOnly": "Bela",
+    "entry.belaChip": "Bela 20",
     "entry.stiglja": "Štiglja",
     // Belot — gumb je druga polovica „Štiglje” (BLOK.md §1.2), a ista riječ
     // je i značka na kartici u listu i u retku podjele. Hint je rečenica koja
@@ -94,6 +98,10 @@ export const blok = {
     "entry.added.other": "dodano {n} puta",
     "entry.clearAll": "Očisti",
     "entry.trump": "Adut",
+    "suit.HERC": "Herc",
+    "suit.KARA": "Kara",
+    "suit.PIK": "Pik",
+    "suit.TREF": "Tref",
     "entry.backspace": "Obriši zadnju znamenku",
 
     /* ─── Kraj igre ──────────────────────────────────────────────────── */
@@ -167,6 +175,8 @@ export const blok = {
        tekst — nikad goli kod na ekranu. */
 
     /* ─── Ulaz (izbornik) i prijava ──────────────────────────────────── */
+    "link.settingsApplied": "Postavke turnira primijenjene na blok.",
+    "link.liveButton": "Poveži",
     "link.menu": "Poveži sa stolom",
     "link.title": "Poveži blok sa stolom",
     "link.signIn": "Prijavi se",
@@ -175,7 +185,7 @@ export const blok = {
     "link.step.tournament": "Odaberi turnir na kojem igraš.",
     "link.step.table": "Odaberi svoj stol u aktivnoj rundi.",
     "link.step.side": "Reci koji par ste vi — bez toga organizatoru stiže broj bez imena.",
-    "link.noTournaments": "Nema turnira koji su u tijeku ili se pripremaju.",
+    "link.noTournaments": "Nema turnira koji su u tijeku.",
     "link.noTables": "U aktivnoj rundi nema stola koji se može povezati.",
     "link.loadFailed": "Dohvaćanje nije uspjelo.",
     "link.retry": "Pokušaj ponovno",
@@ -188,7 +198,7 @@ export const blok = {
     "link.tableUnknown": "Bez broja stola",
 
     /* ─── Mapiranje strana na parove ─────────────────────────────────── */
-    "link.sideQuestion": "Koji par igra kao „{side}”?",
+    "link.sideQuestion": "Koji ste vi par?",
     // Isti ključ nosi i pregled u koraku 3 i redak u traci zaglavlja: obje
     // strane su imenovane vrijednostima (`{us}` / `{them}`), nikad tekstom u
     // rečenici — strane su preimenjive, pa bi zamrznuto „MI”/„VI” bilo krivo
@@ -386,7 +396,7 @@ export const blok = {
        toga zapisnik ove serije stoji uz meč u ždrijebu i otvara ga svatko
        tko dobije poveznicu. */
     "link.publicNote":
-        "Povezivanjem pristaješ da zapisnik ove serije bude javan: organizator ga vidi uz stol u ždrijebu, a otvoriti ga može svatko tko dobije poveznicu — i nakon turnira.",
+        "Zapisnik serije bit će javan putem poveznice.",
 
     /* ═══════════════════════════════════════════════════════════════════
        REVIZIJA 2026-09-08 (druga) — POVEZIVANJE VIŠE NE TRAŽI PRIJAVU
@@ -405,7 +415,7 @@ export const blok = {
          3. što prijava još donosi — javni zapisnik i poveznica u ždrijebu
             (§7.2). Rečeno jednom, kao dobitak, uz sporednu radnju. */
     "link.tournamentsOnly":
-        "Ovo se koristi samo na turnirima: blok se veže na stol u aktivnoj rundi i rezultat ide organizatoru.",
+        "Samo za turnire u tijeku.",
     "link.nameLabel": "Tvoje ime",
     "link.namePlaceholder": "Ime i prezime",
     "link.nameHelp": "Organizator odobrava osobu, pa mora vidjeti tko traži stol.",

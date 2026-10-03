@@ -101,6 +101,12 @@ function endOfNextWeek(now: Date): Date {
  * Build a map pin SVG as a Leaflet DivIcon. Uses the colors above so the legend
  * (and the tournament list) stay in sync with the actual pins on the map.
  */
+/** Pin tip to where its popup's tail starts (`popupAnchor` below). */
+const PIN_ICON_H = 34
+/** Tournament popup height (tail included) when it is not open yet to be
+ *  measured: name on two lines, status pill, date, address, price, CTA. */
+const POPUP_ESTIMATE_H = 270
+
 function makePinIcon(color: string, isUser = false): L.DivIcon {
     const html = isUser
         ? `<div style="
@@ -235,13 +241,27 @@ function MapFocus({
     // point is shifted up in projected pixel space before flying to it, so
     // the pin lands lower in the viewport instead of at its centre, leaving
     // the top clear for the popup to open into.
+    //
+    // A fixed 18% was still too little on a phone (2026-09-29, reported: the
+    // name sat under the +/− zoom control). The pin now goes exactly as low
+    // as the popup needs: its top clears the zoom control, measured from the
+    // DOM, using the popup's real height when it is already open (a pin tap
+    // opens it before this runs) and a generous estimate otherwise. Never
+    // lower than 30px from the bottom edge.
     useEffect(() => {
         if (!selectedTournament) return
         const zoom = Math.max(map.getZoom(), 12)
         const size = map.getSize()
+        const container = map.getContainer()
+        const top = container.getBoundingClientRect().top
+        const zoomControl = container.querySelector(".leaflet-control-zoom")
+        const clearTop = zoomControl ? zoomControl.getBoundingClientRect().bottom - top + 8 : 16
+        const popup = container.querySelector<HTMLElement>(".leaflet-popup")
+        const popupH = popup?.offsetHeight ?? POPUP_ESTIMATE_H
+        const pinY = Math.min(size.y - 30, clearTop + popupH + PIN_ICON_H)
         const point = map
             .project([selectedTournament.latitude, selectedTournament.longitude], zoom)
-            .subtract([0, size.y * 0.18])
+            .subtract([0, Math.max(0, pinY - size.y / 2)])
         map.flyTo(map.unproject(point, zoom), zoom, { duration: 0.6 })
     }, [selectedTournament, map])
 
@@ -946,7 +966,10 @@ export default function MapPage() {
                                         },
                                     }}
                                 >
-                                    <Popup minWidth={220} maxWidth={280}>
+                                    {/* No autoPan: the selection effect in MapController places
+                                        the pin for this popup itself, and Leaflet's own pan
+                                        would fight that flight. */}
+                                    <Popup minWidth={220} maxWidth={280} autoPan={false}>
                                         <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 4 }}>
                                             <strong style={{ fontSize: 14, lineHeight: 1.3, fontFamily: "var(--chakra-fonts-heading)" }}>{t.name}</strong>
                                             <span

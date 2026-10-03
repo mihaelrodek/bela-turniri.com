@@ -62,6 +62,7 @@ export const common: CommonDict = {
     "nav.pronadjiPara": "Find a partner",
     "nav.login": "Sign in",
     "nav.profil": "Profile",
+    "nav.pravila": "Rules",
     "nav.novosti": "What's new",
     "nav.igraj": "Play",
     "nav.new": "New",
@@ -291,6 +292,7 @@ export const common: CommonDict = {
     "swUpdate.reload": "Refresh",
 
     // --- Cookie/analytics consent (components/CookieConsent.tsx) -----------
+    "cookieConsent.title": "Cookies",
     "cookieConsent.description":
         "We use cookies for visit analytics and to improve the site.",
     "cookieConsent.privacyLink": "Privacy policy",
@@ -300,6 +302,7 @@ export const common: CommonDict = {
     // --- SiteFooter (rendered once in App.tsx under every routed page) -----
     "footer.contactLink": "Contact",
     "footer.privacyLink": "Privacy",
+    "footer.rulesLink": "Rules",
     "footer.termsLink": "Terms",
     "footer.copyright": "© {year} {domain}",
 

@@ -96,6 +96,9 @@ const GAME_ROUTE_MODULES = [
     "src/game/components/GameRoomExitGuard.tsx",
     "src/game/pages/GameLobbyPage.tsx",
     "src/game/pages/GameRoomPage.tsx",
+    // "Nauči kartati belu" (2026-09-29): lessons + the practice game. It needs
+    // no server, so with its chunk in the tier it also works offline.
+    "src/game/learn/GameLearnPage.tsx",
     "src/i18n/hr/game.ts",
 ]
 
@@ -508,6 +511,11 @@ export default defineConfig({
         alias: {
             "@bela/engine": fileURLToPath(new URL("../game/packages/engine/src/index.ts", import.meta.url)),
             "@bela/protocol": fileURLToPath(new URL("../game/packages/protocol/src/index.ts", import.meta.url)),
+            // The bot and the tutorial's coach (2026-09-29): "Nauči kartati
+            // belu" plays its practice game in the browser, against the same
+            // heuristic bot the server seats. Reached only from the lazy
+            // /igra/ucenje route, so none of it lands in the entry bundle.
+            "@bela/bots": fileURLToPath(new URL("../game/packages/bots/src/index.ts", import.meta.url)),
         },
     },
     server: {

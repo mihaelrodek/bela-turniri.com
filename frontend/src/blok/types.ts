@@ -100,6 +100,10 @@ export interface BlokDealerSetup {
 /** Boje, istim imenima kao engine — blok ih koristi samo za ikonu u povijesti. */
 export type BlokSuit = "HERC" | "KARA" | "PIK" | "TREF"
 
+/** i18n key of a trump suit's name in the `blok` namespace (the route does not
+ *  load `game`, so `game.suit.*` would render as a raw key). */
+export const blokSuitKey = (suit: BlokSuit): string => `blok.suit.${suit}`
+
 /** Zvanja koja se nude kao gumbi u unosu. Svako se može dodati više puta. */
 export const DECLARATION_VALUES: readonly number[] = [20, 50, 100, 150, 200]
 
@@ -154,6 +158,24 @@ export type BlokGameEndRule = "dosta" | "prolaz"
 /** Redoslijed čipova u dijalogu; zadano je prvo (v. `DEFAULT_GAME_END_RULE`). */
 export const GAME_END_RULES: readonly BlokGameEndRule[] = ["prolaz", "dosta"]
 export const DEFAULT_GAME_END_RULE: BlokGameEndRule = "prolaz"
+
+/* ───────────────── koja se zvanja nude u unosu — 2026-10-03 ─────────────────
+   Dogovor za stolom, uz cilj / kraj partije / smjer kartanja, a pokreće ga
+   VEZA SA STOLOM turnira (turnir ima „Zvanja vrijede” i „Bela da/ne”):
+
+   - `"all"`      — zadano, ponašanje bloka do sada: sva zvanja, štiglja, belot;
+   - `"belaOnly"` — zvanja ne vrijede, ali bela (20) da: zvanja nude SAMO 20;
+   - `"off"`      — nikakvih zvanja: odjeljak „Zvanja” se ne prikazuje.
+
+   Ograničava samo ŠTO SE NUDI pri unosu; bodovanje se ne dira — podjela s
+   zvanjima spremljena prije promjene (ili u drugom načinu) i dalje se zbraja.
+   ŠTIGLJA ostaje u sva tri načina (bonus +90 za svih osam štihova, igra se na
+   stolu, nije zvanje); BELOT (osam karata jedne boje, zvanje koje odmah
+   završava partiju) se nudi samo uz „all”. */
+export type BlokDeclarationsRule = "all" | "belaOnly" | "off"
+export const DEFAULT_DECLARATIONS_RULE: BlokDeclarationsRule = "all"
+/** The one value offered under "belaOnly". */
+export const BELA_VALUE = 20
 
 /* ─────────────────────────── serija ───────────────────────────
    Blok JE serija: partije za istim stolom teku jedna za drugom, rezultat
@@ -301,6 +323,30 @@ export interface BlokLink {
      * po `requested_by_uid`), i jer veze spremljene prije §7 nemaju.
      */
     writeToken?: string
+    /**
+     * True while the table's agreements (target, prolaz/dosta, deal direction,
+     * declarations, series length) are the ones COPIED from the tournament on
+     * linking (2026-10-03). The link ending — unlink, dismissing a dead link,
+     * the server revoking it, "Nova igra" closing the series — puts them back to
+     * the defaults ONLY while this is set; the player changing any of those
+     * settings by hand clears it, so a deliberate choice is never overwritten.
+     * Absent on read = false.
+     */
+    settingsFromTournament?: true
+    /**
+     * Set when the link is REQUESTED (2026-10-03): "once the organiser approves,
+     * close the old series and start a fresh one for this table". Consumed
+     * (removed) by `startLinkedGame` in the same write that archives the old
+     * game, so it runs exactly once per link, survives reloads, and a link
+     * written before this field existed (absent) never wipes anything.
+     */
+    pendingStart?: true
+    /**
+     * Set by `startLinkedGame`, cleared by `applyTournamentSettings`: the fresh
+     * linked game still needs the tournament's settings (the details fetch may
+     * fail or the app may close first; it is retried until it lands, once).
+     */
+    settingsPending?: true
 }
 
 /**
@@ -366,6 +412,10 @@ export interface BlokGame {
      * kao ostala tri: sve partije jedne večeri igraju se po istom pravilu.
      */
     gameEndRule: BlokGameEndRule
+    /** Which declarations the entry sheet offers (2026-10-03) — `"all"` by
+     *  default. Inherited exactly like `gameEndRule`; absent on read = `"all"`
+     *  (no migration, still v1). Changes what is OFFERED only, never scoring. */
+    declarationsRule: BlokDeclarationsRule
     /** Who dealt the first deal of this game, and whether anybody said so. */
     dealer: BlokDealerSetup
     /**

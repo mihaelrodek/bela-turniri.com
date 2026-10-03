@@ -5,7 +5,7 @@ import { FiCalendar, FiEdit3, FiHome, FiMap } from "react-icons/fi"
 import { useGameEnabled } from "../game/hooks/useGameEnabled"
 import { useGameStats } from "../game/hooks/useGameStats"
 import { useTranslation, usePlural } from "../i18n"
-import { isGamesSite } from "../site"
+import { gameLearnPath, isGamesSite } from "../site"
 import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
 import LiveDot from "./LiveDot"
@@ -278,6 +278,10 @@ export default function MobileTabBar() {
         pathname.startsWith("/registracija") ||
         pathname.startsWith("/turniri/novi") ||
         pathname.startsWith("/igra/soba") ||
+        // "Nauči kartati belu" (2026-09-29, owner report): its practice game
+        // is the same `100dvh - chrome` table with the hand docked on the
+        // bottom edge, and this bar covered the hand's second row.
+        pathname.startsWith(gameLearnPath) ||
         pathname.startsWith("/blok")
 
     // bela.games switches between its two pages in the header (NavBar's

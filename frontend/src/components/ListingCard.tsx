@@ -55,6 +55,7 @@ const SCRIM = {
  *  as SCRIM above — the pill floats over the poster. */
 const STATUS_DOT: Record<StatusKind, string> = {
     finished: "#A79E90", // THEME --muted (dark)
+    live: "#E58A45", // THEME --live (dark) — a running tournament wears the live colour
     full: "#E58A45", // THEME --live (dark)
     soon: "#79C08F", // THEME --brand (dark)
     upcoming: "#DDE9DC", // THEME --brand-subtle (light) — paler than `soon` so the two stay distinguishable now both are green

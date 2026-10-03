@@ -21,5 +21,9 @@ public record MatchBillDto(
         /** Display snapshot of who settled it — see {@code Matches#paidByName}. */
         String paidByName,
         Long loserPairId,
-        String loserPairName
+        String loserPairName,
+        /** 2026-10-03: set (and {@code matchId} null) for an "Ostalo" bill. */
+        Long extraBillId,
+        /** Label of an "Ostalo" bill; null for match bills or an unnamed one. */
+        String label
 ) {}

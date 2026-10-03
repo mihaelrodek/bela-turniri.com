@@ -1,5 +1,6 @@
 package hr.mrodek.apps.bela_turniri.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import hr.mrodek.apps.bela_turniri.enums.RepassageUntil;
 import hr.mrodek.apps.bela_turniri.enums.RewardType;
 import hr.mrodek.apps.bela_turniri.enums.TournamentStatus;
@@ -8,6 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -96,6 +99,17 @@ public class Tournaments {
 
     @Column(name = "allow_bela", nullable = false)
     private Boolean allowBela = true;
+
+    /**
+     * The organiser's edited rulebook (2026-10-03), a sparse versioned document
+     * normalised by TournamentRulesNormaliser. NULL = never customised → the
+     * SPA shows the global defaults. A JsonNode (not a String) like
+     * {@code Resources.metadata}: Hibernate's own Jackson mapper handles it
+     * and it holds only strings, numbers and booleans.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "rules", columnDefinition = "jsonb")
+    private JsonNode rules;
 
     // contact
     @Column(name = "contact_name", length = 120)

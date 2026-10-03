@@ -81,6 +81,8 @@ export const admin: AdminDict = {
     "cjenik.nameInput.placeholder": "Naziv (npr. Pivo)",
     "cjenik.priceInput.placeholder": "Cena",
     "cjenik.removeButton.aria": "Odstrani",
+    "cjenik.col.name": "Naziv",
+    "cjenik.col.price": "Cena",
     "cjenik.addButton": "Dodaj pijačo",
     "cjenik.saveButton": "Shrani",
     "cjenik.discardButton": "Zavrzi",

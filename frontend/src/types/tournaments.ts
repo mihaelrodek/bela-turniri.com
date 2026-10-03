@@ -1,3 +1,5 @@
+import type { StoredRules } from "../utils/tournamentRules";
+
 export type RewardType = "FIXED" | "PERCENTAGE";
 export type RepassageUntil = "FINALS" | "SEMIFINALS" | "FIRST_ROUND";
 export type TournamentStatus = "DRAFT" | "STARTED" | "FINISHED";
@@ -21,6 +23,8 @@ export type TournamentCard = {
     repassagePrice?: number | null;
     winnerName?: string | null;
     registeredPairs?: number | null;
+    /** "DRAFT" | "STARTED" | "FINISHED" — STARTED is a tournament that is live right now. */
+    status?: string | null;
 
     // Game rules — added 2026-09-22 so the listing card/row can show a
     // compact rules line (target score, end rule, declarations, bela, deal
@@ -62,6 +66,8 @@ export type TournamentDetails = {
     dealDirection?: TournamentDealDirection | null;
     declarationsEnabled?: boolean | null;
     allowBela?: boolean | null;
+    /** "Pravila turnira" — sparse organiser edits; null/absent = global defaults. See utils/tournamentRules. */
+    rules?: StoredRules | null;
 
     contactName?: string | null;
     contactPhone?: string | null;
@@ -127,6 +133,8 @@ export type CreateTournamentPayload = {
     dealDirection?: TournamentDealDirection | null;
     declarationsEnabled?: boolean | null;
     allowBela?: boolean | null;
+    /** "Pravila turnira" — sparse organiser edits; null/absent = global defaults. See utils/tournamentRules. */
+    rules?: StoredRules | null;
 
     // contact
     contactName?: string | null;

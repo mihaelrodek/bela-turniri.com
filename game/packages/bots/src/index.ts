@@ -44,3 +44,33 @@ export function createBot(): Bot {
 
 export { heuristicBot } from "./heuristicBot"
 export { suitStrength } from "./evaluate"
+
+/* The tutorial's pure half (2026-09-29): the client-side practice game driver
+   and the coach. Used by `frontend/src/game/learn` only — the server never
+   calls it, and it changes no bot decision. See `tutor.ts`. */
+export {
+    LEARNER_SEAT,
+    biddingState,
+    botAction,
+    botView,
+    describePlay,
+    describeTrick,
+    hintForBid,
+    hintForPlay,
+    newPracticeGame,
+    scenarioLegalMoves,
+    scenarioState,
+    scenarioView,
+    seatToAct,
+    whyIllegal,
+} from "./tutor"
+export type {
+    BidHint,
+    BidHintReason,
+    IllegalReason,
+    PlayHint,
+    PlayHintReason,
+    Scenario,
+    TrickReason,
+    TrickVerdict,
+} from "./tutor"

@@ -193,4 +193,12 @@
          with it, and swept nightly by `game.replays.retention-days`. -->
     <include file="db/changelog/game_replays.xml" relativeToChangelogFile="false"/>
 
+    <!-- 2026-10-03: "Ostalo" bills — tournament-scoped drink bills not tied to a
+         match (extra_bills + match_drinks.extra_bill_id). Append-only. -->
+    <include file="db/changelog/extra_bills.xml" relativeToChangelogFile="false"/>
+
+    <!-- 2026-10-03: "Pravila turnira" — tournaments.rules jsonb (NULL = global
+         defaults). Append-only. -->
+    <include file="db/changelog/tournament_rules.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>

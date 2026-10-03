@@ -64,6 +64,8 @@ export const blok: BlokDict = {
     // klical. Gumba sama kot dostopno ime nosita polni `round.calledBy`.
     "entry.caller": "Klical",
     "entry.declarations": "Napovedi",
+    "entry.belaOnly": "Bela",
+    "entry.belaChip": "Bela 20",
     "entry.stiglja": "Štiglja",
     // Belot — druga polovica gumba „Štiglja” (BLOK.md §1.2); ista beseda je
     // tudi značka na kartici in v vrstici delitve.
@@ -83,6 +85,10 @@ export const blok: BlokDict = {
     "entry.added.other": "dodano {n} krat",
     "entry.clearAll": "Počisti",
     "entry.trump": "Adut",
+    "suit.HERC": "Srce",
+    "suit.KARA": "Karo",
+    "suit.PIK": "Pik",
+    "suit.TREF": "Križ",
     "entry.backspace": "Izbriši zadnjo števko",
 
     /* ─── Konec igre ──────────────────────────────────────────────────── */
@@ -147,6 +153,8 @@ export const blok: BlokDict = {
        koda na zaslonu. */
 
     /* ─── Vstop (meni) in prijava ────────────────────────────────────── */
+    "link.settingsApplied": "Nastavitve turnirja so uporabljene v bloku.",
+    "link.liveButton": "Poveži",
     "link.menu": "Poveži z mizo",
     "link.title": "Poveži blok z mizo",
     "link.signIn": "Prijavi se",
@@ -155,7 +163,7 @@ export const blok: BlokDict = {
     "link.step.tournament": "Izberi turnir, na katerem igraš.",
     "link.step.table": "Izberi svojo mizo v aktivni rundi.",
     "link.step.side": "Povej, kateri par ste vi — brez tega organizator dobi število brez imena.",
-    "link.noTournaments": "Ni turnirjev, ki bi potekali ali se pripravljali.",
+    "link.noTournaments": "Ni turnirjev, ki bi potekali.",
     "link.noTables": "V aktivni rundi ni mize, ki bi jo bilo mogoče povezati.",
     "link.loadFailed": "Pridobivanje ni uspelo.",
     "link.retry": "Poskusi znova",
@@ -168,7 +176,7 @@ export const blok: BlokDict = {
     "link.tableUnknown": "Brez številke mize",
 
     /* ─── Preslikava strani na para ──────────────────────────────────── */
-    "link.sideQuestion": "Kateri par igra kot „{side}”?",
+    "link.sideQuestion": "Kateri par ste vi?",
     // Isti ključ nosita pregled v tretjem koraku in vrstica v glavi: obe
     // strani sta imenovani z vrednostma (`{us}` / `{them}`), nikoli z
     // besedilom v stavku — strani je mogoče preimenovati.
@@ -346,7 +354,7 @@ export const blok: BlokDict = {
        Stoji v zadnjem koraku okna, NAD gumbom, ki pošlje zahtevo — to je
        zadnja točka, na kateri se privolitev še lahko ne da. */
     "link.publicNote":
-        "S povezavo se strinjaš, da je zapisnik te serije javen: organizator ga vidi ob mizi v žrebu, odpre pa ga lahko vsakdo, ki dobi povezavo — tudi po turnirju.",
+        "Zapisnik serije bo javen prek povezave.",
 
     /* ═══════════════════════════════════════════════════════════════════
        REVIZIJA 2026-09-08 (druga) — POVEZAVA NE ZAHTEVA VEČ PRIJAVE
@@ -357,7 +365,7 @@ export const blok: BlokDict = {
        namenoma ju tu ne brišemo, ker se isti datoteki hkrati dodajajo ključi
        za „belo”; brisanje gre v ločen prehod. */
     "link.tournamentsOnly":
-        "To se uporablja samo na turnirjih: blok se veže na mizo v aktivni rundi in rezultat gre organizatorju.",
+        "Samo za turnirje v teku.",
     "link.nameLabel": "Tvoje ime",
     "link.namePlaceholder": "Ime in priimek",
     "link.nameHelp": "Organizator odobri osebo, zato mora videti, kdo zahteva mizo.",

@@ -16,7 +16,8 @@
        of the imports that reference them, not compiled as roots. */
     "paths": {
       "@bela/engine": ["../game/packages/engine/src/index.ts"],
-      "@bela/protocol": ["../game/packages/protocol/src/index.ts"]
+      "@bela/protocol": ["../game/packages/protocol/src/index.ts"],
+      "@bela/bots": ["../game/packages/bots/src/index.ts"]
     },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,

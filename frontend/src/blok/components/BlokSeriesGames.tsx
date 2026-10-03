@@ -3,10 +3,9 @@ import { Box, Grid, Text, VStack } from "@chakra-ui/react"
 import { FiChevronDown, FiChevronRight } from "react-icons/fi"
 
 import SuitGlyph from "../../game/components/SuitGlyph"
-import { suitKey } from "../../game/util/cards"
 import { useTranslation } from "../../i18n"
 import { scoreRounds, totalsOf, winnerOf } from "../store"
-import { BLOK_SIDES, creditedDeclarationTotals, type BlokGame, type BlokRound, type BlokSide } from "../types"
+import { BLOK_SIDES, blokSuitKey, creditedDeclarationTotals, type BlokGame, type BlokRound, type BlokSide } from "../types"
 import { sideName } from "./blokSide"
 import DealScoreCell from "./DealScoreCell"
 
@@ -98,8 +97,8 @@ function DealRow({
                 {...(round.trump
                     ? {
                         role: "img",
-                        "aria-label": t(suitKey(round.trump)),
-                        title: t(suitKey(round.trump)),
+                        "aria-label": t(blokSuitKey(round.trump)),
+                        title: t(blokSuitKey(round.trump)),
                     }
                     : { "aria-hidden": "true" as const })}
             >

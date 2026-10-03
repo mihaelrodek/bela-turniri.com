@@ -70,6 +70,7 @@ export const common = {
     "nav.pronadjiPara": "Pronađi para",
     "nav.login": "Prijava",
     "nav.profil": "Profil",
+    "nav.pravila": "Pravila",
     "nav.novosti": "Novosti",
     /* Both live HERE, not in `game`/`blok`, because the two nav bars are
        app-shell chrome: they render on every route, and their namespaces
@@ -319,6 +320,7 @@ export const common = {
     "swUpdate.reload": "Osvježi",
 
     // --- Cookie/analytics consent (components/CookieConsent.tsx) -----------
+    "cookieConsent.title": "Kolačići",
     "cookieConsent.description":
         "Koristimo kolačiće za analitiku posjeta i poboljšanje stranice.",
     "cookieConsent.privacyLink": "Pravila privatnosti",
@@ -328,6 +330,7 @@ export const common = {
     // --- SiteFooter (rendered once in App.tsx under every routed page) -----
     "footer.contactLink": "Kontakt",
     "footer.privacyLink": "Privatnost",
+    "footer.rulesLink": "Pravila",
     "footer.termsLink": "Uvjeti",
     "footer.copyright": "© {year} {domain}",
 

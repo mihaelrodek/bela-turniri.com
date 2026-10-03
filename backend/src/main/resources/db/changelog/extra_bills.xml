@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      2026-10-03: "OSTALO" bills — a drink bill that belongs to a tournament
+      but NOT to a match (spectators, organisers, anyone not playing cards).
+
+      DATA MODEL. A new tournament-scoped table `extra_bills` (optional free
+      text label, created_at, paid_at / paid_by_uid / paid_by_name with
+      exactly the semantics of the same columns on `matches`), and the drinks
+      stay in `match_drinks`, which gains a nullable `extra_bill_id`.
+
+      WHY NOT A PARALLEL DRINKS TABLE. One drinks table means the cjenik
+      snapshot rules, the `price_id ON DELETE SET NULL` rule, the
+      add/remove-drink code and MatchDrinkDto are reused as they are. The
+      cost is that `match_id` becomes nullable, which is guarded two ways:
+      the CHECK below (exactly one of match_id / extra_bill_id is set) and
+      the fact that every existing query filters by `match_id`, so a row of
+      an extra bill can never show up in a match bill, a player's invoice
+      list or a round notification.
+
+      ON DELETE. extra_bills -> tournaments CASCADE (a hard-deleted
+      tournament takes its extra bills along, as it does its matches);
+      match_drinks.extra_bill_id -> extra_bills CASCADE (deleting an extra
+      bill takes its drinks, like match_id does). fk_md_price is untouched.
+    -->
+
+    <changeSet id="2026-10-03-extra-bills" author="mrodek">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="extra_bills"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="extra_bills">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tournament_id" type="bigint">
+                <constraints nullable="false"
+                             foreignKeyName="fk_extra_bills_tournament"
+                             references="tournaments(id)"
+                             deleteCascade="true"/>
+            </column>
+            <column name="label" type="varchar(60)"/>
+            <column name="created_at" type="timestamptz" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="paid_at" type="timestamptz"/>
+            <column name="paid_by_uid" type="varchar(64)"/>
+            <column name="paid_by_name" type="varchar(120)"/>
+        </createTable>
+        <createIndex tableName="extra_bills" indexName="idx_extra_bills_tournament">
+            <column name="tournament_id"/>
+        </createIndex>
+
+        <addColumn tableName="match_drinks">
+            <column name="extra_bill_id" type="bigint">
+                <constraints nullable="true"
+                             foreignKeyName="fk_md_extra_bill"
+                             references="extra_bills(id)"
+                             deleteCascade="true"/>
+            </column>
+        </addColumn>
+        <createIndex tableName="match_drinks" indexName="idx_md_extra_bill">
+            <column name="extra_bill_id"/>
+        </createIndex>
+
+        <dropNotNullConstraint tableName="match_drinks" columnName="match_id" columnDataType="bigint"/>
+
+        <sql>
+            ALTER TABLE match_drinks
+                ADD CONSTRAINT chk_md_exactly_one_bill
+                CHECK ((match_id IS NULL) &lt;&gt; (extra_bill_id IS NULL));
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE match_drinks DROP CONSTRAINT IF EXISTS chk_md_exactly_one_bill;
+                DELETE FROM match_drinks WHERE match_id IS NULL;
+                ALTER TABLE match_drinks ALTER COLUMN match_id SET NOT NULL;
+                ALTER TABLE match_drinks DROP COLUMN IF EXISTS extra_bill_id;
+                DROP TABLE IF EXISTS extra_bills;
+            </sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

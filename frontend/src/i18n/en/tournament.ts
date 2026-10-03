@@ -47,6 +47,7 @@ export const tournament: TournamentDict = {
     "tab.pairs": "Pairs",
     "tab.bracket": "Draw",
     "tab.cjenik": "Price list",
+    "tab.rules": "Rules",
 
     "nav.sectionsAria": "Tournament sections",
 
@@ -132,6 +133,7 @@ export const tournament: TournamentDict = {
 
     // ═══════════════════════ Details tab — edit mode ═══════════════════════
     "edit.sectionBasic": "Basics",
+    "edit.sectionRules": "Tournament rules",
     "edit.sectionFees": "Entry fee and re-entry",
     "edit.gameRules": "Game rules",
     "edit.targetScore": "Target score",
@@ -579,6 +581,33 @@ export const tournament: TournamentDict = {
     "waiter.chip.unpaid.two": "unpaid",
     "waiter.chip.unpaid.few": "unpaid",
     "waiter.chip.unpaid.other": "unpaid",
+
+    /* 2026-10-03: collapsible waiters card + "Dodaj račun" / "Ostalo" bills (RacuniSection, AddBillDialog). */
+    "waiter.manage.collapse": "Collapse waiters",
+    "waiter.manage.expand": "Expand waiters",
+    "waiter.manage.summary.one": "{n} active waiter",
+    "waiter.manage.summary.two": "{n} active waiters",
+    "waiter.manage.summary.few": "{n} active waiters",
+    "waiter.manage.summary.other": "{n} active waiters",
+    "waiter.manage.summaryNone": "No active waiters",
+    "waiter.extra.default": "Other",
+    "waiter.extra.add": "Add bill",
+    "waiter.extra.dialogTitle": "Add bill",
+    "waiter.extra.modeTable": "For a table",
+    "waiter.extra.modeOther": "Other",
+    "waiter.extra.round": "Round",
+    "waiter.extra.table": "Table",
+    "waiter.extra.tablePaid": "{table} · paid",
+    "waiter.extra.noTables": "Tables appear once a round is drawn. Until then you can add a bill under “Other”.",
+    "waiter.extra.openTable": "Open bill",
+    "waiter.extra.label": "Name (optional)",
+    "waiter.extra.labelPlaceholder": "e.g. Spectators",
+    "waiter.extra.create": "Add bill",
+    "waiter.extra.createFailed": "The bill could not be added.",
+    "waiter.extra.delete": "Delete bill",
+    "waiter.extra.deleteTitle": "Delete this bill?",
+    "waiter.extra.deleteBody": "The bill has items. Deleting removes it permanently, along with them.",
+    "waiter.extra.deleteConfirm": "Delete",
 
     // ═══════════════════════ Offline queue (SyncIndicator) ═══════════════════════
     "offline.description": "No internet connection. Connect to a network and try again.",

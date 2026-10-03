@@ -25,6 +25,8 @@ public class TournamentCardDto {
     private BigDecimal repassagePrice;
     private String winnerName;
     private Integer registeredPairs;
+    /** DRAFT / STARTED / FINISHED (enum name) — lets a client tell a LIVE tournament from an upcoming one without a second fetch (the blok's "uživo" link button, 2026-10-03). Auto-mapped by name from Tournaments#status. */
+    private String status;
 
     // Game rules — added 2026-09-22 so the listing card/row can show a
     // compact rules line without a second fetch. Same fields as

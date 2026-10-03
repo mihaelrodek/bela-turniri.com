@@ -70,6 +70,8 @@ export const blok: BlokDict = {
     // The buttons themselves carry the full `round.calledBy` ("US called") as their accessible name.
     "entry.caller": "Called",
     "entry.declarations": "Declarations",
+    "entry.belaOnly": "Bela",
+    "entry.belaChip": "Bela 20",
     "entry.stiglja": "Capot",
     // Belot — the button is the other half of "Capot" (BLOK.md §1.2), and the
     // same word is the badge on the card in the list and in the deal row. The
@@ -95,6 +97,10 @@ export const blok: BlokDict = {
     "entry.added.other": "added {n} times",
     "entry.clearAll": "Clear",
     "entry.trump": "Trump",
+    "suit.HERC": "Hearts",
+    "suit.KARA": "Diamonds",
+    "suit.PIK": "Spades",
+    "suit.TREF": "Clubs",
     "entry.backspace": "Delete last digit",
 
     /* ─── End of game ──────────────────────────────────────────────────── */
@@ -174,6 +180,8 @@ export const blok: BlokDict = {
        the bare code on screen. */
 
     /* ─── Entry (menu) and sign-in ────────────────────────────────────── */
+    "link.settingsApplied": "Tournament settings applied to the blok.",
+    "link.liveButton": "Link",
     "link.menu": "Link to a table",
     "link.title": "Link the score pad to a table",
     "link.signIn": "Sign in",
@@ -182,7 +190,7 @@ export const blok: BlokDict = {
     "link.step.tournament": "Choose the tournament you're playing at.",
     "link.step.table": "Choose your table in the active round.",
     "link.step.side": "Tell us which pair you are — without it, the organizer gets a number with no name attached.",
-    "link.noTournaments": "No tournaments are running or upcoming.",
+    "link.noTournaments": "No tournaments are running right now.",
     "link.noTables": "No table in the active round can be linked.",
     "link.loadFailed": "Couldn't load this.",
     "link.retry": "Try again",
@@ -195,7 +203,7 @@ export const blok: BlokDict = {
     "link.tableUnknown": "No table number",
 
     /* ─── Mapping sides to pairs ───────────────────────────────────────── */
-    "link.sideQuestion": "Which pair is playing as \"{side}\"?",
+    "link.sideQuestion": "Which pair are you?",
     // The same key is used for the step-3 preview and the header bar row:
     // both sides are named with values (`{us}`/`{them}`), never text in a
     // sentence — sides are renamable, so a frozen "US"/"THEM" would be wrong
@@ -398,7 +406,7 @@ export const blok: BlokDict = {
        withheld. After that this series' record sits next to the match in
        the draw and opens for anyone who gets the link. */
     "link.publicNote":
-        "By linking, you agree that this series' record becomes public: the organizer sees it next to the table in the draw, and anyone with the link can open it — even after the tournament.",
+        "The series log will be public via a link.",
 
     /* ═══════════════════════════════════════════════════════════════════
        REVISION 2026-09-08 (second) — LINKING NO LONGER REQUIRES SIGN-IN
@@ -420,7 +428,7 @@ export const blok: BlokDict = {
             the draw (§7.2). Said once, as a bonus, next to a secondary
             action. */
     "link.tournamentsOnly":
-        "This is only used at tournaments: the score pad links to a table in the active round and the result goes to the organizer.",
+        "Only for tournaments in progress.",
     "link.nameLabel": "Your name",
     "link.namePlaceholder": "First and last name",
     "link.nameHelp": "The organizer approves a person, so they need to see who's requesting the table.",

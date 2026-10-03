@@ -95,7 +95,7 @@ public class MatchBillService {
         assertBillEditable(m);
         MatchDrink d = drinkRepo.findByIdOptional(drinkId)
                 .orElseThrow(() -> new NotFoundException(messages.t("matchBill.drink.notFound")));
-        if (!Objects.equals(d.getMatch().getId(), m.getId())) {
+        if (d.getMatch() == null || !Objects.equals(d.getMatch().getId(), m.getId())) {
             throw new BadRequestException(messages.t("matchBill.drink.otherMatch"));
         }
         drinkRepo.delete(d);
@@ -267,6 +267,19 @@ public class MatchBillService {
 
     /* ===================== assembly ===================== */
 
+    /** One drink line as the bill dialog shows it; shared with {@link ExtraBillService}. */
+    static MatchDrinkDto toDrinkDto(MatchDrink d, BigDecimal line) {
+        return new MatchDrinkDto(
+                d.getId(),
+                d.getPrice() != null ? d.getPrice().getId() : null,
+                d.getNameSnapshot(),
+                d.getPriceSnapshot(),
+                d.getQuantity(),
+                line,
+                d.getCreatedAt()
+        );
+    }
+
     private MatchBillDto buildBill(Matches m) {
         List<MatchDrink> drinks = drinkRepo.findByMatchId(m.getId());
         BigDecimal total = BigDecimal.ZERO;
@@ -274,15 +287,7 @@ public class MatchBillService {
         for (var d : drinks) {
             BigDecimal line = d.getPriceSnapshot().multiply(BigDecimal.valueOf(d.getQuantity()));
             total = total.add(line);
-            dtos.add(new MatchDrinkDto(
-                    d.getId(),
-                    d.getPrice() != null ? d.getPrice().getId() : null,
-                    d.getNameSnapshot(),
-                    d.getPriceSnapshot(),
-                    d.getQuantity(),
-                    line,
-                    d.getCreatedAt()
-            ));
+            dtos.add(toDrinkDto(d, line));
         }
 
         // "Loser pays" only makes sense once the match has finished and
@@ -310,7 +315,9 @@ public class MatchBillService {
                 m.getPaidByUid(),
                 m.getPaidByName(),
                 loserPairId,
-                loserPairName
+                loserPairName,
+                null,
+                null
         );
     }
 }

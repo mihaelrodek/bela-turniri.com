@@ -1480,3 +1480,35 @@ nije potvrda nego izbor — §3.7). `target.title` i `menu.target` sada glase
 
 Imena boja aduta i ikonu preuzmi iz postojećeg (`game` namespace + `SuitGlyph`),
 ne izmišljaj nove ključeve za herc/karo/pik/tref.
+
+---
+
+## 7. Postavke iz turnira i sažet unos (2026-10-03)
+
+- **`BlokGame.declarationsRule`**: `"all"` (zadano) / `"belaOnly"` (nudi se samo 20)
+  / `"off"` (nema odjeljka „Zvanja”). Nasljeđuje se kao `gameEndRule`; odsutno pri
+  čitanju = `"all"`, storage ostaje `v1`. Mijenja samo ŠTO SE NUDI, bodovanje ne.
+  Štiglja je uvijek ponuđena (bonus za svih osam štihova, nije zvanje); belot samo
+  uz `"all"` (ili dok ga podjela koja se uređuje već nosi).
+- **Veza → nova igra, TEK PRI ODOBRENJU**: zahtjev (`handleLinked`) samo sprema
+  vezu s `pendingStart` — blok se ne mijenja, odbijen zahtjev ne mijenja ništa.
+  Kad veza postane APPROVED (poll, odmah odobrena ili ponovno otvorena
+  aplikacija) efekt u BlokPage zove `startLinkedGame(signedIn)`: jedan upis koji
+  stari niz zatvara kroz `resetSession` (isto arhiviranje i `pendingSessions`
+  kao „Nova igra”), pokreće svježu partiju 0:0 s NOVIM `sessionId`, praznim
+  imenima (MI/VI) i zadanim postavkama te troši `pendingStart` — taj spremljeni
+  zastavica je jamstvo „točno jednom”. Za razliku od „Nove igre” ništa se ne baca:
+  nedovršena partija (i, za gosta, završena) ostaje u lokalnoj arhivi. Server
+  novi `sessionId` doznaje iz sljedećeg upisa rezultata (šalje se uz svaki).
+  Zatim `settingsPending` pokreće dohvat turnira (ponavlja se svakih 30 s dok ne
+  uspije) i `applyTournamentSettings`: cilj, prolaz/dosta, smjer,
+  `declarationsRule` i `seriesTarget = rules.matchGames` (zadano 2), uz
+  `settingsFromTournament`; jedan toast.
+- **Kraj veze → zadano**: `clearLink`, `patchLink` na REJECTED/REVOKED i
+  `resetSession` vraćaju 1001 / prolaz / udesno / `"all"` / otvorena serija, ali
+  samo dok je oznaka postavljena; ručna promjena bilo koje od tih postavki skida
+  oznaku. Podjele se ne diraju; već ZAVRŠENA partija zadržava cilj i pravilo kraja.
+- **Sažet unos**: `RoundEntrySheet` mjeri vidljivu visinu (`visualViewport`) i bira
+  korak (≥900 / 800–899 / 700–799 / 600–699 / 480–599 / <480 skrol) koji skalira
+  tipke, kontrole i razmake preko CSS varijabli (`STEP_VARS`).
+- Naziv boje aduta dolazi iz `blok.suit.*` (ruta ne učitava `game` namespace).

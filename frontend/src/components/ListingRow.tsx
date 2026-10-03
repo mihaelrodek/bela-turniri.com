@@ -155,7 +155,7 @@ export default function ListingRow({
                             colorPalette={
                                 status.kind === "finished"
                                     ? "gray"
-                                    : status.kind === "full"
+                                    : status.kind === "full" || status.kind === "live"
                                         ? "orange"
                                         : "brand"
                             }

@@ -7,6 +7,7 @@ import {
     toLocalOffsetIso,
 } from "./format"
 import { DEFAULT_DIAL_CODE, joinPhone, splitPhone } from "./phone"
+import { serializeRules, type GameParams, type StoredRules } from "./tournamentRules"
 import type {
     CreateTournamentPayload,
     TournamentDealDirection,
@@ -58,6 +59,13 @@ export type TournamentForm = {
     dealDirection: TournamentDealDirection
     declarationsEnabled: boolean
     allowBela: boolean
+    /**
+     * "Pravila turnira" (2026-10-03): the organiser's sparse edits of the
+     * rulebook, or null = never customised (global defaults). Kept in the form
+     * model so the edit form's dirty check, "Učitaj iz predloška" and the
+     * payload all pick it up like any other field; see utils/tournamentRules.
+     */
+    rules: StoredRules | null
     contactName: string
     contactPhoneCountry: string
     contactPhone: string
@@ -110,6 +118,7 @@ export function emptyTournamentForm(): TournamentForm {
         dealDirection: "right",
         declarationsEnabled: true,
         allowBela: true,
+        rules: null,
         contactName: "",
         contactPhoneCountry: DEFAULT_DIAL_CODE,
         contactPhone: "",
@@ -144,6 +153,7 @@ export function tournamentFormFromDto(t: TournamentDetails): TournamentForm {
         dealDirection: t.dealDirection === "left" ? "left" : "right",
         declarationsEnabled: t.declarationsEnabled ?? true,
         allowBela: t.allowBela ?? true,
+        rules: t.rules ?? null,
         contactName: t.contactName ?? "",
         contactPhoneCountry: phone.country,
         contactPhone: phone.local,
@@ -151,6 +161,17 @@ export function tournamentFormFromDto(t: TournamentDetails): TournamentForm {
         rewardFirst: numberToMoneyStr(t.rewardFirst),
         rewardSecond: numberToMoneyStr(t.rewardSecond),
         rewardThird: numberToMoneyStr(t.rewardThird),
+    }
+}
+
+/** The five game-rule columns of a loaded tournament, with the same fallbacks as the edit form. */
+export function gameParamsFromDto(t: TournamentDetails): GameParams {
+    return {
+        targetScore: t.targetScore === 501 || t.targetScore === 701 || t.targetScore === 1001 ? t.targetScore : 1001,
+        gameEndRule: t.gameEndRule === "dosta" ? "dosta" : "prolaz",
+        dealDirection: t.dealDirection === "left" ? "left" : "right",
+        declarationsEnabled: t.declarationsEnabled ?? true,
+        allowBela: t.allowBela ?? true,
     }
 }
 
@@ -203,6 +224,10 @@ export function tournamentFormToPayload(
         dealDirection: f.dealDirection,
         declarationsEnabled: f.declarationsEnabled,
         allowBela: f.allowBela,
+        // Always sent: null is the explicit "back to defaults" the backend
+        // distinguishes from an absent key (older clients), and a pruned
+        // document is what keeps an untouched rulebook stored as NULL.
+        rules: serializeRules(f.rules),
         contactName: f.contactName.trim() || null,
         contactPhone: joinPhone(f.contactPhoneCountry, f.contactPhone),
         rewardType: f.rewardType,

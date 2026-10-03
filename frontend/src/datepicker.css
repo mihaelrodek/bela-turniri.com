@@ -363,6 +363,24 @@
     background: var(--chakra-colors-brand-400) !important;
 }
 
+/* The time list's height is set by the library as an INLINE style measured
+   from the calendar beside it (`calcHeight`). With the header paddings above
+   the measurement includes the time column's own header, so each re-measure
+   came out taller than the last and the popup grew without end
+   (2026-10-03, reported on Create tournament). A fixed height, with !important
+   to beat the inline value, closes that loop: header (~76px) + list ≈ the
+   calendar's height (6 week rows). */
+.react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list {
+    height: 256px !important;
+    max-height: 256px;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+.react-datepicker__time-container {
+    align-self: flex-start;
+}
+
 /* Slim, themed scrollbar instead of the chunky default one. */
 .react-datepicker__time-list {
     scrollbar-width: thin;

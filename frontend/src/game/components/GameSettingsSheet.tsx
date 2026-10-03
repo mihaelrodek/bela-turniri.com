@@ -13,7 +13,9 @@ import { useGameSocket } from "../hooks/useGameSocket"
 import { readGuest, saveGuest } from "../hooks/guestIdentity"
 import PlayingCard from "./PlayingCard"
 import GameOption from "./GameOption"
-import { FiInfo } from "react-icons/fi"
+import { FiBookOpen, FiChevronRight, FiInfo } from "react-icons/fi"
+import { Link } from "react-router-dom"
+import { gameLearnPath } from "../../site"
 
 /**
  * "Ime za igru" — the name this player wears at the card table, which is a
@@ -292,6 +294,28 @@ export default function GameSettingsSheet({ open, onClose, room, isHost = false,
                                 <GameNameSetting />
                                 <GameAvatarSetting />
                                 <Separator my="1" />
+                                {/* "Nauči kartati belu" (2026-09-29): the
+                                    tutorial the lobby offers once, here for
+                                    good. Lobby only — inside a room it would
+                                    be a link that walks a seated player away
+                                    from their table. */}
+                                {room == null && (
+                                    <Button asChild variant="outline" h="auto" minH="44px" px="3" py="2.5" rounded="lg"
+                                        justifyContent="space-between" onClick={onClose}>
+                                        <Link to={gameLearnPath}>
+                                            <HStack gap="2" minW="0">
+                                                <FiBookOpen />
+                                                <Box textAlign="start" minW="0">
+                                                    <Text fontSize="sm" fontWeight="semibold">{t("game.learn.settingsRow")}</Text>
+                                                    <Text fontSize="xs" color="fg.muted" fontWeight="normal" whiteSpace="normal">
+                                                        {t("game.learn.settingsRowHint")}
+                                                    </Text>
+                                                </Box>
+                                            </HStack>
+                                            <FiChevronRight />
+                                        </Link>
+                                    </Button>
+                                )}
                                 <GameOption label={t("game.settings.alwaysReady")} hint={t("game.settings.alwaysReadyHint")}
                                     checked={prefs.alwaysReady} onChange={(alwaysReady) => setPrefs({ alwaysReady })} />
                                 <GameOption label={t("game.settings.sound")} checked={prefs.sound} onChange={(sound) => setPrefs({ sound })} />

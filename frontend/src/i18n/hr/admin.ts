@@ -92,6 +92,8 @@ export const admin = {
     "cjenik.priceInput.placeholder": "Cijena",
     "cjenik.removeButton.aria": "Ukloni",
     // The leading "+" moved into a real icon on the button.
+    "cjenik.col.name": "Naziv",
+    "cjenik.col.price": "Cijena",
     "cjenik.addButton": "Dodaj piće",
     "cjenik.saveButton": "Spremi",
     "cjenik.discardButton": "Odbaci",

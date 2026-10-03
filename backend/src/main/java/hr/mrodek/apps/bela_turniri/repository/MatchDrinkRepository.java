@@ -29,4 +29,19 @@ public class MatchDrinkRepository implements PanacheRepository<MatchDrink> {
                 order by d.match.id asc, d.id asc
                 """, Parameters.with("ids", matchIds));
     }
+
+    /** Drinks of one "Ostalo" bill (2026-10-03). */
+    public List<MatchDrink> findByExtraBillId(Long extraBillId) {
+        return list("extraBill.id = ?1 order by id", extraBillId);
+    }
+
+    /** Drinks for a batch of "Ostalo" bills in one query; group by {@code getExtraBill().getId()}. */
+    public List<MatchDrink> findByExtraBillIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) return List.of();
+        return list("""
+                from MatchDrink d
+                where d.extraBill.id in :ids
+                order by d.extraBill.id asc, d.id asc
+                """, Parameters.with("ids", ids));
+    }
 }

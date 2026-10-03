@@ -1,5 +1,6 @@
 package hr.mrodek.apps.bela_turniri.dtos;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -37,6 +38,9 @@ public record TournamentDetailsResponse(
         String dealDirection,          // "right" | "left"
         Boolean declarationsEnabled,
         Boolean allowBela,
+
+        /** Organiser's edited rulebook, sparse; null = global defaults. Single-tournament GET only. */
+        JsonNode rules,
 
         String contactName,
         String contactPhone,

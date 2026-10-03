@@ -83,6 +83,7 @@ public class SitemapController {
         appendUrl(sb, base + "/kontakt",    null, "yearly",  "0.4");
         appendUrl(sb, base + "/privatnost", null, "yearly",  "0.3");
         appendUrl(sb, base + "/uvjeti",     null, "yearly",  "0.3");
+        appendUrl(sb, base + "/pravila",    null, "monthly", "0.6");
 
         // Tournament detail pages — one entry per non-deleted tournament.
         // Prefer the pretty slug when present so the sitemap surfaces the

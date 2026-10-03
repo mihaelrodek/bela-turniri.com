@@ -337,7 +337,7 @@
     #
     # Same ordering rule as @preview: this MUST precede the general /api/*
     # handler, or the broader matcher swallows these paths first.
-    @render path /api/tournaments/*/qr.png /api/tournaments/*/share-image.png
+    @render path /api/tournaments/*/qr.png /api/tournaments/*/share-image.png /api/site/qr.png
     handle @render {
         rate_limit {
             zone render_{args[0]} {
@@ -619,6 +619,7 @@ bela-turniri.com, www.bela-turniri.com {
     redir /contact /kontakt permanent
     redir /privacy /privatnost permanent
     redir /terms /uvjeti permanent
+    redir /rules /pravila permanent
 
     # Slug-bearing redirects use captured path groups so the segment
     # after the route name is preserved. {re.<name>.1} is Caddy's
@@ -696,7 +697,7 @@ bela-turniri.com, www.bela-turniri.com {
     # separate `not path` matcher rather than `(?!novi$)` inline.
     #
     # The optional trailing segment is the SPA's section route
-    # (/turniri/{slug}/detalji|parovi|zdrijeb|cjenik — see App.tsx and
+    # (/turniri/{slug}/detalji|parovi|zdrijeb|cjenik|pravila — see App.tsx and
     # SECTION_SLUG in TournamentDetailsPage). Without it, anchoring the
     # regex at `$` after one segment meant a shared section link handed a
     # crawler the empty SPA shell instead of the rendered preview.
@@ -704,7 +705,7 @@ bela-turniri.com, www.bela-turniri.com {
     # to the tournament slug, and every section rewrites to the SAME
     # preview — the section is a client-side view, and the bare
     # tournament URL is the canonical one the SPA also advertises via
-    # <link rel="canonical">, so all four must not become four pages.
+    # <link rel="canonical">, so all five must not become five pages.
     # The slug alternation is spelled out rather than a generic
     # `[a-z0-9-]+` so a typo'd section can't smuggle a second segment
     # into the preview lookup.
@@ -712,7 +713,7 @@ bela-turniri.com, www.bela-turniri.com {
     # `/turniri/novi` (the create form) has to be excluded at both depths
     # now that a second segment can match: bare and /turniri/novi/*.
     @tournament_for_bot {
-        path_regexp tournament_slug ^/turniri/([a-z0-9][a-z0-9-]*)(?:/(?:detalji|parovi|zdrijeb|cjenik))?$
+        path_regexp tournament_slug ^/turniri/([a-z0-9][a-z0-9-]*)(?:/(?:detalji|parovi|zdrijeb|cjenik|pravila))?$
         not path /turniri/novi /turniri/novi/*
         header_regexp User-Agent (?i)(facebookexternalhit|whatsapp|telegrambot|slackbot|twitterbot|linkedinbot|discordbot|skypeuripreview|pinterest|applebot|googlebot|bingbot|duckduckbot|yandexbot)
     }

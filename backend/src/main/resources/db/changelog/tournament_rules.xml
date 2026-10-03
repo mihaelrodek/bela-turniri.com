@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+          http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!--
+      2026-10-03: "PRAVILA TURNIRA" — the organiser's edited copy of the rulebook.
+
+      One nullable jsonb column on `tournaments`. NULL means "never
+      customised": the SPA then shows the global defaults (its own
+      dictionaries), so every existing tournament gets a Pravila tab with
+      sensible content and no backfill is needed. The five game parameters
+      (target_score, game_end_rule, deal_direction, declarations_enabled,
+      allow_bela) stay in their own columns and remain their source of truth.
+
+      The document is sparse and versioned ({"v":1,...}); its shape and limits
+      are enforced by TournamentRulesNormaliser, not by the database. No index:
+      nothing queries inside it and the list endpoints do not select it.
+    -->
+    <changeSet id="2026-10-03-tournament-rules" author="mrodek">
+        <addColumn tableName="tournaments">
+            <column name="rules" type="jsonb"/>
+        </addColumn>
+        <rollback>
+            <dropColumn tableName="tournaments" columnName="rules"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

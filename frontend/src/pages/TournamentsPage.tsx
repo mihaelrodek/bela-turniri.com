@@ -551,6 +551,49 @@ export default function TournamentsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [geoStatus, userPos])
 
+    // "Najbliži prvi" is always selectable (2026-10-03, owner). Picking it
+    // without a position asks the browser for one — or explains the refusal —
+    // and the sort switches the moment the position arrives. The mode is NOT
+    // set up front: sorting by distance with no position would silently
+    // reorder nothing.
+    const pendingSortRef = useRef<SortMode | null>(null)
+    useEffect(() => {
+        const pending = pendingSortRef.current
+        if (pending === null || geoStatus === "asking") return
+        if (userPos) {
+            pendingSortRef.current = null
+            setSortMode(pending)
+        } else if (geoStatus === "denied" || geoStatus === "unsupported") {
+            pendingSortRef.current = null
+            if (geoStatus === "denied") {
+                showError(
+                    tt("pages.tournaments.nearMe.deniedTitle"),
+                    tt(isNative ? "pages.tournaments.nearMe.deniedDescriptionNative" : "pages.tournaments.nearMe.deniedDescription"),
+                )
+            }
+        }
+        // `tt` is a fresh closure every render (see the effect above); the ref
+        // guard makes a re-run a no-op.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [geoStatus, userPos])
+
+    function chooseSort(mode: SortMode) {
+        if (!sortNeedsLocation(mode) || userPos) {
+            pendingSortRef.current = null
+            setSortMode(mode)
+            return
+        }
+        if (geoStatus === "denied") {
+            showError(
+                tt("pages.tournaments.nearMe.deniedTitle"),
+                tt(isNative ? "pages.tournaments.nearMe.deniedDescriptionNative" : "pages.tournaments.nearMe.deniedDescription"),
+            )
+            return
+        }
+        pendingSortRef.current = mode
+        requestLocation()
+    }
+
     /** "Uključi" next to the radius slider — asks the browser for a position,
      *  or explains why it can't when permission is already refused. */
     function enableLocation() {
@@ -1029,15 +1072,11 @@ export default function TournamentsPage() {
                                             <Menu.Content minW="240px">
                                                 {SORT_MODES.map((mode) => {
                                                     const active = mode === sortMode
-                                                    const blocked = sortNeedsLocation(mode) && !userPos
                                                     return (
                                                         <Menu.Item
                                                             key={mode}
                                                             value={mode}
-                                                            disabled={blocked}
-                                                            onSelect={() => {
-                                                                if (!blocked) setSortMode(mode)
-                                                            }}
+                                                            onSelect={() => chooseSort(mode)}
                                                         >
                                                             <HStack gap="2.5" w="full">
                                                                 <Box

@@ -1,4 +1,5 @@
-import { Box, Flex, HStack, SimpleGrid, Skeleton, SkeletonCircle, Text, VStack } from "@chakra-ui/react"
+import { Box, Center, Flex, HStack, SimpleGrid, Skeleton, SkeletonCircle, VStack } from "@chakra-ui/react"
+import SuitSpinner from "../../components/SuitSpinner"
 
 /* ──────────────────────────────────────────────────────────────────────────
    GameLobbySkeleton — the lobby's own shape, grey, while anything about it
@@ -17,14 +18,17 @@ import { Box, Flex, HStack, SimpleGrid, Skeleton, SkeletonCircle, Text, VStack }
    skeletons only — nothing heavy.
    ────────────────────────────────────────────────────────────────────── */
 
-/** Room cards only — the list area of the real lobby while it connects. */
+/** Room cards only — the list area of the real lobby while it connects.
+ *  `label` is the spinner's accessible name, never visible text: while the
+ *  socket retries, its status flips every attempt, and a visible line kept
+ *  swapping between messages (2026-09-29, user report). */
 export function RoomCardSkeletons({ count = 3, label }: { count?: number; label?: string }) {
     return (
         <VStack align="stretch" gap="3">
             {label && (
-                <Text fontSize="sm" color="fg.muted" textAlign="center" role="status">
-                    {label}
-                </Text>
+                <Center role="status">
+                    <SuitSpinner size="sm" label={label} />
+                </Center>
             )}
             <SimpleGrid className="responsive-room-grid" gap="4" aria-hidden="true">
                 {Array.from({ length: count }, (_, i) => (

@@ -81,6 +81,9 @@ const ClaimNamePage = lazyWithReload(() => import('./pages/ClaimNamePage'))
 const ContactPage = lazyWithReload(() => import('./pages/ContactPage'))
 const PrivacyPage = lazyRoute(() => import('./pages/PrivacyPage'), 'legal')
 const TermsPage = lazyRoute(() => import('./pages/TermsPage'), 'legal')
+/* "Pravila bele" — the unified tournament rulebook; its text lives in the
+   `legal` namespace beside the other long-form pages. */
+const RulesPage = lazyRoute(() => import('./pages/RulesPage'), 'legal')
 /* Public, login-free account-deletion instructions — the URL listed in
    Google Play's Data safety form and linked from the privacy policy and the
    delete card. The path itself lives in its own const module so importing it
@@ -99,6 +102,10 @@ const SharedBlokPage = lazyRoute(() => import('./pages/SharedBlokPage'), 'blok')
    touches, so it is strictly a separate chunk. */
 const GameLobbyPage = lazyRoute(() => import('./game/pages/GameLobbyPage'), 'game')
 const GameRoomPage = lazyRoute(() => import('./game/pages/GameRoomPage'), 'game')
+/* "Nauči kartati belu" (2026-09-29): lessons + a practice game against bots,
+   played in the browser with the engine and the bot. Its own chunk, so the
+   bot's code reaches only somebody who opens the tutorial. */
+const GameLearnPage = lazyRoute(() => import('./game/learn/GameLearnPage'), 'game')
 /* App-wide game chrome. Both live in the game chunk and are mounted only when
    they can possibly matter, so a visitor who never opens /igra never
    downloads them (see GameChrome below). */
@@ -345,7 +352,7 @@ export default function App() {
                     {/* The detail page's open section is part of the path:
                         /turniri/:uuid renders Detalji (and stays the one
                         canonical URL per tournament), while /detalji,
-                        /parovi, /zdrijeb and /cjenik deep-link straight to a
+                        /parovi, /zdrijeb, /cjenik and /pravila deep-link straight to a
                         section. One route with an optional segment, not two
                         routes — React Router keeps the same element mounted
                         as the param changes, so switching sections never
@@ -379,6 +386,17 @@ export default function App() {
                                 <GameFeatureGate fallback={<GameTableSkeleton />}>
                                     <GameIdentityGate fallback={<GameTableSkeleton />}><GameRoomPage /></GameIdentityGate>
                                 </GameFeatureGate>
+                            </Suspense>
+                        }
+                    />
+                    {/* The tutorial. Behind the kill switch like the rest
+                        of the game, but NOT behind the identity gate: it
+                        opens no socket, so there is nobody to be. */}
+                    <Route
+                        path="/igra/ucenje"
+                        element={
+                            <Suspense fallback={<RouteLoading />}>
+                                <GameFeatureGate><GameLearnPage /></GameFeatureGate>
                             </Suspense>
                         }
                     />
@@ -417,6 +435,7 @@ export default function App() {
                     <Route path="/kontakt" element={<ContactPage />} />
                     <Route path="/privatnost" element={<PrivacyPage />} />
                     <Route path="/uvjeti" element={<TermsPage />} />
+                    <Route path="/pravila" element={<RulesPage />} />
                     <Route path={ACCOUNT_DELETION_PATH} element={<AccountDeletionPage />} />
 
                     {/* Legacy English aliases — client-side Navigate for any
@@ -440,6 +459,7 @@ export default function App() {
                     <Route path="/contact" element={<Navigate to="/kontakt" replace />} />
                     <Route path="/privacy" element={<Navigate to="/privatnost" replace />} />
                     <Route path="/terms" element={<Navigate to="/uvjeti" replace />} />
+                    <Route path="/rules" element={<Navigate to="/pravila" replace />} />
 
                     {/* Catch-all — keep last so explicit routes win. */}
                     <Route path="*" element={<NotFoundPage />} />

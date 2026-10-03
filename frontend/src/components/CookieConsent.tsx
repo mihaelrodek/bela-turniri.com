@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react"
-import { Box, Button, HStack, Text, chakra } from "@chakra-ui/react"
+import { Box, Button, Flex, HStack, Text, chakra } from "@chakra-ui/react"
+import { FiShield } from "react-icons/fi"
 import { Link as RouterLink } from "react-router-dom"
 import { useTranslation } from "../i18n"
 import { isNative } from "../platform"
-import { MOBILE_TABBAR_CLEARANCE } from "./navChrome"
 
 /* ──────────────────────────────────────────────────────────────────────────
    GDPR consent banner for the GA4 analytics tag.
@@ -90,43 +90,72 @@ export default function CookieConsent() {
         // already stands and is never overridden.
     }
 
+    /* PHONE: a bottom sheet over a dimmed page (2026-09-29, user report).
+       It used to be the desktop's small translucent glass strip floating
+       above the tab bar — on a phone the page showed through it and it sat
+       among the page's own bottom controls ("Pokreni igru"), so it read as
+       one more of them. Now it is opaque, full width, above the tab bar, with
+       a title and two full-size buttons, and the scrim says "answer this
+       first". Declining is exactly as easy as accepting (same size, side by
+       side), as GDPR consent requires.
+       DESKTOP: the same card, opaque, bottom centre — no scrim; a wide screen
+       has room for it without covering anything that matters. */
     return (
-        <Box
-            position="fixed"
-            /* `max()` so a landscape cutout pushes the banner in rather than
-               swallowing the "Prihvati" button. */
-            left="max(var(--chakra-spacing-3), var(--safe-left))"
-            right="max(var(--chakra-spacing-3), var(--safe-right))"
-            // Clears MobileTabBar on mobile (it's fixed at the same viewport
-            // edge); on md+ the tab bar doesn't exist, so a small fixed gap
-            // is enough.
-            bottom={{ base: MOBILE_TABBAR_CLEARANCE, md: "4" }}
-            maxW="2xl"
-            mx={{ base: 0, md: "auto" }}
-            zIndex={950}
-            layerStyle="glass.bar"
-            borderWidth="1px"
-            borderColor="border.glass"
-            rounded="l2"
-            boxShadow="raised"
-            p="4"
-        >
-            <HStack gap="4" align="center" wrap="wrap" justify="space-between">
-                <Text fontSize="sm" color="fg.soft" flex="1" minW="200px">
-                    {t("common.cookieConsent.description")}{" "}
-                    <chakra.a asChild color="blue.fg" textDecoration="underline">
-                        <RouterLink to="/privatnost">{t("common.cookieConsent.privacyLink")}</RouterLink>
-                    </chakra.a>
-                </Text>
-                <HStack gap="2" flexShrink={0}>
-                    <Button size="sm" variant="ghost" onClick={() => choose("declined")}>
-                        {t("common.cookieConsent.decline")}
-                    </Button>
-                    <Button size="sm" variant="solid" colorPalette="blue" onClick={() => choose("accepted")}>
-                        {t("common.cookieConsent.accept")}
-                    </Button>
-                </HStack>
-            </HStack>
-        </Box>
+        <>
+            <Box
+                display={{ base: "block", md: "none" }}
+                position="fixed"
+                inset="0"
+                bg="blackAlpha.500"
+                zIndex={1000}
+                aria-hidden="true"
+            />
+            <Box
+                role="dialog"
+                aria-labelledby="cookie-consent-title"
+                position="fixed"
+                left={{ base: "0", md: "max(var(--chakra-spacing-3), var(--safe-left))" }}
+                right={{ base: "0", md: "max(var(--chakra-spacing-3), var(--safe-right))" }}
+                bottom={{ base: "0", md: "4" }}
+                maxW={{ base: "none", md: "2xl" }}
+                mx={{ base: 0, md: "auto" }}
+                zIndex={1001}
+                bg="bg.panel"
+                borderWidth={{ base: "0", md: "1px" }}
+                borderTopWidth="1px"
+                borderColor="border.subtle"
+                roundedTop={{ base: "l3", md: "l2" }}
+                roundedBottom={{ base: "0", md: "l2" }}
+                boxShadow="raised"
+                px={{ base: "5", md: "4" }}
+                pt={{ base: "5", md: "4" }}
+                style={{ paddingBottom: "max(var(--chakra-spacing-5), calc(var(--chakra-spacing-3) + var(--safe-bottom)))" }}
+            >
+                <Flex direction={{ base: "column", md: "row" }} gap={{ base: "4", md: "4" }} align={{ base: "stretch", md: "center" }}>
+                    <Box flex="1" minW="0">
+                        <HStack gap="2" mb="1.5" color="fg">
+                            <FiShield aria-hidden="true" />
+                            <Text id="cookie-consent-title" fontWeight="semibold" fontSize={{ base: "md", md: "sm" }}>
+                                {t("common.cookieConsent.title")}
+                            </Text>
+                        </HStack>
+                        <Text fontSize="sm" color="fg.muted">
+                            {t("common.cookieConsent.description")}{" "}
+                            <chakra.a asChild color="blue.fg" textDecoration="underline">
+                                <RouterLink to="/privatnost">{t("common.cookieConsent.privacyLink")}</RouterLink>
+                            </chakra.a>
+                        </Text>
+                    </Box>
+                    <HStack gap="2" flexShrink={0}>
+                        <Button flex={{ base: "1", md: "none" }} size={{ base: "lg", md: "sm" }} variant="outline" onClick={() => choose("declined")}>
+                            {t("common.cookieConsent.decline")}
+                        </Button>
+                        <Button flex={{ base: "1", md: "none" }} size={{ base: "lg", md: "sm" }} variant="solid" colorPalette="blue" onClick={() => choose("accepted")}>
+                            {t("common.cookieConsent.accept")}
+                        </Button>
+                    </HStack>
+                </Flex>
+            </Box>
+        </>
     )
 }

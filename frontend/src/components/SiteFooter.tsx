@@ -80,6 +80,14 @@ export default function SiteFooter(props: BoxProps) {
             // keeps that reserve pinned to the bottom of short pages. md+
             // hides the tab bar, so the reserve drops and the footer shows.
             mb={{ base: "calc(100px + var(--safe-bottom))", md: "0" }}
+            // Desktop: always on screen, pinned to the viewport bottom
+            // (2026-09-29, owner). `sticky`, not `fixed`: it stays the last
+            // in-flow child of App.tsx's 100dvh column, so it never covers the
+            // end of a page — it simply scrolls into its own slot there. The
+            // game routes already return null above.
+            position={{ base: "static", md: "sticky" }}
+            bottom="0"
+            zIndex={{ md: "sticky" }}
             {...props}
         >
             <Flex
@@ -100,6 +108,9 @@ export default function SiteFooter(props: BoxProps) {
                 <Flex align="center" gap="6" wrap="wrap" justify="center">
                     <Flex gap={{ base: "3", md: "5" }} wrap="wrap" justify="center">
                         <Box asChild py="2" _hover={{ color: "fg" }}>
+                            <RouterLink to="/pravila">{t("common.footer.rulesLink")}</RouterLink>
+                        </Box>
+                        <Box asChild py="2" _hover={{ color: "fg" }}>
                             <RouterLink to="/kontakt">{t("common.footer.contactLink")}</RouterLink>
                         </Box>
                         <Box asChild py="2" _hover={{ color: "fg" }}>
@@ -113,12 +124,6 @@ export default function SiteFooter(props: BoxProps) {
                         {t("common.footer.copyright", { year, domain: FOOTER_DOMAIN })}
                     </Text>
                 </Flex>
-            </Flex>
-            {/* Phones get the signature alone (2026-09-29): the links live in
-                the menu there, but the credit has nowhere else to go. It sits
-                above the tab-bar reserve, so the fixed bar never covers it. */}
-            <Flex display={{ base: "flex", md: "none" }} justify="flex-start" px="4" pt="6" pb="2">
-                <KodekCredit />
             </Flex>
         </Box>
     )

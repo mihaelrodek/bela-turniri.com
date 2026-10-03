@@ -265,11 +265,14 @@ export function useDateParts(): (iso?: string | null) => DateParts | null {
 }
 
 /** What the status pill says, and which accent it wears. */
-export type StatusKind = "finished" | "full" | "soon" | "upcoming"
+export type StatusKind = "finished" | "live" | "full" | "soon" | "upcoming"
 export type ListingStatus = { kind: StatusKind; label: string }
 
 /**
- * Status pill copy for one row. Finished always wins; a full roster is the
+ * Status pill copy for one row. Finished always wins; then a tournament that
+ * is RUNNING right now ("U tijeku" — the same word the tournament page's own
+ * status chip shows; the listing used to call it "Nadolazeći" because it only
+ * looked at the date, 2026-10-03, reported); a full roster is the
  * next most useful thing to know; otherwise the pill carries the "Danas /
  * Sutra / Za N dana" countdown, falling back to a plain "Nadolazeći".
  */
@@ -279,6 +282,9 @@ export function useListingStatus(): (item: ListingTournament, variant: ListingVa
     return (item: ListingTournament, variant: ListingVariant) => {
         if (variant === "finished") {
             return { kind: "finished", label: t("pages.tournaments.badge.finished") }
+        }
+        if (item.status === "STARTED") {
+            return { kind: "live", label: t("tournament.status.started") }
         }
         if (isFull(item)) {
             return { kind: "full", label: t("pages.tournaments.badge.full") }
@@ -315,7 +321,9 @@ export function useListingStatus(): (item: ListingTournament, variant: ListingVa
      - bela only shows a chip for the NEGATIVE case ("Bez bele"). Allowing
        bela is the default and the overwhelmingly common case, so a positive
        chip would just be noise on nearly every card; only the exception
-       (bela disabled) earns a chip.
+       (bela disabled) earns a chip. With declarations OFF the default flips:
+       "Bez zvanja" reads as "no bela either", so a bela that still counts
+       gets its positive "Bela da" chip (2026-09-29, user report).
    Same asymmetry choice is documented again at the DetailsSection call site
    that composes the merged "Zvanja i bela" tile from the same two keys. */
 export type RulesLine = {
@@ -347,7 +355,12 @@ export function useRulesLine(): (item: ListingTournament) => RulesLine | null {
                     : item.declarationsEnabled
                         ? t("tournament.tile.declarations")
                         : t("tournament.rule.declarations.disabled"),
-            bela: item.allowBela === false ? t("tournament.rule.bela.disabled") : null,
+            bela:
+                item.allowBela === false
+                    ? t("tournament.rule.bela.disabled")
+                    : item.allowBela === true && item.declarationsEnabled === false
+                        ? t("tournament.rule.bela.enabled")
+                        : null,
             direction: item.dealDirection
                 ? t(`tournament.rule.direction.${item.dealDirection}`)
                 : null,

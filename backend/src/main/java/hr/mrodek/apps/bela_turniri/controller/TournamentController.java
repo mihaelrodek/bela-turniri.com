@@ -167,12 +167,18 @@ public class TournamentController {
         }
     }
 
+    /** Validate + normalise the rules document; 400 (IllegalArgumentException) on a bad shape. */
+    private com.fasterxml.jackson.databind.JsonNode normaliseRules(com.fasterxml.jackson.databind.JsonNode raw) {
+        return hr.mrodek.apps.bela_turniri.services.TournamentRulesNormaliser.normalise(raw, k -> messages.t(k));
+    }
+
     @POST
     @Authenticated
     @Transactional
     public Response create(@Valid CreateTournamentRequest req) {
         assertStartInFuture(req.startAt());
         Tournaments t = tournamentMapper.toEntity(req);
+        t.setRules(normaliseRules(req.rules()));
         stampCreator(t);
         applyLocation(t, req, true);
         // Generate slug before save so the unique index sees it on first
@@ -219,6 +225,7 @@ public class TournamentController {
         assertStartInFuture(req.startAt());
 
         Tournaments t = tournamentMapper.toEntity(req);
+        t.setRules(normaliseRules(req.rules()));
         stampCreator(t);
 
         if (poster != null && poster.size() > 0) {
@@ -293,6 +300,8 @@ public class TournamentController {
         String previousName = t.getName();
         OffsetDateTime previousStartAt = t.getStartAt();
         tournamentMapper.applyUpdate(t, req);
+        // Rules: absent key = untouched, JSON null = back to defaults, object = replace.
+        if (req.rules() != null) t.setRules(normaliseRules(req.rules()));
         t.setUpdatedAt(OffsetDateTime.now());
 
         applyLocation(t, req, !Objects.equals(previousLocation, t.getLocation()));
