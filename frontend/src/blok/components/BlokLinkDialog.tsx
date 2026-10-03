@@ -481,13 +481,17 @@ function TableStep({
     const { t } = useTranslation()
     if (load.state === "loading") return <Loading />
     if (load.state === "error") return <LoadError onRetry={onRetry} />
-    if (load.items.length === 0) {
+    // New servers omit these rows altogether. Keep the client-side filter as
+    // a compatibility guard for a dialog opened while an older response was
+    // still cached/in flight.
+    const available = load.items.filter((target) => target.linkable && target.pair2 != null)
+    if (available.length === 0) {
         return <EmptyState icon={FiLink2} title={t("blok.link.noTables")} compact />
     }
 
     return (
         <VStack gap="2" align="stretch">
-            {load.items.map((target) => (
+            {available.map((target) => (
                 <PickRow
                     key={target.matchId}
                     disabled={!target.linkable}

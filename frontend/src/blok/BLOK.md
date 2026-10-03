@@ -956,6 +956,12 @@ koliko se igra), a `resetSession()` ga prenosi u novu seriju.
    ove kartice: ponuđena uz radnju koja **završava** večer pretvorila bi gotovu
    seriju u četvrtu partiju koju nitko nije namjeravao odigrati.
 
+   **Iznimka za stol povezan s turnirom:** glavna radnja glasi **„Spremi i
+   pošalji”**. Završni rezultat ide organizatoru tek na tu potvrdu. Blok čeka
+   uspješan odgovor, a zatim se vraća na 0:0 i potpuno početne postavke
+   **1001 · prolaz** (`emptyGame()`), bez stare veze sa stolom. Ako slanje ne
+   uspije, rezultat i veza ostaju na ekranu kako bi se slanje moglo ponoviti.
+
 > **DVIJE RADNJE, DVA IMENA — i to je cijela poanta §5.6.** Gumb ispod dobivene
 > partije glasi **„Sljedeća partija”**, nikad „Započni novu igru”: riječi „nova
 > igra” od 2026-09-08 pripadaju izborniku, koji seriju **zatvara**, a ista bi
@@ -1488,8 +1494,8 @@ ne izmišljaj nove ključeve za herc/karo/pik/tref.
 - **`BlokGame.declarationsRule`**: `"all"` (zadano) / `"belaOnly"` (nudi se samo 20)
   / `"off"` (nema odjeljka „Zvanja”). Nasljeđuje se kao `gameEndRule`; odsutno pri
   čitanju = `"all"`, storage ostaje `v1`. Mijenja samo ŠTO SE NUDI, bodovanje ne.
-  Štiglja je uvijek ponuđena (bonus za svih osam štihova, nije zvanje); belot samo
-  uz `"all"` (ili dok ga podjela koja se uređuje već nosi).
+  Štiglja i belot uvijek su ponuđeni. U načinu `"belaOnly"` Bela 20 može se
+  unijeti samo jednom u cijeloj podjeli, neovisno o strani.
 - **Veza → nova igra, TEK PRI ODOBRENJU**: zahtjev (`handleLinked`) samo sprema
   vezu s `pendingStart` — blok se ne mijenja, odbijen zahtjev ne mijenja ništa.
   Kad veza postane APPROVED (poll, odmah odobrena ili ponovno otvorena

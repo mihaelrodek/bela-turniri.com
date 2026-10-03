@@ -61,6 +61,8 @@ public abstract class PairMapper {
      */
     @Mappings({
             // id & tournament are managed by the controller/repo; do not touch
+            @Mapping(target = "id",                  ignore = true),
+            @Mapping(target = "tournament",          ignore = true),
             @Mapping(target = "name",                source = "name"),
             @Mapping(target = "eliminated",          source = "isEliminated"),
             @Mapping(target = "extraLife",           source = "extraLife"),

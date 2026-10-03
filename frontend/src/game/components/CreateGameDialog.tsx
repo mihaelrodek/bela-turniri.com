@@ -29,6 +29,10 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
        almost every game is "just deal", and eight rows of defaults made the
        dialog scroll on a phone before the create button came into view. */
     const [showMore, setShowMore] = useState(false)
+    const quickGame = targetScore === 163
+    // Keep the player's standard-game choices while quick play pins its rules.
+    const effectiveNoDeclarations = quickGame || noDeclarations
+    const effectiveAllowBela = quickGame || !noDeclarations || allowBela
 
     return (
         <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)} placement="center" scrollBehavior="inside">
@@ -144,13 +148,13 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
                                             Resetting it here keeps the screen and
                                             the wire saying the same thing. */}
                                         <GameOption compact label={t("game.rules.noDeclarations")}
-                                            checked={noDeclarations} disabled={busy}
+                                            checked={effectiveNoDeclarations} disabled={busy || quickGame}
                                             onChange={(next) => {
                                                 setNoDeclarations(next)
                                                 if (!next) setAllowBela(true)
                                             }} />
                                         <GameOption compact label={t("game.rules.allowBela")}
-                                            checked={allowBela} disabled={busy || !noDeclarations} onChange={setAllowBela} />
+                                            checked={effectiveAllowBela} disabled={busy || quickGame || !noDeclarations} onChange={setAllowBela} />
                                         {/* ONE ROW, INSIDE the same group — the row is
                                         a peer of the switches, not a section after
                                         them, so it shares their gap and their box
@@ -194,7 +198,7 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
                         <Dialog.Footer>
                             <Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>{t("game.common.cancel")}</Button>
                             <Button colorPalette="brand" size="lg" disabled={busy}
-                                onClick={() => onCreate({ targetScore, gameEndRule: targetScore === 163 ? "prolaz" : gameEndRule, private: isPrivate, allowSpectators, noDeclarations, allowBela: !noDeclarations || allowBela, trickReview, minWinRatePercent })}>
+                                onClick={() => onCreate({ targetScore, gameEndRule: quickGame ? "prolaz" : gameEndRule, private: isPrivate, allowSpectators, noDeclarations: effectiveNoDeclarations, allowBela: effectiveAllowBela, trickReview, minWinRatePercent })}>
                                 {t("game.lobby.newGame")} <FiArrowRight />
                             </Button>
                         </Dialog.Footer>

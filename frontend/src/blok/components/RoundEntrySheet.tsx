@@ -7,6 +7,7 @@ import { useTranslation } from "../../i18n"
 import SuitGlyph from "../../game/components/SuitGlyph"
 import { SUITS } from "../../game/util/cards"
 import {
+    BELA_VALUE,
     BLOK_SIDES,
     DEAL_CARD_POINTS,
     STIGLJA_POINTS,
@@ -508,10 +509,21 @@ function EntryForm({
     }
 
     function addDeclaration(value: number) {
-        setDeclarations((prev) => ({
-            us: active === "us" ? [...prev.us, value] : prev.us,
-            them: active === "them" ? [...prev.them, value] : prev.them,
-        }))
+        setDeclarations((prev) => {
+            // With declarations disabled, an allowed bela is a one-off bonus
+            // for the whole deal. Keep the invariant here as well as on the
+            // button so two rapid taps cannot enqueue it twice.
+            if (
+                declarationsRule === "belaOnly"
+                && value === BELA_VALUE
+                && [...prev.us, ...prev.them].includes(BELA_VALUE)
+            ) return prev
+
+            return {
+                us: active === "us" ? [...prev.us, value] : prev.us,
+                them: active === "them" ? [...prev.them, value] : prev.them,
+            }
+        })
     }
 
     /* Remove by VALUE, not by index: the ✕ now lives on the value's own button

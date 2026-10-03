@@ -220,7 +220,7 @@ export const game: GameDict = {
     "lobby.create.private": "Private game",
     "create.quick.name": "Quick 163",
     "create.quick.title": "Quick game",
-    "create.quick.description": "Up to 3 deals, first dealer picked at random. The first pair to 163 points wins — if neither gets there, whoever has more after the third deal wins.",
+    "create.quick.description": "Bela without declarations — only bela counts. Up to 3 deals, first dealer picked at random. The first pair to 163 points wins — if neither gets there, whoever has more after the third deal wins.",
     // Short label for the quick-play (163) discipline in tight stat pills —
     // the bare number "163" alone would not read as a discipline name the
     // way "501"/"701"/"1001" do, so it gets a word instead.

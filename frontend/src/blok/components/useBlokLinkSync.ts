@@ -169,17 +169,18 @@ async function saveThenPush(
 }
 
 /**
- * Send the final series score NOW, outside React — for "Resetiraj" (§6.1).
+ * Send the final series score NOW, outside React — for the generic close-series
+ * flow (§6.1).
  *
  * The reset closes the series and drops the link in the same localStorage
  * write, so the effect below can never be the one to say "this is final": by
  * the time it re-runs there is no link left. The caller therefore fires this
- * first, with the values it is about to reset, and does not await it — a reset
- * stays instantaneous with no signal, exactly like every other local action.
+ * first, with the values it is about to reset, and does not await it — that
+ * legacy local action stays instantaneous. A linked tournament result uses
+ * `submitFinalBlokLink` directly and waits for confirmation before resetting.
  *
- * Skips silently when the same score has already gone out as final (the series
- * reached its target and the effect sent it), so closing a decided series does
- * not write the same result into the match twice.
+ * Skips silently when the same score has already gone out as final, so closing
+ * a series cannot write the same result into the match twice.
  */
 export function finalizeBlokLink(
     link: BlokLink | null,
@@ -188,34 +189,7 @@ export function finalizeBlokLink(
     signedIn: boolean,
     saveToProfile = signedIn,
 ): void {
-    if (link === null || link.status !== "APPROVED") return
-    const synced = link.syncedGames
-    if (link.syncedFinal && synced !== null && synced.us === wins.us && synced.them === wins.them) {
-        return
-    }
-    const uuid = link.uuid
-    void saveThenPush(
-        uuid,
-        linkWriteToken(link),
-        sessionId,
-        { us: wins.us, them: wins.them, final: true },
-        signedIn,
-        saveToProfile,
-    )
-        .then(() => {
-            // The link is normally gone by now (the reset dropped it) and
-            // `patchLink` is a no-op then — which is the point of it being a
-            // no-op. It still matters for the one caller that finalises WITHOUT
-            // resetting, and it costs nothing here.
-            const live = blokActions.read().current?.link
-            if (live && live.uuid === uuid) {
-                blokActions.patchLink({
-                    syncedGames: { us: wins.us, them: wins.them },
-                    syncedFinal: true,
-                    pendingSince: null,
-                })
-            }
-        })
+    void submitFinalBlokLink(link, wins, sessionId, signedIn, saveToProfile)
         .catch(() => {
             /* The series is closed and the link with it: there is nothing left
                on screen to retry from and nothing to warn about. The organiser
@@ -224,18 +198,67 @@ export function finalizeBlokLink(
         })
 }
 
+/**
+ * Save and submit a linked tournament result as final, and resolve only after
+ * the organiser's match record accepted it. Unlike `finalizeBlokLink`, this is
+ * awaited by the explicit "Save and send" action: a failed request must leave
+ * the completed scorepad intact so the player can retry.
+ */
+export async function submitFinalBlokLink(
+    link: BlokLink | null,
+    wins: Record<BlokSide, number>,
+    sessionId: string,
+    signedIn: boolean,
+    saveToProfile = signedIn,
+): Promise<void> {
+    if (link === null || link.status !== "APPROVED") {
+        throw new Error("BLOK_LINK_NOT_APPROVED")
+    }
+    const synced = link.syncedGames
+    if (link.syncedFinal && synced !== null && synced.us === wins.us && synced.them === wins.them) {
+        return
+    }
+
+    const uuid = link.uuid
+    await saveThenPush(
+        uuid,
+        linkWriteToken(link),
+        sessionId,
+        { us: wins.us, them: wins.them, final: true },
+        signedIn,
+        saveToProfile,
+    )
+
+    const live = blokActions.read().current?.link
+    if (live && live.uuid === uuid) {
+        blokActions.patchLink({
+            syncedGames: { us: wins.us, them: wins.them },
+            syncedFinal: true,
+            pendingSince: null,
+        })
+    }
+}
+
 export function useBlokLinkSync({
     link,
     seriesWins,
     seriesDecided,
+    finalizeWhenDecided = true,
     sessionId,
     signedIn,
 }: {
     link: BlokLink | null
     /** Games WON per side in this series — what the match record holds (§6.1). */
     seriesWins: Record<BlokSide, number>
-    /** The series has reached its target: the match result is final. */
+    /** The series has reached its target and is ready for final confirmation. */
     seriesDecided: boolean
+    /**
+     * Whether reaching the target should immediately mark the tournament
+     * result final. The scorepad page disables this so its explicit "Save and
+     * send" action owns the irreversible tournament finish; running scores
+     * still travel provisionally until that confirmation.
+     */
+    finalizeWhenDecided?: boolean
     /** Which series is being played — the record the token hangs off (§6.2). */
     sessionId: string
     /**
@@ -262,6 +285,7 @@ export function useBlokLinkSync({
     const syncedThem = link?.syncedGames?.them ?? null
     const syncedFinal = link?.syncedFinal ?? false
     const pendingSince = link?.pendingSince ?? null
+    const scoreIsFinal = seriesDecided && finalizeWhenDecided
     // Null for a link made while signed in (the account is the credential) and
     // for anything stored before §7. Kept as a plain string so it can sit in a
     // dependency array next to the rest.
@@ -296,7 +320,7 @@ export function useBlokLinkSync({
         const alreadySent =
             syncedUs === seriesWins.us
             && syncedThem === seriesWins.them
-            && syncedFinal === seriesDecided
+            && syncedFinal === scoreIsFinal
         if (alreadySent) {
             // Nothing owed. This also covers the case where a failed push is
             // followed by an edit that puts the series score back exactly where
@@ -313,19 +337,18 @@ export function useBlokLinkSync({
             && attempted.uuid === uuid
             && attempted.us === seriesWins.us
             && attempted.them === seriesWins.them
-            && attempted.final === seriesDecided
+            && attempted.final === scoreIsFinal
         ) {
             // Same payload, already tried, already failed. Wait for a real
             // trigger rather than hammering the server every render.
             return
         }
 
-        // The decided series does not wait out the settle delay: there is no
-        // further game to correct it with, and the organiser's round can be
-        // closed the moment the last one ends. Still a timer rather than a
-        // direct call, so a score change and the series being decided in the
-        // same commit send exactly one request.
-        const delay = seriesDecided ? 0 : SETTLE_MS
+        // An automatic final payload, when the caller opts into it, does not
+        // wait out the settle delay. The scorepad page opts out: its decided
+        // score remains provisional and uses the normal settle window until
+        // the player explicitly confirms "Save and send".
+        const delay = scoreIsFinal ? 0 : SETTLE_MS
         let cancelled = false
 
         const timer = window.setTimeout(() => {
@@ -333,7 +356,7 @@ export function useBlokLinkSync({
                 uuid,
                 us: seriesWins.us,
                 them: seriesWins.them,
-                final: seriesDecided,
+                final: scoreIsFinal,
             }
             attemptedRef.current = payload
             void saveThenPush(
@@ -393,7 +416,7 @@ export function useBlokLinkSync({
         pendingSince,
         seriesWins.us,
         seriesWins.them,
-        seriesDecided,
+        scoreIsFinal,
         sessionId,
         retryTick,
     ])

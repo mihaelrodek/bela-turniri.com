@@ -233,6 +233,7 @@ export const blok: BlokDict = {
     "link.error.generic": "The request wasn't sent. Try again.",
     "link.error.LINK_EXISTS": "Someone already requested this table.",
     "link.error.MATCH_HAS_BYE": "This table has a bye — there's no opponent.",
+    "link.error.MATCH_FINISHED": "This table has already been played.",
     "link.error.PAIR_NOT_IN_MATCH": "The selected pair isn't playing at this table.",
     "link.error.ROUND_COMPLETED": "The round has since finished.",
     "link.error.TOURNAMENT_FINISHED": "The tournament has finished.",
@@ -552,6 +553,13 @@ export const blok: BlokDict = {
     "newGame.continueWithoutSaving": "Continue without saving",
     "newGame.signedOutNote": "Score pad history is kept only for signed-in players.",
     "newGame.saved": "Your played games have been saved to Score Pad on your profile.",
+    "link.finish.title": "Finish match",
+    "link.finish.action": "Save and send",
+    "link.finish.description":
+        "The {us}:{them} result will be saved and sent to the organizer. After a successful send, Score Pad resets to 0:0 with the 1001 · pass-through defaults.",
+    "link.finish.success": "The result was saved and sent to the organizer.",
+    "link.finish.failed": "The result was not sent. Check your connection and try again.",
+    "summary.submitLinkedResult": "Save and send the result",
     "share.enable": "Enable sharing the game by link",
     "share.linkedNote":
         "The linked table's record stays public — the organizer opens it from the draw.",

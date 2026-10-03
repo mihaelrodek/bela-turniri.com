@@ -31,6 +31,11 @@ umjesto „do 1001" piše napredak u podjelama (`PlayerView.maxDeals`, npr.
 server ga ionako normalizira na `prolaz`. Statistika je posebna kategorija
 (`byTargetScore["163"]`).
 
+Opis pri stvaranju kaže **„Bela bez zvanja — vrijedi samo bela”** prije ostatka
+pravila. U dodatnim opcijama **„Bez zvanja: Da”** i **„Bela je dopuštena: Da”**
+ostaju vidljivi, ali zaključani za cilj 163. Isto vrijedi u postavkama sobe;
+server te vrijednosti postavlja pri stvaranju i svakoj izmjeni brze sobe.
+
 **Soba (`/home/room`).** Gore: "Ime igre" (italic label) + **ime (501)** +
 "🔒 Šifra za ulaz: 5810" (4-znamenkasti kod za ulazak). Izlaz ikona desno.
 Četiri reda sjedala okomito: 2 reda, **"vs"**, 2 reda — moj red ima svijetli

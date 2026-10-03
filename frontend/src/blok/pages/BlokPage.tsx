@@ -14,7 +14,7 @@ import { fetchTournamentDetails } from "../../api/tournaments"
 import { linkWriteToken, revokeMyBlokLink } from "../blokLinkApi"
 import { blokShareUrl, createBlokShare, revokeBlokShare } from "../blokHistoryApi"
 import { ACTION_BAR_BOTTOM, ACTION_BAR_GAP, ACTION_BAR_RESERVE } from "../actionBar"
-import { blokActions, isRecordableGame, useBlok } from "../store"
+import { blokActions, emptyGame, isRecordableGame, useBlok } from "../store"
 import type { Suit } from "@bela/engine"
 import { randomSuit } from "../../game/util/cards"
 import { BLOK_SIDES, creditedDeclarationTotals, type BlokDeclarationsRule, type BlokRound, type BlokSide } from "../types"
@@ -32,7 +32,7 @@ import RoundEntrySheet from "../components/RoundEntrySheet"
 import RoundsList from "../components/RoundsList"
 import { saveSessionNow } from "../components/useBlokHistoryUpload"
 import { useBlokLiveUpload } from "../components/useBlokLiveUpload"
-import { finalizeBlokLink, useBlokLinkSync } from "../components/useBlokLinkSync"
+import { finalizeBlokLink, submitFinalBlokLink, useBlokLinkSync } from "../components/useBlokLinkSync"
 import { sidePalette, useSideNames } from "../components/blokSide"
 import { useLiveTournament } from "../components/useLiveTournament"
 import { keyframes } from "@emotion/react"
@@ -277,6 +277,10 @@ export default function BlokPage() {
         link,
         seriesWins,
         seriesDecided: seriesWinner !== null,
+        // A linked tournament match becomes final only after the player taps
+        // "Spremi i pošalji". Until then even a decided 2:0/2:1 is merely the
+        // latest provisional score and can still be corrected on this device.
+        finalizeWhenDecided: false,
         sessionId: game.sessionId,
         // NOT a switch that silences the hook any more (BLOK-LINK.md §7): a
         // link can be made and driven with no account, and what keeps a
@@ -697,12 +701,13 @@ export default function BlokPage() {
        true whether or not the player stays on /blok. A failure there deletes
        nothing and retries; that is why the local half can be unconditional.
 
-       The one thing that has to happen BEFORE the close is the final score
-       (BLOK-LINK.md §6.1): closing the series is one of the two ways a linked
-       match becomes final, and the same write that closes it drops the link, so
-       afterwards there is nothing left to send from. `finalizeBlokLink` is
-       fire-and-forget and no-ops when there is no approved link, so the close
-       itself is as instantaneous offline as it ever was. */
+       The one thing that has to happen BEFORE a generic close is the final
+       score (BLOK-LINK.md §6.1): the same write that closes the series drops
+       the link, so afterwards there is nothing left to send from.
+       `finalizeBlokLink` is fire-and-forget and no-ops when there is no
+       approved link, so this legacy close stays instantaneous offline. The
+       completed tournament flow below instead awaits "Spremi i pošalji" and
+       resets only after the organiser accepts the result. */
     const onCloseSeries = useCallback((save: boolean) => {
         finalizeBlokLink(link, seriesWins, game.sessionId, signedIn, save && signedIn)
         resetSession(save && signedIn)
@@ -717,6 +722,30 @@ export default function BlokPage() {
         }
         onCloseSeries(true)
     }, [signedIn, goSignIn, onCloseSeries])
+
+    const linkedSeriesComplete = link?.status === "APPROVED" && seriesWinner !== null
+
+    const saveAndSendLinkedResult = useCallback(async () => {
+        if (!linkedSeriesComplete || link === null || busyRef.current) return
+        busyRef.current = true
+        setBusy(true)
+        try {
+            await submitFinalBlokLink(link, seriesWins, game.sessionId, signedIn)
+            // The tournament series is now recorded. Start a completely clean
+            // local scorepad: 0:0 points, 0:0 games, no table link, and the
+            // product defaults (1001 / prolaz and the other default rules).
+            blokActions.resetSession(signedIn, { fresh: emptyGame() })
+            setPending(null)
+            showSuccess(t("blok.link.finish.success"))
+        } catch {
+            // Keep every point, game and the table link in place. The player
+            // can retry the same final write when the connection recovers.
+            showError(t("blok.link.finish.failed"))
+        } finally {
+            busyRef.current = false
+            setBusy(false)
+        }
+    }, [linkedSeriesComplete, link, seriesWins, game.sessionId, signedIn, t])
 
     const confirmPending = useCallback(() => {
         if (!pending) return
@@ -753,11 +782,13 @@ export default function BlokPage() {
         }
     }, [pending, t])
 
-    const newGameDescription = filedGames === 0
-        ? t("blok.newGame.confirmNothing")
-        : t(signedIn ? "blok.newGame.confirmSignedIn" : "blok.newGame.confirmSignedOut", {
-            games: tp("blok.newGame.games", filedGames),
-        }) + (unfinishedCurrent ? ` ${t("blok.newGame.confirmUnfinished")}` : "")
+    const newGameDescription = linkedSeriesComplete
+        ? t("blok.link.finish.description", { us: seriesWins.us, them: seriesWins.them })
+        : filedGames === 0
+            ? t("blok.newGame.confirmNothing")
+            : t(signedIn ? "blok.newGame.confirmSignedIn" : "blok.newGame.confirmSignedOut", {
+                games: tp("blok.newGame.games", filedGames),
+            }) + (unfinishedCurrent ? ` ${t("blok.newGame.confirmUnfinished")}` : "")
 
     /* The two big buttons carry the side NAMES, and a renamed side is the
        whole reason anyone renames one — "Perhaj i G…" defeats the feature.
@@ -844,7 +875,13 @@ export default function BlokPage() {
                         onClick={seriesWinner !== null ? () => setPending({ kind: "newGame" }) : newGame}
                     >
                         <Box as="span" minW="0" textAlign="center" wordBreak="break-word" lineClamp={2}>
-                            {t(seriesWinner !== null ? "blok.menu.newGame" : "blok.winner.nextGame")}
+                            {t(
+                                linkedSeriesComplete
+                                    ? "blok.link.finish.action"
+                                    : seriesWinner !== null
+                                        ? "blok.menu.newGame"
+                                        : "blok.winner.nextGame",
+                            )}
                         </Box>
                         <FiArrowRight />
                     </Button>
@@ -1144,6 +1181,7 @@ export default function BlokPage() {
                                 declarations={declarations}
                                 stiglje={stiglje}
                                 seriesWinner={seriesWinner}
+                                linked={link?.status === "APPROVED"}
                                 /* The score card above just grew by three
                                    rows; this gives the height back so the
                                    whole screen still fits without scrolling. */
@@ -1329,7 +1367,9 @@ export default function BlokPage() {
                         <Dialog.Content maxW={{ base: "calc(100% - 2rem)", md: "md" }} rounded="2xl">
                             <Dialog.Header pb="2">
                                 <HStack justify="space-between" align="center" w="full" gap="3">
-                                    <Dialog.Title>{t("blok.menu.newGame")}</Dialog.Title>
+                                    <Dialog.Title>
+                                        {t(linkedSeriesComplete ? "blok.link.finish.title" : "blok.menu.newGame")}
+                                    </Dialog.Title>
                                     <Dialog.CloseTrigger asChild>
                                         <IconButton
                                             aria-label={t("common.close")}
@@ -1355,24 +1395,27 @@ export default function BlokPage() {
                                         size="lg"
                                         colorPalette="brand"
                                         disabled={filedGames === 0}
-                                        onClick={saveAndStartNewGame}
+                                        loading={busy}
+                                        onClick={linkedSeriesComplete ? saveAndSendLinkedResult : saveAndStartNewGame}
                                     >
                                         <FiSave />
-                                        {t("blok.newGame.saveAndContinue")}
+                                        {t(linkedSeriesComplete ? "blok.link.finish.action" : "blok.newGame.saveAndContinue")}
                                     </Button>
-                                    <Button
-                                        w="full"
-                                        minH="3.5rem"
-                                        size="lg"
-                                        variant="outline"
-                                        colorPalette="gray"
-                                        bg="bg.panel"
-                                        borderColor="border.emphasized"
-                                        onClick={() => onCloseSeries(false)}
-                                    >
-                                        {t("blok.newGame.continueWithoutSaving")}
-                                        <FiArrowRight />
-                                    </Button>
+                                    {!linkedSeriesComplete ? (
+                                        <Button
+                                            w="full"
+                                            minH="3.5rem"
+                                            size="lg"
+                                            variant="outline"
+                                            colorPalette="gray"
+                                            bg="bg.panel"
+                                            borderColor="border.emphasized"
+                                            onClick={() => onCloseSeries(false)}
+                                        >
+                                            {t("blok.newGame.continueWithoutSaving")}
+                                            <FiArrowRight />
+                                        </Button>
+                                    ) : null}
                                 </VStack>
                             </Dialog.Footer>
                         </Dialog.Content>

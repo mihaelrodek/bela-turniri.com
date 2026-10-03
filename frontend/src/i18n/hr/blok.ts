@@ -228,6 +228,7 @@ export const blok = {
     "link.error.generic": "Zahtjev nije poslan. Pokušaj ponovno.",
     "link.error.LINK_EXISTS": "Netko je već zatražio ovaj stol.",
     "link.error.MATCH_HAS_BYE": "Ovaj stol ima slobodan prolaz, nema protivnika.",
+    "link.error.MATCH_FINISHED": "Ovaj stol je već odigran.",
     "link.error.PAIR_NOT_IN_MATCH": "Odabrani par ne igra za ovim stolom.",
     "link.error.ROUND_COMPLETED": "Runda je u međuvremenu završena.",
     "link.error.TOURNAMENT_FINISHED": "Turnir je završen.",
@@ -533,6 +534,13 @@ export const blok = {
     "newGame.continueWithoutSaving": "Nastavi bez spremanja",
     "newGame.signedOutNote": "Povijest blokova čuva se samo prijavljenim igračima.",
     "newGame.saved": "Odigrane partije spremljene su u Blok na tvom profilu.",
+    "link.finish.title": "Završi meč",
+    "link.finish.action": "Spremi i pošalji",
+    "link.finish.description":
+        "Rezultat {us}:{them} bit će spremljen i poslan organizatoru. Nakon uspješnog slanja Blok se vraća na 0:0 s postavkama 1001 · prolaz.",
+    "link.finish.success": "Rezultat je spremljen i poslan organizatoru.",
+    "link.finish.failed": "Rezultat nije poslan. Provjeri vezu i pokušaj ponovno.",
+    "summary.submitLinkedResult": "Spremi i pošalji rezultat",
     "share.enable": "Omogući dijeljenje partije poveznicom",
     "share.linkedNote":
         "Zapisnik povezanog stola ostaje javan — organizator ga otvara iz ždrijeba.",

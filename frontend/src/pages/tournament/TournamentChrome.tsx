@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Button, HStack, IconButton, Menu } from "@chakra-ui/react"
+import { Button, IconButton, Menu } from "@chakra-ui/react"
 import {
     FiCalendar,
     FiCreditCard,
@@ -185,12 +185,10 @@ export function TournamentTopBar({
 /** lg+: the sticky left column — nav, actions, and the podium card. */
 export function TournamentSideNav({
     t,
-    uuid,
     sections,
     active,
     onSelect,
     tourAnchors,
-    canEditTournament,
     showEditAction,
     showDeleteAction,
     shareUrl,
@@ -208,13 +206,6 @@ export function TournamentSideNav({
             active={active}
             onSelect={onSelect}
             tourAnchors={tourAnchors}
-            topSlot={
-                canEditTournament && active !== "pairs" ? (
-                    <HStack justify="flex-end" gap="2">
-                        <SyncIndicator tournamentUuid={uuid} hideWhenIdle />
-                    </HStack>
-                ) : undefined
-            }
             primaryActions={
                 showEditAction || showDeleteAction ? (
                     <>

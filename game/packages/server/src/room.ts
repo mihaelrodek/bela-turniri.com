@@ -276,8 +276,8 @@ export class Room {
         this.private = init.private
         this.minWinRatePercent = init.minWinRatePercent ?? 0
         this.allowSpectators = init.allowSpectators === true
-        this.noDeclarations = init.noDeclarations === true
-        this.allowBela = belaCounts(this.noDeclarations, init.allowBela)
+        this.noDeclarations = isQuickGame(this.targetScore) || init.noDeclarations === true
+        this.allowBela = isQuickGame(this.targetScore) || belaCounts(this.noDeclarations, init.allowBela)
         this.gameEndRule = endRuleFor(this.targetScore, init.gameEndRule)
         this.trickReview = init.trickReview ?? DEFAULT_TRICK_REVIEW
         this.createdAt = Date.now()
@@ -1162,10 +1162,13 @@ export class Room {
         // The declaration pair is resolved TOGETHER through the same rule
         // `room.create` uses, whichever half of it the patch carries: a room
         // that scores declarations always counts the bela.
-        const noDeclarations = patch.noDeclarations ?? this.noDeclarations
+        // Quick 163 always excludes regular declarations and keeps the bela,
+        // including target changes and patches from older clients.
+        const quickGame = isQuickGame(this.targetScore)
+        const noDeclarations = quickGame || (patch.noDeclarations ?? this.noDeclarations)
         const allowBela = patch.allowBela ?? this.allowBela
         this.noDeclarations = noDeclarations
-        this.allowBela = belaCounts(noDeclarations, allowBela)
+        this.allowBela = quickGame || belaCounts(noDeclarations, allowBela)
         log.info("room.options", {
             room: this.id,
             target: this.targetScore,

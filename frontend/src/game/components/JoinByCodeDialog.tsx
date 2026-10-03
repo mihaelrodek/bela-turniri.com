@@ -6,6 +6,7 @@ import { useTranslation } from "../../i18n"
 import { useGamePrefs } from "../hooks/useGamePrefs"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import { playHaptic } from "../util/haptics"
+import { installAudioUnlock, playSound, preloadSounds } from "../util/sounds"
 import type { GameError } from "../types"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -83,6 +84,14 @@ export default function JoinByCodeDialog({
     const [gamePrefs] = useGamePrefs()
     const reduceMotion = osReducedMotion || gamePrefs.reduceMotion
 
+    // The lobby has no table audio lifecycle. Unlock and preload the same
+    // cached card sample here so the first pad/keyboard gesture can play it.
+    useEffect(() => {
+        if (!open) return
+        preloadSounds()
+        return installAudioUnlock()
+    }, [open])
+
     useEffect(() => {
         if (!open) {
             setCode("")
@@ -119,6 +128,7 @@ export default function JoinByCodeDialog({
             return prev + digit
         })
         playHaptic("keyTap")
+        playSound("card")
     }, [])
 
     const backspace = useCallback(() => {
@@ -128,12 +138,14 @@ export default function JoinByCodeDialog({
             return prev.slice(0, -1)
         })
         playHaptic("keyTap")
+        playSound("card")
     }, [])
 
     const clearAll = useCallback(() => {
         submittedRef.current = false
         setCode((prev) => (prev.length === 0 ? prev : ""))
         playHaptic("keyTap")
+        playSound("card")
     }, [])
 
     // Desktop hardware keyboard + paste, while the dialog is open. There is
@@ -177,6 +189,8 @@ export default function JoinByCodeDialog({
             e.preventDefault()
             submittedRef.current = false
             setCode(digits)
+            playHaptic("keyTap")
+            playSound("card")
         }
 
         document.addEventListener("keydown", onKeyDown)

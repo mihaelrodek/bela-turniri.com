@@ -12,8 +12,6 @@ import {
 import {
     FiChevronDown,
     FiChevronRight,
-    FiDollarSign,
-    FiGrid,
     FiLink,
     FiLogOut,
     FiPlus,
@@ -48,7 +46,7 @@ import { t as tStatic, usePlural, useTranslation } from "../i18n"
 import AddBillDialog from "./AddBillDialog"
 import ConfirmDialog from "./ConfirmDialog"
 import EmptyState from "./EmptyState"
-import { CounterChip } from "./PairsSection"
+import { WHATS_NEW_FAB } from "./navChrome"
 import WaiterBillDialog from "./WaiterBillDialog"
 import WaiterInviteDialog, { WaiterCodeChip } from "./WaiterInviteDialog"
 
@@ -290,7 +288,6 @@ export default function RacuniSection({
     )
 
     /* ---------- Derived ---------- */
-    const unpaidCount = useMemo(() => bills.filter((b) => !b.paid).length, [bills])
 
     /** Grouped by round, rounds ascending, tables ascending inside each. The
      *  backend already orders it that way; the grouping is presentational and
@@ -535,40 +532,16 @@ export default function RacuniSection({
                 </Box>
             )}
 
-            {/* ===== Header strip: counters left, list actions right ===== */}
-            <HStack justify="space-between" align="center" gap="2" rowGap="2">
-                <HStack gap="2" wrap="wrap" minW="0" flex="1">
-                    <CounterChip
-                        icon={<FiGrid size={13} />}
-                        value={bills.length}
-                        label={plural("tournament.waiter.chip.bills", bills.length)}
-                    />
-                    <CounterChip
-                        icon={<FiDollarSign size={13} />}
-                        value={unpaidCount}
-                        label={plural("tournament.waiter.chip.unpaid", unpaidCount)}
-                        palette={unpaidCount === 0 && bills.length > 0 ? "green" : "yellow"}
-                    />
+            {/* The paid/unpaid counters are gone (2026-10-03, owner). A waiter's
+                phone would otherwise carry this tournament's Računi tab
+                forever, so "Odjava" stays — right-aligned, only for them. */}
+            {!canEdit && (
+                <HStack justify="flex-end">
+                    <Button size="xs" variant="ghost" onClick={clear}>
+                        <FiLogOut /> {t("tournament.waiter.exit")}
+                    </Button>
                 </HStack>
-                <HStack gap="2" flexShrink={0}>
-                    {/* 2026-10-03: quick way to a table's bill, or a standalone
-                        "Ostalo" bill. Organiser and waiter alike; not hidden for
-                        a finished tournament because bills stay editable there. */}
-                    {canLoadBills && (
-                        <Button size="xs" colorPalette="blue" onClick={() => setAddOpen(true)}>
-                            <FiPlus /> {t("tournament.waiter.extra.add")}
-                        </Button>
-                    )}
-                    {/* A waiter's phone would otherwise carry this tournament's
-                        Računi tab forever. The organiser has no use for it —
-                        they never held a session to begin with. */}
-                    {!canEdit && (
-                        <Button size="xs" variant="ghost" onClick={clear}>
-                            <FiLogOut /> {t("tournament.waiter.exit")}
-                        </Button>
-                    )}
-                </HStack>
-            </HStack>
+            )}
 
             {/* ===== The list ===== */}
             {loading && bills.length === 0 ? (
@@ -795,6 +768,43 @@ export default function RacuniSection({
                     }}
                 />
             )}
+
+            {/* "Dodaj račun" is ALWAYS reachable: pinned to the bottom and centred,
+                on the same horizontal axis as the Novosti button, however far the
+                list is scrolled. The wrapper ignores pointer events so it never
+                blocks the rows beside the button. */}
+            {canLoadBills && (
+                <Box
+                    // FIXED to the viewport, not sticky: sticky sits right after
+                    // the content, so with few or no bills it floated mid-page
+                    // (2026-10-03, reported). Sharing the FAB's bottom offset and
+                    // row height keeps both controls vertically centred together.
+                    position="fixed"
+                    left="0"
+                    right="0"
+                    bottom={WHATS_NEW_FAB.bottom}
+                    h={`${WHATS_NEW_FAB.size}px`}
+                    zIndex={8}
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    pointerEvents="none"
+                >
+                    <Button
+                        pointerEvents="auto"
+                        colorPalette="blue"
+                        size="md"
+                        rounded="full"
+                        px="6"
+                        shadow="raised"
+                        onClick={() => setAddOpen(true)}
+                    >
+                        <FiPlus /> {t("tournament.waiter.extra.add")}
+                    </Button>
+                </Box>
+            )}
+            {/* Space under the list so the last bill can scroll clear of the button. */}
+            {canLoadBills && <Box h={{ base: "72px", md: "56px" }} aria-hidden="true" />}
 
             {addOpen && canLoadBills && (
                 <AddBillDialog

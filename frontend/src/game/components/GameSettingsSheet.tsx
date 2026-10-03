@@ -181,6 +181,7 @@ function RoomSettings({ room, onChange }: {
     onChange: (patch: RoomOptionsPatch) => void
 }) {
     const { t } = useTranslation()
+    const quickGame = room.targetScore === 163
     return (
         <VStack gap="3" align="stretch">
             <Text fontSize="sm" fontWeight="semibold">{t("game.settings.thisGame")}</Text>
@@ -231,11 +232,11 @@ function RoomSettings({ room, onChange }: {
                 create dialog does — with declarations on it always counts, so
                 the switch must not be left saying otherwise. */}
             <GameOption compact label={t("game.rules.noDeclarations")}
-                checked={room.noDeclarations}
+                checked={quickGame || room.noDeclarations} disabled={quickGame}
                 onChange={(noDeclarations) =>
                     onChange(noDeclarations ? { noDeclarations } : { noDeclarations, allowBela: true })} />
             <GameOption compact label={t("game.rules.allowBela")}
-                checked={room.allowBela} disabled={!room.noDeclarations}
+                checked={quickGame || room.allowBela} disabled={quickGame || !room.noDeclarations}
                 onChange={(allowBela) => onChange({ allowBela })} />
 
             <HStack gap="2" minH="44px" px="3" py="2" rounded="lg"

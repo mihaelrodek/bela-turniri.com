@@ -237,8 +237,8 @@ class MockGame {
         // `dosta` race is normalised away exactly as the engine's `newGame`
         // and the server's `Room` do it (2026-09-20).
         this.gameEndRule = isQuickGame(targetScore) ? "prolaz" : gameEndRule
-        this.noDeclarations = noDeclarations
-        this.allowBela = allowBela
+        this.noDeclarations = isQuickGame(targetScore) || noDeclarations
+        this.allowBela = isQuickGame(targetScore) || allowBela
         this.trickReview = trickReview
     }
 
@@ -791,7 +791,7 @@ class MockServer {
             private: isPrivate,
             allowSpectators: false,
             minWinRatePercent: 0,
-            noDeclarations: false,
+            noDeclarations: isQuickGame(targetScore),
             allowBela: true,
             trickReview: "off",
             seatsTaken: 0,
@@ -894,8 +894,8 @@ class MockServer {
             case "room.create": {
                 const room = this.makeRoom(msg.name, msg.targetScore, msg.private, this.me.uid)
                 room.gameEndRule = isQuickGame(room.targetScore) ? "prolaz" : (msg.gameEndRule ?? "prolaz")
-                room.noDeclarations = msg.noDeclarations === true
-                room.allowBela = !room.noDeclarations || msg.allowBela !== false
+                room.noDeclarations = isQuickGame(room.targetScore) || msg.noDeclarations === true
+                room.allowBela = isQuickGame(room.targetScore) || !room.noDeclarations || msg.allowBela !== false
                 room.allowSpectators = msg.allowSpectators === true
                 room.minWinRatePercent = msg.minWinRatePercent ?? 0
                 room.trickReview = msg.trickReview ?? "off"
@@ -1077,7 +1077,10 @@ class MockServer {
                 if (msg.noDeclarations !== undefined) room.noDeclarations = msg.noDeclarations
                 if (msg.allowBela !== undefined) room.allowBela = msg.allowBela
                 if (msg.trickReview !== undefined) room.trickReview = msg.trickReview
-                if (!room.noDeclarations) room.allowBela = true
+                if (isQuickGame(room.targetScore)) {
+                    room.noDeclarations = true
+                    room.allowBela = true
+                } else if (!room.noDeclarations) room.allowBela = true
                 this.pushRoom()
                 this.pushLobby()
                 return

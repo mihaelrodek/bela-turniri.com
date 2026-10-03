@@ -208,7 +208,7 @@ export const game: GameDict = {
     "lobby.create.private": "Zasebna igra",
     "create.quick.name": "Hitra 163",
     "create.quick.title": "Hitra igra",
-    "create.quick.description": "Največ 3 deljenja, prvi delivec je naključen. Zmaga prvi par s 163 točkami, če jih nihče ne doseže, pa tisti z več točkami po tretjem deljenju.",
+    "create.quick.description": "Bela brez napovedi — velja samo bela. Največ 3 deljenja, prvi delivec je naključen. Zmaga prvi par s 163 točkami, če jih nihče ne doseže, pa tisti z več točkami po tretjem deljenju.",
     "stats.quickLabel": "Hitra",
     "lobby.joinByCode.title": "Pridruži se s kodo",
     "lobby.joinByCode.description": "Vpiši 4-mestno kodo sobe.",

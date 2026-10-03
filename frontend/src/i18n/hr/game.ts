@@ -253,7 +253,7 @@ export const game = {
     "lobby.create.private": "Privatna igra",
     "create.quick.name": "Brza 163",
     "create.quick.title": "Brza igra",
-    "create.quick.description": "Najviše 3 dijeljenja, nasumičan prvi djelitelj. Pobjeđuje prvi par sa 163 boda, a ako nitko ne stigne, onaj s više bodova nakon trećeg dijeljenja.",
+    "create.quick.description": "Bela bez zvanja — vrijedi samo bela. Najviše 3 dijeljenja, nasumičan prvi djelitelj. Pobjeđuje prvi par sa 163 boda, a ako nitko ne stigne, onaj s više bodova nakon trećeg dijeljenja.",
     // Short label for the quick-play (163) discipline in tight stat pills —
     // the bare number "163" alone would not read as a discipline name the
     // way "501"/"701"/"1001" do, so it gets a word instead.

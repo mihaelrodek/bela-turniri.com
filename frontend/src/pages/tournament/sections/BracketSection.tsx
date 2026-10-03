@@ -64,6 +64,7 @@ export type BracketSectionProps = {
     /* tournament lifecycle */
     tournamentStarted: boolean
     canStart: boolean
+    startBlockedReason: string | null
     startingTournament: boolean
     onStartTournament: () => void
     canFinishTournament: boolean
@@ -137,6 +138,7 @@ export default function BracketSection(props: BracketSectionProps) {
         onToggleAllowRepeats,
         tournamentStarted,
         canStart,
+        startBlockedReason,
         startingTournament,
         onStartTournament,
         canFinishTournament,
@@ -246,7 +248,16 @@ export default function BracketSection(props: BracketSectionProps) {
                 {canEditTournament && !tournamentFinished && (
                     <Card.Root variant="outline" rounded="xl" borderColor="border.emphasized" shadow="sm">
                         <Card.Body py="3" px={{ base: "3", md: "4" }}>
-                            <HStack gap="2" wrap="wrap" justify="flex-end">
+                            <HStack
+                                gap="2"
+                                wrap="wrap"
+                                justify={startBlockedReason ? "space-between" : "flex-end"}
+                            >
+                                {startBlockedReason && (
+                                    <Text fontSize="sm" color="orange.fg" flex="1" minW={{ base: "full", sm: "240px" }}>
+                                        {startBlockedReason}
+                                    </Text>
+                                )}
                                 <Button
                                     size="sm"
                                     variant="solid"
@@ -254,11 +265,7 @@ export default function BracketSection(props: BracketSectionProps) {
                                     onClick={onStartTournament}
                                     loading={startingTournament}
                                     disabled={!canStart || startingTournament}
-                                    title={
-                                        !canStart
-                                            ? tr("tournament.start.needTwoPaid")
-                                            : tr("tournament.start.startTitle")
-                                    }
+                                    title={startBlockedReason ?? tr("tournament.start.startTitle")}
                                 >
                                     <FiPlay /> {tr("tournament.start.button")}
                                 </Button>
@@ -409,11 +416,7 @@ export default function BracketSection(props: BracketSectionProps) {
                         onClick={onStartTournament}
                         loading={startingTournament}
                         disabled={!canStart || startingTournament}
-                        title={
-                            !canStart
-                                ? tr("tournament.start.needTwoPaid")
-                                : tr("tournament.start.startTitle")
-                        }
+                        title={startBlockedReason ?? tr("tournament.start.startTitle")}
                     >
                         <FiPlay /> {tr("tournament.start.button")}
                     </Button>

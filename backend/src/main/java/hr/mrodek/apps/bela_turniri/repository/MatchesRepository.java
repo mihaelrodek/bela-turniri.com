@@ -92,6 +92,7 @@ public class MatchesRepository implements AppRepository<Matches, Long> {
                 join fetch m.pair1 p1
                 join fetch m.pair2 p2
                 where r.status <> hr.mrodek.apps.bela_turniri.enums.RoundStatus.COMPLETED
+                  and m.status = hr.mrodek.apps.bela_turniri.enums.MatchStatus.SCHEDULED
                   and t.status in (hr.mrodek.apps.bela_turniri.enums.TournamentStatus.DRAFT,
                                    hr.mrodek.apps.bela_turniri.enums.TournamentStatus.STARTED)
                   and (

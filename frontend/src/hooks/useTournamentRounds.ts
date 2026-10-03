@@ -253,9 +253,13 @@ export function useTournamentRounds({
         if (!uuid) return
         const n1 = m._score1 && m._score1.trim() !== "" ? Number(m._score1) : null
         const n2 = m._score2 && m._score2.trim() !== "" ? Number(m._score2) : null
+        /* Clearing both fields, or explicitly entering 0–0, means the match
+           was not played. Normalise both forms to null so the server removes
+           the winner and rebuilds standings from the remaining results. */
+        const clearsResult = (n1 == null && n2 == null) || (n1 === 0 && n2 === 0)
 
         if (m.pair1Id && m.pair2Id) {
-            if (n1 == null || n2 == null || !Number.isFinite(n1) || !Number.isFinite(n2) || n1 === n2) {
+            if (!clearsResult && (n1 == null || n2 == null || !Number.isFinite(n1) || !Number.isFinite(n2) || n1 === n2)) {
                 // `tStatic` — this callback's dependency array stays as it is.
                 showError(
                     tStatic("tournament.match.invalidScoreTitle"),
@@ -268,7 +272,10 @@ export function useTournamentRounds({
         if (savingMatchId != null) return
         setSavingMatchId(m.id)
         try {
-            const updatedRound = await overrideMatchScore(uuid, roundId, m.id, { score1: n1, score2: n2 })
+            const updatedRound = await overrideMatchScore(uuid, roundId, m.id, {
+                score1: clearsResult ? null : n1,
+                score2: clearsResult ? null : n2,
+            })
 
             setRounds(rs =>
                 rs.map(r =>

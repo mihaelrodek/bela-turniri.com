@@ -420,10 +420,23 @@ export default function TournamentDetailsPage() {
         () => pairs.filter((p) => !!p.paid && !p.pendingApproval).length,
         [pairs],
     )
+    /* Mirror TournamentLifecycleService.start(): two approved paid pairs are
+       the minimum, but every live pair must also have its entry fee marked.
+       Keeping this client guard identical prevents an avoidable 409 after the
+       organiser presses an apparently enabled button. */
+    const unpaidPairCount = useMemo(
+        () => pairs.filter((p) => !p.paid).length,
+        [pairs],
+    )
+    const startBlockedReason = paidApprovedCount < 2
+        ? tr("tournament.start.needTwoPaid")
+        : unpaidPairCount > 0
+            ? tr("tournament.start.unpaidPairs", { count: unpaidPairCount })
+            : null
     const canStart =
         canEditTournament &&
         t?.status !== "FINISHED" &&
-        paidApprovedCount >= 2
+        startBlockedReason == null
 
     /* "The tournament is under way" — pair editing is locked. STARTED is
        checked explicitly: a tournament can be started before the first round
@@ -751,6 +764,7 @@ export default function TournamentDetailsPage() {
                             onToggleAllowRepeats={roundsCtl.onToggleAllowRepeats}
                             tournamentStarted={roundsCtl.tournamentStarted}
                             canStart={canStart}
+                            startBlockedReason={startBlockedReason}
                             startingTournament={roundsCtl.startingTournament}
                             onStartTournament={roundsCtl.onStartTournament}
                             canFinishTournament={canFinishTournament}

@@ -159,6 +159,7 @@ export default function BlokSummary({
     declarations,
     stiglje,
     seriesWinner,
+    linked = false,
     reviewableGames,
     compact = false,
 }: {
@@ -172,6 +173,9 @@ export default function BlokSummary({
     /** Who has taken the series, or null while it is still running — always
      *  null for an open-ended series, which is the default. */
     seriesWinner: BlokSide | null
+    /** A completed linked series is submitted to the tournament from the
+     *  action below instead of starting another local series. */
+    linked?: boolean
     /**
      * How many games of this series can be reviewed behind the score card's
      * chevron — the just-finished one included.
@@ -316,7 +320,13 @@ export default function BlokSummary({
                     however tall the phone is. */}
                 <Hint
                     icon={FiArrowDown}
-                    label={t(seriesDone ? "blok.summary.startNewSeries" : "blok.summary.startNextGame")}
+                    label={t(
+                        seriesDone && linked
+                            ? "blok.summary.submitLinkedResult"
+                            : seriesDone
+                                ? "blok.summary.startNewSeries"
+                                : "blok.summary.startNextGame",
+                    )}
                     mt="auto"
                     pt={compact ? "1.5" : "3"}
                 />

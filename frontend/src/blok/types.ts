@@ -169,9 +169,8 @@ export const DEFAULT_GAME_END_RULE: BlokGameEndRule = "prolaz"
 
    Ograničava samo ŠTO SE NUDI pri unosu; bodovanje se ne dira — podjela s
    zvanjima spremljena prije promjene (ili u drugom načinu) i dalje se zbraja.
-   ŠTIGLJA ostaje u sva tri načina (bonus +90 za svih osam štihova, igra se na
-   stolu, nije zvanje); BELOT (osam karata jedne boje, zvanje koje odmah
-   završava partiju) se nudi samo uz „all”. */
+   ŠTIGLJA i BELOT ostaju u sva tri načina jer opisuju ishod cijele podjele.
+   U načinu `belaOnly` bela 20 može se unijeti samo jednom u cijeloj podjeli. */
 export type BlokDeclarationsRule = "all" | "belaOnly" | "off"
 export const DEFAULT_DECLARATIONS_RULE: BlokDeclarationsRule = "all"
 /** The one value offered under "belaOnly". */

@@ -163,7 +163,10 @@ verzija 1 i stare spremljene igre se učitavaju bez migracije.
 
 - Nakon svake promjene podjela, ako je veza `APPROVED`: pošalji tekuće zbrojeve
   s `final: false`. Prigušeno (debounce ~1,5 s) — igrač zna tipkati u rafalu.
-- Kad `winner !== null` (netko dosegao cilj): pošalji `final: true`.
+- Kad `winner !== null` (netko dosegao cilj): zadrži rezultat kao privremen i
+  ponudi **„Spremi i pošalji”**. Tek potvrda šalje `final: true`; nakon uspjeha
+  blok se vraća na 0:0 s početnim postavkama 1001 · prolaz. Neuspjeh ne briše
+  lokalni rezultat, pa igrač može pokušati ponovno.
 - Ako se zbroj nije promijenio od `syncedTotals`, ne šalji ništa.
 - Neuspjeh (offline, 5xx): zapamti `pendingSince`, pokušaj ponovno kad se
   aplikacija vrati u prvi plan ili na sljedeću promjenu. Ne diraj lokalne
@@ -220,9 +223,11 @@ a ne kao zbroj bodova (`543 : 149`). Bodovi su unutarnja stvar zapisnika.
   u toj seriji**, i to se preslikava u `score1`/`score2` mečа.
 - Privremeni upis (`final: false`) šalje se kad god se rezultat serije promijeni
   (dakle na kraju svake partije), ne na svaku podjelu.
-- `final: true` kad je serija odlučena: dosegnut je zadani broj dobivenih, ili
-  je korisnik zaključio seriju („Nova igra” — v. BLOK-HISTORY.md §5.6, koja je
-  preuzela tu ulogu od nekadašnjeg „Resetiraj”).
+- Kad je serija odlučena, dosegnut je zadani broj dobivenih, ali rezultat još
+  ostaje privremen. Igrač potvrđuje **„Spremi i pošalji”**; tada ide
+  `final: true`, organizatorov meč se zaključuje, a lokalni blok se tek nakon
+  uspješnog odgovora vraća na 0:0 i zadane postavke 1001 · prolaz. Generičko
+  ručno zatvaranje serije također može poslati `final: true`.
 
 ### 6.2 Zapisnik povezanog stola je JAVAN
 

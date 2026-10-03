@@ -469,7 +469,7 @@ export const tournament = {
     "match.stateEditing": "Uređivanje rezultata",
     "match.stateFinished": "Meč završen",
     "match.invalidScoreTitle": "Neispravan rezultat",
-    "match.invalidScoreDescription": "Unesi ispravne rezultate za oba para (različiti brojevi).",
+    "match.invalidScoreDescription": "Unesi različite rezultate za oba para ili ostavi oba prazna za neodigran meč.",
 
     // --- Fullscreen round dialog -------------------------------------------
     fullscreenRoundTitle: "Runda {n} — Puni zaslon",
@@ -492,6 +492,7 @@ export const tournament = {
     "start.button": "Startaj turnir",
     "start.startTitle": "Pokreni turnir",
     "start.needTwoPaid": "Treba najmanje 2 plaćena para za start",
+    "start.unpaidPairs": "Neplaćene kotizacije: {{count}}. Označi ih prije pokretanja turnira.",
     "start.notStartedTitle": "Turnir nije pokrenut",
     "start.cannotStartTitle": "Turnir se ne može pokrenuti",
     "start.insufficientPairs": "Treba najmanje 2 plaćena para da bi se turnir mogao pokrenuti.",

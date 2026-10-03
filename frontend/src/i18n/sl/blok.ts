@@ -205,6 +205,7 @@ export const blok: BlokDict = {
     "link.error.generic": "Zahteva ni bila poslana. Poskusi znova.",
     "link.error.LINK_EXISTS": "To mizo je nekdo že zahteval.",
     "link.error.MATCH_HAS_BYE": "Ta miza ima prost prehod, nasprotnika ni.",
+    "link.error.MATCH_FINISHED": "Ta miza je že odigrana.",
     "link.error.PAIR_NOT_IN_MATCH": "Izbrani par ne igra za to mizo.",
     "link.error.ROUND_COMPLETED": "Runda se je medtem končala.",
     "link.error.TOURNAMENT_FINISHED": "Turnir je končan.",
@@ -473,6 +474,13 @@ export const blok: BlokDict = {
     "newGame.continueWithoutSaving": "Nadaljuj brez shranjevanja",
     "newGame.signedOutNote": "Zgodovina blokov se hrani le prijavljenim igralcem.",
     "newGame.saved": "Odigrane partije so shranjene v Blok na tvojem profilu.",
+    "link.finish.title": "Končaj tekmo",
+    "link.finish.action": "Shrani in pošlji",
+    "link.finish.description":
+        "Rezultat {us}:{them} bo shranjen in poslan organizatorju. Po uspešnem pošiljanju se Blok ponastavi na 0:0 s privzetima nastavitvama 1001 · prehod.",
+    "link.finish.success": "Rezultat je shranjen in poslan organizatorju.",
+    "link.finish.failed": "Rezultat ni bil poslan. Preveri povezavo in poskusi znova.",
+    "summary.submitLinkedResult": "Shrani in pošlji rezultat",
     "share.enable": "Omogoči deljenje partije s povezavo",
     "share.linkedNote":
         "Zapisnik povezane mize ostane javen — organizator ga odpre iz žreba.",

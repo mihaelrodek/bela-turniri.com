@@ -242,6 +242,9 @@ bez ijedne nove zastavice na žici. Mijenja se samo pitanje „je li partija
 gotova", i to ovako:
 
 - prvi djelitelj je **nasumičan** (kao i inače), a djeljenje se dalje rotira;
+- Soba se igra **bez zvanja, uz dopuštenu belu** (`noDeclarations: true`,
+  `allowBela: true`). Stvaranje i izmjena sobe uvijek postavljaju te vrijednosti;
+  u dodatnim opcijama i postavkama sobe obje su zaključane dok je cilj 163.
 - **na kraju podjele**: ako je tim na **163 ili više** → pobjeđuje; ako su oba,
   pobjeđuje **veći zbroj**;
 - inače, čim je **obračunata treća podjela** (`QUICK_MAX_DEALS = 3`) →

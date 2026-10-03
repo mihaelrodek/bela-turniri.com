@@ -16,7 +16,8 @@ import jakarta.validation.constraints.NotNull;
  * blok's point totals: {@code 543 : 149} is the scorepad's internal business
  * and never reaches {@code Matches}. A provisional push therefore happens
  * whenever the series result changes (at the end of a game), not on every
- * deal, and {@code final: true} arrives when the series is decided.
+ * deal. After the series is decided, {@code final: true} arrives only when the
+ * player confirms the completed result.
  *
  * <p>The blok speaks in "us" and "them"; the server maps those onto the
  * match's {@code score1}/{@code score2} through the link's stored

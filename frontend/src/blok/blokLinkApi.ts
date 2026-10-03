@@ -401,8 +401,9 @@ export async function revokeMyBlokLink(
  *
  * `final: false` is a provisional score: the backend writes the numbers but
  * leaves the match `SCHEDULED` (BLOK-LINK.md §2.3), so nobody is eliminated
- * between two games of a series. `final: true` — the series is decided, or the
- * player closed it — goes through the organiser's own scoring path.
+ * between two games of a series. `final: true` is sent after the player
+ * confirms "Save and send" (or closes a series through the generic flow) and
+ * goes through the organiser's own scoring path.
  *
  * `sessionId` travels with every push (§6.2): it is what the server attaches
  * the public logbook's share token to.

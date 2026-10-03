@@ -424,7 +424,7 @@ export const tournament: TournamentDict = {
     "match.stateEditing": "Editing result",
     "match.stateFinished": "Match finished",
     "match.invalidScoreTitle": "Invalid result",
-    "match.invalidScoreDescription": "Enter valid results for both pairs (different numbers).",
+    "match.invalidScoreDescription": "Enter different scores for both pairs, or leave both empty for an unplayed match.",
 
     // --- Fullscreen round dialog -------------------------------------------
     fullscreenRoundTitle: "Round {n} — Fullscreen",
@@ -447,6 +447,7 @@ export const tournament: TournamentDict = {
     "start.button": "Start tournament",
     "start.startTitle": "Start tournament",
     "start.needTwoPaid": "Needs at least 2 paid pairs to start",
+    "start.unpaidPairs": "Unpaid entry fees: {{count}}. Mark them before starting the tournament.",
     "start.notStartedTitle": "Tournament not started",
     "start.cannotStartTitle": "Tournament can't be started",
     "start.insufficientPairs": "At least 2 paid pairs are needed to start the tournament.",

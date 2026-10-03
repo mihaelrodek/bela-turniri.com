@@ -380,7 +380,7 @@ export const tournament: TournamentDict = {
     "match.stateEditing": "Urejanje rezultata",
     "match.stateFinished": "Tekma končana",
     "match.invalidScoreTitle": "Neveljaven rezultat",
-    "match.invalidScoreDescription": "Vnesi pravilna rezultata za oba para (različni številki).",
+    "match.invalidScoreDescription": "Vnesi različna rezultata za oba para ali pusti obe polji prazni za neodigrano tekmo.",
 
     // --- Fullscreen round dialog -------------------------------------------
     fullscreenRoundTitle: "Runda {n} — Celozaslonsko",
@@ -394,6 +394,7 @@ export const tournament: TournamentDict = {
     "start.button": "Zaženi turnir",
     "start.startTitle": "Zaženi turnir",
     "start.needTwoPaid": "Za začetek sta potrebna vsaj 2 plačana para",
+    "start.unpaidPairs": "Neplačane kotizacije: {{count}}. Označi jih pred začetkom turnirja.",
     "start.notStartedTitle": "Turnir ni zagnan",
     "start.cannotStartTitle": "Turnirja ni mogoče zagnati",
     "start.insufficientPairs": "Za zagon turnirja sta potrebna vsaj 2 plačana para.",

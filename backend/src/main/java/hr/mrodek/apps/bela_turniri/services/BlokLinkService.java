@@ -217,10 +217,10 @@ public class BlokLinkService {
      * tournament's <em>active</em> round — the highest-numbered round that is
      * not {@code COMPLETED} (there is no "is active" flag; see §1).
      *
-     * <p>Unlinkable rows are returned too, flagged, so the player sees the
-     * whole round and is told why table 3 is greyed out. An empty list means
-     * "nothing to link to": no rounds drawn yet, the last round is finished,
-     * or the tournament is over.
+     * <p>Only tables that can actually be linked are returned. BYEs, finished
+     * matches and matches with an active pending/approved link stay out of the
+     * picker entirely. An empty list means "nothing to link to": no rounds
+     * drawn yet, no free playable table, or the tournament is over.
      */
     public List<BlokLinkTargetDto> listTargets(String tournamentIdOrSlug) {
         Tournaments t = access.load(tournamentIdOrSlug);
@@ -233,12 +233,9 @@ public class BlokLinkService {
 
         List<BlokLinkTargetDto> out = new ArrayList<>();
         for (Matches m : matchesRepo.findByRound_IdOrderByTableNoAsc(active.getId())) {
-            String reason = null;
-            if (m.getPair2() == null) {
-                reason = "MATCH_HAS_BYE";
-            } else if (alreadyLinked.contains(m.getId())) {
-                reason = "LINK_EXISTS";
-            }
+            if (m.getPair2() == null) continue;
+            if (m.getStatus() == MatchStatus.FINISHED) continue;
+            if (alreadyLinked.contains(m.getId())) continue;
             out.add(new BlokLinkTargetDto(
                     m.getId(),
                     m.getTableNo(),
@@ -246,8 +243,8 @@ public class BlokLinkService {
                     active.getNumber(),
                     pairRef(m.getPair1()),
                     pairRef(m.getPair2()),
-                    reason == null,
-                    reason));
+                    true,
+                    null));
         }
         return out;
     }
@@ -309,6 +306,7 @@ public class BlokLinkService {
 
         assertLinkable(t, r);
         if (m.getPair2() == null) throw ApiCodes.conflict("MATCH_HAS_BYE");
+        if (m.getStatus() == MatchStatus.FINISHED) throw ApiCodes.conflict("MATCH_FINISHED");
 
         Pairs usPair = sideOf(m, body.usPairId());
         if (usPair == null) throw ApiCodes.conflict("PAIR_NOT_IN_MATCH");
