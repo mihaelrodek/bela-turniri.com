@@ -14,7 +14,9 @@ import { SEATS, legalMoves, newGame, partnerOf, reduce, teamOf, viewFor } from "
 /** A dealt game with HERC as trump and the given review rule. */
 function dealt(seed: string, trickReview?: TrickReview): GameState {
     const start = newGame({ targetScore: 1001, seed, trickReview })
-    return reduce(start, { type: "BID", seat: start.bidding.turn, trump: "HERC" }).state
+    const bid = reduce(start, { type: "BID", seat: start.bidding.turn, trump: "HERC" }).state
+    // Close the opt-out window too: every seat declares (README §1.4).
+    return bid.phase === "DECLARING" ? reduce(bid, { type: "FINISH_DECLARING" }).state : bid
 }
 
 /** Play `count` complete tricks with the first legal card each time. */
@@ -174,8 +176,7 @@ describe("viewFor — trick review 'all'", () => {
 describe("trick review is a visibility rule, not a rule of play", () => {
     it("does not change a single move, score or event of an otherwise identical deal", () => {
         const run = (trickReview: TrickReview): GameState => {
-            let state = newGame({ targetScore: 1001, seed: "same-deal", trickReview })
-            state = reduce(state, { type: "BID", seat: state.bidding.turn, trump: "HERC" }).state
+            const state = dealt("same-deal", trickReview)
             return playTricks(state, 8)
         }
         const off = run("off")

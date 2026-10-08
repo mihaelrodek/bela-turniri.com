@@ -275,6 +275,12 @@ export class ReplayRecorder {
                 case "HAND_COMPLETED":
                     this.captureHands(before, after)
                     break
+                case "DECLARATIONS_REVEALED":
+                    // Since the opt-out window (2026-10-08) the declarations
+                    // are computed HERE, not with the hand: `after` at
+                    // HAND_COMPLETED has none yet.
+                    this.captureDeclarations(after)
+                    break
                 case "BELOT":
                     {
                         const deal = this.current()
@@ -315,9 +321,9 @@ export class ReplayRecorder {
     }
 
     /**
-     * The eight-card hands, the talon split, and every seat's declarations —
-     * all of it exists for exactly one instant: after `HAND_COMPLETED` and
-     * before the first card is played.
+     * The eight-card hands and the talon split — they exist for exactly one
+     * instant: after `HAND_COMPLETED` and before the first card is played.
+     * The declarations follow at `DECLARATIONS_REVEALED` (`captureDeclarations`).
      */
     private captureHands(before: GameState, after: GameState): void {
         const deal = this.current()
@@ -336,10 +342,18 @@ export class ReplayRecorder {
             talon[seat] = before.stock.slice(step * 2, step * 2 + 2)
         }
         deal.talon = talon
+    }
 
-        // EVERY seat's declarations, including the pair that lost the contest
-        // and never showed them. Lost at the table, but this is analysis after
-        // the fact and "what did the other side hold?" is half the question.
+    /**
+     * EVERY seat's declarations as the engine settled them, including the
+     * pair that lost the contest and never showed them. Lost at the table,
+     * but this is analysis after the fact and "what did the other side
+     * hold?" is half the question. A seat that opted out of declaring
+     * (README §1.4) has none here either — for the deal, it held nothing.
+     */
+    private captureDeclarations(after: GameState): void {
+        const deal = this.current()
+        if (deal === undefined || deal.declarations.length > 0) return
         for (const seat of SEATS) {
             for (const decl of after.declarations[seat]) {
                 deal.declarations.push({

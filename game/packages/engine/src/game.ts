@@ -26,6 +26,8 @@ import { declarationsScoringTeam, findDeclarations } from "./declarations"
 import { provisionalDealPoints, scoreDeal } from "./scoring"
 
 const EMPTY_DECLARATIONS = (): Record<Seat, Declaration[]> => ({ 0: [], 1: [], 2: [], 3: [] })
+/** Everybody declares unless they say otherwise (README §1.4). */
+const ALL_DECLARING = (): Record<Seat, boolean> => ({ 0: true, 1: true, 2: true, 3: true })
 
 function emptyHands(): Record<Seat, Card[]> {
     return { 0: [], 1: [], 2: [], 3: [] }
@@ -107,6 +109,7 @@ function startDeal(
         trick: { leader: opener, turn: opener, cards: [] },
         tricksWon: { A: [], B: [] },
         declarations: EMPTY_DECLARATIONS(),
+        declaring: ALL_DECLARING(),
         declarationsScoringTeam: null,
         belaDeclared: null,
         belotSeat: null,
@@ -255,6 +258,8 @@ export function reduce(
     if (action.type === "BID") return applyBid(state, action.seat, action.trump)
     if (action.type === "PASS") return applyPass(state, action.seat)
     if (action.type === "PLAY") return applyPlay(state, action.seat, action.card, action.bela)
+    if (action.type === "DECLARE") return applyDeclare(state, action.seat, action.declare)
+    if (action.type === "FINISH_DECLARING") return applyFinishDeclaring(state)
     if (action.type === "NEXT_DEAL") return applyNextDeal(state)
     throw new EngineError("BAD_REQUEST", `Nepoznata akcija: ${String((action as GameAction).type)}`)
 }
@@ -338,34 +343,85 @@ function applyBid(
         }
     }
 
-    const declarations = EMPTY_DECLARATIONS()
-    if (!state.config.noDeclarations) {
-        for (const s of SEATS) declarations[s] = findDeclarations(hands[s])
-    }
-    const scoringTeam = declarationsScoringTeam(declarations, state.dealer)
-    if (!state.config.noDeclarations) {
-        // Only the SCORING pair travels (README §1.4). The server broadcasts
-        // one identical events frame to the whole table, so the payload has to
-        // be safe for every recipient — and the losing pair's declarations are
-        // three-plus named cards of hands nobody has played yet. They are lost
-        // at a real table too; here they simply never leave `state`.
-        const perSeat: Partial<Record<Seat, Declaration[]>> = {}
-        if (scoringTeam !== null) {
-            for (const s of SEATS) {
-                if (teamOf(s) === scoringTeam) perSeat[s] = declarations[s].slice()
-            }
-        }
-        events.push({ type: "DECLARATIONS_REVEALED", perSeat, scoringTeam })
-    }
-
     const opener = nextSeat(state.dealer)
     const next: GameState = {
         ...state,
-        phase: "PLAYING",
+        phase: state.config.noDeclarations ? "PLAYING" : "DECLARING",
         hands,
         stock: [],
         bidding: { turn: seat, passes: state.bidding.passes, trump, caller: seat },
         trick: { leader: opener, turn: opener, cards: [] },
+        declarations: EMPTY_DECLARATIONS(),
+        // A fresh window for a fresh deal, whatever a hand-built state said.
+        declaring: ALL_DECLARING(),
+        declarationsScoringTeam: null,
+    }
+
+    /* With ordinary declarations OFF there is nothing to ask anybody about,
+       so play opens at once, exactly as before the window existed. Otherwise
+       the deal pauses in DECLARING (README §1.4 "Prozor za zvanja"): every
+       seat may now opt out, and only `FINISH_DECLARING` computes, reveals
+       and opens play. `dosta` cannot be decided here — nothing provable has
+       been collected yet; it is asked when the declarations settle. */
+    return { state: next, events }
+}
+
+function applyDeclare(
+    state: GameState,
+    seat: Seat,
+    declare: boolean,
+): { state: GameState; events: GameEvent[] } {
+    if (state.phase !== "DECLARING") {
+        throw new EngineError("BAD_PHASE", "Prijava zvanja nije u tijeku.")
+    }
+    if (!SEATS.includes(seat)) {
+        throw new EngineError("BAD_REQUEST", `Nepoznato sjedalo: ${String(seat)}`)
+    }
+    if (typeof declare !== "boolean") {
+        throw new EngineError("BAD_REQUEST", "Odgovor o zvanjima mora biti da ili ne.")
+    }
+    // No event, deliberately: an answer is private to the seat that gave it
+    // (see `GameState.declaring`). The view carries it back to that seat only.
+    if (state.declaring[seat] === declare) return { state, events: [] }
+    return {
+        state: { ...state, declaring: { ...state.declaring, [seat]: declare } },
+        events: [],
+    }
+}
+
+/**
+ * The old tail of `applyBid`: find every seat's declarations — none for a
+ * seat that opted out — decide who scores them, reveal, and open play.
+ */
+function applyFinishDeclaring(state: GameState): { state: GameState; events: GameEvent[] } {
+    if (state.phase !== "DECLARING") {
+        throw new EngineError("BAD_PHASE", "Prijava zvanja nije u tijeku.")
+    }
+
+    const declarations = EMPTY_DECLARATIONS()
+    for (const s of SEATS) {
+        // An opted-out seat's sequence is simply never found: as far as the
+        // deal is concerned it was never there, so it neither scores nor
+        // takes part in the "strongest declaration" comparison.
+        if (state.declaring[s]) declarations[s] = findDeclarations(state.hands[s])
+    }
+    const scoringTeam = declarationsScoringTeam(declarations, state.dealer)
+    // Only the SCORING pair travels (README §1.4). The server broadcasts
+    // one identical events frame to the whole table, so the payload has to
+    // be safe for every recipient — and the losing pair's declarations are
+    // three-plus named cards of hands nobody has played yet. They are lost
+    // at a real table too; here they simply never leave `state`.
+    const perSeat: Partial<Record<Seat, Declaration[]>> = {}
+    if (scoringTeam !== null) {
+        for (const s of SEATS) {
+            if (teamOf(s) === scoringTeam) perSeat[s] = declarations[s].slice()
+        }
+    }
+    const events: GameEvent[] = [{ type: "DECLARATIONS_REVEALED", perSeat, scoringTeam }]
+
+    const next: GameState = {
+        ...state,
+        phase: "PLAYING",
         declarations,
         declarationsScoringTeam: scoringTeam,
     }

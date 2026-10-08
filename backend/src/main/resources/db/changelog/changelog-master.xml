@@ -207,4 +207,8 @@
     <!-- Waiter replay identities include a prefix plus a SHA-256 digest (71 characters). -->
     <include file="db/changelog/processed_operations_caller_identity.xml" relativeToChangelogFile="false"/>
 
+    <include file="db/changelog/tournament_pairs_visibility.xml" relativeToChangelogFile="false"/>
+
+    <include file="db/changelog/br_rating.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>

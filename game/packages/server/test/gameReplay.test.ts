@@ -308,6 +308,7 @@ function gameOverState(): GameState {
         trick: { leader: 0, turn: 0, cards: [] },
         tricksWon: { A: [], B: [] },
         declarations: { 0: [], 1: [], 2: [], 3: [] },
+        declaring: { 0: true, 1: true, 2: true, 3: true },
         declarationsScoringTeam: null, belaDeclared: null, belaRefused: null,
         dealScore: dealScore(1), score: { A: 1041, B: 789 },
         history: [dealScore(1)], rng: { s: 1 }, winner: "A",

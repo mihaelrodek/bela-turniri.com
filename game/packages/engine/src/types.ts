@@ -22,7 +22,15 @@ export const SEATS: readonly Seat[] = [0, 1, 2, 3]
 
 export type Team = "A" | "B"
 
-export type Phase = "BIDDING" | "PLAYING" | "DEAL_DONE" | "GAME_OVER"
+/**
+ * `DECLARING` (2026-10-08): the short window between trump selection and the
+ * first card in which every seat may OPT OUT of announcing its declarations
+ * (README §1.4 "Prozor za zvanja"). Entered by a successful BID when ordinary
+ * declarations are on and the complete hands hold no belot; left by
+ * `FINISH_DECLARING`, which is when the declarations are actually computed and
+ * `DECLARATIONS_REVEALED` is emitted. Nobody is "on turn" in it.
+ */
+export type Phase = "BIDDING" | "DECLARING" | "PLAYING" | "DEAL_DONE" | "GAME_OVER"
 
 export type TargetScore = 163 | 501 | 701 | 1001
 
@@ -181,8 +189,24 @@ export interface GameState {
     bidding: BiddingState
     trick: TrickState
     tricksWon: Record<Team, WonTrick[]>
-    /** Computed once hands reach 8 cards; per seat. Revealed after trump selection, before the first card. */
+    /**
+     * Computed at the END of the `DECLARING` window (`FINISH_DECLARING`), per
+     * seat; empty until then and always empty for a seat that opted out.
+     * Revealed before the first card.
+     */
     declarations: Record<Seat, Declaration[]>
+    /**
+     * Per seat, whether its declarations will be announced when the window
+     * closes (README §1.4). `true` for everybody at the start of every deal —
+     * declaring is the default and silence declares, exactly as with bela —
+     * and only a `DECLARE { declare: false }` during `DECLARING` flips it.
+     * Read once, by `FINISH_DECLARING`; meaningless in every other phase.
+     *
+     * Never in `PlayerView` for OTHER seats: "seat 2 is not declaring" would
+     * tell the table seat 2 holds something worth hiding (or nothing at all).
+     * A seat sees only its own choice (`PlayerView.myDeclaring`).
+     */
+    declaring: Record<Seat, boolean>
     /** Team that scores its declarations this deal (null = nobody declared anything). */
     declarationsScoringTeam: Team | null
     belaDeclared: Team | null
@@ -233,6 +257,20 @@ export type GameAction =
      * error, it is simply nothing: see `applyPlay`.
      */
     | { type: "PLAY"; seat: Seat; card: Card; bela?: boolean }
+    /**
+     * A seat's answer to "Želiš li prijaviti zvanja?" during the `DECLARING`
+     * window (README §1.4). Idempotent and repeatable: the last answer before
+     * `FINISH_DECLARING` is the one that counts, so a player may switch off
+     * and back on. Legal for any seat, only in `DECLARING`.
+     */
+    | { type: "DECLARE"; seat: Seat; declare: boolean }
+    /**
+     * Closes the `DECLARING` window: computes every seat's declarations
+     * (`[]` for a seat whose `declaring` is false), emits
+     * `DECLARATIONS_REVEALED` and opens play. The SERVER sends this when the
+     * window's timer runs out; it is not a player's action.
+     */
+    | { type: "FINISH_DECLARING" }
     | { type: "NEXT_DEAL" }
 
 export type GameEvent =
@@ -360,6 +398,15 @@ export interface PlayerView {
     declarationPoints?: Record<Team, number>
     declarationsRevealed: boolean
     declarationsScoringTeam: Team | null
+    /**
+     * THIS seat's own answer in the `DECLARING` window (README §1.4): `true`
+     * (the default) = its declarations will be announced, `false` = it opted
+     * out. `null` for a spectator and in every other phase. Nobody else's
+     * answer is ever in a view — see `GameState.declaring`. Optional for the
+     * same reason as `trickHistory`: `@bela/bots` assembles PlayerViews by
+     * hand; read `undefined` as null.
+     */
+    myDeclaring?: boolean | null
     belaDeclared: Team | null
     /** Public only after the complete hand proved a belot. */
     belotSeat?: Seat | null

@@ -148,6 +148,7 @@ describe("Brza 163 — no mid-deal finish", () => {
         // GAME_OVER may appear without a DEAL_SCORED in front of it.
         let state = newGame({ targetScore: QUICK_TARGET, seed: "no-mid-deal", gameEndRule: "dosta" })
         state = reduce(state, { type: "BID", seat: state.bidding.turn, trump: "HERC" }).state
+        state = reduce(state, { type: "FINISH_DECLARING" }).state
         let scored = false
         let guard = 0
         while (state.phase === "PLAYING" && guard++ < 40) {
@@ -230,6 +231,8 @@ describe("Brza 163 — a whole game", () => {
             while (state.phase !== "GAME_OVER" && guard++ < 400) {
                 if (state.phase === "BIDDING") {
                     state = reduce(state, { type: "BID", seat: state.bidding.turn, trump: "HERC" }).state
+                } else if (state.phase === "DECLARING") {
+                    state = reduce(state, { type: "FINISH_DECLARING" }).state
                 } else if (state.phase === "PLAYING") {
                     const seat = state.trick.turn
                     state = reduce(state, { type: "PLAY", seat, card: legalMoves(state, seat)[0]! }).state

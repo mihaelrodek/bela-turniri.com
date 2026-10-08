@@ -1,9 +1,9 @@
 import type { ReactNode } from "react"
 import { Box, Flex, HStack, IconButton, Text, chakra } from "@chakra-ui/react"
-import { FiEye, FiFileText, FiLayers, FiSettings } from "react-icons/fi"
+import { FiEye, FiSettings } from "react-icons/fi"
 import type { GameEndRule } from "@bela/protocol"
 import { useTranslation, usePlural } from "../../i18n"
-import { GLASS, INK, INK_MUTED, TEAM, type TeamSide } from "./tableStyles"
+import { INK, INK_MUTED, TEAM, type TeamSide } from "./tableStyles"
 
 /* Compact HUD controls. The room's rules (target score + end rule) sit over
    the trump cell, in place of the room name — a player already inside the
@@ -11,15 +11,46 @@ import { GLASS, INK, INK_MUTED, TEAM, type TeamSide } from "./tableStyles"
    playing to 1001" and "is there a re-entry". Navigation pinned to the outer
    corner (settings only — leaving mid-deal is not offered from here). */
 
+/** "1001 · PROLAZ" — the room's rules, one line of mono. The quick game has
+ *  no end rule to show; its name says it all. */
+export function TableTitle({ targetScore, gameEndRule, compact = false }: { targetScore: number; gameEndRule: GameEndRule; compact?: boolean }) {
+    const { t } = useTranslation()
+    return (
+        // `compact` is the score panel's foot: the exact type of the two
+        // match totals beside it (2xs, mono, regular, 1.2) so the three sit
+        // on one line at one size.
+        <Text
+            fontSize={compact ? "2xs" : "xs"}
+            lineHeight={compact ? "1.2" : undefined}
+            fontFamily="mono"
+            fontVariantNumeric="tabular-nums"
+            fontWeight={compact ? "normal" : "semibold"}
+            color={compact ? INK_MUTED : INK}
+            whiteSpace="nowrap"
+            minW="0"
+            textAlign="center"
+        >
+            {targetScore === 163
+                ? t("game.create.quick.name").toUpperCase()
+                : `${targetScore} · ${t(`game.lobby.finishMode.${gameEndRule}`).toUpperCase()}`}
+        </Text>
+    )
+}
+
 export default function TableHeader({
     targetScore,
     gameEndRule,
+    center,
     chips,
     spectators = null,
     onSettings,
 }: {
     targetScore: number
     gameEndRule: GameEndRule
+    /** What the middle of the row shows instead of the rules label — the
+     *  "Zvanja" / "Štihovi" pills (`TableActions`) since 2026-10-08; the
+     *  label then lives at the score panel's foot. */
+    center?: ReactNode
     /** Spectating / connection / autoplay chips, built by the page. */
     chips?: ReactNode
     /** How many people are watching. Null when the room takes no spectators
@@ -39,19 +70,14 @@ export default function TableHeader({
             // Shorter on a phone (2026-09-20): one line of 12 px type does
             // not need 32 px of row, and the gear keeps its own 32 px tap
             // target by overhanging it.
-            minH={{ base: "24px", md: "32px" }}
+            minH={{ base: "28px", md: "32px" }}
             px="9"
             pt="0"
             flexShrink={0}
             minW="0"
         >
-            <HStack gap="1" minW="0" justify="center">
-                <Text fontSize="xs" fontFamily="mono" fontVariantNumeric="tabular-nums" fontWeight="semibold" color={INK} lineClamp={1} minW="0" textAlign="center">
-                    {/* The quick game has no end rule to show — its name says it all. */}
-                    {targetScore === 163
-                        ? t("game.create.quick.name").toUpperCase()
-                        : `${targetScore} · ${t(`game.lobby.finishMode.${gameEndRule}`).toUpperCase()}`}
-                </Text>
+            <HStack gap="1" minW="0" w="100%" justify="center">
+                {center ?? <TableTitle targetScore={targetScore} gameEndRule={gameEndRule} />}
                 {chips}
             </HStack>
 
@@ -88,104 +114,69 @@ export function TableActions({
     declarationsEnabled,
     declarationPoints,
     onDeclarations,
-    tricksEnabled,
-    tricksPlayed,
-    onTricks,
 }: {
     declarationsEnabled: boolean
     declarationPoints: Record<TeamSide, number>
     onDeclarations: () => void
-    tricksEnabled: boolean
-    tricksPlayed: number
-    onTricks: () => void
 }) {
     const { t } = useTranslation()
-    const plural = usePlural()
 
     return (
         <HStack gap="1" justify="center" flexWrap="wrap">
             <Flex position="relative" align="center">
                 <PillButton
-                    icon={<FiFileText />}
-                    label={t("game.declarations.title")}
+                    label={t("game.table.declarationsPill")}
                     badge={null}
                     badgeLabel={t("game.score.declarationBonus")}
                     ariaLabel={`${t("game.declarations.title")} — ${t("game.score.us")}: ${declarationPoints.us}, ${t("game.score.them")}: ${declarationPoints.them}`}
                     disabled={!declarationsEnabled}
                     onClick={onDeclarations}
                 />
-                {declarationPoints.us > 0 && (
-                    <DeclarationBadge side="us" points={declarationPoints.us} position="start" />
-                )}
-                {declarationPoints.them > 0 && (
-                    <DeclarationBadge side="them" points={declarationPoints.them} position="end" />
-                )}
             </Flex>
-            {tricksEnabled && (
-                <PillButton
-                    icon={<FiLayers />}
-                    label={t("game.tricks.title")}
-                    title={t("game.tricks.open")}
-                    badge={tricksPlayed > 0 ? `${tricksPlayed}` : null}
-                    badgeLabel={plural("game.table.trickCount", tricksPlayed, { n: tricksPlayed })}
-                    onClick={onTricks}
-                />
-            )}
         </HStack>
     )
 }
 
-function DeclarationBadge({
-    side,
-    points,
-    position,
+/**
+ * "Štihovi" — the played-tricks review. Not in the header row any more
+ * (2026-10-08, owner): it lives in the felt's top-left corner, and only
+ * once there IS a trick to look at; an empty deal shows nothing there.
+ */
+export function TricksPill({
+    tricksPlayed,
+    onTricks,
 }: {
-    side: TeamSide
-    points: number
-    position: "start" | "end"
+    tricksPlayed: number
+    onTricks: () => void
 }) {
+    const { t } = useTranslation()
+    const plural = usePlural()
     return (
-        <Flex
-            as="span"
-            aria-hidden="true"
-            position="absolute"
-            top="-6px"
-            {...(position === "start" ? { insetStart: "-10px" } : { insetEnd: "-10px" })}
-            minW="19px"
-            h="17px"
-            px="1"
-            align="center"
-            justify="center"
-            rounded="full"
-            bg={side === "us" ? "brand.300" : "tan"}
-            color="brand.950"
-            borderWidth="2px"
-            borderColor="bg.opaque"
-            fontSize="9px"
-            fontFamily="mono"
-            fontWeight="bold"
-            fontVariantNumeric="tabular-nums"
-            lineHeight="1"
-            outline="1px solid"
-            outlineColor={TEAM[side]}
-        >
-            {points}
-        </Flex>
+        <PillButton
+            label={t("game.tricks.title")}
+            title={t("game.tricks.open")}
+            // No count on the corner (2026-10-08, owner); the number stays
+            // in the accessible name and the tooltip.
+            badge={null}
+            badgeLabel={plural("game.table.trickCount", tricksPlayed, { n: tricksPlayed })}
+            ariaLabel={`${t("game.tricks.title")} — ${plural("game.table.trickCount", tricksPlayed, { n: tricksPlayed })}`}
+            onClick={onTricks}
+        />
     )
 }
 
 /**
- * One header action: glass capsule, icon, label from `md` up, and an optional
- * badge.
+ * One header action. Not a glass capsule any more (2026-10-08, owner: it
+ * read as a foreign widget on the cream): a mono, letter-spaced, uppercase
+ * word in the brand green — the exact voice of the "MI" / "ONI" labels under
+ * it. Disabled, it drops to the muted ink.
  *
  * A plain `<Button>` with a `<Box position="absolute">` inside would have
  * done, except that Chakra's Button clips nothing and centres everything —
  * the badge has to hang off the top-right CORNER, which needs the button to
- * be the positioned ancestor. So this is a `chakra.button`, styled from the
- * same `GLASS` every other panel on the felt uses.
+ * be the positioned ancestor. So this is a `chakra.button`.
  */
 function PillButton({
-    icon,
     label,
     title,
     badge,
@@ -194,7 +185,6 @@ function PillButton({
     disabled = false,
     onClick,
 }: {
-    icon: ReactNode
     label: string
     /** A fuller sentence for the tooltip, when the label is only a noun. */
     title?: string
@@ -212,34 +202,39 @@ function PillButton({
             position="relative"
             display="inline-flex"
             alignItems="center"
-            gap="1.5"
+            gap="0.5"
             h={{ base: "24px", md: "28px" }}
             minW="32px"
             minH={{ base: "24px", md: "28px" }}
-            px="2"
+            px="2.5"
             rounded="full"
-            {...GLASS}
-            color={INK}
-            fontSize="xs"
-            fontWeight="semibold"
+            bg="transparent"
+            // The one hairline the whole panel allows itself: the same
+            // `border.subtle` as the match lines, so it belongs here.
+            borderWidth="1px"
+            borderColor={disabled ? "border.subtle" : "brand.300"}
+            color={disabled ? INK_MUTED : TEAM.us}
+            fontSize="2xs"
+            fontFamily="mono"
+            fontWeight="bold"
+            textTransform="uppercase"
+            letterSpacing="widest"
             lineHeight="1"
             flexShrink={0}
-            opacity={disabled ? 0.45 : 1}
             cursor={disabled ? "default" : "pointer"}
             disabled={disabled}
-            _hover={disabled ? undefined : { bg: "bg.muted" }}
+            _hover={disabled ? undefined : { "@media (hover: hover)": { bg: "bg.muted" } }}
+            _active={disabled ? undefined : { bg: "bg.muted" }}
             _focusVisible={{ outline: "2px solid", outlineColor: "brand.300", outlineOffset: "2px" }}
-            transition="background 0.12s ease, opacity 0.12s ease"
+            transition="background 0.12s ease, color 0.12s ease"
             aria-label={ariaLabel ?? (badge ? `${label} — ${badgeLabel}` : label)}
             title={badge ? `${title ?? label} — ${badgeLabel}` : (title ?? label)}
             onClick={disabled ? undefined : onClick}
         >
-            <Flex as="span" align="center" fontSize="14px" aria-hidden="true">
-                {icon}
-            </Flex>
             <Box as="span" className="fold-game-header-label">
                 {label}
             </Box>
+
             {badge !== null && (
                 <Flex
                     as="span"

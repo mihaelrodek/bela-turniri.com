@@ -55,6 +55,8 @@ export type TournamentDetails = {
 
     entryPrice?: number | null;
     maxPairs?: number | null;
+    pairsPublic?: boolean;
+    registeredPairs?: number | null;
     status?: string | null;
 
     repassagePrice?: number | null;

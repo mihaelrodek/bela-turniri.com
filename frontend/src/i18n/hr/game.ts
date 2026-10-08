@@ -37,6 +37,12 @@ export const game = {
     "guest.nameOffensive": "To ime nije dopušteno. Odaberi drugo.",
     "declarations.calculating": "Igra računa zvanja…",
     "declarations.starting": "Igra počinje…",
+    // Prozor za zvanja (game/README.md §1.4, 2026-10-08): 3 s nakon aduta u
+    // kojima igrač može ISKLJUČITI prijavu svojih zvanja. Zadano = prijavljuje.
+    "declaring.ask": "Želiš li prijaviti zvanja?",
+    "declaring.switch": "Prijava zvanja",
+    "declaring.status": "Provjera zvanja…",
+    "declaring.timeLeft": "Još {seconds} s",
 
     "lobby.heroLabel": "Bela online",
     "lobby.heroTitle": "Tvoj stol. Tvoja ekipa.",
@@ -254,6 +260,8 @@ export const game = {
     "create.quick.name": "Brza 163",
     "create.quick.title": "Brza igra",
     "create.quick.description": "Bela bez zvanja — vrijedi samo bela. Najviše 3 dijeljenja, nasumičan prvi djelitelj. Pobjeđuje prvi par sa 163 boda, a ako nitko ne stigne, onaj s više bodova nakon trećeg dijeljenja.",
+    "create.standard.title": "Klasična igra",
+    "create.standard.description": "Bela sa zvanjima, igra se do {target}. Dijeli se dok jedan par ne prijeđe cilj. Pravila možeš promijeniti pod „Dodatne opcije”.",
     // Short label for the quick-play (163) discipline in tight stat pills —
     // the bare number "163" alone would not read as a discipline name the
     // way "501"/"701"/"1001" do, so it gets a word instead.
@@ -336,6 +344,7 @@ export const game = {
     "table.waiting": "Čekaj…",
     "table.spectatingIntro": "Gledaš igru",
     "table.spectatorCount": "Gledatelji: {count}",
+    "table.declarationsPill": "Pregled zvanja",
     // Promo umjesto prazne ruke gledatelja (2026-09-29, korisnički zahtjev).
     "table.spectatorPromoTitle": "Igraj svoju partiju bele",
     "table.spectatorPromoSubtitle": "Besplatno, online, s prijateljima ili s botovima.",
@@ -555,8 +564,8 @@ export const game = {
     "tricks.title": "Štihovi",
     "tricks.open": "Pogledaj odigrane štihove",
     "tricks.trickNo": "{n}. štih",
-    "tricks.ledBy": "otvara {name}",
-    "tricks.wonBy": "uzeo {name}",
+    "tricks.ledBy": "Otvorio:",
+    "tricks.wonBy": "Štih uzeo:",
     "tricks.empty": "Još nema odigranih štihova.",
     "tricks.hiddenOff": "Gledanje štihova je isključeno u ovoj sobi.",
     "tricks.hiddenLeaderPair": "Štihove pregledava samo par koji je započeo trenutni štih.",

@@ -40,7 +40,7 @@ function finishedState(): GameState {
         hands: { 0: [], 1: [], 2: [], 3: [] }, stock: [],
         bidding: { turn: 0, passes: [], trump: null, caller: null },
         trick: { leader: 0, turn: 0, cards: [] }, tricksWon: { A: [], B: [] },
-        declarations: { 0: [], 1: [], 2: [], 3: [] }, declarationsScoringTeam: null,
+        declarations: { 0: [], 1: [], 2: [], 3: [] }, declaring: { 0: true, 1: true, 2: true, 3: true }, declarationsScoringTeam: null,
         belaDeclared: null, belaRefused: null, dealScore: history[1]!,
         score: { A: 1001, B: 800 }, history, rng: createRng("analytics"), winner: "A",
     }

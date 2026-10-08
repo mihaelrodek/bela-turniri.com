@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
+import type { Card } from "@bela/engine"
+import { findDeclarations } from "@bela/engine"
 import type { PlayerView, Seat, ServerMessage, TargetScore } from "@bela/protocol"
 import type { GameServer } from "../src/server.js"
 import { startTestServer, TestClient, until } from "./helpers.js"
@@ -174,18 +176,38 @@ describe("a full game", () => {
     )
 
     it("blocks humans and bots until declarations have been shown, with a fresh turn timer afterwards", async () => {
-        server = await startTestServer({ timings: { declarationsMs: 100, botThinkMinMs: 100_000, botThinkMaxMs: 100_000 } })
+        server = await startTestServer({ timings: { declaringMs: 100, declarationsMs: 100, botThinkMinMs: 100_000, botThinkMaxMs: 100_000 } })
         const host = await connect("Zvanja")
         const roomId = await startSoloRoom(host, 501)
         await host.nextOfType("game.state")
         const game = server.lobby.get(roomId)!.game!
         game.state = { ...game.state, dealer: 3, bidding: { ...game.state.bidding, turn: 0 } }
         host.send({ t: "game.bid", trump: "HERC" })
-        const paused = await host.nextOfType("game.state")
+        // First the opt-out window (README §1.4): hands complete, nothing
+        // revealed, nobody on the clock, a deadline for the prompt only.
+        const windowOpen = await host.nextOfType("game.state")
+        expect(windowOpen.view.phase).toBe("DECLARING")
+        expect(windowOpen.declarationsPending).toBe(false)
+        expect(windowOpen.view.declarationsRevealed).toBe(false)
+        expect(windowOpen.view.hand).toHaveLength(8)
+        expect(windowOpen.view.legalMoves).toEqual([])
+        expect(windowOpen.view.turn).toBeNull()
+        expect(windowOpen.turnDeadline).toBeNull()
+        expect(windowOpen.view.myDeclaring).toBe(true)
+        expect(typeof windowOpen.declaringUntil).toBe("number")
+        expect(windowOpen.declaringUntil!).toBeGreaterThan(Date.now() - 1000)
+        host.send({ t: "game.play", card: windowOpen.view.hand[0]! })
+        expect((await host.nextOfType("error")).code).toBe("BAD_REQUEST")
+        // Then, when the window has run out, the reveal — exactly as before.
+        const paused = await host.next((m) => m.t === "game.state" && m.view.phase === "PLAYING")
+        if (paused.t !== "game.state") throw new Error("unreachable")
         expect(paused.declarationsPending).toBe(true)
+        expect(paused.declaringUntil).toBeNull()
         expect(paused.view.declarationsRevealed).toBe(true)
+        expect(paused.view.myDeclaring).toBeNull()
         expect(paused.view.legalMoves).toEqual([])
         expect(paused.turnDeadline).toBeNull()
+        expect(host.received.some((m) => m.t === "game.events" && m.events.some((e) => e.type === "DECLARATIONS_REVEALED"))).toBe(true)
         const card = paused.view.hand[0]!
         host.send({ t: "game.play", card })
         expect((await host.nextOfType("error")).code).toBe("BAD_REQUEST")
@@ -197,6 +219,73 @@ describe("a full game", () => {
         host.send({ t: "game.play", card })
         const played = await host.nextOfType("game.state")
         expect(played.view.trick.cards).toHaveLength(1)
+    })
+
+    it("lets a seat opt out of its declarations during the window, and they count as none", async () => {
+        server = await startTestServer({ timings: { declaringMs: 300, botThinkMinMs: 100_000, botThinkMaxMs: 100_000 } })
+        const host = await connect("Zvanja")
+        const roomId = await startSoloRoom(host, 501)
+        await host.nextOfType("game.state")
+        const game = server.lobby.get(roomId)!.game!
+        // Rig seat 0 a terca (7-8-9 of HERC) by swapping cards with whoever
+        // holds them, so the deal stays a legal 32-card deal.
+        const wanted: Card[] = ["7HERC", "8HERC", "9HERC"]
+        const hands = { 0: [...game.state.hands[0]], 1: [...game.state.hands[1]], 2: [...game.state.hands[2]], 3: [...game.state.hands[3]] }
+        const stock = [...game.state.stock]
+        const pools: Card[][] = [hands[1], hands[2], hands[3], stock]
+        for (const card of wanted) {
+            if (hands[0].includes(card)) continue
+            const spare = hands[0].findIndex((c) => !wanted.includes(c))
+            const pool = pools.find((p) => p.includes(card))!
+            const at = pool.indexOf(card)
+            const give = hands[0][spare]!
+            hands[0][spare] = card
+            pool[at] = give
+        }
+        game.state = { ...game.state, hands, stock, dealer: 3, bidding: { ...game.state.bidding, turn: 0 } }
+        host.send({ t: "game.bid", trump: "HERC" })
+        const windowOpen = await host.nextOfType("game.state")
+        expect(windowOpen.view.phase).toBe("DECLARING")
+        expect(findDeclarations(windowOpen.view.hand).length).toBeGreaterThan(0)
+
+        host.send({ t: "game.declare", declare: false })
+        const answered = await host.nextOfType("game.state")
+        expect(answered.view.phase).toBe("DECLARING")
+        expect(answered.view.myDeclaring).toBe(false)
+        // The answer did not restart the clock.
+        expect(answered.declaringUntil).toBe(windowOpen.declaringUntil)
+
+        const revealed = await host.next((m) => m.t === "game.events" && m.events.some((e) => e.type === "DECLARATIONS_REVEALED"))
+        if (revealed.t !== "game.events") throw new Error("unreachable")
+        const event = revealed.events.find((e) => e.type === "DECLARATIONS_REVEALED")!
+        if (event.type !== "DECLARATIONS_REVEALED") throw new Error("unreachable")
+        expect(event.perSeat[0] ?? []).toEqual([])
+        expect(game.state.phase).toBe("PLAYING")
+        expect(game.state.declarations[0]).toEqual([])
+        // ...while the hand itself still holds the sequence: the opt-out, not
+        // the cards, is what made it nothing.
+        expect(findDeclarations(game.state.hands[0]).length).toBeGreaterThan(0)
+        for (const seat of [1, 2, 3] as const) {
+            expect(game.state.declarations[seat]).toEqual(findDeclarations(game.state.hands[seat]))
+        }
+        const playing = await host.next((m) => m.t === "game.state" && m.view.phase === "PLAYING")
+        if (playing.t !== "game.state") throw new Error("unreachable")
+        expect(playing.view.declarations[0]).toEqual([])
+        expect(playing.view.myDeclaring).toBeNull()
+    })
+
+    it("refuses game.declare outside the window and from a spectator", async () => {
+        server = await startTestServer({ timings: { botThinkMinMs: 100_000, botThinkMaxMs: 100_000 } })
+        const host = await connect("Zvanja")
+        const roomId = await startSoloRoom(host, 501)
+        await host.nextOfType("game.state")
+        host.send({ t: "game.declare", declare: false })
+        expect((await host.nextOfType("error")).code).toBe("BAD_REQUEST")
+        const watcher = await connect("Gledatelj")
+        watcher.send({ t: "room.join", roomId })
+        await watcher.nextOfType("room.joined")
+        watcher.send({ t: "game.declare", declare: false })
+        expect((await watcher.nextOfType("error")).code).toBe("NOT_YOUR_TURN")
     })
 
     it("rejects a move from the wrong seat and keeps playing", async () => {

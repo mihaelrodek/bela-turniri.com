@@ -30,6 +30,9 @@ export type { LiveActivityState }
 
 const PHASES: Record<PlayerView["phase"], LiveActivityState["phase"]> = {
     BIDDING: "bidding",
+    // The opt-out window has no lock-screen word of its own: trump is set,
+    // the hand is complete, nobody is on turn — "playing", as on the server.
+    DECLARING: "playing",
     PLAYING: "playing",
     DEAL_DONE: "dealDone",
     GAME_OVER: "gameOver",

@@ -652,6 +652,16 @@ export class Hub {
                 return
             }
 
+            case "game.declare": {
+                // Shape only (README §1.4 "Prozor za zvanja"); whether the
+                // window is open is the engine's answer (`BAD_PHASE`).
+                if (typeof msg.declare !== "boolean") {
+                    throw new ProtocolError("BAD_REQUEST", "Neispravan odgovor o zvanjima.")
+                }
+                this.requireGame(conn).declare(conn, msg.declare)
+                return
+            }
+
             case "game.nextDeal":
                 this.requireGame(conn).nextDeal(conn)
                 return

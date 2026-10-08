@@ -61,6 +61,12 @@ public class TournamentPairService {
 
     /* ===================== Read ===================== */
 
+    public void setPublicVisibility(Tournaments t, boolean pairsPublic) {
+        t.setPairsPublic(pairsPublic);
+        t.setUpdatedAt(OffsetDateTime.now());
+        broadcast(t, hr.mrodek.apps.bela_turniri.realtime.LiveBroadcaster.SCOPE_TOURNAMENT);
+    }
+
     /**
      * The tournament's pairs as the current viewer is allowed to see them.
      * Claim tokens are emitted only to the primary submitter of each row
@@ -69,6 +75,7 @@ public class TournamentPairService {
      * tournament should be able to read off the API.
      */
     public List<PairDto> listForViewer(Tournaments t) {
+        if (!t.isPairsPublic() && !access.canManage(t)) return List.of();
         return toDtoListForViewer(t, pairRepo.findByTournament_Id(t.getId()));
     }
 

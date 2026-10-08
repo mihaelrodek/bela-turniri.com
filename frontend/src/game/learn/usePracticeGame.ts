@@ -201,6 +201,13 @@ export function usePracticeGame(reducedMotion: boolean): PracticeGame {
        nothing is being shown, and cleared if anything changes first. */
     useEffect(() => {
         if (busy || reveal !== null) return
+        // The opt-out window (game/README.md §1.4) is the server's three
+        // seconds; the practice table has no prompt for it, so it closes at
+        // once with everybody — the learner included — declaring.
+        if (state.phase === "DECLARING") {
+            apply({ type: "FINISH_DECLARING" })
+            return
+        }
         const seat = seatToAct(state)
         if (seat === null || seat === LEARNER_SEAT) return
         const id = window.setTimeout(() => {

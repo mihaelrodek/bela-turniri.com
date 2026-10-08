@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode, type Ref } from "react"
 import { Box, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react"
 import { FiChevronDown, FiChevronUp } from "react-icons/fi"
 import type { PlayerView, RoomState, Seat } from "@bela/protocol"
@@ -6,8 +6,12 @@ import type { Team } from "@bela/engine"
 import { useTranslation } from "../../i18n"
 import { teamOf } from "../util/seats"
 import SuitGlyph from "./SuitGlyph"
-import TrumpBadge from "./TrumpBadge"
+import TrumpBadge, { type TrumpGlyphState } from "./TrumpBadge"
 import { INK, INK_MUTED, SHORT, TEAM, type TeamSide } from "./tableStyles"
+
+/** Width of the middle column in both score rows (trump cell above, rules
+ *  label below) — the same so the team columns either side line up. */
+const MID_W = { base: "120px", md: "160px" } as const
 import { useGamePrefs } from "../hooks/useGamePrefs"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 
@@ -113,6 +117,8 @@ function useSettleProgress(settling: boolean, dealNo: number, reducedMotion: boo
    losing side too. It is shown only when non-zero, and it is deliberately NOT
    added into the big number: the big number is card points taken, and a player
    reading "how much do we still need" wants those two quantities separately.
+   It is the only place the deal's declarations show since 2026-10-08 — the
+   "Zvanja" pill no longer carries a badge saying the same thing.
 
    HUD v3 (DESIGN §6) changed the packaging, not the facts:
 
@@ -139,16 +145,26 @@ export default function ScoreBoard({
     seats,
     targetScore,
     header,
-    actions,
+    foot,
     noDeclarations = false,
     allowBela = true,
     onBackgroundClick,
+    trumpGlyph,
+    trumpGlyphRef,
 }: {
     view: PlayerView
     seats: RoomState["seats"]
     targetScore: number
     header?: ReactNode
-    actions?: ReactNode
+    /** What sits between the two match lines at the panel's foot — the
+     *  room's rules label (`TableTitle`), since the pills moved up into the
+     *  header row (2026-10-08, owner: the header had grown a hole). */
+    foot?: ReactNode
+    /** The trump flight's hooks into the badge (see `TrumpBadge`): how its
+     *  mark is shown, and the wrapper the page measures as the landing
+     *  spot. Both only forwarded. */
+    trumpGlyph?: TrumpGlyphState
+    trumpGlyphRef?: Ref<HTMLDivElement>
     /** The room's house rules. They change how the deal SCORES, so they are
      *  stated on the table itself and not only on the room screen — and in a
      *  colour you cannot mistake for decoration. */
@@ -196,9 +212,6 @@ export default function ScoreBoard({
 
     const usLabel = spectator ? t("game.score.teamA") : t("game.score.us")
     const themLabel = spectator ? t("game.score.teamB") : t("game.score.them")
-    // Optional on PlayerView — the bots hand-assemble views without it — so
-    // "no bonus known" reads as no bonus.
-    const declarationPoints = view.declarationPoints ?? { A: 0, B: 0 }
     /* Between the last trick and "next deal" the server has ALREADY added the
        deal to `score`, while the big numbers still show that same deal — so
        the small running total read as if the deal would be added a second
@@ -224,6 +237,9 @@ export default function ScoreBoard({
         settling ? view.score[team] - settling.total[team] + poured(team) : view.score[team]
     const shownDeal = (team: Team) =>
         settling && pour !== null ? settling.total[team] - poured(team) : view.currentDealPoints[team]
+    // Optional on PlayerView — the bots hand-assemble views without it — so
+    // "no bonus known" reads as no bonus.
+    const declarationPoints = view.declarationPoints ?? { A: 0, B: 0 }
     const shownDeclarations = (team: Team) =>
         settling && pour !== null ? 0 : declarationPoints[team]
 
@@ -260,8 +276,8 @@ export default function ScoreBoard({
             // Trimmed on a phone (2026-09-20): the panel was ~135 px of a
             // 796 px column, and every pixel it gives back is a pixel of
             // felt. Only padding and gaps went — the type is untouched.
-            pt={{ base: "0.5", md: "1" }}
-            pb={{ base: "0.5", md: "1.5" }}
+            pt={{ base: "0.5", md: "0.5" }}
+            pb={{ base: "0.5", md: "1" }}
             css={{ [SHORT]: { paddingTop: "2px", paddingBottom: "2px" } }}
         >
             {/* Moved off the "ONI" progress bar (2026-09-20, user request):
@@ -304,6 +320,11 @@ export default function ScoreBoard({
                 </IconButton>
             )}
             {header}
+            {/* Both rows share ONE middle width (`MID_W`), so the team
+                column above a match line is exactly the column the line's
+                total sits under — with the trump cell and the rules label
+                sized by their own content the two rows drifted apart
+                (2026-10-08, owner). */}
             <Flex position="relative" align="stretch" justify="space-between" gap={{ base: "1.5", md: "2" }}>
                 <TeamCard
                     label={usLabel}
@@ -311,16 +332,9 @@ export default function ScoreBoard({
                     dealPoints={shownDeal(myTeam)}
                     declarationPoints={shownDeclarations(myTeam)}
                     declarationLabel={t("game.score.declarationBonus")}
-                    total={shownTotal(myTeam)}
-                    progressLabel={t("game.score.progress", {
-                        total: shownTotal(myTeam),
-                        target: targetScore,
-                    })}
-                    targetScore={targetScore}
-                    align="start"
                 />
 
-                <VStack gap={{ base: "0", md: "0.5" }} align="center" flexShrink={0}>
+                <VStack gap="0" align="center" flexShrink={0} w={MID_W}>
                     {(noDeclarations || !allowBela) && (
                         <HStack gap="1" role="group" aria-label={t("game.rules.title")}>
                             {noDeclarations && <RuleChip>{t("game.rules.noDeclarations")}</RuleChip>}
@@ -331,13 +345,14 @@ export default function ScoreBoard({
                         trump={trump}
                         callerName={caller === null ? null : seatName(seats, caller, t("game.seat.empty"))}
                         fallback={t("game.table.phaseBidding")}
+                        glyph={trumpGlyph}
+                        glyphRef={trumpGlyphRef}
                         // Whose deal this is, in the same two colours the
                         // seats and the cards use — so "who has to make it"
                         // is answered by the cell's own border, not only by
                         // the name inside it.
                         callerTeam={caller === null ? null : teamOf(caller) === myTeam ? "us" : "them"}
                     />
-                    {actions}
                 </VStack>
 
                 <TeamCard
@@ -346,12 +361,44 @@ export default function ScoreBoard({
                     dealPoints={shownDeal(theirTeam)}
                     declarationPoints={shownDeclarations(theirTeam)}
                     declarationLabel={t("game.score.declarationBonus")}
-                    total={shownTotal(theirTeam)}
-                    progressLabel={t("game.score.progress", {
-                        total: shownTotal(theirTeam),
-                        target: targetScore,
-                    })}
+                />
+            </Flex>
+
+            {/* The foot: both progress bars on ONE line with the room's rules
+                label between them, and each pair's MATCH total
+                under its own line (2026-10-08, owner — the phone panel was a
+                row taller for a 2 px line under each card, and the total
+                above the line read as part of the deal figure). The deal's
+                declaration points live only on the pill's badge now; the
+                "+20" that also rode beside the big number said the same
+                thing twice.
+                The bars fill from the OUTER edges inward, so the gap
+                between the two fills is the gap in the match, and the pills
+                sit in the middle of it. */}
+            <Flex align="center" gap={{ base: "1.5", md: "2" }} mt={{ base: "-1", md: "-0.5" }}>
+                <MatchProgress
+                    team="us"
+                    total={shownTotal(myTeam)}
                     targetScore={targetScore}
+                    label={t("game.score.progress", { total: shownTotal(myTeam), target: targetScore })}
+                    align="start"
+                />
+                {/* On the totals' baseline, not centred on the whole
+                    bar-plus-total column (2026-10-08, owner): the label and
+                    the two totals are the same 2xs line, so bottom-aligning
+                    the slot puts all three in one row. */}
+                <VStack flexShrink={0} gap="0.5" align="center" w={MID_W}>
+                    {/* The same 2 px + gap the two `MatchProgress` columns
+                        put above their totals, so the label's line box IS
+                        the totals' line box — same row, same baseline. */}
+                    <Box h="2px" />
+                    {foot}
+                </VStack>
+                <MatchProgress
+                    team="them"
+                    total={shownTotal(theirTeam)}
+                    targetScore={targetScore}
+                    label={t("game.score.progress", { total: shownTotal(theirTeam), target: targetScore })}
                     align="end"
                 />
             </Flex>
@@ -367,7 +414,11 @@ export default function ScoreBoard({
                     role="dialog"
                     aria-label={t("game.score.historyTitle")}
                     position="absolute"
-                    top="calc(100% - 6px)"
+                    // Exactly from the panel's bottom hairline (2026-10-08,
+                    // owner): the pills moved up into the header row, so
+                    // there is nothing left at the foot to cover and the
+                    // score row above stays whole.
+                    top="100%"
                     left="0"
                     right="0"
                     zIndex={20}
@@ -459,10 +510,6 @@ function TeamCard({
     dealPoints,
     declarationPoints,
     declarationLabel,
-    total,
-    progressLabel,
-    targetScore,
-    align,
 }: {
     label: string
     /** Which pair this card is, relative to the viewer (`TEAM`, DESIGN §6). */
@@ -473,16 +520,7 @@ function TeamCard({
      *  that lost the declarations contest. Rendered only when non-zero. */
     declarationPoints: number
     declarationLabel: string
-    total: number
-    /** Spoken form of the bar, for anyone who cannot see a 2 px line. */
-    progressLabel: string
-    targetScore: number
-    align: "start" | "end"
 }) {
-    // Clamped, because the deal that wins the match usually overshoots the
-    // target and a bar past 100 % would render as a bar that lost its end.
-    const progress = Math.max(0, Math.min(1, targetScore > 0 ? total / targetScore : 0))
-
     return (
         <VStack
             gap="0"
@@ -491,7 +529,7 @@ function TeamCard({
             flex="1"
             px={{ base: "1.5", md: "2" }}
             pt="0"
-            pb={{ base: "0", md: "1" }}
+            pb="0"
             rounded="l2"
             bg="transparent"
             borderWidth="1px"
@@ -511,12 +549,13 @@ function TeamCard({
             </Text>
             {/* The bonus rides on the big number's own line — the table screen
                 is a phone in portrait and there is no row to spare (DESIGN §4.6).
-                It sits INBOARD (right of the left column, left of the right
-                one) so the two big numbers keep the outer edges. */}
+                Always to the RIGHT of the number (2026-10-08, owner): "0 +100"
+                reads as a sum on both sides, where a leading "+100 0" on the
+                far column read backwards. */}
             <Flex justify="center" w="100%">
                 <Box position="relative" display="inline-flex" alignItems="baseline">
                     <Text
-                        fontSize={{ base: "2xl", md: "4xl" }}
+                        fontSize={{ base: "2xl", md: "3xl" }}
                         lineHeight="1.05"
                         fontFamily="mono"
                         fontWeight="bold"
@@ -531,9 +570,7 @@ function TeamCard({
                             position="absolute"
                             top="50%"
                             transform="translateY(-50%)"
-                            {...(align === "end"
-                                ? { right: "calc(100% + 4px)" }
-                                : { left: "calc(100% + 4px)" })}
+                            left="calc(100% + 4px)"
                             fontSize="xs"
                             fontFamily="mono"
                             fontWeight="bold"
@@ -548,29 +585,39 @@ function TeamCard({
                     )}
                 </Box>
             </Flex>
+        </VStack>
+    )
+}
 
-            {/* Match total, under the deal number. The deal figure resets
-                every hand; a player mid-deal still wants "how much have we
-                banked overall" without opening the history panel — the bar
-                alone answers "how close" but not "how much". */}
-            <Text
-                fontSize="2xs"
-                lineHeight="1.2"
-                color={INK_MUTED}
-                fontFamily="mono"
-                fontVariantNumeric="tabular-nums"
-            >
-                {total}
-            </Text>
-
-            {/* The bar. 2 px, full width of the card, and it fills from the
-                card's OUTER edge inward (`row-reverse` on the right-hand
-                card) so the two bars grow toward each other and the gap
-                between them is the gap in the match. */}
+/**
+ * One pair's match progress: a 2 px line filling from the card's OUTER edge
+ * inward (`row-reverse` on the right-hand one) so the two lines grow toward
+ * each other, with the banked match total UNDER the line. Lives on the
+ * panel's foot beside the pills, not under its card.
+ */
+function MatchProgress({
+    team,
+    total,
+    targetScore,
+    label,
+    align,
+}: {
+    team: TeamSide
+    total: number
+    targetScore: number
+    /** Spoken form of the bar, for anyone who cannot see a 2 px line. */
+    label: string
+    align: "start" | "end"
+}) {
+    // Clamped, because the deal that wins the match usually overshoots the
+    // target and a bar past 100 % would render as a bar that lost its end.
+    const progress = Math.max(0, Math.min(1, targetScore > 0 ? total / targetScore : 0))
+    return (
+        // Same side padding as `TeamCard`, so this column's centre IS the
+        // card's centre above it and the total sits under the big number.
+        <VStack flex="1" minW="0" gap="0.5" align="stretch" px={{ base: "1.5", md: "2" }}>
             <Box
-                w="100%"
                 h="2px"
-                mt={{ base: "0.5", md: "1" }}
                 rounded="full"
                 bg="border.subtle"
                 overflow="hidden"
@@ -580,7 +627,7 @@ function TeamCard({
                 aria-valuemin={0}
                 aria-valuemax={targetScore}
                 aria-valuenow={total}
-                aria-label={progressLabel}
+                aria-label={label}
             >
                 <Box
                     h="100%"
@@ -593,6 +640,16 @@ function TeamCard({
                     transition="width 160ms ease-out"
                 />
             </Box>
+            <Text
+                fontSize="2xs"
+                lineHeight="1.2"
+                color={INK_MUTED}
+                fontFamily="mono"
+                fontVariantNumeric="tabular-nums"
+                textAlign="center"
+            >
+                {total}
+            </Text>
         </VStack>
     )
 }

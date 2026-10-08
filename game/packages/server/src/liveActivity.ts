@@ -149,6 +149,10 @@ export interface LiveActivitySnapshot {
 
 const PHASES: Record<GameState["phase"], LiveActivityState["phase"]> = {
     BIDDING: "bidding",
+    // The lock screen has no word for the three-second opt-out window and
+    // needs none: trump is set and the hand is complete, so it is "playing"
+    // with nobody on turn.
+    DECLARING: "playing",
     PLAYING: "playing",
     DEAL_DONE: "dealDone",
     GAME_OVER: "gameOver",

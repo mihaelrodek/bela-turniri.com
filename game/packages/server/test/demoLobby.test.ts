@@ -474,6 +474,7 @@ describe("a fake person costs nothing anywhere", () => {
             trick: { leader: 0, turn: 0, cards: [] },
             tricksWon: { A: [], B: [] },
             declarations: { 0: [], 1: [], 2: [], 3: [] },
+            declaring: { 0: true, 1: true, 2: true, 3: true },
             declarationsScoringTeam: null,
             belaDeclared: null,
             belaRefused: null,
@@ -544,7 +545,9 @@ describe("with GAME_DEMO_LOBBY unset", () => {
     })
 
     it("leaves an ordinary room exactly as it was — its last member still deletes it", async () => {
-        const server = await startTestServer()
+        // A closed socket holds a lobby seat for `reconnectGraceMs` first
+        // (seatHold.test.ts); short here so the deletion is what is waited on.
+        const server = await startTestServer({ timings: { reconnectGraceMs: 80 } })
         try {
             const c = await TestClient.connect(server.url())
             await c.hello("Ivo")

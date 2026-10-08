@@ -604,7 +604,7 @@ export default function TournamentDetailsPage() {
                         </VStack>
                     ) : tab === "details" ? (
                         !editor.editingDetails || !editor.editForm ? (
-                            <DetailsSection t={t} pairCount={pairs.length} />
+                            <DetailsSection t={t} pairCount={canEditTournament ? pairs.length : (t.registeredPairs ?? pairs.length)} />
                         ) : (
                             <Suspense
                                 fallback={
@@ -689,6 +689,10 @@ export default function TournamentDetailsPage() {
                             selfRegClaim={pairsEd.selfRegClaim}
                             setSelfRegClaim={pairsEd.setSelfRegClaim}
                             onPodiumUpdated={setT}
+                            onVisibilityUpdated={(updated) => {
+                                cancelInFlight()
+                                setT(updated)
+                            }}
                             selfRegOpen={pairsEd.selfRegOpen}
                             setSelfRegOpen={pairsEd.setSelfRegOpen}
                             presets={pairsEd.presets}

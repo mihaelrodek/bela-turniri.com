@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+    <!-- Expand only. No historical game is backfilled/rated. Older binaries ignore these tables. -->
+    <changeSet id="2026-10-04-br-rating" author="mrodek">
+        <sql splitStatements="true"><![CDATA[
+            CREATE TABLE br_control (id integer PRIMARY KEY CHECK (id = 1));
+            INSERT INTO br_control(id) VALUES (1);
+            CREATE TABLE br_seasons (
+                id varchar(7) PRIMARY KEY,
+                starts_at timestamptz NOT NULL,
+                ends_at timestamptz NOT NULL CHECK (ends_at > starts_at)
+            );
+            CREATE TABLE br_ratings (
+                uid varchar(128) PRIMARY KEY,
+                player_name varchar(64) NOT NULL,
+                mu double precision NOT NULL DEFAULT 25,
+                sigma double precision NOT NULL DEFAULT 8.333333333333334 CHECK (sigma > 0),
+                br integer NOT NULL DEFAULT 1000 CHECK (br >= 0),
+                best_br integer NOT NULL DEFAULT 1000,
+                games integer NOT NULL DEFAULT 0 CHECK (games >= 0),
+                wins integer NOT NULL DEFAULT 0 CHECK (wins >= 0 AND wins <= games),
+                last_played_at timestamptz
+            );
+            CREATE TABLE br_matches (
+                id bigserial PRIMARY KEY,
+                match_id uuid NOT NULL UNIQUE,
+                season_id varchar(7) NOT NULL REFERENCES br_seasons(id),
+                room_id varchar(128) NOT NULL,
+                started_at timestamptz NOT NULL,
+                finished_at timestamptz NOT NULL CHECK (finished_at >= started_at),
+                outcome varchar(16) NOT NULL CHECK (outcome IN ('COMPLETED','FORFEIT','CANCELLED')),
+                winner_team char(1) CHECK (winner_team IN ('A','B')),
+                policy_version integer NOT NULL,
+                algorithm_version varchar(64) NOT NULL,
+                review_flag varchar(64),
+                report jsonb NOT NULL,
+                recorded_at timestamptz NOT NULL DEFAULT now(),
+                CHECK ((outcome = 'CANCELLED' AND winner_team IS NULL) OR
+                       (outcome <> 'CANCELLED' AND winner_team IS NOT NULL))
+            );
+            CREATE TABLE br_rating_changes (
+                match_id uuid NOT NULL REFERENCES br_matches(match_id),
+                uid varchar(128) NOT NULL REFERENCES br_ratings(uid),
+                seat smallint NOT NULL CHECK (seat BETWEEN 0 AND 3),
+                won boolean NOT NULL,
+                mu_before double precision NOT NULL,
+                sigma_before double precision NOT NULL,
+                br_before integer NOT NULL,
+                mu_after double precision NOT NULL,
+                sigma_after double precision NOT NULL,
+                br_after integer NOT NULL,
+                PRIMARY KEY (match_id, uid),
+                UNIQUE (match_id, seat)
+            );
+            CREATE TABLE br_season_standings (
+                season_id varchar(7) NOT NULL REFERENCES br_seasons(id),
+                uid varchar(128) NOT NULL REFERENCES br_ratings(uid),
+                games integer NOT NULL CHECK (games > 0),
+                wins integer NOT NULL CHECK (wins >= 0 AND wins <= games),
+                br integer NOT NULL,
+                best_br integer NOT NULL,
+                last_played_at timestamptz NOT NULL,
+                PRIMARY KEY (season_id, uid)
+            );
+            CREATE TABLE br_season_awards (
+                season_id varchar(7) NOT NULL REFERENCES br_seasons(id),
+                place smallint NOT NULL CHECK (place BETWEEN 1 AND 3),
+                uid varchar(128) NOT NULL REFERENCES br_ratings(uid),
+                br integer NOT NULL,
+                games integer NOT NULL,
+                wins integer NOT NULL,
+                awarded_at timestamptz NOT NULL DEFAULT now(),
+                PRIMARY KEY (season_id, place),
+                UNIQUE (season_id, uid)
+            );
+            CREATE INDEX idx_br_active_ranking ON br_ratings(br DESC, last_played_at) WHERE games >= 20;
+            CREATE INDEX idx_br_changes_uid ON br_rating_changes(uid);
+            CREATE INDEX idx_br_matches_finished ON br_matches(finished_at);
+            CREATE INDEX idx_br_standings_ranking ON br_season_standings(season_id, br DESC);
+        ]]></sql>
+        <!-- Roll back application/flags, retaining all rating evidence. No destructive down migration. -->
+        <rollback><sql>SELECT 1;</sql></rollback>
+    </changeSet>
+</databaseChangeLog>

@@ -63,6 +63,10 @@ function driveGame(
                 expect(legal.suits).toContain(choice)
                 action = { type: "BID", seat, trump: choice }
             }
+        } else if (state.phase === "DECLARING") {
+            // The opt-out window is the table's clock, not a bot decision:
+            // bots always declare (README §1.4).
+            action = { type: "FINISH_DECLARING" }
         } else if (state.phase === "PLAYING") {
             const seat = state.trick.turn
             const legal = legalMoves(state, seat)

@@ -149,8 +149,9 @@ export function SeatAvatar({
     callerTrump?: Suit | null
     countdown?: TurnCountdown | null
     reaction?: SeatBubble | null
-    /** Keep a flank seat's speech bubble inside the table. */
-    reactionAlign?: "left" | "center" | "right"
+    /** Keep a flank seat's speech bubble inside the table; `beside` floats it
+     *  to the right of the avatar instead of above it. */
+    reactionAlign?: ReactionAlign
     reducedMotion?: boolean
 }) {
     const { t } = useTranslation()
@@ -294,6 +295,17 @@ const BUBBLE_FADE_MS = 150
  * Reduced motion (OS or the table's "Smanji animacije") keeps only a short
  * opacity fade — no scale, no float.
  */
+/**
+ * Where a seat's speech bubble goes, relative to the avatar.
+ *
+ * `left` / `center` / `right` all float ABOVE it and only differ in which edge
+ * the tail hugs. `beside` floats it to the RIGHT, vertically centred: the
+ * partner's seat sits right under the table header, and a bubble rising from
+ * it landed on the "Zvanja" tile and the two covered each other (2026-10-08,
+ * owner report).
+ */
+export type ReactionAlign = "left" | "center" | "right" | "beside"
+
 function ReactionBubble({
     bubble,
     align,
@@ -301,7 +313,7 @@ function ReactionBubble({
     reducedMotion,
 }: {
     bubble: SeatBubble | null
-    align: "left" | "center" | "right"
+    align: ReactionAlign
     frame: number
     reducedMotion: boolean
 }) {
@@ -321,9 +333,12 @@ function ReactionBubble({
     if (!shown) return null
 
     // Grow out of the tail, which points at the avatar.
-    const origin = align === "left"
-        ? `${frame / 2}px 100%`
-        : align === "right" ? `calc(100% - ${frame / 2}px) 100%` : "50% 100%"
+    const origin = align === "beside"
+        ? "0% 50%"
+        : align === "left"
+            ? `${frame / 2}px 100%`
+            : align === "right" ? `calc(100% - ${frame / 2}px) 100%` : "50% 100%"
+    const beside = align === "beside"
     const animation = leaving
         ? reducedMotion
             ? `${FADE_OUT} ${BUBBLE_FADE_MS}ms ease-in forwards`
@@ -335,10 +350,11 @@ function ReactionBubble({
     return (
         <Box
             position="absolute"
-            bottom={`calc(100% + 7px)`}
-            left={align === "right" ? "auto" : align === "left" ? "0" : "50%"}
+            bottom={beside ? "auto" : `calc(100% + 7px)`}
+            top={beside ? "50%" : "auto"}
+            left={beside ? "calc(100% + 9px)" : align === "right" ? "auto" : align === "left" ? "0" : "50%"}
             right={align === "right" ? "0" : "auto"}
-            transform={align === "center" ? "translateX(-50%)" : undefined}
+            transform={beside ? "translateY(-50%)" : align === "center" ? "translateX(-50%)" : undefined}
             zIndex={8}
             pointerEvents="none"
             aria-hidden={leaving || undefined}
@@ -367,19 +383,31 @@ function ReactionBubble({
                 willChange="transform, opacity"
                 css={{
                     animation,
-                    "&::after": {
-                        content: "''",
-                        position: "absolute",
-                        top: "100%",
-                        left: align === "left"
-                            ? `${frame / 2 - 5}px`
-                            : align === "right" ? "auto" : "50%",
-                        right: align === "right" ? `${frame / 2 - 5}px` : "auto",
-                        transform: align === "center" ? "translateX(-50%)" : undefined,
-                        borderLeft: "5px solid transparent",
-                        borderRight: "5px solid transparent",
-                        borderTop: "6px solid var(--chakra-colors-brand-50)",
-                    },
+                    "&::after": beside
+                        ? {
+                            // Tail on the left edge, pointing back at the avatar.
+                            content: "''",
+                            position: "absolute",
+                            right: "100%",
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            borderTop: "5px solid transparent",
+                            borderBottom: "5px solid transparent",
+                            borderRight: "6px solid var(--chakra-colors-brand-50)",
+                        }
+                        : {
+                            content: "''",
+                            position: "absolute",
+                            top: "100%",
+                            left: align === "left"
+                                ? `${frame / 2 - 5}px`
+                                : align === "right" ? "auto" : "50%",
+                            right: align === "right" ? `${frame / 2 - 5}px` : "auto",
+                            transform: align === "center" ? "translateX(-50%)" : undefined,
+                            borderLeft: "5px solid transparent",
+                            borderRight: "5px solid transparent",
+                            borderTop: "6px solid var(--chakra-colors-brand-50)",
+                        },
                 }}
             >
                 <Box as="span" aria-hidden="true" fontSize="14px" mr="1.5" lineHeight="1">{shown.reaction}</Box>
@@ -463,7 +491,7 @@ export default function Seat({
     bid?: SeatBid | null
     /** Quick phrase from `chat.reaction`, floated briefly above the avatar. */
     reaction?: SeatBubble | null
-    reactionAlign?: "left" | "center" | "right"
+    reactionAlign?: ReactionAlign
     reducedMotion?: boolean
     /** My pair or theirs, relative to the viewer (`TEAM`, DESIGN §6). */
     team?: TeamSide

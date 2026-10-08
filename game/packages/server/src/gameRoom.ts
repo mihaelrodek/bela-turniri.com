@@ -11,6 +11,11 @@
        NOT fast-forwarded: the table keeps its normal rhythm while their seat
        is held, and they can walk back in mid-deadline (README §3 "Timeri")
      • bot seat → the bot acts after a random think delay
+     • DECLARING                → nobody is on turn. One timer, `declaringMs`
+       (README §3.1), closes the opt-out window with `FINISH_DECLARING`;
+       `game.declare` from a seated human flips that seat's answer meanwhile.
+       The deadline is fixed when the window opens and survives every
+       re-`schedule()` in between — an answer must not restart the clock
      • DEAL_DONE                → `game.nextDeal` is a per-seat ACK: the deal
        advances as soon as every CONNECTED human seat has acked (bots and
        seats on hold do not vote), and otherwise on the `dealDoneAutoMs`
@@ -63,6 +68,8 @@ function unref(t: Timer): Timer {
 export class GameRoom {
     state: GameState
     private declarationsUntil = 0
+    /** Epoch ms when the current `DECLARING` window closes; null outside it. */
+    private declaringUntil: number | null = null
 
     private readonly room: Room
     private readonly t: Timings
@@ -74,6 +81,7 @@ export class GameRoom {
     private turnTimer: Timer | null
     private botTimer: Timer | null
     private dealDoneTimer: Timer | null
+    private declaringTimer: Timer | null
     private turnDeadline: number | null
     private turnDurationMs: number | null
     private lastAutoPlayed: boolean
@@ -101,6 +109,7 @@ export class GameRoom {
         this.turnTimer = null
         this.botTimer = null
         this.dealDoneTimer = null
+        this.declaringTimer = null
         this.turnDeadline = null
         this.turnDurationMs = null
         this.lastAutoPlayed = false
@@ -156,6 +165,18 @@ export class GameRoom {
     play(conn: Connection, card: Card, bela?: boolean): void {
         if (this.declarationsUntil > Date.now()) throw new ProtocolError("BAD_REQUEST", "Pričekajte prikaz zvanja.")
         this.applyChecked({ type: "PLAY", seat: this.seatOf(conn), card, bela }, false)
+    }
+
+    /**
+     * "Želiš li prijaviti zvanja?" — the seat's answer during the `DECLARING`
+     * window (README §1.4). Any seated human, any number of times; the engine
+     * refuses it outside the window (`BAD_PHASE`). `autoPlayed: false`: a
+     * choice somebody made is not a move the server made for them. No event
+     * leaves the engine for it, so this is a state broadcast only, and the
+     * answer rides back to its own seat as `PlayerView.myDeclaring`.
+     */
+    declare(conn: Connection, declare: boolean): void {
+        this.applyChecked({ type: "DECLARE", seat: this.seatOf(conn), declare }, false)
     }
 
     /**
@@ -235,11 +256,16 @@ export class GameRoom {
         // finalisation (stats, live activity, room back to LOBBY) behind an
         // 8 s timer that a room emptying out in the meantime would cancel for
         // good. The client's own event queue still plays the reveal first.
-        if (
-            result.state.phase !== "GAME_OVER"
-            && result.events.some((event) => event.type === "DECLARATIONS_REVEALED")
-        ) {
-            this.declarationsUntil = Date.now() + this.t.declarationsMs
+        const revealed = result.state.phase === "GAME_OVER"
+            ? undefined
+            : result.events.find((event) => event.type === "DECLARATIONS_REVEALED")
+        if (revealed) {
+            // "Nitko nema zvanja" needs a glance, not the full read of a
+            // list (2026-10-08, owner: the pause read as a hang).
+            const ms = revealed.scoringTeam === null
+                ? Math.min(this.t.declarationsMs, this.t.declarationsNoneMs)
+                : this.t.declarationsMs
+            this.declarationsUntil = Date.now() + ms
         }
         this.lastAutoPlayed = autoPlayed
         this.schedule()
@@ -270,6 +296,7 @@ export class GameRoom {
         return {
             t: "game.state",
             declarationsPending: this.declarationsUntil > Date.now(),
+            declaringUntil: this.state.phase === "DECLARING" ? this.declaringUntil : null,
             view,
             turnDeadline: this.turnDeadline,
             turnDurationMs: this.turnDurationMs,
@@ -350,15 +377,40 @@ export class GameRoom {
         if (this.turnTimer) clearTimeout(this.turnTimer)
         if (this.botTimer) clearTimeout(this.botTimer)
         if (this.dealDoneTimer) clearTimeout(this.dealDoneTimer)
+        if (this.declaringTimer) clearTimeout(this.declaringTimer)
         this.turnTimer = null
         this.botTimer = null
         this.dealDoneTimer = null
+        this.declaringTimer = null
     }
 
     private schedule(): void {
         this.clearTimers()
         if (this.disposed) return
         const st = this.state
+        // The window's deadline belongs to the window: forgotten the moment
+        // the phase is anything else, so the next deal opens a fresh one.
+        if (st.phase !== "DECLARING") this.declaringUntil = null
+
+        if (st.phase === "DECLARING") {
+            this.turnDeadline = null
+            this.turnDurationMs = null
+            this.scheduledSeat = null
+            this.scheduledAsBot = null
+            // Armed ONCE per window. `schedule()` runs again after every
+            // `game.declare` (it is an ordinary `apply`), and re-arming from
+            // `declaringMs` there would let a seat that keeps toggling hold
+            // the whole table — so the timer is always for whatever is LEFT.
+            if (this.declaringUntil === null) this.declaringUntil = Date.now() + this.t.declaringMs
+            this.declaringTimer = unref(
+                setTimeout(() => {
+                    this.declaringTimer = null
+                    // Not a move made for anybody: the window simply closed.
+                    this.autoApply({ type: "FINISH_DECLARING" }, false)
+                }, Math.max(0, this.declaringUntil - Date.now())),
+            )
+            return
+        }
 
         if (this.declarationsUntil > Date.now()) {
             this.turnDeadline = null
@@ -462,6 +514,10 @@ export class GameRoom {
             this.schedule()
             return
         }
+        // Presence changes nothing about the opt-out window: it is one clock
+        // for the whole table, and a seat that comes or goes keeps whatever
+        // answer it has (the default being "declare").
+        if (st.phase === "DECLARING") return
         const seat = this.currentSeat()
         const asBot = seat === null ? null : this.isBotControlled(seat)
         if (seat === this.scheduledSeat && asBot === this.scheduledAsBot) return

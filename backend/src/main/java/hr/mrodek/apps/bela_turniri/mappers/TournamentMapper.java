@@ -72,8 +72,13 @@ public interface TournamentMapper {
             @Mapping(target = "bannerUrl", expression = "java(publicUrl(t))"),
             @Mapping(target = "createdByUid", source = "createdByUid"),
             @Mapping(target = "createdByName", source = "createdByName"),
+            @Mapping(target = "registeredPairs", expression = "java(registeredPairs)"),
     })
-    TournamentDetailsResponse toDetails(Tournaments t);
+    TournamentDetailsResponse toDetails(Tournaments t, @Context Long registeredPairs);
+
+    default TournamentDetailsResponse toDetails(Tournaments t) {
+        return toDetails(t, null);
+    }
 
     /* ========== Create DTO -> Entity ========== */
     @Mappings({

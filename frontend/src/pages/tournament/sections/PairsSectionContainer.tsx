@@ -13,6 +13,12 @@ import type { PairRequest } from "../../../api/pairRequests"
 import type { UserPairPreset } from "../../../api/userPairPresets"
 import type { PairShort } from "../../../types/pairs"
 import type { TournamentDetails } from "../../../types/tournaments"
+import { setTournamentPairsVisibility } from "../../../api/tournaments"
+import EmptyState from "../../../components/EmptyState"
+import { FiEye, FiEyeOff, FiUserPlus } from "react-icons/fi"
+import { showError } from "../../../toaster"
+import { errorMessage } from "../../../utils/apiError"
+import { useNetworkStatus } from "../../../platform/useNetworkStatus"
 
 /* The podium selectors only exist for the organiser, only after a tournament
    finishes — a few hundred bytes nobody else ever needs. */
@@ -60,6 +66,7 @@ export type PairsSectionContainerProps = {
     /** Opens the dialog — or bounces an anonymous visitor to /prijava. */
     onSelfRegisterClick: () => void
     onPodiumUpdated: (t: TournamentDetails) => void
+    onVisibilityUpdated: (t: TournamentDetails) => void
     /* self-register dialog state, owned by useTournamentPairsEditor so the
        page can fold `selfRegSubmitting` into `anySaveInFlight` */
     selfRegOpen: boolean
@@ -121,6 +128,7 @@ export default function PairsSectionContainer({
     onOpenPairInfo,
     onSelfRegisterClick,
     onPodiumUpdated,
+    onVisibilityUpdated,
     selfRegOpen,
     setSelfRegOpen,
     presets,
@@ -143,6 +151,22 @@ export default function PairsSectionContainer({
     const { t: tr } = useTranslation()
     const { user } = useAuth()
     const [claimLinkCopied, setClaimLinkCopied] = useState(false)
+    const [savingVisibility, setSavingVisibility] = useState(false)
+    const online = useNetworkStatus()
+    const pairsHidden = t.pairsPublic === false && !canEditTournament
+
+    const toggleVisibility = async () => {
+        if (!uuid || savingVisibility || !canEditTournament || !online) return
+        setSavingVisibility(true)
+        try {
+            const updated = await setTournamentPairsVisibility(uuid, t.pairsPublic === false)
+            onVisibilityUpdated(updated)
+        } catch (e) {
+            showError(tr("tournament.pairs.visibilityFailed"), errorMessage(e, tr("tournament.pairs.visibilityFailed")))
+        } finally {
+            setSavingVisibility(false)
+        }
+    }
 
     const [pairRequestsCollapsed, setPairRequestsCollapsed] = useState(false)
 
@@ -190,7 +214,31 @@ export default function PairsSectionContainer({
 
     return (
         <>
-            <PairsSection
+            {canEditTournament && (
+                <HStack mb="4" p="3" rounded="xl" bg="bg.panel" borderWidth="1px" borderColor="border.subtle" justify="space-between" flexWrap="wrap" gap="3">
+                    <HStack gap="2" color="fg.muted">
+                        {t.pairsPublic === false ? <FiEyeOff /> : <FiEye />}
+                        <Text fontSize="sm">{tr(t.pairsPublic === false ? "tournament.pairs.visibilityHidden" : "tournament.pairs.visibilityPublic")}</Text>
+                    </HStack>
+                    <Button size="sm" variant="outline" loading={savingVisibility} disabled={!online || savingVisibility || savingPairs} onClick={() => void toggleVisibility()}>
+                        {tr(t.pairsPublic === false ? "tournament.pairs.showPublic" : "tournament.pairs.hidePublic")}
+                    </Button>
+                </HStack>
+            )}
+            {pairsHidden ? (
+                <Box bg="bg.panel" borderWidth="1px" borderColor="border.subtle" rounded="xl">
+                    <EmptyState
+                        icon={FiEyeOff}
+                        title={tr("tournament.pairs.hiddenTitle")}
+                        description={tr("tournament.pairs.totalCount", { count: t.registeredPairs ?? 0 })}
+                        action={showSelfRegisterButton ? (
+                            <Button onClick={onSelfRegisterClick} colorPalette="brand">
+                                <FiUserPlus /> {tr("tournament.pairs.registerPair")}
+                            </Button>
+                        ) : undefined}
+                    />
+                </Box>
+            ) : <PairsSection
                 status={t.status}
                 winnerName={t.winnerName}
                 secondName={pairsView.secondName}
@@ -248,7 +296,7 @@ export default function PairsSectionContainer({
                         </Suspense>
                     ) : undefined
                 }
-            />
+            />}
 
             {/* ===== Self-register pair dialog ===== */}
             <Dialog.Root

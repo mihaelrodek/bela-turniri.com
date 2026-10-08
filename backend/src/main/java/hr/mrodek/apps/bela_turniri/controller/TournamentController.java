@@ -543,7 +543,8 @@ public class TournamentController {
     public TournamentDetailsResponse getById(@PathParam("uuid") String idOrSlug) {
         // Accepts either a UUID (legacy / shared URLs from before slugs landed)
         // or the new pretty slug, so existing bookmarks keep working.
-        return tournamentMapper.toDetails(access.load(idOrSlug));
+        Tournaments t = access.load(idOrSlug);
+        return tournamentMapper.toDetails(t, pairRepo.countActiveByTournament_Id(t.getId()));
     }
 
     /* ===================== QR code ===================== */
@@ -614,6 +615,21 @@ public class TournamentController {
     }
 
     /* ===================== Pairs ===================== */
+
+    public record PairsVisibilityRequest(@jakarta.validation.constraints.NotNull Boolean pairsPublic) {}
+
+    @PATCH
+    @Path("/{uuid}/pairs-visibility")
+    @Authenticated
+    @Transactional
+    public TournamentDetailsResponse setPairsVisibility(
+            @PathParam("uuid") String uuid,
+            @Valid @jakarta.validation.constraints.NotNull PairsVisibilityRequest body
+    ) {
+        Tournaments t = access.loadForEdit(uuid);
+        pairService.setPublicVisibility(t, body.pairsPublic());
+        return tournamentMapper.toDetails(t, pairRepo.countActiveByTournament_Id(t.getId()));
+    }
 
     @GET
     @Path("/{uuid}/pairs")

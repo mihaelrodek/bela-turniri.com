@@ -99,11 +99,47 @@ Pravila:
 - **Bela se boduje** timu koji je drži, neovisno o gornjoj usporedbi, i ne
   sudjeluje u usporedbi "najjače zvanje". **Ali se ne prijavljuje sama** — v.
   "Bela je izbor" niže.
-- Zvanja se računaju i otkrivaju **odmah nakon izbora aduta i dijeljenja 8 karata**,
-  prije prve odigrane karte (`DECLARATIONS_REVEALED`). Poslužitelj tijekom
-  početnog prikaza blokira igrače i botove (`declarationsPending`, 4,2 s),
-  a zatim pokreće puni timer prvog poteza. Gumb „Zvanja” ponovno otvara
-  zvanja trenutačne podjele, uključujući nakon ponovnog povezivanja.
+- Zvanja se računaju i otkrivaju **nakon izbora aduta i dijeljenja 8 karata**,
+  prije prve odigrane karte (`DECLARATIONS_REVEALED`) — ali tek **po isteku
+  prozora za zvanja** (niže). Poslužitelj tijekom početnog prikaza blokira
+  igrače i botove (`declarationsPending`, `declarationsMs` 5 s; kad nitko nema
+  zvanja samo `declarationsNoneMs` 2 s), a zatim
+  pokreće puni timer prvog poteza. Gumb „Zvanja” ponovno otvara zvanja
+  trenutačne podjele, uključujući nakon ponovnog povezivanja.
+
+**Prozor za zvanja — NORMATIVNO (2026-10-08).** Uspješno zvanje aduta (bez
+belota, s uključenim običnim zvanjima) ne otvara igru odmah nego fazu
+**`DECLARING`**: `declaringMs` (6,5 s, §3.1; od toga je pitanje na ekranu
+`declarePromptMs` = 4 s, ostatak klijent troši na vlastitu animaciju zvanja
+i talona) u kojima svako sjedalo može
+**isključiti prijavu vlastitih zvanja** za tu podjelu. Razlog je isti kao kod
+bele: na podjeli koju zvačev par gubi svi bodovi idu protivniku, pa je
+otkrivena terca 20 poklonjenih bodova.
+- **Zadano = prijavljuje.** `state.declaring[seat]` je `true` za sva četiri
+  sjedala na početku svake podjele; šutnja prijavljuje, kao i kod bele. Botovi
+  i odsutna sjedala nikad ne odgovaraju, dakle uvijek prijavljuju.
+- Odgovor je akcija `DECLARE {seat, declare}` (klijent: `game.declare
+  {declare}`, §3): legalna samo u `DECLARING`, idempotentna, ponovljiva —
+  vrijedi **zadnji** odgovor prije isteka, pa je „isključi pa uključi” u redu.
+  Nema događaja za nju: tuđi odgovor nitko ne vidi (`PlayerView.myDeclaring`
+  nosi samo vlastiti).
+- Istek prozora je akcija `FINISH_DECLARING` (šalje je **poslužitelj**, ne
+  igrač): tek tada `findDeclarations` po sjedalu — **prazno za sjedalo koje je
+  isključilo** — zatim usporedba „najjače zvanje”, `DECLARATIONS_REVEALED`,
+  `phase: "PLAYING"`, vodeći prvog štiha. Isključeno sjedalo za podjelu
+  jednostavno **nema** zvanja: ne boduje ih i ne sudjeluje u usporedbi; svi
+  ostali se računaju normalno. Utrka na `dosta` (§1.7) pita se tu, ne na BID-u.
+- U `DECLARING` **nitko nije na potezu**: `turn` je null, `legalMoves` prazan,
+  `PLAY`/`BID`/`NEXT_DEAL` bacaju `BAD_PHASE`, timer poteza ne teče,
+  `declarationsRevealed` je false (adut jest postavljen).
+- Bez prozora: `noDeclarations` (nema što prijaviti → odmah `PLAYING`, kao
+  prije) i belot (igra je gotova prije nego što se itko pita).
+- UI: prozor vidi **svako** sjedalo s čovjekom, imalo zvanje ili ne (da sam
+  izostanak pitanja ne oda „ovdje nema što prijaviti”), kao prekidač „Želiš li
+  prijaviti zvanja?” na mjestu trake reakcija, s crticom koja prati
+  `declaringUntil`; pojavi se tek kad klijentu talon sleti na ekran. Traka
+  reakcija je za to vrijeme skrivena, pilula kaže „Provjera zvanja…”. Vježba
+  (`@bela/bots` `botAction`) prozor zatvara odmah.
 
 **Bela je IZBOR — NORMATIVNO (2026-09-08).** Bela se prije prijavljivala
 automatski, čim igrač odigra prvu od K/Q aduta. Sada se igrača **pita**.
@@ -401,7 +437,10 @@ type Team = "A" | "B"                   // teamOf(seat): 0,2 → A; 1,3 → B
 // Faze podjele. DEAL_DONE znači "podjela je obračunata i SLIJEDI još jedna";
 // podjela koja odluči partiju ide ravno u GAME_OVER (§1.7). Na `dosta` u
 // GAME_OVER se može ući i usred podjele, s kartama još u rukama (§1.7).
-type Phase = "BIDDING" | "PLAYING" | "DEAL_DONE" | "GAME_OVER"
+// DECLARING (2026-10-08) je prozor za zvanja (§1.4): adut postavljen, ruke
+// pune, nitko na potezu; zatvara ga FINISH_DECLARING. Preskače se uz
+// `noDeclarations` i uz belot.
+type Phase = "BIDDING" | "DECLARING" | "PLAYING" | "DEAL_DONE" | "GAME_OVER"
 
 type TrickReview = "off" | "leaderPair" | "all"   // §1.8; default "off"
 type GameEndRule = "prolaz" | "dosta"             // §1.7; default "prolaz"
@@ -427,7 +466,11 @@ interface GameState {                   // PUNO stanje — samo server ga vidi
   bidding: { turn: Seat; passes: Seat[]; trump: Suit | null; caller: Seat | null }
   trick: { leader: Seat; turn: Seat; cards: { seat: Seat; card: Card }[] }
   tricksWon: Record<Team, WonTrick[]>            // po timu; globalni red je `no`
-  declarations: Record<Seat, Declaration[]>      // izračunato nakon 8 karata
+  declarations: Record<Seat, Declaration[]>      // izračunato na FINISH_DECLARING;
+                                                 // [] za sjedalo koje je isključilo
+  declaring: Record<Seat, boolean>               // prozor za zvanja (§1.4): hoće li
+                                                 // sjedalo prijaviti; zadano true.
+                                                 // Tuđe NIKAD u PlayerView
   belaDeclared: Team | null
   belaRefused: Seat | null               // sjedalo koje NIJE zvalo belu (§1.4);
                                          // konačno za podjelu, NIKAD u PlayerView
@@ -460,6 +503,12 @@ type GameAction =
   // (šutnja zove); `false` → ne zovi, konačno za podjelu. Zastavica belu može
   // samo ugasiti — onu koju ruka ne pokriva engine IGNORIRA, ne odbija.
   | { type: "PLAY"; seat: Seat; card: Card; bela?: boolean }
+  // Prozor za zvanja (§1.4): odgovor sjedala, samo u DECLARING, idempotentno,
+  // vrijedi zadnji; bez događaja.
+  | { type: "DECLARE"; seat: Seat; declare: boolean }
+  // Istek prozora (šalje poslužitelj): računa zvanja (prazno za `declaring:
+  // false`), emitira DECLARATIONS_REVEALED, phase → PLAYING.
+  | { type: "FINISH_DECLARING" }
   | { type: "NEXT_DEAL" }                // iz DEAL_DONE → nova podjela (§1.7)
 
 // Funkcije
@@ -495,6 +544,9 @@ viewFor(state, seat: Seat | null, opts?: ViewOptions): PlayerView
 // PlayerView.declarations: Partial<Record<Seat, Declaration[]>> — svoja uvijek,
 // plus zvanja para koji BODUJE nakon izbora aduta. Zvanja para koji propada
 // nikad ne izlaze iz enginea (§1.4, tablica vidljivosti).
+// PlayerView.myDeclaring?: boolean | null — VLASTITI odgovor u prozoru za
+// zvanja (§1.4): true (zadano) / false; null za gledatelja i u svakoj drugoj
+// fazi. Tuđi odgovori ne postoje ni u jednom pogledu.
 // PlayerView.declarationPoints?: Record<Team, number> — koliko dodatnih bodova
 // iz zvanja tim ima u ovoj podjeli: zbroj zvanja para koji boduje, **plus 20
 // za prijavljenu belu** timu koji ju je prijavio. Bela je UNUTRA namjerno:
@@ -523,7 +575,9 @@ provisionalDealPoints(state): Record<Team, number>// što je svaki par DOKAZANO
 `DECLARATIONS_REVEALED` {perSeat, scoringTeam} — `perSeat` je
 `Partial<Record<Seat, Declaration[]>>` i nosi **samo sjedala tima koji boduje**
 (§1.4); okvir je jedan i isti za sve za stolom, pa ne smije sadržavati ništa
-tuđe. `DEAL_SCORED` {dealScore}, `GAME_OVER` {winner, score}.
+tuđe. Od 2026-10-08 ga emitira `FINISH_DECLARING`, ne `BID`: nakon zvanja
+aduta stižu samo `BID`, `TRUMP_SET`, `HAND_COMPLETED`, a otkrivanje tek po
+isteku prozora za zvanja. `DEAL_SCORED` {dealScore}, `GAME_OVER` {winner, score}.
 Zadnja karta partije nosi `CARD_PLAYED`, `TRICK_WON`, `DEAL_SCORED` **i**
 `GAME_OVER` u jednom nizu (§1.7) — UI ih odigrava redom, pa se zadnji štih
 pokupi prije nego što se objavi kraj partije. Na `dosta` partija može završiti
@@ -630,7 +684,8 @@ Ključni tokovi:
     `room.state` + osvježi predvorje; nema zasebne poruke za ostale.
   - Testovi: `packages/server/test/gameName.test.ts`, `guest.test.ts`,
     `profiles.test.ts`.
-- **Igra**: `game.bid {trump}` / `game.pass` / `game.play {card, bela?}` / `game.nextDeal`
+- **Igra**: `game.bid {trump}` / `game.pass` / `game.declare {declare}` /
+  `game.play {card, bela?}` / `game.nextDeal`
   → server emitira `game.state {view}` + `game.events {events}`. `view` je uvijek
   `PlayerView` iz `viewFor`, pa uz `score` (ukupno kroz partiju) nosi i
   `currentDealPoints` — bodove tekuće podjele iz **dovršenih** štihova (§2) —
@@ -642,6 +697,14 @@ Ključni tokovi:
   partiju stiže već kao `GAME_OVER` (§1.7) i server takav zahtjev tiho
   ignorira. To je **potvrda sjedala**, ne naredba: stol krene tek kad potvrde
   sva povezana ljudska sjedala, inače na `dealDoneAutoMs` (§3.1).
+  `game.declare {declare: boolean}` je odgovor sjedala u prozoru za zvanja
+  (§1.4, faza `DECLARING`): `false` = ne prijavljuj moja zvanja ove podjele,
+  `true` = prijavi (zadano, pa klijent koji ništa ne pošalje prijavljuje).
+  Poslužitelj provjerava samo oblik (boolean, inače `BAD_REQUEST`); izvan
+  prozora engine vraća `BAD_PHASE` (→ `BAD_REQUEST`), gledatelj dobiva
+  `NOT_YOUR_TURN`. Nema odgovora-okvira: stanje se emitira i vlastiti odgovor
+  stiže kao `view.myDeclaring`. Dok prozor traje `game.state` nosi
+  `declaringUntil` (apsolutni epoch ms, kao `turnDeadline`), inače null.
   `game.play.bela` je odgovor na „Zovi belu?” (§1.4), koji je klijent postavio
   **prije** slanja poteza — nema zasebne poruke ni faze. Poslužitelj provjeri
   samo **oblik** (boolean ili ništa; sve drugo je `BAD_REQUEST`), a je li
@@ -667,6 +730,18 @@ Ključni tokovi:
 
 ### 3.1 Timeri i čuvanje sjedala — NORMATIVNO
 
+- **Prozor za zvanja (`declaringMs`, default 6 500 = `DEFAULTS.declaringMs`;
+  klijent pita tek kad mu talon sleti na ekran i pokazuje odbrojavanje od
+  `DEFAULTS.declarePromptMs` = 4 s)**
+  — NORMATIVNO, 2026-10-08. Ulaskom u `DECLARING` poslužitelj naoruža
+  **jedan** timer i po isteku primijeni `FINISH_DECLARING` (`autoPlayed:
+  false` — prozor se zatvorio, nitko nije odigrao ništa). Rok je fiksiran pri
+  otvaranju prozora: `game.declare` ga **ne** produljuje (svaki odgovor ide
+  kroz isti `apply`/`schedule`, timer se naoruža za ono što je *preostalo*).
+  Timer poteza i odbrojavanje ne teku; prisutnost ne mijenja ništa (odgovor
+  sjedala ostaje, zadano „prijavljuje”). `dispose` ga briše. Odmah iza
+  prozora slijedi dosadašnji prikaz zvanja (`declarationsMs`, 5 s; 2 s kad nema
+  zvanja).
 - **Potez**: `turnTimeoutMs` (default 15 000). Istekom bot odigra **jedan**
   potez za igrača; `game.state.autoPlayed` to označava. Taj potez ide **bez
   `bela` zastavice**, pa se eventualna bela prijavljuje — nitko nije odgovorio,
@@ -707,10 +782,14 @@ Ključni tokovi:
   novi `hello` automatski vraća u sobu **samo** kod `disconnect`. Nakon
   izričitog izlaska korisnik dobiva `game.active` i vraća se gumbom — inače bi
   otvaranje predvorja tiho poništilo čuvanje i sjedalo se ne bi nikad izgubilo.
-- U `LOBBY` statusu i izričit `room.leave` i prekid veze oslobađaju sjedalo
-  odmah (nema aktivne partije koju bi trebalo čuvati). Ako nakon toga ne ostane
-  nijedan ljudski član sobe, soba se odmah briše; botovi sami ne mogu održavati
-  sobu aktivnom niti vidljivom u predvorju.
+- U `LOBBY` statusu izričit `room.leave` oslobađa sjedalo odmah (nema aktivne
+  partije koju bi trebalo čuvati). **Prekid veze** ga i tu čuva puni
+  `reconnectGraceMs` (od 2026-10-08: na mobitelu prebacivanje na drugu
+  aplikaciju ruši socket, a soba koju je igrač upravo postavio nestajala mu je
+  ispod ruku): sjedalo je `connected: false` uz `holdUntil`, novi `hello` vraća
+  u sobu, a `room.start` dotad odbija (`BAD_REQUEST`). Ako nakon izlaska ili
+  isteka čuvanja ne ostane nijedan ljudski član sobe, soba se briše; botovi
+  sami ne mogu održavati sobu aktivnom niti vidljivom u predvorju.
 - **Greške**: `error { code, message }`, `code` ∈ `UNAUTHENTICATED | ROOM_NOT_FOUND |
   ROOM_FULL | ROOM_CODE_REQUIRED | SPECTATORS_DISABLED | SEAT_TAKEN | NOT_HOST | NOT_IN_ROOM | NOT_YOUR_TURN | ILLEGAL_MOVE |
   RATE_LIMITED | BAD_REQUEST | ALREADY_STARTED | NOT_ENOUGH_PLAYERS | ALREADY_IN_GAME`.

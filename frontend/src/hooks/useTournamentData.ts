@@ -88,7 +88,7 @@ export type TournamentData = ReturnType<typeof useTournamentData>
      • "pairs"      TournamentPairService (L165/206/214/227),
                      SelfRegistrationService (L187), RepassageService (L90),
                      AdminService (L109) — roster-only mutations.
-                     -> pairs
+                     -> details (registration count) + pairs
      • "tournament" TournamentLifecycleService#start/finish/setPodium/reset
                      (L78/111/162/186) — reset() wipes rounds+matches AND
                      zeroes every pair's wins/losses/eliminated, finish()
@@ -106,7 +106,7 @@ type LiveQueryTarget = "details" | "pairs" | "rounds" | "blokLinks"
 const LIVE_SCOPE_TARGETS: Record<string, readonly LiveQueryTarget[]> = {
     match: ["rounds", "pairs", "blokLinks"],
     round: ["rounds", "pairs"],
-    pairs: ["pairs"],
+    pairs: ["details", "pairs"],
     tournament: ["details", "rounds", "pairs"],
 }
 

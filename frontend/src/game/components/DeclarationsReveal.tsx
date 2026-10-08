@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type Ref } from "react"
 import { Box, Flex, HStack, IconButton, Portal, Text, VStack } from "@chakra-ui/react"
 import { FiX } from "react-icons/fi"
 import type { RoomState, Seat } from "@bela/protocol"
@@ -97,8 +97,24 @@ export function BelaFlash({ seats, seat }: { seats: RoomState["seats"]; seat: Se
  *  starts the next card would be worse than the beat itself.
  *
  *  The caller's medallion and the score panel carry the fact for the rest of
- *  the deal; this only makes sure nobody missed the moment it happened. */
-export function TrumpFlash({ seats, seat, suit }: { seats: RoomState["seats"]; seat: Seat; suit: Suit }) {
+ *  the deal; this only makes sure nobody missed the moment it happened — and
+ *  since 2026-10-08 the suit mark itself FLIES from this card into the score
+ *  panel's trump cell when the beat is over (`TrumpFlight`): `glyphRef` lets
+ *  the page measure the mark's box right before the overlay goes. */
+export const TRUMP_FLASH_SUIT_SIZE = 52
+
+export function TrumpFlash({
+    seats,
+    seat,
+    suit,
+    glyphRef,
+}: {
+    seats: RoomState["seats"]
+    seat: Seat
+    suit: Suit
+    /** The suit mark's wrapper, for the flight's take-off rect. */
+    glyphRef?: Ref<HTMLDivElement>
+}) {
     const { t } = useTranslation()
     return (
         <Portal>
@@ -140,7 +156,13 @@ export function TrumpFlash({ seats, seat, suit }: { seats: RoomState["seats"]; s
                         },
                     }}
                 >
-                    <SuitIcon suit={suit} size={52} />
+                    {/* A wrapper rather than the icon itself so the measured
+                        box is the glyph's — `SuitIcon` draws the plain-text
+                        suits as inline text whose box is the font's, not the
+                        mark's. `display: flex` shrinks it to the mark. */}
+                    <Box ref={glyphRef} display="flex" alignItems="center" justifyContent="center" flexShrink={0}>
+                        <SuitIcon suit={suit} size={TRUMP_FLASH_SUIT_SIZE} />
+                    </Box>
                     <Text fontSize="lg" fontWeight="bold" color={INK} lineHeight="1.15" textAlign="center">
                         {t("game.trump.calledBy", {
                             name: seatName(seats, seat, t("game.seat.empty")),

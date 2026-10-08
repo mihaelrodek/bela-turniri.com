@@ -5,6 +5,7 @@ import {
     SUITS,
     cardSuit,
     declarationPoints,
+    findDeclarations,
     fullDeck,
     legalBids,
     legalMoves,
@@ -16,6 +17,7 @@ import {
     teamOf,
     viewFor,
 } from "../src/index"
+import { declarationsScoringTeam } from "../src/declarations"
 import { allCards, expectEngineError, makeState, playing, won } from "./helpers"
 
 const cfg = (seed: string, targetScore: 501 | 1001 = 1001) => ({ targetScore, seed })
@@ -43,11 +45,25 @@ function nextAction(state: GameState): GameAction {
         }
         return { type: "PASS", seat }
     }
+    if (state.phase === "DECLARING") return { type: "FINISH_DECLARING" }
     if (state.phase === "PLAYING") {
         const seat = state.trick.turn
         return { type: "PLAY", seat, card: legalMoves(state, seat)[0] as Card }
     }
     return { type: "NEXT_DEAL" }
+}
+
+/** A BID followed by the end of the opt-out window — what a bid used to be
+ *  before the `DECLARING` phase existed (2026-10-08). Events of both steps. */
+function bidAndReveal(
+    state: GameState,
+    seat: Seat,
+    trump: Suit,
+): { state: GameState; events: GameEvent[] } {
+    const bid = reduce(state, { type: "BID", seat, trump })
+    if (bid.state.phase !== "DECLARING") return bid
+    const done = reduce(bid.state, { type: "FINISH_DECLARING" })
+    return { state: done.state, events: [...bid.events, ...done.events] }
 }
 
 function playFirstLegal(
@@ -73,7 +89,7 @@ function forceDealerToCall(start: GameState): { state: GameState; events: GameEv
         state = passed.state
         events.push(...passed.events)
     }
-    const called = reduce(state, { type: "BID", seat: state.bidding.turn, trump: "HERC" })
+    const called = bidAndReveal(state, state.bidding.turn, "HERC")
     return { state: called.state, events: [...events, ...called.events] }
 }
 
@@ -235,11 +251,18 @@ describe("bidding (README §1.2)", () => {
         })
     })
 
-    it("completes the hands to eight cards and computes declarations", () => {
+    it("completes the hands to eight cards, opens the opt-out window, then computes declarations", () => {
         const state = newGame(cfg("hand"))
-        const step = reduce(state, { type: "BID", seat: state.bidding.turn, trump: "HERC" })
+        const bid = reduce(state, { type: "BID", seat: state.bidding.turn, trump: "HERC" })
+        // The window first (2026-10-08): hands complete, nothing revealed.
+        expect(bid.events.map((e) => e.type)).toEqual(["BID", "TRUMP_SET", "HAND_COMPLETED"])
+        expect(bid.state.phase).toBe("DECLARING")
+        expect(bid.state.declarations).toEqual({ 0: [], 1: [], 2: [], 3: [] })
+        expect(bid.state.declaring).toEqual({ 0: true, 1: true, 2: true, 3: true })
+        for (const seat of SEATS) expect(bid.state.hands[seat]).toHaveLength(8)
+        const step = reduce(bid.state, { type: "FINISH_DECLARING" })
         const next = step.state
-        expect(step.events.map((e) => e.type)).toEqual(["BID", "TRUMP_SET", "HAND_COMPLETED", "DECLARATIONS_REVEALED"])
+        expect(step.events.map((e) => e.type)).toEqual(["DECLARATIONS_REVEALED"])
         expect(next.phase).toBe("PLAYING")
         expect(next.stock).toEqual([])
         for (const seat of SEATS) {
@@ -536,6 +559,8 @@ describe("immutability and determinism", () => {
         const actions: GameAction[] = [
             { type: "PASS", seat: state.bidding.turn },
             { type: "BID", seat: nextSeat(state.bidding.turn), trump: "HERC" },
+            { type: "DECLARE", seat: 0, declare: false },
+            { type: "FINISH_DECLARING" },
         ]
         for (const action of actions) {
             const snapshot = structuredClone(state)
@@ -671,6 +696,8 @@ describe("a full deterministic game (README §1.6, §1.7)", () => {
             () => reduce(state, { type: "BID", seat: 0, trump: "HERC" }),
             "BAD_PHASE",
         )
+        expectEngineError(() => reduce(state, { type: "DECLARE", seat: 0, declare: false }), "BAD_PHASE")
+        expectEngineError(() => reduce(state, { type: "FINISH_DECLARING" }), "BAD_PHASE")
     })
 
     it("keeps playing when the target is reached but the scores are tied", () => {
@@ -1085,7 +1112,7 @@ describe("dosta and the declarations (README §1.4, §1.7)", () => {
         // declared, not provable, and the race does not count them. This test
         // used to assert the opposite — the game ending right here — which
         // was the rule before the confirmation requirement existed.
-        const step = reduce(beforeBid({ A: 301, B: 0 }, "dosta"), { type: "BID", seat: 0, trump: "HERC" })
+        const step = bidAndReveal(beforeBid({ A: 301, B: 0 }, "dosta"), 0, "HERC")
 
         expect(step.state.declarationsScoringTeam).toBe("A")
         expect(declarationPoints(step.state)).toEqual({ A: 200, B: 0 })
@@ -1097,7 +1124,7 @@ describe("dosta and the declarations (README §1.4, §1.7)", () => {
     })
 
     it("leaves the same bid alone under prolaz", () => {
-        const step = reduce(beforeBid({ A: 301, B: 0 }, "prolaz"), { type: "BID", seat: 0, trump: "HERC" })
+        const step = bidAndReveal(beforeBid({ A: 301, B: 0 }, "prolaz"), 0, "HERC")
         expect(step.state.phase).toBe("PLAYING")
         expect(step.state.winner).toBeNull()
         expect(step.state.score).toEqual({ A: 301, B: 0 })
@@ -1105,8 +1132,162 @@ describe("dosta and the declarations (README §1.4, §1.7)", () => {
     })
 
     it("does not end the game when the declarations stop short of the target", () => {
-        const step = reduce(beforeBid({ A: 300, B: 0 }, "dosta"), { type: "BID", seat: 0, trump: "HERC" })
+        const step = bidAndReveal(beforeBid({ A: 300, B: 0 }, "dosta"), 0, "HERC")
         expect(step.state.phase).toBe("PLAYING")
         expect(step.state.winner).toBeNull()
+    })
+})
+
+describe("the opt-out window — DECLARING (README §1.4, 2026-10-08)", () => {
+    /** A deal in DECLARING whose seat 0 holds a sequence — found by seed, so
+     *  "opting out zeroes it" is a claim with teeth. */
+    function windowWithDeclarationFor(seat: Seat): GameState {
+        for (let i = 0; i < 400; i++) {
+            const start = newGame(cfg(`window-${i}`))
+            const bid = reduce(start, { type: "BID", seat: start.bidding.turn, trump: "HERC" })
+            if (bid.state.phase !== "DECLARING") continue
+            if (findDeclarations(bid.state.hands[seat]).length > 0) return bid.state
+        }
+        throw new Error("no seed produced a declaration for that seat")
+    }
+
+    it("declares by default: silence announces every seat's declarations", () => {
+        const open = windowWithDeclarationFor(0)
+        const done = reduce(open, { type: "FINISH_DECLARING" })
+        expect(done.state.phase).toBe("PLAYING")
+        for (const seat of SEATS) {
+            expect(done.state.declarations[seat]).toEqual(findDeclarations(open.hands[seat]))
+        }
+        expect(done.events.map((e) => e.type)).toEqual(["DECLARATIONS_REVEALED"])
+        expect(done.state.trick).toEqual({
+            leader: nextSeat(open.dealer),
+            turn: nextSeat(open.dealer),
+            cards: [],
+        })
+    })
+
+    it("an opted-out seat's declarations are treated as none; everybody else's count", () => {
+        const open = windowWithDeclarationFor(0)
+        const declined = reduce(open, { type: "DECLARE", seat: 0, declare: false })
+        expect(declined.events).toEqual([])
+        expect(declined.state.phase).toBe("DECLARING")
+        expect(declined.state.declaring).toEqual({ 0: false, 1: true, 2: true, 3: true })
+        // Not yet: the answer is noted, the declarations are settled at the end.
+        expect(declined.state.declarations[0]).toEqual([])
+
+        const done = reduce(declined.state, { type: "FINISH_DECLARING" })
+        expect(done.state.declarations[0]).toEqual([])
+        for (const seat of [1, 2, 3] as const) {
+            expect(done.state.declarations[seat]).toEqual(findDeclarations(open.hands[seat]))
+        }
+        const event = done.events.find((e) => e.type === "DECLARATIONS_REVEALED")
+        expect(event).toBeDefined()
+        if (event?.type === "DECLARATIONS_REVEALED") expect(event.perSeat[0] ?? []).toEqual([])
+        expect(done.state.declarationsScoringTeam).toBe(
+            declarationsScoringTeam(done.state.declarations, open.dealer),
+        )
+    })
+
+    it("the last answer counts: off and back on declares again", () => {
+        const open = windowWithDeclarationFor(0)
+        const off = reduce(open, { type: "DECLARE", seat: 0, declare: false }).state
+        const on = reduce(off, { type: "DECLARE", seat: 0, declare: true })
+        expect(on.state.declaring[0]).toBe(true)
+        // Idempotent: answering what is already true changes nothing.
+        expect(reduce(on.state, { type: "DECLARE", seat: 0, declare: true }).state).toBe(on.state)
+        const done = reduce(on.state, { type: "FINISH_DECLARING" }).state
+        expect(done.declarations[0]).toEqual(findDeclarations(open.hands[0]))
+    })
+
+    it("refuses DECLARE and FINISH_DECLARING outside the window", () => {
+        const bidding = newGame(cfg("window-guard"))
+        expectEngineError(() => reduce(bidding, { type: "DECLARE", seat: 0, declare: false }), "BAD_PHASE")
+        expectEngineError(() => reduce(bidding, { type: "FINISH_DECLARING" }), "BAD_PHASE")
+        const playing = reduce(windowWithDeclarationFor(0), { type: "FINISH_DECLARING" }).state
+        expectEngineError(() => reduce(playing, { type: "DECLARE", seat: 0, declare: false }), "BAD_PHASE")
+        expectEngineError(() => reduce(playing, { type: "FINISH_DECLARING" }), "BAD_PHASE")
+    })
+
+    it("refuses to play a card or bid while the window is open", () => {
+        const open = windowWithDeclarationFor(0)
+        const seat = open.trick.turn
+        const card = open.hands[seat][0] as Card
+        expectEngineError(() => reduce(open, { type: "PLAY", seat, card }), "BAD_PHASE")
+        expectEngineError(() => reduce(open, { type: "BID", seat, trump: "PIK" }), "BAD_PHASE")
+        expectEngineError(() => reduce(open, { type: "NEXT_DEAL" }), "BAD_PHASE")
+    })
+
+    it("is nobody's turn, with nothing revealed and no legal moves", () => {
+        const open = windowWithDeclarationFor(0)
+        for (const seat of SEATS) {
+            const view = viewFor(open, seat)
+            expect(view.phase).toBe("DECLARING")
+            expect(view.turn).toBeNull()
+            expect(view.legalMoves).toEqual([])
+            expect(view.legalBids).toBeNull()
+            expect(view.declarationsRevealed).toBe(false)
+            expect(view.declarationsScoringTeam).toBeNull()
+            expect(view.hand).toHaveLength(8)
+            expect(view.myDeclaring).toBe(true)
+        }
+        expect(viewFor(open, null).myDeclaring).toBeNull()
+    })
+
+    it("shows a seat its own answer and nobody else's", () => {
+        const open = windowWithDeclarationFor(0)
+        const declined = reduce(open, { type: "DECLARE", seat: 0, declare: false }).state
+        expect(viewFor(declined, 0).myDeclaring).toBe(false)
+        for (const seat of [1, 2, 3] as const) {
+            const view = viewFor(declined, seat)
+            expect(view.myDeclaring).toBe(true)
+            expect(JSON.stringify(view)).not.toContain("declaring\":")
+        }
+        expect(viewFor(declined, null).myDeclaring).toBeNull()
+        // Once play starts the answer is history — the view no longer carries it.
+        expect(viewFor(reduce(declined, { type: "FINISH_DECLARING" }).state, 0).myDeclaring).toBeNull()
+    })
+
+    it("skips the window entirely with noDeclarations", () => {
+        const start = newGame({ targetScore: 1001, seed: "window-off", noDeclarations: true })
+        const step = reduce(start, { type: "BID", seat: start.bidding.turn, trump: "HERC" })
+        expect(step.state.phase).toBe("PLAYING")
+        expect(step.events.map((e) => e.type)).toEqual(["BID", "TRUMP_SET", "HAND_COMPLETED"])
+        expect(step.state.declarations).toEqual({ 0: [], 1: [], 2: [], 3: [] })
+    })
+
+    it("skips the window on a belot: the game is over before anyone is asked", () => {
+        // Same construction as the belot test above: a stock that completes
+        // one hand to a full suit.
+        const state = newGame({ targetScore: 501, seed: "window-belot" })
+        const holder = nextSeat(state.dealer)
+        const hands: Record<Seat, Card[]> = { 0: [], 1: [], 2: [], 3: [] }
+        const trefs = fullDeck().filter((card) => cardSuit(card) === "TREF")
+        hands[holder] = trefs.slice(0, 6)
+        const rest = fullDeck().filter((card) => !trefs.includes(card))
+        let i = 0
+        for (const seat of SEATS) {
+            if (seat === holder) continue
+            hands[seat] = rest.slice(i, i + 6)
+            i += 6
+        }
+        const stock = [...trefs.slice(6, 8), ...rest.slice(i, i + 6)]
+        const rigged: GameState = { ...state, hands, stock, bidding: { ...state.bidding, turn: holder } }
+        const step = reduce(rigged, { type: "BID", seat: holder, trump: "TREF" })
+        expect(step.state.phase).toBe("GAME_OVER")
+        expect(step.events.some((e) => e.type === "BELOT")).toBe(true)
+        expect(step.events.some((e) => e.type === "DECLARATIONS_REVEALED")).toBe(false)
+    })
+
+    it("opens a fresh window with everybody declaring on the next deal", () => {
+        const open = windowWithDeclarationFor(0)
+        let state = reduce(open, { type: "DECLARE", seat: 0, declare: false }).state
+        while (state.phase !== "DEAL_DONE" && state.phase !== "GAME_OVER") {
+            state = reduce(state, nextAction(state)).state
+        }
+        if (state.phase === "GAME_OVER") return
+        state = reduce(state, { type: "NEXT_DEAL" }).state
+        expect(state.declaring).toEqual({ 0: true, 1: true, 2: true, 3: true })
+        const bid = reduce(state, { type: "BID", seat: state.bidding.turn, trump: "HERC" }).state
+        if (bid.phase === "DECLARING") expect(viewFor(bid, 0).myDeclaring).toBe(true)
     })
 })

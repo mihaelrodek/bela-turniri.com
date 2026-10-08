@@ -69,7 +69,11 @@ export interface Config {
 
 /** Everything time-based, so tests can make a whole game run in milliseconds. */
 export interface Timings {
+    /** The opt-out window after trump is called (`DECLARING`, README §3.1). */
+    declaringMs: number
     declarationsMs: number
+    /** The same pause when nobody had anything — "Nitko nema zvanja". */
+    declarationsNoneMs: number
     turnTimeoutMs: number
     reconnectGraceMs: number
     botThinkMinMs: number
@@ -100,7 +104,9 @@ export interface RateLimits {
 }
 
 export const DEFAULT_TIMINGS: Timings = {
-    declarationsMs: 8_000,
+    declaringMs: DEFAULTS.declaringMs,
+    declarationsMs: 5_000,
+    declarationsNoneMs: 2_000,
     turnTimeoutMs: DEFAULTS.turnTimeoutMs,
     reconnectGraceMs: DEFAULTS.reconnectGraceMs,
     botThinkMinMs: DEFAULTS.botThinkMinMs,

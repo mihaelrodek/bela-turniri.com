@@ -12,7 +12,11 @@ export const DEV_ENV: Record<string, string | undefined> = {
 
 /** Fast timings so a whole game runs in milliseconds. */
 export const FAST_TIMINGS = {
+    // Short but non-zero: a bid is followed by a DECLARING state frame and
+    // the window must still be observable in the tests that look for it.
+    declaringMs: 50,
     declarationsMs: 0,
+    declarationsNoneMs: 0,
     turnTimeoutMs: 10_000,
     reconnectGraceMs: 10_000,
     botThinkMinMs: 0,

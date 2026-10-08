@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest"
-import type { Card, Declaration, GameState, Seat, Team } from "../src/index"
+import type { Card, Declaration, GameEvent, GameState, Seat, Team } from "../src/index"
 import { SEATS, legalMoves, newGame, nextSeat, reduce, teamOf, trickPoints, viewFor } from "../src/index"
 import { playing } from "./helpers"
 
-/** A fresh deal with HERC as trump, called by the first bidder. */
+/** A fresh deal with HERC as trump, called by the first bidder, with the
+ *  opt-out window already closed (every seat declares). */
 function dealtGame(seed: string): GameState {
     const start = newGame({ targetScore: 1001, seed })
-    return reduce(start, { type: "BID", seat: start.bidding.turn, trump: "HERC" }).state
+    const bid = reduce(start, { type: "BID", seat: start.bidding.turn, trump: "HERC" }).state
+    return bid.phase === "DECLARING" ? reduce(bid, { type: "FINISH_DECLARING" }).state : bid
+}
+
+/** The BID and the end of the window as one step, events of both. */
+function bidAndReveal(start: GameState): { state: GameState; events: GameEvent[] } {
+    const bid = reduce(start, { type: "BID", seat: start.bidding.turn, trump: "HERC" })
+    if (bid.state.phase !== "DECLARING") return bid
+    const done = reduce(bid.state, { type: "FINISH_DECLARING" })
+    return { state: done.state, events: [...bid.events, ...done.events] }
 }
 
 /** What EVERY recipient may see of the declarations: the scoring pair's only
@@ -168,7 +178,7 @@ describe("DECLARATIONS_REVEALED — the shared broadcast frame (README §1.4)", 
     it("carries the scoring pair only, so one frame is safe for everybody", () => {
         for (let i = 0; i < 400; i++) {
             const start = newGame({ targetScore: 1001, seed: `evt-${i}` })
-            const step = reduce(start, { type: "BID", seat: start.bidding.turn, trump: "HERC" })
+            const step = bidAndReveal(start)
             const event = step.events.find((e) => e.type === "DECLARATIONS_REVEALED")
             expect(event).toBeDefined()
             if (event?.type !== "DECLARATIONS_REVEALED") continue
@@ -193,7 +203,7 @@ describe("DECLARATIONS_REVEALED — the shared broadcast frame (README §1.4)", 
         let checked = 0
         for (let i = 0; i < 400 && checked < 10; i++) {
             const start = newGame({ targetScore: 1001, seed: `evt-leak-${i}` })
-            const step = reduce(start, { type: "BID", seat: start.bidding.turn, trump: "HERC" })
+            const step = bidAndReveal(start)
             const event = step.events.find((e) => e.type === "DECLARATIONS_REVEALED")
             if (event?.type !== "DECLARATIONS_REVEALED" || event.scoringTeam === null) continue
             const losers = SEATS.filter((s) => teamOf(s) !== event.scoringTeam)

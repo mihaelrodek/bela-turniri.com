@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { Box } from "@chakra-ui/react"
 import type { Card as CardId, PlayerView, RoomState, Seat as SeatId } from "@bela/protocol"
 import type { TrickCard } from "@bela/engine"
@@ -44,6 +45,7 @@ export default function Table({
     showTurn = true,
     bids,
     reactions,
+    corner,
 }: {
     room: RoomState
     view: PlayerView
@@ -66,6 +68,10 @@ export default function Table({
     bids?: Partial<Record<SeatId, SeatBid>>
     /** Per-seat quick phrase currently floating (from `chat.reaction`). */
     reactions?: Partial<Record<SeatId, SeatBubble>>
+    /** The felt's top-left corner — the "Štihovi" pill once a trick has
+     *  been played (2026-10-08, owner). Empty on every layout: the top seat
+     *  is centred and the flank seats sit at mid-height. */
+    corner?: ReactNode
 }) {
     const mySeat = view.seat
     const botTurn = view.turn !== null && room.seats[view.turn]?.occupant?.kind === "BOT"
@@ -95,6 +101,11 @@ export default function Table({
             // A spectator gets a bottom seat and therefore a taller box.
             css={tableGeometry(mySeat === null)}
         >
+            {corner && (
+                <Box position="absolute" top="1" insetStart="2" zIndex={7}>
+                    {corner}
+                </Box>
+            )}
 
             <TrickArea
                 cards={trickCards}
@@ -124,7 +135,10 @@ export default function Table({
                             countdown={showTurn && view.turn === seat && !isBotTurn ? countdown : null}
                             bid={bids?.[seat] ?? null}
                             reaction={reactions?.[seat] ?? null}
-                            reactionAlign={position === "left" || position === "right" ? position : "center"}
+                            // The partner sits right under the header: a bubble
+                            // above them covered the "Zvanja" tile, so theirs
+                            // goes beside the avatar (`ReactionAlign`).
+                            reactionAlign={position === "top" ? "beside" : position === "left" || position === "right" ? position : "center"}
                             reducedMotion={reducedMotion}
                             team={teamOf(seat) === myTeam ? "us" : "them"}
                         />

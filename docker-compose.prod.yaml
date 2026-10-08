@@ -172,7 +172,7 @@ services:
       # sends no notification (EmailService WARNs about it at boot).
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-Bela turniri <noreply@bela-turniri.com>}
-      CONTACT_TO: ${CONTACT_TO:-}
+      CONTACT_TO: ${CONTACT_TO:-info@kodek.hr}
 
       # Google Geocoding (map picker reverse geocode). Server key, restricted
       # by this host's IP in Google Cloud; blank = Nominatim fallback.

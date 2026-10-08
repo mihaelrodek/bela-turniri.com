@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Button, Dialog, HStack, NativeSelect, Portal, Text, VStack } from "@chakra-ui/react"
+import { Box, Button, Dialog, HStack, NativeSelect, Portal, Text, VStack, useBreakpointValue } from "@chakra-ui/react"
 import { FiArrowRight, FiChevronDown, FiChevronUp } from "react-icons/fi"
 import { GAME_END_RULES, TRICK_REVIEWS, WIN_RATE_REQUIREMENTS } from "@bela/protocol"
 import type { ClientMessage, GameEndRule, TargetScore, TrickReview, WinRateRequirement } from "@bela/protocol"
@@ -33,13 +33,19 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
     // Keep the player's standard-game choices while quick play pins its rules.
     const effectiveNoDeclarations = quickGame || noDeclarations
     const effectiveAllowBela = quickGame || !noDeclarations || allowBela
+    /* Phones get a bottom sheet (2026-10-08, owner, modelled on bela.fun): the
+       create button lands under the thumb instead of mid-screen. */
+    const sheet = useBreakpointValue({ base: true, md: false }) ?? false
 
     return (
-        <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)} placement="center" scrollBehavior="inside">
+        <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)} placement={sheet ? "bottom" : "center"} scrollBehavior="inside">
             <Portal>
                 <Dialog.Backdrop backdropFilter="blur(6px)" />
-                <Dialog.Positioner>
-                    <Dialog.Content maxW={{ base: "94%", md: "480px" }} rounded="2xl">
+                <Dialog.Positioner px={sheet ? "0" : undefined} pb={sheet ? "0" : undefined}>
+                    <Dialog.Content maxW={sheet ? "100%" : "480px"} w={sheet ? "100%" : undefined}
+                        mb={sheet ? "0" : undefined} rounded={sheet ? undefined : "2xl"}
+                        roundedTop={sheet ? "2xl" : undefined} roundedBottom={sheet ? "0" : undefined}
+                        pb={sheet ? "var(--safe-bottom, 0px)" : undefined}>
                         <Dialog.Header pb="2" justifyContent="center">
                             <Dialog.Title fontSize="xl" fontFamily="heading" textAlign="center" w="100%">
                                 {t("game.lobby.newGame")}
@@ -65,17 +71,28 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
                                             </Button>
                                         ))}
                                     </HStack>
-                                    {targetScore === 163 && (
-                                        <VStack align="stretch" gap="0.5" px="2.5" py="1.5" rounded="lg"
-                                            bg="bg.subtle" borderWidth="1px" borderColor="border.subtle">
-                                            <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
-                                                {t("game.create.quick.title")}
-                                            </Text>
-                                            <Text fontSize="xs" lineHeight="1.35" color="fg.muted">
-                                                {t("game.create.quick.description")}
-                                            </Text>
-                                        </VStack>
-                                    )}
+                                    {/* Every target has a description and both texts
+                                        share one grid cell, the hidden one included, so
+                                        the box is always as tall as the longer of them:
+                                        picking "Brza 163" used to grow the dialog and
+                                        shift everything under the finger (2026-10-08). */}
+                                    <Box display="grid" px="3" py="2" rounded="lg"
+                                        bg="bg.subtle" borderWidth="1px" borderColor="border.subtle">
+                                        {([true, false] as const).map((quick) => (
+                                            <VStack key={String(quick)} align="stretch" gap="0.5" gridArea="1 / 1"
+                                                visibility={quick === quickGame ? "visible" : "hidden"}
+                                                aria-hidden={quick !== quickGame}>
+                                                <Text fontSize="sm" fontWeight="semibold">
+                                                    {t(quick ? "game.create.quick.title" : "game.create.standard.title")}
+                                                </Text>
+                                                <Text fontSize="sm" lineHeight="1.45" color="fg">
+                                                    {quick
+                                                        ? t("game.create.quick.description")
+                                                        : t("game.create.standard.description", { target: quickGame ? 1001 : targetScore })}
+                                                </Text>
+                                            </VStack>
+                                        ))}
+                                    </Box>
                                 </VStack>
                                 {/* A full-width row with the same box metrics as the
                                     settings it opens, so it reads as their header
@@ -197,7 +214,7 @@ export default function CreateGameDialog({ open, onOpenChange, onCreate, busy = 
                         </Dialog.Body>
                         <Dialog.Footer>
                             <Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>{t("game.common.cancel")}</Button>
-                            <Button colorPalette="brand" size="lg" disabled={busy}
+                            <Button colorPalette="brand" size="lg" disabled={busy} flex={sheet ? "1" : undefined}
                                 onClick={() => onCreate({ targetScore, gameEndRule: quickGame ? "prolaz" : gameEndRule, private: isPrivate, allowSpectators, noDeclarations: effectiveNoDeclarations, allowBela: effectiveAllowBela, trickReview, minWinRatePercent })}>
                                 {t("game.lobby.newGame")} <FiArrowRight />
                             </Button>

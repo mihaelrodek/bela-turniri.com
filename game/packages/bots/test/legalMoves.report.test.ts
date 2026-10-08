@@ -33,6 +33,7 @@ function state(hand2: Card[], trickCards: TrickCard[], leader: Seat): GameState 
         trick: { leader, turn: 2, cards: trickCards },
         tricksWon: { A: [], B: [] },
         declarations: { 0: [], 1: [], 2: [], 3: [] },
+        declaring: { 0: true, 1: true, 2: true, 3: true },
         declarationsScoringTeam: null,
         belaDeclared: null,
         belaRefused: null,

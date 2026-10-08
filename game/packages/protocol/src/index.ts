@@ -128,6 +128,16 @@ export const DEFAULTS = {
      *  30 s je za stolom bilo predugo — tri odsutna poteza zaustave partiju
      *  na pola minute po potezu. */
     turnTimeoutMs: 15_000,
+    /** The `DECLARING` window (README §1.4, §3.1): how long every seat has,
+     *  after trump is called, to opt out of announcing its declarations.
+     *  The player gets `declarePromptMs` (4 s — a look at the eight cards
+     *  and one tap); the rest is the client's own replay of the bid
+     *  (BID 0.8 s + TRUMP_SET 1.6 s + the talon landing), which the prompt
+     *  waits for so it never asks about cards that are not on screen yet. */
+    declaringMs: 6_500,
+    /** How long of `declaringMs` the question is actually on screen — the
+     *  length of the prompt's countdown bar. */
+    declarePromptMs: 4_000,
     /** Seat hold after an explicit `room.leave` or a dropped socket, README §3
      *  "Timeri". Two minutes: long enough to walk back in from the lobby or
      *  survive a tunnel, short enough that a table is never stuck on a ghost. */
@@ -421,6 +431,14 @@ export type ClientMessage =
      * changes nothing at all.
      */
     | { t: "game.play"; card: Card; bela?: boolean }
+    /**
+     * The seat's answer in the `DECLARING` window (README §1.4, §3.1
+     * `declaringMs`): `false` = do NOT announce my declarations this deal,
+     * `true` = announce them (the default, so a client that never sends this
+     * declares). Repeatable until the window closes; the last answer counts.
+     * Outside `DECLARING` it is `BAD_PHASE`.
+     */
+    | { t: "game.declare"; declare: boolean }
     | { t: "game.nextDeal" }
     | { t: "chat.react"; reaction: Reaction }
     /**
@@ -471,6 +489,13 @@ export type ServerMessage =
     | {
           t: "game.state"
           declarationsPending?: boolean
+          /**
+           * Epoch ms when the `DECLARING` window closes, while the view's
+           * phase is `DECLARING`; null otherwise. Absolute, like
+           * `turnDeadline`, so the prompt's countdown survives a throttled
+           * tab. Its length is `DEFAULTS.declaringMs`.
+           */
+          declaringUntil?: number | null
           view: PlayerView
           /** Epoch ms when the current turn times out, or null. */
           turnDeadline: number | null
@@ -519,7 +544,7 @@ const CLIENT_TYPES: ReadonlySet<string> = new Set<ClientMessageType>([
     "hello", "ping", "lobby.subscribe", "lobby.unsubscribe",
     "room.create", "room.join", "room.leave", "room.sit", "room.stand",
     "room.addBot", "room.removeBot", "room.ready", "room.start",
-    "game.bid", "game.pass", "game.play", "game.nextDeal",
+    "game.bid", "game.pass", "game.play", "game.declare", "game.nextDeal",
     "room.joinByCode", "chat.react", "room.setPrivate", "room.setOptions",
     "profile.setName", "profile.setAvatar", "liveActivity.tokens",
 ])

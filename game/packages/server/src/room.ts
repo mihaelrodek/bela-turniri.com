@@ -726,7 +726,7 @@ export class Room {
         return reconnected
     }
 
-    /** Socket died: active play gets a hold; a lobby seat is released. */
+    /** Socket died: the seat is held for `reconnectGraceMs`, in LOBBY too. */
     onDisconnect(conn: Connection): void {
         if (!this.conns.delete(conn)) return
         const user = conn.user
@@ -845,17 +845,26 @@ export class Room {
      */
     private removeBotOnlyLobby(): boolean {
         if (this.status !== "LOBBY" || this.conns.size > 0) return false
+        // A seat on reconnect hold is a human member who is coming back; the
+        // hold's expiry calls this again once they have not.
+        if (this.holds.size > 0) return false
         if (this.demo && this.demoSeatCount() > 0) return false
         log.info("room.deleted", { room: this.id, status: this.status, reason: "no-human-members" })
         this.lobby.remove(this.id)
         return true
     }
 
-    /** PLAYING → mark the seat away and start the hold; LOBBY → just free it. */
+    /**
+     * PLAYING → mark the seat away and start the hold. LOBBY → a dropped socket
+     * gets the same hold (2026-10-08, owner: switching to another app on a
+     * phone kills the socket, and the room the player had just set up used to
+     * vanish under them); only an explicit leave frees a lobby seat at once.
+     */
     private holdOrRelease(uid: string, reason: HoldReason): void {
         const seat = this.seatOfUid(uid)
         if (seat === null) return
-        if (this.status !== "PLAYING") {
+        const holdInLobby = this.status === "LOBBY" && reason === "disconnect"
+        if (this.status !== "PLAYING" && !holdInLobby) {
             this.cancelHold(uid)
             this.seats[seat] = null
             return
@@ -922,6 +931,9 @@ export class Room {
             this.seats[seat] = this.vacatedSlot(seat)
             if (this.isHost(uid)) this.transferHost(uid)
             log.info("seat.holdExpired", { room: this.id, seat, uid, reason })
+            // A lobby whose only human never came back goes, as it would
+            // have the moment they disconnected before lobby holds existed.
+            if (this.removeBotOnlyLobby()) return
             this.broadcastState()
             this.lobby.changed()
             this.game?.onPresenceChanged()
@@ -1204,6 +1216,9 @@ export class Room {
             const slot = this.seats[s]
             if (slot?.kind === "PLAYER" && !slot.ready) {
                 throw new ProtocolError("BAD_REQUEST", "Nisu svi igrači spremni.")
+            }
+            if (slot?.kind === "PLAYER" && !slot.connected) {
+                throw new ProtocolError("BAD_REQUEST", "Netko za stolom trenutno nije povezan.")
             }
         }
         if (this.seats.some((slot) => slot === null)) {

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+    <!-- Existing tournaments remain public until their manager opts out. -->
+    <changeSet id="2026-10-03-tournament-pairs-visibility" author="mrodek">
+        <addColumn tableName="tournaments">
+            <column name="pairs_public" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <!-- Keep the preference on application rollback; older versions ignore it. -->
+        <rollback><sql>SELECT 1;</sql></rollback>
+    </changeSet>
+</databaseChangeLog>

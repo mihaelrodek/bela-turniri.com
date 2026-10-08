@@ -217,7 +217,7 @@ describe("seat hold on an explicit leave", () => {
         expect(room.holdFor("dev:gost")).toBeNull()
     })
 
-    it("frees the seat outright when a lobby connection closes", async () => {
+    it("holds a lobby seat when its connection closes, and seats the reconnect back", async () => {
         server = await startTestServer()
         const host = await connect("Domacin")
         host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false })
@@ -226,10 +226,63 @@ describe("seat hold on an explicit leave", () => {
         guest.send({ t: "room.join", roomId: joined.room.id })
         expect((await guest.nextOfType("room.joined")).yourSeat).toBe(2)
 
+        // Switching apps on a phone kills the socket (2026-10-08): the seat
+        // waits out `reconnectGraceMs` instead of opening up at once.
         await guest.close()
         const room = server.lobby.get(joined.room.id)!
-        await until(() => room.slotAt(2) === null)
+        await until(() => room.holdFor("dev:gost") !== null)
+        const slot = room.slotAt(2)
+        expect(slot?.kind === "PLAYER" && slot.uid === "dev:gost" && !slot.connected).toBe(true)
+
+        // A fresh `hello` from the same uid is the reconnect and walks back in.
+        const again = await connect("Gost")
+        expect((await again.nextOfType("room.joined")).yourSeat).toBe(2)
         expect(room.holdFor("dev:gost")).toBeNull()
+        const back = room.slotAt(2)
+        expect(back?.kind === "PLAYER" && back.connected).toBe(true)
+    })
+
+    it("keeps a lobby alive while its only human is on hold, then deletes it", async () => {
+        server = await startTestServer({ timings: { reconnectGraceMs: 80 } })
+        const host = await connect("Domacin")
+        host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false })
+        const joined = await host.nextOfType("room.joined")
+        for (const seat of [1, 2, 3] as const) host.send({ t: "room.addBot", seat })
+        await host.next((m) => m.t === "room.state" && m.room.seats.every((s) => s.occupant !== null))
+
+        await host.close()
+        const room = server.lobby.get(joined.room.id)!
+        await until(() => room.holdFor("dev:domacin") !== null)
+        expect(server.roomCount()).toBe(1)
+
+        // Nobody came back: the hold expires and the bot-only lobby goes.
+        await until(() => server?.lobby.get(joined.room.id) === undefined, 3000)
+        expect(server.roomCount()).toBe(0)
+    })
+
+    it("refuses to start while a seated player is on reconnect hold", async () => {
+        server = await startTestServer()
+        const host = await connect("Domacin")
+        host.send({ t: "room.create", name: "Soba", targetScore: 501, private: false })
+        const joined = await host.nextOfType("room.joined")
+        const guest = await connect("Gost")
+        guest.send({ t: "room.join", roomId: joined.room.id })
+        await guest.nextOfType("room.joined")
+        guest.send({ t: "room.ready", ready: true })
+        await host.next((m) => m.t === "room.state" && m.room.seats[2]?.occupant?.kind === "PLAYER" && m.room.seats[2].occupant.ready)
+        for (const seat of [1, 3] as const) host.send({ t: "room.addBot", seat })
+        await host.next((m) => m.t === "room.state" && m.room.seats.every((s) => s.occupant !== null))
+        host.send({ t: "room.ready", ready: true })
+        await host.nextOfType("room.state")
+
+        await guest.close()
+        const room = server.lobby.get(joined.room.id)!
+        await until(() => room.holdFor("dev:gost") !== null)
+
+        host.send({ t: "room.start" })
+        const err = await host.nextOfType("error")
+        expect(err.code).toBe("BAD_REQUEST")
+        expect(room.status).toBe("LOBBY")
     })
 
     it("deletes a lobby once its last human leaves, even when bots remain", async () => {

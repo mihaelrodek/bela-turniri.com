@@ -75,5 +75,7 @@ public record TournamentDetailsResponse(
          * value again, so the grace window follows the organiser instead of
          * expiring mid-edit.
          */
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        boolean pairsPublic,
+        Long registeredPairs
 ) {}

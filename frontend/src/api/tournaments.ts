@@ -130,6 +130,9 @@ export async function fetchTournamentDetails(
 ): Promise<TournamentDetails> {
     const { data } = await http.get<TournamentDetails>(`/tournaments/${uuid}`, {
         silent: opts?.silent,
+        // Live refetches must revalidate roster visibility and its total,
+        // even while the previous public detail response is still fresh.
+        headers: { "Cache-Control": "no-cache" },
     });
     return data;
 }
@@ -186,6 +189,15 @@ export async function deleteTournamentPoster(uuid: string): Promise<TournamentDe
 /** `opts.silent` — see fetchRounds; used by the tournament page live-poll. */
 export async function fetchTournamentPairs(uuid: string, opts?: { silent?: boolean }): Promise<PairShort[]> {
     const { data } = await http.get<PairShort[]>(`/tournaments/${uuid}/pairs`, { silent: opts?.silent })
+    return data
+}
+
+export async function setTournamentPairsVisibility(uuid: string, pairsPublic: boolean): Promise<TournamentDetails> {
+    const { data } = await http.patch<TournamentDetails>(
+        `/tournaments/${uuid}/pairs-visibility`,
+        { pairsPublic },
+        { silent: true },
+    )
     return data
 }
 

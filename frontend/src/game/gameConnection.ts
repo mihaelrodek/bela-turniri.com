@@ -89,6 +89,9 @@ export interface GameSocketState {
     turnDeadline: number | null
     turnDurationMs: number | null
     declarationsPending: boolean
+    /** Epoch ms when the `DECLARING` opt-out window closes (README §1.4);
+     *  null in every other phase. */
+    declaringUntil: number | null
     autoPlayed: boolean
     events: QueuedGameEvent[]
     reactions: SeatReaction[]
@@ -138,6 +141,7 @@ const initialState: GameSocketState = {
     turnDeadline: null,
     turnDurationMs: null,
     declarationsPending: false,
+    declaringUntil: null,
     autoPlayed: false,
     events: [],
     reactions: [],
@@ -222,6 +226,7 @@ export function leaveRoom(options: { forfeit?: boolean } = {}): void {
         turnDeadline: null,
         turnDurationMs: null,
         declarationsPending: false,
+        declaringUntil: null,
         autoPlayed: false,
         events: [],
         reactions: [],
@@ -325,6 +330,7 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
                         turnDeadline: null,
                         turnDurationMs: null,
                         declarationsPending: false,
+                        declaringUntil: null,
                         autoPlayed: false,
                         events: [],
                         reactions: [],
@@ -346,6 +352,7 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
                 turnDeadline: null,
                 turnDurationMs: null,
                 declarationsPending: false,
+                declaringUntil: null,
                 autoPlayed: false,
                 events: [],
                 reactions: [],
@@ -359,6 +366,7 @@ function applyMessage(prev: GameSocketState, msg: ServerMessage): GameSocketStat
                 turnDurationMs: msg.turnDurationMs,
                 autoPlayed: msg.autoPlayed,
                 declarationsPending: msg.declarationsPending === true,
+                declaringUntil: typeof msg.declaringUntil === "number" ? msg.declaringUntil : null,
             }
         case "game.events": {
             if (msg.events.length === 0) return prev

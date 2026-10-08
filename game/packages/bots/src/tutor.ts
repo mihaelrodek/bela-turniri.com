@@ -55,7 +55,8 @@ export function newPracticeGame(seed: string): GameState {
     return newGame({ targetScore: QUICK_TARGET as TargetScore, seed })
 }
 
-/** The seat that has to act now, or null when nobody does. */
+/** The seat that has to act now, or null when nobody does — including the
+ *  `DECLARING` window, which is the table's clock and nobody's turn. */
 export function seatToAct(state: GameState): Seat | null {
     if (state.phase === "BIDDING") return state.bidding.turn
     if (state.phase === "PLAYING") return state.trick.turn
@@ -71,8 +72,13 @@ export function botView(state: GameState, seat: Seat): PlayerView {
 /**
  * The move of whichever BOT is on turn, or null when it is the learner's turn
  * or nobody's. The action is not applied — the caller passes it to `reduce`.
+ *
+ * In the `DECLARING` window (README §1.4) it is the table's own
+ * `FINISH_DECLARING`: the practice game has no opt-out prompt, so the window
+ * closes at once with everybody — the learner included — declaring.
  */
 export function botAction(state: GameState, rng: () => number): GameAction | null {
+    if (state.phase === "DECLARING") return { type: "FINISH_DECLARING" }
     const seat = seatToAct(state)
     if (seat === null || seat === LEARNER_SEAT) return null
     const view = botView(state, seat)

@@ -217,7 +217,7 @@ public class ShellRenderService {
                 FINISHED_PREVIEW_LIMIT,
                 0L,
                 idOrSlug,
-                tournamentMapper.toDetails(t)
+                tournamentMapper.toDetails(t, pairRepo.countActiveByTournament_Id(t.getId()))
         );
     }
 

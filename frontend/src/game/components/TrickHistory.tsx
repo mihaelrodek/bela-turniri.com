@@ -89,21 +89,42 @@ export default function TrickHistory({
                 boxShadow="0 18px 40px rgba(0,0,0,0.55)"
                 onClick={(event) => event.stopPropagation()}
             >
-                <IconButton
-                    aria-label={t("game.common.close")}
-                    title={t("game.common.close")}
-                    variant="ghost"
-                    size="xs"
-                    position="absolute"
-                    top="2"
-                    right="2"
-                    onClick={onDismiss}
+                {/* Title and close stay put while the tricks scroll under
+                    them (2026-10-08, owner). Sticky inside the scrolling
+                    panel, pulled out over its own padding so no strip of
+                    card ever shows above the title, and opaque — a sticky
+                    glass would blur the cards into the words. */}
+                <Flex
+                    position="sticky"
+                    top="-3"
+                    zIndex={2}
+                    mt="-3"
+                    mx="-4"
+                    px="4"
+                    pt="3"
+                    pb="2"
+                    align="center"
+                    justify="center"
+                    bg="bg.opaque"
+                    borderBottomWidth="1px"
+                    borderColor="border.subtle"
                 >
-                    <FiX />
-                </IconButton>
-                <Text fontSize="sm" fontFamily="heading" fontWeight="bold" textAlign="center" color={INK} letterSpacing="wide">
-                    {t("game.tricks.title")}
-                </Text>
+                    <Text fontSize="sm" fontFamily="heading" fontWeight="bold" textAlign="center" color={INK} letterSpacing="wide">
+                        {t("game.tricks.title")}
+                    </Text>
+                    <IconButton
+                        aria-label={t("game.common.close")}
+                        title={t("game.common.close")}
+                        variant="ghost"
+                        size="xs"
+                        position="absolute"
+                        top="2"
+                        right="2"
+                        onClick={onDismiss}
+                    >
+                        <FiX />
+                    </IconButton>
+                </Flex>
 
                 {message !== null ? (
                     <Text fontSize="xs" color={INK_MUTED} textAlign="center" py="2">
@@ -120,16 +141,9 @@ export default function TrickHistory({
                             borderColor="bg.subtle"
                             bg="bg.subtle"
                         >
-                            <HStack justify="space-between" gap="2">
-                                <Text fontSize="xs" fontFamily="mono" fontVariantNumeric="tabular-nums" fontWeight="bold" color={INK}>
-                                    {t("game.tricks.trickNo", { n: trick.no })}
-                                </Text>
-                                <Text fontSize="9px" color={INK_MUTED} lineClamp={1}>
-                                    {t("game.tricks.ledBy", {
-                                        name: seatName(seats, trick.leader, t("game.seat.empty")),
-                                    })}
-                                </Text>
-                            </HStack>
+                            <Text fontSize="xs" fontFamily="mono" fontVariantNumeric="tabular-nums" fontWeight="bold" color={INK}>
+                                {t("game.tricks.trickNo", { n: trick.no })}
+                            </Text>
 
                             {/* One column per play, in the order they were
                                 thrown: the card with the name of whoever
@@ -161,11 +175,24 @@ export default function TrickHistory({
                                 })}
                             </HStack>
 
-                            <Text fontSize="9px" mt="1" color="brand.fg" fontWeight="bold" lineClamp={1}>
-                                {t("game.tricks.wonBy", {
-                                    name: seatName(seats, trick.winner, t("game.seat.empty")),
-                                })}
-                            </Text>
+                            {/* Label + name as two words, not one sentence
+                                (2026-10-08, owner: "otvara Test" / "uzeo Bot
+                                Lucija" read as one grey mumble); who opened
+                                bottom-left, who took it bottom-right. */}
+                            <HStack justify="space-between" gap="2" mt="1.5">
+                                <Text fontSize="xs" lineClamp={1}>
+                                    <Text as="span" color={INK_MUTED}>{t("game.tricks.ledBy")} </Text>
+                                    <Text as="span" color={INK} fontWeight="semibold">
+                                        {seatName(seats, trick.leader, t("game.seat.empty"))}
+                                    </Text>
+                                </Text>
+                                <Text fontSize="xs" lineClamp={1} textAlign="end">
+                                    <Text as="span" color={INK_MUTED}>{t("game.tricks.wonBy")} </Text>
+                                    <Text as="span" color="brand.fg" fontWeight="bold">
+                                        {seatName(seats, trick.winner, t("game.seat.empty"))}
+                                    </Text>
+                                </Text>
+                            </HStack>
                         </Box>
                     ))
                 )}

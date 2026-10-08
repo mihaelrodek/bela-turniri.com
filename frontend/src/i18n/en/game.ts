@@ -35,6 +35,10 @@ export const game: GameDict = {
     "guest.nameOffensive": "That name isn't allowed. Choose another one.",
     "declarations.calculating": "Working out declarations…",
     "declarations.starting": "Game starting…",
+    "declaring.ask": "Announce your declarations?",
+    "declaring.switch": "Announce declarations",
+    "declaring.status": "Checking declarations…",
+    "declaring.timeLeft": "{seconds} s left",
 
     "lobby.heroLabel": "Bela Online",
     "lobby.heroTitle": "Your table. Your crew.",
@@ -221,6 +225,8 @@ export const game: GameDict = {
     "create.quick.name": "Quick 163",
     "create.quick.title": "Quick game",
     "create.quick.description": "Bela without declarations — only bela counts. Up to 3 deals, first dealer picked at random. The first pair to 163 points wins — if neither gets there, whoever has more after the third deal wins.",
+    "create.standard.title": "Classic game",
+    "create.standard.description": "Bela with declarations, played to {target}. Deals continue until one pair passes the target. Change the rules under “More options”.",
     // Short label for the quick-play (163) discipline in tight stat pills —
     // the bare number "163" alone would not read as a discipline name the
     // way "501"/"701"/"1001" do, so it gets a word instead.
@@ -303,6 +309,7 @@ export const game: GameDict = {
     "table.waiting": "Wait…",
     "table.spectatingIntro": "You're watching",
     "table.spectatorCount": "Spectators: {count}",
+    "table.declarationsPill": "Declarations overview",
     // Promo instead of a spectator's empty hand (2026-09-29, user request).
     "table.spectatorPromoTitle": "Play your own bela",
     "table.spectatorPromoSubtitle": "Free, online, with friends or with bots.",
@@ -523,8 +530,8 @@ export const game: GameDict = {
     "tricks.title": "Tricks",
     "tricks.open": "View played tricks",
     "tricks.trickNo": "Trick {n}",
-    "tricks.ledBy": "Led by {name}",
-    "tricks.wonBy": "Won by {name}",
+    "tricks.ledBy": "Opened by:",
+    "tricks.wonBy": "Trick taken by:",
     "tricks.empty": "No tricks played yet.",
     "tricks.hiddenOff": "Trick review is off in this room.",
     "tricks.hiddenLeaderPair": "Only the pair that led the current trick can review it.",

@@ -107,7 +107,9 @@ export interface ViewOptions {
 
 export function viewFor(state: GameState, seat: Seat | null, opts?: ViewOptions): PlayerView {
     const tricks = completedTricksInOrder(state)
-    const revealed = state.bidding.trump !== null
+    // Trump is set in DECLARING too, but the declarations are not computed
+    // until the window closes (README §1.4) — there is nothing to show yet.
+    const revealed = state.bidding.trump !== null && state.phase !== "DECLARING"
 
     const declarations = visibleDeclarations(state, seat, revealed)
 
@@ -156,6 +158,8 @@ export function viewFor(state: GameState, seat: Seat | null, opts?: ViewOptions)
         declarationPoints: declarationPoints(state),
         declarationsRevealed: revealed,
         declarationsScoringTeam: revealed ? state.declarationsScoringTeam : null,
+        // Own answer only; the other seats' choices never leave the server.
+        myDeclaring: seat !== null && state.phase === "DECLARING" ? state.declaring[seat] : null,
         belaDeclared: state.belaDeclared,
         belotSeat: state.belotSeat ?? null,
         dealScore: state.dealScore,

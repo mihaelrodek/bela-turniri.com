@@ -168,6 +168,10 @@ public class Tournaments {
     @Column(name = "preserve_matchmaking", nullable = false)
     private boolean preserveMatchmaking = false;
 
+    /** Whether visitors may see the registered pair roster. Managers always may. */
+    @Column(name = "pairs_public", nullable = false)
+    private boolean pairsPublic = true;
+
     /** Firebase UID of the user who created the tournament (null for legacy rows). */
     @Column(name = "created_by_uid", length = 64)
     private String createdByUid;
