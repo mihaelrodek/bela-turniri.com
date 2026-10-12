@@ -286,14 +286,22 @@ export default function GameSettingsSheet({ open, onClose, room, isHost = false,
                 <Dialog.Backdrop backdropFilter="blur(6px)" />
                 <Dialog.Positioner>
                     <Dialog.Content maxW={{ base: "94%", md: "480px" }} rounded="2xl">
-                        <Dialog.Header><Dialog.Title fontSize="2xl" fontFamily="heading">{t("game.settings.title")}</Dialog.Title></Dialog.Header>
-                        <Dialog.Body>
+                        {/* No visible heading (2026-10-12, owner): on a phone,
+                            and above all on the landscape table, "Postavke
+                            igre" cost the row that should show my name and
+                            the first row of faces the moment the sheet
+                            opens. The title stays for assistive tech. */}
+                        <Dialog.Title srOnly>{t("game.settings.title")}</Dialog.Title>
+                        <Dialog.Body pt="4">
                             <VStack gap="3" align="stretch">
+                                {/* Name and avatar FIRST, before the host's room
+                                    settings — they are what everyone opens the
+                                    sheet for. */}
+                                <GameNameSetting />
+                                <GameAvatarSetting />
                                 {canEditRoom ? (
                                     <RoomSettings room={room} onChange={onChangeOptions} />
                                 ) : null}
-                                <GameNameSetting />
-                                <GameAvatarSetting />
                                 <Separator my="1" />
                                 {/* "Nauči kartati belu" (2026-09-29): the
                                     tutorial the lobby offers once, here for

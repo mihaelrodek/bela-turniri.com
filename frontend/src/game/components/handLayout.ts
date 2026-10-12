@@ -17,6 +17,12 @@ export const HAND_CARD_SIZE = { base: "sm", md: "md", lg: "ml" } as const
 /** The gap between two slots, in px. Used in the grid's own width sum. */
 export const SLOT_GAP = 6
 
+/** The landscape fan's top padding, in px (2026-10-12): room for
+ *  `PlayingCard`'s own 16 px hover lift. Nothing places itself against it
+ *  any more — the landscape table MEASURES the fan (`useFanRect`, sixth
+ *  pass); this is only `Hand`'s own padding. */
+export const FAN_PAD_TOP = 16
+
 /** The two-row phone grid at its DRAWN size (`sm`), before `--hand-k`. */
 export const PHONE_GRID_W = CARD_WIDTH.sm * 4 + SLOT_GAP * 3
 /** Two rows of mađarice (`MADJARICA_HEIGHT.sm` = 90) and the gap between. */

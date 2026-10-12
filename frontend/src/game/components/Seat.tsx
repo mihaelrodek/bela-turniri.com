@@ -10,7 +10,18 @@ import { suitKey } from "../util/cards"
 import { occupantName, type Occupant } from "../util/seats"
 import { botAvatarPreset } from "../util/botAvatar"
 import { REACTION_TEXT_KEYS } from "../util/reactions"
+import { useGamePrefs } from "../hooks/useGamePrefs"
 import AvatarPhoto from "./AvatarPhoto"
+import {
+    SEAT_AVATAR_CY,
+    SEAT_FAN_BACK_H as FAN_BACK_H,
+    SEAT_FAN_BACK_W as FAN_BACK_W,
+    SEAT_FAN_GAP as FAN_GAP,
+    SEAT_FAN_SCALE as FAN_SCALE,
+    SEAT_FAN_STEP as FAN_STEP,
+    type FanPlacement,
+} from "./landscapeGeometry"
+import { CardBack } from "./PlayingCard"
 import type { SeatBubble } from "./reactionBubbles"
 import SuitGlyph from "./SuitGlyph"
 import { INK, INK_MUTED, SHORT, TEAM, type TeamSide } from "./tableStyles"
@@ -306,7 +317,11 @@ const BUBBLE_FADE_MS = 150
  */
 export type ReactionAlign = "left" | "center" | "right" | "beside"
 
-function ReactionBubble({
+/** Exported for the landscape table (2026-10-12, owner: "zašto ne vidim
+ *  reakcije u landscapeu?"): my own seat has no avatar there, so the page
+ *  floats this bubble over the fan's centre instead. `frame` only matters to
+ *  the `left`/`right` tails; `center` works on a zero-size anchor. */
+export function ReactionBubble({
     bubble,
     align,
     frame,
@@ -478,6 +493,8 @@ export default function Seat({
     reactionAlign = "center",
     reducedMotion = false,
     team = "us",
+    cardsLeft = null,
+    fanPlacement = "right",
 }: {
     info: SeatInfo
     isMe?: boolean
@@ -495,6 +512,12 @@ export default function Seat({
     reducedMotion?: boolean
     /** My pair or theirs, relative to the viewer (`TEAM`, DESIGN §6). */
     team?: TeamSide
+    /** How many cards this seat still holds, drawn as a small fan of backs
+     *  beside the avatar (the landscape table, 2026-10-12). Null = no fan. */
+    cardsLeft?: number | null
+    /** Where the fan lies, relative to the seat block — the side facing
+     *  the middle of the table. */
+    fanPlacement?: FanPlacement
 }) {
     const { t } = useTranslation()
     const occupant = info.occupant
@@ -520,7 +543,10 @@ export default function Seat({
             gap="0"
             w="var(--seat-w)"
             minH="var(--seat-h)"
+            position="relative"
         >
+            {cardsLeft !== null && <SeatCardFan count={cardsLeft} placement={fanPlacement} />}
+
             {/* Whose turn it is: a green frame around the avatar AND the name,
                 not an "on turn" chip under them (2026-09-20, user request).
                 The frame is always there — transparent off-turn — so a seat
@@ -623,6 +649,80 @@ export default function Seat({
                 {chip}
             </Flex>
         </Flex>
+    )
+}
+
+/* The fan's sizes (`FAN_*`) live in landscapeGeometry.ts, beside the
+   declared cards' flank slots that have to clear it. */
+
+/** The slight hand-held disorder of the backs: ±1.5° at most, the same on
+ *  every render (a pattern, not randomness, so nothing twitches). */
+const FAN_JITTER = [-1.5, 1, -0.5, 1.5, -1, 0.5, -1.5, 1] as const
+
+/**
+ * The cards a seat still holds, face down, IN FRONT of the player, facing
+ * the middle of the table (landscape; seventh pass, 2026-10-12, owner — the
+ * classic bela apps' picture). A flank seat's backs lie sideways (turned
+ * 90°, long axis toward the centre) in a vertical column just inboard of
+ * the seat block, centred on the avatar; the partner's (and a spectator's
+ * bottom seat's) stand upright in a horizontal row just under (above) it,
+ * centred. ~70 % overlap, a ±1.5° jitter. Absolutely placed off the seat
+ * block, so the block keeps its size and the anchors stay honest; it is a
+ * COUNT (`view.handSizes`), shrinking as cards are played — every back the
+ * same CSS-drawn `CardBack` the hand uses for the talon, scaled. Sizes come
+ * from landscapeGeometry.ts, which also places the declared cards and the
+ * trick clear of it.
+ */
+function SeatCardFan({ count, placement }: { count: number; placement: FanPlacement }) {
+    const [prefs] = useGamePrefs()
+    const n = Math.max(0, Math.min(8, count))
+    if (n === 0) return null
+    const column = placement === "left" || placement === "right"
+    const length = FAN_BACK_W + (n - 1) * FAN_STEP
+    // One back's footprint in the flow: sideways in a column, upright in a row.
+    const backW = column ? FAN_BACK_H : FAN_BACK_W
+    const backH = column ? FAN_BACK_W : FAN_BACK_H
+    const where: CSSProperties = placement === "right"
+        ? { left: `calc(100% + ${FAN_GAP}px)`, top: `${SEAT_AVATAR_CY}px`, transform: "translateY(-50%)" }
+        : placement === "left"
+            ? { right: `calc(100% + ${FAN_GAP}px)`, top: `${SEAT_AVATAR_CY}px`, transform: "translateY(-50%)" }
+            : placement === "below"
+                ? { top: `calc(100% + ${FAN_GAP}px)`, left: "50%", transform: "translateX(-50%)" }
+                : { bottom: `calc(100% + ${FAN_GAP}px)`, left: "50%", transform: "translateX(-50%)" }
+    return (
+        <Box
+            aria-hidden="true"
+            position="absolute"
+            style={where}
+            w={`${column ? FAN_BACK_H : length}px`}
+            h={`${column ? length : FAN_BACK_H}px`}
+            pointerEvents="none"
+        >
+            {Array.from({ length: n }, (_, i) => (
+                <Box
+                    key={i}
+                    position="absolute"
+                    {...(column ? { top: `${i * FAN_STEP}px`, left: "0" } : { left: `${i * FAN_STEP}px`, top: "0" })}
+                    w={`${backW}px`}
+                    h={`${backH}px`}
+                >
+                    {/* The upright back, centred in its footprint and turned
+                        about its own middle — 90° in a column. */}
+                    <Box
+                        position="absolute"
+                        left="50%"
+                        top="50%"
+                        w={`${FAN_BACK_W}px`}
+                        h={`${FAN_BACK_H}px`}
+                        transform={`translate(-50%, -50%) rotate(${(column ? 90 : 0) + FAN_JITTER[i]}deg)`}
+                    >
+                        <Box transform={`scale(${FAN_SCALE})`} transformOrigin="top left" w="56px" h="90px">
+                            <CardBack size="sm" deck={prefs.deck} />
+                        </Box>
+                    </Box>
+                </Box>
+            ))}
+        </Box>
     )
 }
 

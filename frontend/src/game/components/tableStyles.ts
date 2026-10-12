@@ -1,3 +1,4 @@
+import { LANDSCAPE_TABLE_QUERY } from "../landscapeQuery"
 /** Theme-aware game surfaces and responsive seat/card geometry. */
 
 const BLUR = {
@@ -46,8 +47,21 @@ export const INK = "fg.ink"
 export const INK_MUTED = "fg.muted"
 
 /** A landscape phone (and any very short window): the table has to give the
- *  hand its 68 px and take the difference out of padding. */
+ *  hand its 68 px and take the difference out of padding.
+ *
+ *  Since 2026-10-12 a landscape PHONE on the room route gets its own
+ *  full-screen layout instead (`LANDSCAPE_TABLE`, `pages/GameRoomLandscape`),
+ *  and that layout renders none of the elements carrying SHORT rules — so
+ *  SHORT stays for whatever else is short, and the two never apply to the
+ *  same element. */
 export const SHORT = "@media (max-height: 560px)"
+
+/** The full-screen landscape table (2026-10-12, owner): a phone held
+ *  sideways on `/igra/soba/*`. The bare query is what `matchMedia` takes
+ *  (`hooks/useLandscapeTable.ts`); `LANDSCAPE_TABLE` is the same thing for
+ *  a `css` block. One constant, reused — never a second guess at the height. */
+export { LANDSCAPE_TABLE_QUERY }
+export const LANDSCAPE_TABLE = `@media ${LANDSCAPE_TABLE_QUERY}`
 
 /** A small phone in portrait (iPhone SE and friends). The scoreboard and the
  *  hand tray are fixed costs, so what is left for the felt is thin enough
@@ -205,5 +219,80 @@ export function tableGeometry(bottomSeat: boolean) {
             "--cy-free": "86px",
             height: "100%",
         },
+    } as const
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────────
+   The landscape felt (2026-10-12, owner): the whole screen is the table.
+   Brand green, a radial cloth gradient, an inset vignette and a soft-light
+   turbulence texture (the same recipe DESIGN §6.3 describes for the old
+   stadium) — no card or panel frame around it. Tokens only, so it follows
+   the colour mode with the rest of the game.
+   ────────────────────────────────────────────────────────────────────── */
+
+const FELT_TEXTURE =
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")"
+
+export const LANDSCAPE_FELT = {
+    position: "relative",
+    isolation: "isolate",
+    background:
+        "radial-gradient(ellipse at 50% 42%, var(--chakra-colors-brand-600) 0%, var(--chakra-colors-brand-700) 45%, var(--chakra-colors-brand-800) 80%, var(--chakra-colors-brand-900) 100%)",
+    boxShadow: "inset 0 0 120px rgba(0,0,0,0.45)",
+    "&::before": {
+        content: "''",
+        position: "absolute",
+        inset: 0,
+        zIndex: -1,
+        backgroundImage: FELT_TEXTURE,
+        backgroundSize: "160px 160px",
+        mixBlendMode: "soft-light",
+        opacity: 0.35,
+        pointerEvents: "none",
+    },
+} as const
+
+/** The left rail's width (the ZVANJA / ŠTIHOVI strip) and the corner
+ *  controls' column on the right — the flank seats sit just inboard of
+ *  these. Px, because the seat anchors do arithmetic with them. */
+export const LANDSCAPE_RAIL_W = 40
+
+/**
+ * Geometry for the landscape table's root (the felt above the turn pill).
+ *
+ * The box takes whatever height the column leaves it — no `--box-h`, no
+ * `vh`. The partner hangs from its top edge, the flanks sit at the trick's
+ * height just inboard of the rail, and the trick's centre is `--cy-free`
+ * above the BOTTOM of the box, exactly as in portrait: a 390 px-tall phone
+ * has no room for a centred ring (partner 84 + pile 200 + pile 200 + hand),
+ * so the pile rests just above the pill and whatever slack is left is felt
+ * between it and the partner. `--cy-free` follows `--pile-k`, which
+ * `computeLandscapeScale` works out from the real screen — keep 112/100 in
+ * step with `L_PILE_LOWER` / `L_PILE_UPPER` in hooks/useTableScale.ts.
+ */
+export function landscapeTableGeometry() {
+    return {
+        "--seat-w": "92px",
+        // What the block really is (seventh pass, 2026-10-12 — it was
+        // stated as 80, and the partner's backs and declared cards hang
+        // off its bottom edge now): the turn frame's 10 px top padding,
+        // 2 + 2 px border and 1 px bottom padding, the 48 px avatar frame,
+        // and the name pill's 22 (2 margin + 2·2 padding + 11 px × 1.45).
+        // The status slot is gone (the backs in front of the seat say what
+        // it would have), see `Seat.tsx`.
+        "--seat-h": "85px",
+        "--seat-gutter": `${LANDSCAPE_RAIL_W + 4}px`,
+        "--seat-overlap": "0px",
+        "--seat-clear-x": "calc(var(--pile-k, 1) * 104px)",
+        "--seat-clear-y": "calc(var(--pile-k, 1) * 100px)",
+        "--seat-x": "var(--seat-clear-x)",
+        "--seat-y": "var(--seat-clear-y)",
+        "--cy-free": "calc(var(--pile-k, 1) * 112px)",
+        "--cy-bottom": "var(--cy-free)",
+        "--table-cy": "calc(100% - var(--cy-free))",
+        "--table-w": "100%",
+        "--table-h": "100%",
+        height: "100%",
     } as const
 }

@@ -9,7 +9,7 @@ import { useGamePrefs } from "../hooks/useGamePrefs"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import PlayingCard, { CardBack } from "./PlayingCard"
 import { SHORT } from "./tableStyles"
-import { CARD_WIDTH, HAND_CARD_SIZE, SLOT_GAP, type HandCardSize } from "./handLayout"
+import { CARD_WIDTH, FAN_PAD_TOP, HAND_CARD_SIZE, SLOT_GAP, type HandCardSize } from "./handLayout"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Hand — my cards, in a dark tray docked at the bottom of the table.
@@ -42,6 +42,19 @@ import { CARD_WIDTH, HAND_CARD_SIZE, SLOT_GAP, type HandCardSize } from "./handL
       is the sizing that actually fits every width it has to.)
    4. It uses one fixed suit/rank order (`sortHandForDisplay`) in every deal.
       Trump never moves a suit, so shuffling cannot change the layout rule.
+
+   THE FAN (`layout="fan"`, 2026-10-12, owner — the landscape table). The
+   same eight slots, the same rules 1, 2 and 4, a different shape: one row
+   whose grid cells are `FAN_EXPOSURE` of a card wide, so each card overlaps
+   the next and only its left strip shows; the slots lean −6°…+6° about
+   their bottom edge and sink on a shallow curve toward the ends, like a hand
+   actually held — flatter and wider since the fourth pass (2026-10-12,
+   owner: the first cut was "strongly curved" and the cards "narrow").
+   Drawn at `sm` and zoomed by `--hand-k` like the phone grid.
+   Rule 2 holds here too (2026-10-12, owner, second pass): a legal card
+   looks exactly like the others — the first cut lifted it and that was a
+   recommendation. The fan's lean lives on a wrapper OUTSIDE the slot that
+   animates, so the deal-in and the FLIP never fight the resting angle.
 
    Legal and illegal cards deliberately have the same resting appearance.
    Rules are explained only after a player taps an illegal card; the hand
@@ -86,6 +99,16 @@ const TALON_STEP_MS = 110
 /** A card moving to another slot when the hand is re-sorted around the talon. */
 const MOVE_MS = 380
 const MOVE_EASING = "cubic-bezier(0.22, 1, 0.36, 1)"
+/** The fan (landscape): how much of a card shows beside the next one. Keep
+ *  in step with `L_FAN_W` in hooks/useTableScale.ts. */
+const FAN_EXPOSURE = 0.52
+/** The lean of the outermost slot, in degrees (linear across the eight),
+ *  and the sink of the ends (× offset², so 6 px at the outermost slot). */
+const FAN_MAX_DEG = 6
+const FAN_SINK_PX = 0.5
+
+export type HandLayout = "grid" | "fan"
+
 const TALON_SLOT = Symbol("talon-slot")
 type HandSlot = Card | typeof TALON_SLOT
 type StableHandSlot = HandSlot | null
@@ -148,8 +171,10 @@ export default function Hand({
     phase,
     layoutKey,
     disabled = false,
+    hiddenCards,
     onPlay,
     onInvalidPlay,
+    layout = "grid",
 }: {
     cards: Card[]
     /** `PlayerView.legalMoves` — empty when it is not our turn. */
@@ -161,17 +186,34 @@ export default function Hand({
     layoutKey: string | null
     /** True while an animation is playing or the connection is down. */
     disabled?: boolean
+    /** Cards that are OUT of the hand for the moment, their slots kept
+     *  (2026-10-11): my declared cards while they lie on the felt during
+     *  the reveal, with `CardFlight` carrying a clone there and back. The
+     *  slot stays in the grid at full size, invisible — exactly like the
+     *  empty slot a played card leaves, so nothing reflows and the page can
+     *  still measure where the card belongs (`data-card` on the slot). */
+    hiddenCards?: ReadonlySet<Card>
     onPlay: (card: Card) => void
     onInvalidPlay: (card: Card) => void
+    /** `grid` (default): 4 × 2 on a phone, 1 × 8 from 48em. `fan`: the
+     *  overlapped, arched row of the landscape table (see the header). */
+    layout?: HandLayout
 }) {
     const { t } = useTranslation()
     const [prefs] = useGamePrefs()
     const reducedMotion = usePrefersReducedMotion() || prefs.reduceMotion
-    const cardSize: HandCardSize = useBreakpointValue<HandCardSize>(HAND_CARD_SIZE) ?? "sm"
+    const fan = layout === "fan"
+    const breakpointSize: HandCardSize = useBreakpointValue<HandCardSize>(HAND_CARD_SIZE) ?? "sm"
+    // The fan is drawn at `sm` and zoomed (`--hand-k`), whatever the width.
+    const cardSize: HandCardSize = fan ? "sm" : breakpointSize
     const cardWidth = CARD_WIDTH[cardSize]
     // One row from the same breakpoint that grows the cards, so the tray only
     // ever has two shapes and they change together.
-    const columns = cardSize === "sm" ? 4 : 8
+    const columns = fan ? 8 : cardSize === "sm" ? 4 : 8
+    // A fan's grid cell is only the exposed strip; the card overflows it.
+    const cellWidth = fan ? Math.round(cardWidth * FAN_EXPOSURE) : cardWidth
+    const gap = fan ? 0 : SLOT_GAP
+    const gridWidth = cellWidth * (columns - 1) + cardWidth + gap * (columns - 1)
     const legalSet = new Set(legal)
     const myTurn = legal.length > 0 && !disabled
 
@@ -320,7 +362,7 @@ export default function Hand({
             // the reactions row (reported 2026-09-20). The inset is applied
             // exactly once now, on the LAST element of the column — the
             // reactions/bidding slot.
-            pt={{ base: "2", md: "4" }}
+            pt={fan ? "0" : { base: "2", md: "4" }}
             // The grid is centred on the PAGE (2026-09-20, user request — a
             // grid centred in the space right of my avatar read as "sve je
             // previse udesno"). `useTableScale` keeps it narrow enough that
@@ -328,25 +370,27 @@ export default function Hand({
             px="2"
             css={{
                 paddingBottom: "2px",
-                [SHORT]: { paddingTop: "8px" },
+                // The fan has its own room above for the lift; SHORT and
+                // the landscape table never meet on one element.
+                ...(fan ? { paddingTop: `${FAN_PAD_TOP}px` } : { [SHORT]: { paddingTop: "8px" } }),
             }}
         >
             {cards.length === 0 && <VisuallyHidden>{t("game.hand.empty")}</VisuallyHidden>}
             <Grid
                 ref={gridRef}
                 className="fold-game-hand-grid"
-                templateColumns={`repeat(${columns}, ${cardWidth}px)`}
+                templateColumns={`repeat(${columns}, ${cellWidth}px)`}
                 alignItems="end"
-                gap={`${SLOT_GAP}px`}
+                gap={`${gap}px`}
                 mx="auto"
                 css={{
-                    width: `${cardWidth * columns + SLOT_GAP * (columns - 1)}px`,
-                    maxWidth: "100%",
+                    width: `${gridWidth}px`,
+                    maxWidth: fan ? undefined : "100%",
                     // The phone hand is DRAWN at `sm` and shown at `--hand-k`
                     // (2026-09-20): `zoom`, not `transform`, because the grid
                     // has to take up its scaled size in the layout. A browser
                     // without `zoom` simply keeps the `sm` hand.
-                    zoom: columns === 4 ? "var(--hand-k, 1)" : undefined,
+                    zoom: columns === 4 || fan ? "var(--hand-k, 1)" : undefined,
                 }}
             >
                 {slots.map((slot, index) => {
@@ -375,18 +419,48 @@ export default function Hand({
                                           }),
                               }
                             : {}
+                    // The fan's resting pose for this slot: lean about the
+                    // bottom edge, sink toward the ends. The same for every
+                    // card, legal or not (rule 2).
+                    const fanPose = fan
+                        ? (() => {
+                            const offset = index - (slots.length - 1) / 2
+                            const lean = (offset / ((slots.length - 1) / 2)) * FAN_MAX_DEG
+                            const sink = offset * offset * FAN_SINK_PX
+                            return {
+                                transform: `translateY(${sink}px) rotate(${lean}deg)`,
+                                transformOrigin: "bottom center",
+                            }
+                        })()
+                        : undefined
                     return (
                         <Box
                             key={card ?? (slot === TALON_SLOT ? `talon-${index}` : `empty-${index}`)}
+                            // The page finds a card's slot by this to measure
+                            // a flight's take-off and landing (`hiddenCards`).
+                            data-card={card ?? undefined}
+                            // EVERY slot, cards, talon backs and empty ones
+                            // alike: the landscape table measures the fan's
+                            // real box from these (`useFanRect`, 2026-10-12).
+                            data-hand-slot=""
+                            visibility={card !== null && hiddenCards?.has(card) ? "hidden" : undefined}
+                            flexShrink={0}
+                            // Every card owns the same full-width slot in the
+                            // fixed grid — four columns on a phone, eight from
+                            // 48em, the same eight slots either way. In the
+                            // fan the slot overflows its narrower cell.
+                            css={{
+                                width: `${cardWidth}px`,
+                                ...fanPose,
+                            }}
+                            zIndex={index}
+                        >
+                        <Box
                             ref={(node: HTMLElement | null) => {
                                 if (card === null) return
                                 if (node) cardNodes.current.set(card, node)
                                 else cardNodes.current.delete(card)
                             }}
-                            flexShrink={0}
-                            // Every card owns the same full-width slot in the
-                            // fixed grid — four columns on a phone, eight from
-                            // 48em, the same eight slots either way.
                             css={{
                                 width: `${cardWidth}px`,
                                 // All three mađarice decks share the taller
@@ -397,7 +471,6 @@ export default function Hand({
                                 borderRadius: "10px",
                                 ...dealCss,
                             }}
-                            zIndex={index}
                         >
                             {slot === TALON_SLOT ? (
                                 // `CardBack` starts CSS-painted and only uses
@@ -430,9 +503,14 @@ export default function Hand({
                                     borderWidth="1.5px"
                                     borderColor="border.emphasized"
                                     bg="transparent"
+                                    // An empty slot in the fan is invisible: a
+                                    // row of outlines under a held hand reads
+                                    // as cards that are missing, not as room.
+                                    visibility={fan ? "hidden" : undefined}
                                     aria-hidden="true"
                                 />
                             )}
+                        </Box>
                         </Box>
                     )
                 })}

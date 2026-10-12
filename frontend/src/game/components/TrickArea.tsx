@@ -37,7 +37,7 @@ import PlayingCard from "./PlayingCard"
  *
  *  How big it ends up on a given phone is `--pile-k` (see the root below);
  *  the type stays a union because the rest/fly/collect tables are per size. */
-type PileSize = "sm" | "md" | "ml"
+export type PileSize = "sm" | "md" | "ml"
 
 /** How far from the centre a resting card sits, per axis, per card size. The
  *  offsets leave only a small, natural overlap at the corners and make the
@@ -138,11 +138,17 @@ export default function TrickArea({
     flyIn = null,
     collectTo = null,
     reducedMotion = false,
+    size: sizeOverride,
 }: {
     /** Cards on the table — `view.trick.cards`, or the resolved trick while
      *  a TRICK_WON event is being shown. */
     cards: TrickCard[]
     mySeat: Seat | null
+    /** Draw the pile at THIS size instead of the breakpoint's (2026-10-12):
+     *  the landscape table is 667–930 px wide, i.e. on either side of the
+     *  `md` breakpoint, and its `--pile-k` is worked out against one drawn
+     *  size, so it names that size here. */
+    size?: PileSize
     /** Kept in the component contract for game-state callers. The current
      * design deliberately does not mark the card that is holding the trick. */
     holdingSeat?: Seat | null
@@ -161,7 +167,8 @@ export default function TrickArea({
     // `ml` (84 × 135) from 48em (2026-09-20, user request: bigger cards on
     // the web, where there is room); a phone keeps `md`, which `--pile-k`
     // then scales to the screen. Clearances in tableStyles.ts follow.
-    const size = (useBreakpointValue<PileSize>({ base: "md", md: "ml" }) ?? "md") as PileSize
+    const breakpointSize = (useBreakpointValue<PileSize>({ base: "md", md: "ml" }) ?? "md") as PileSize
+    const size = sizeOverride ?? breakpointSize
     return (
         // Not aria-hidden: each card carries its Croatian name as an
         // aria-label, and the trick is exactly what a screen-reader user

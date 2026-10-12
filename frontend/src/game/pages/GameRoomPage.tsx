@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Box, Button, Flex, HStack, Spinner, Text, useBreakpointValue, VStack } from "@chakra-ui/react"
 import { FiArrowLeft } from "react-icons/fi"
-import type { Card, RoomState, Seat, Suit } from "@bela/protocol"
+import type { Card, Reaction, RoomState, Seat, Suit } from "@bela/protocol"
 import { DEFAULTS } from "@bela/protocol"
 import { trickWinner } from "@bela/engine"
-import type { Team, TrickCard } from "@bela/engine"
+import type { Declaration, Team, TrickCard } from "@bela/engine"
 import { CONTENT_STICKY_TOP, NAVBAR_SAFE_TOP } from "../../components/navChrome"
 import { useDocumentHead } from "../../hooks/useDocumentHead"
 import { useTranslation } from "../../i18n"
@@ -15,6 +15,8 @@ import BiddingPanel, { ROW_H } from "../components/BiddingPanel"
 import DealSummary from "../components/DealSummary"
 import DeclarePrompt from "../components/DeclarePrompt"
 import DeclarationsReveal, { BelaFlash, BelotFlash, TrumpFlash, TRUMP_FLASH_SUIT_SIZE } from "../components/DeclarationsReveal"
+import DeclarationsOnTable, { DECL_DEAL_MS, DECL_DEAL_STEP_MS } from "../components/DeclarationsOnTable"
+import CardFlight, { CARD_RETURN_MS, CARD_STEP_MS } from "../components/CardFlight"
 import TrumpFlight, { type FlightRect } from "../components/TrumpFlight"
 import type { TrumpGlyphState } from "../components/TrumpBadge"
 import GameOverDialog from "../components/GameOverDialog"
@@ -49,11 +51,15 @@ import SpectatorPromo from "../components/SpectatorPromo"
 import { useTurnCountdown } from "../hooks/useTurnCountdown"
 import { preloadDeck } from "../cards/madjarice/preload"
 import { cardRank, cardSuit, makeCard } from "../util/cards"
-import { occupantName, otherTeam, teamOf } from "../util/seats"
+import { occupantName, otherTeam, positionVector, teamOf } from "../util/seats"
 import { playHaptic } from "../util/haptics"
 import { installAudioUnlock, playSound, primeAudio } from "../util/sounds"
 import { useKeepAwake } from "../hooks/useKeepAwake"
 import { useTableScale } from "../hooks/useTableScale"
+import { useLandscapeTable } from "../hooks/useLandscapeTable"
+import { setTablePlaying } from "../landscapeTableStore"
+import { landscapeDeclSlot } from "../components/landscapeGeometry"
+import GameRoomLandscape from "./GameRoomLandscape"
 import { gameLobbyPath } from "../../site"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -106,6 +112,43 @@ const TURN_HURRY_TICKS_MS = [3000, 2000, 1000] as const
 /** How long the "X zove <adut>" beat stays on the felt. */
 const TRUMP_FLASH_MS = 1500
 
+/** After the reveal window closes, the felt keeps the declaration cards this
+ *  long while the other seats' deal back to their avatars (220 ms + 40 ms a
+ *  card) and my own fly home (320 ms + 50 ms a card) — eight cards is the
+ *  most one seat can lay (four jacks and a run through the jack). Longer
+ *  than either tail so neither is cut off; the hand is gated until BOTH are
+ *  done (`playResumed`). The THROW onto the felt at the start (620 ms + 50
+ *  ms a card, `CARD_THROW_MS` / `DECL_THROW_MS`) needs no budget of its
+ *  own: it lands well inside the server's 5 s window, and `playResumed`
+ *  waits for my cards to have landed and returned regardless. */
+const DECL_EXIT_MS = Math.max(DECL_DEAL_MS, CARD_RETURN_MS) + Math.max(DECL_DEAL_STEP_MS, CARD_STEP_MS) * 8 + 40
+
+/** My seat is the bottom one: my cards rise DOWN, away from the centre. */
+const MY_CARD_DIRECTION = positionVector("bottom")
+
+/** Nothing hidden in the hand — a stable identity for the common case. */
+const NO_HIDDEN_CARDS: ReadonlySet<Card> = new Set()
+
+/** The reveal as it is being played ON THE TABLE (2026-10-11): the event's
+ *  payload, pinned for the server's no-play window and a little after. */
+interface TableReveal {
+    dealNo: number
+    perSeat: Partial<Record<Seat, Declaration[]>>
+    scoringTeam: Team | null
+    /** The window has closed: cards are on their way back. */
+    leaving: boolean
+}
+
+/** The window closed: a state updater, so the effects that call it need no
+ *  dependency of their own. A reveal already leaving is left alone. */
+function markRevealLeaving(prev: TableReveal | null): TableReveal | null {
+    return prev === null || prev.leaving ? prev : { ...prev, leaving: true }
+}
+
+/** Where MY declared cards are: in the hand, flying to the felt, lying
+ *  there, flying back. Everything else about them follows from this. */
+type MyCardsPlace = "inHand" | "flyingOut" | "onFelt" | "flyingBack"
+
 /** Nothing on the felt, and a stable identity so the sync effect below does
  *  not fire on every render while the player has no view yet. */
 const NO_TRICK: TrickCard[] = []
@@ -132,6 +175,11 @@ export default function GameRoomPage() {
     // The OS preference and the in-game "Smanji animacije" toggle are two
     // ways of saying the same thing; either one is enough.
     const reducedMotion = systemReducedMotion || prefs.reduceMotion
+    /* A phone held sideways on this route (2026-10-12, owner): the same
+       state and effects below, a different arrangement of the same
+       components (`GameRoomLandscape`), and the root pinned to the viewport
+       because App.tsx renders no chrome around us then. */
+    const landscape = useLandscapeTable()
 
     const socket = useGameSocket({ roomId, mock })
     const slowConnection = useSlowConnection(socket.status)
@@ -547,9 +595,23 @@ export default function GameRoomPage() {
        the Wake Lock API simply gets nothing (see `useKeepAwake`). */
     useKeepAwake(phase !== null && phase !== "GAME_OVER")
 
+    /* The landscape store (2026-10-12, third pass): the full-screen table
+       and the hidden chrome apply only while the TABLE is up — the same
+       test `inLobbyPhase` below makes, stated before the early return so
+       the effect can run: a room, a view, and not (LOBBY with the queue
+       drained). So the waiting room and the finished game — the moment the
+       last trick is collected and the result dialog opens — are the
+       ordinary layout again, and so is every other route: leaving this
+       page resets it. */
+    const tableUp = room !== null && view !== null && !(room.status === "LOBBY" && idle)
+    useEffect(() => {
+        setTablePlaying(tableUp)
+    }, [tableUp])
+    useEffect(() => () => setTablePlaying(false), [])
+
     /* Hand and trick sizes on a phone come from the room's measured box, not
        from breakpoints (2026-09-20) — see `useTableScale`. */
-    const tableScale = useTableScale(socket.yourSeat !== null)
+    const tableScale = useTableScale(socket.yourSeat !== null, landscape)
 
     /* ── "Propustio si potez" (2026-09-20, user request) ──────────────────
        When a human's 15 s turn clock expires the server's bot plays exactly
@@ -618,19 +680,143 @@ export default function GameRoomPage() {
         playHaptic("turnWarning")
     }, [socket.events, socket.view, socket.autoPlayed, socket.status, mySeat])
 
-    // Declarations dismiss themselves after the queue's dwell; a tap closes
-    // them sooner. Each new reveal starts visible again.
-    const [declHidden, setDeclHidden] = useState(false)
+    // The "Pregled zvanja" popup — opened by its button only (2026-10-11):
+    // the reveal itself is played on the felt below. Closes with the deal.
     const [declarationsOpen, setDeclarationsOpen] = useState(false)
     useEffect(() => setDeclarationsOpen(false), [view?.dealNo])
-    useEffect(() => setDeclHidden(false), [revealed])
-    // The overlay never outlives the server's no-play window: the moment play
-    // opens, it opens for everybody, popup or not.
+    const declarationsVisible = declarationsOpen
+
+    /* ── the reveal, ON THE TABLE (2026-10-11, owner) ─────────────────────
+       `DECLARATIONS_REVEALED` used to open the popup. Now it lays the
+       scoring pair's cards on the felt in front of their seats, each group
+       with its "+N" badge (`DeclarationsOnTable`, inside `Table`); the
+       popup is left to its button, and the slot under the hand shows
+       NOTHING for the duration (no reactions, no notice — owner,
+       2026-10-12). The payload is pinned here when the event becomes
+       active and kept for the SERVER's window — `declarationsPending`, 5 s
+       with declarations, 2 s with none (then nothing goes on the felt at
+       all) — not for the event's own 4 s dwell, so the cards leave exactly
+       when play opens for everybody.
+
+       The end is `declarationsPending` going false (the server broadcasts
+       a state at the deadline, gameRoom.ts `schedule`). Two guards for the
+       order those frames can arrive in: the event's `game.state` may land
+       a render after the event itself, so an already-false flag is not
+       taken as "over" while the event is still active; and a tab that
+       slept through the whole window — events replayed after the deadline
+       — ends the reveal when the event's dwell is over and the flag is
+       false, rather than leaving cards on the felt for the rest of the
+       deal. Cards leave with a short deal-out (`leaving`) and the layer is
+       dropped `DECL_EXIT_MS` later; a new deal drops it at once. */
+    const [tableReveal, setTableReveal] = useState<TableReveal | null>(null)
     const declPending = socket.declarationsPending
+    const dealNo = view?.dealNo ?? null
     useEffect(() => {
-        if (!declPending) setDeclHidden(true)
+        setTableReveal(null)
+    }, [dealNo])
+    useEffect(() => {
+        if (revealed === null || dealNo === null) return
+        setTableReveal({ dealNo, perSeat: revealed.perSeat, scoringTeam: revealed.scoringTeam, leaving: false })
+    }, [revealed, dealNo])
+    useEffect(() => {
+        if (!declPending) setTableReveal(markRevealLeaving)
     }, [declPending])
-    const declarationsVisible = declarationsOpen || (revealed !== null && !declHidden)
+    useEffect(() => {
+        if (tableReveal === null || tableReveal.leaving) return
+        if (!declPending && revealed === null) setTableReveal(markRevealLeaving)
+    }, [tableReveal, declPending, revealed])
+    const revealLeaving = tableReveal !== null && tableReveal.leaving
+    useEffect(() => {
+        if (!revealLeaving) return
+        if (reducedMotion) {
+            setTableReveal(null)
+            return
+        }
+        const id = setTimeout(() => setTableReveal(null), DECL_EXIT_MS)
+        return () => clearTimeout(id)
+    }, [revealLeaving, reducedMotion])
+
+    /* ── my own declared cards lift OUT of the hand ───────────────────────
+       For every other seat the felt conjures copies; for MINE the real
+       cards go. In pictures: the slot in the hand goes invisible (`Hand`'s
+       `hiddenCards`, the slot itself stays so nothing reflows), a clone
+       flies from the slot's rect to the felt slot's rect (`CardFlight`,
+       FLIP over two measured viewport rects, WAAPI), the felt slot shows
+       its card when the clone lands; the way back is the same trip
+       reversed. Both rects are read in a LAYOUT effect the render after
+       `myCards` flips to a flying state: the hand's slot is still in the
+       grid (hidden), the felt slot is already mounted (hidden), and the
+       state set from inside that effect is flushed before paint, so there
+       is no frame with the card in neither place.
+
+       Reduced motion skips the flights: the cards swap over in place. A
+       window too short for the outward flight (none in practice — the
+       no-declarations window has no cards) or a reveal dropped mid-flight
+       (new deal, unmount) puts the cards straight back in the hand. */
+    const [myCards, setMyCards] = useState<MyCardsPlace>("inHand")
+    const [cardFlights, setCardFlights] = useState<{ card: Card; from: FlightRect; to: FlightRect }[] | null>(null)
+    const flightsLanded = useRef(0)
+    const handRootRef = useRef<HTMLDivElement | null>(null)
+    const feltDeclRef = useRef<HTMLDivElement | null>(null)
+    const myDeclaredCards = useMemo<Card[]>(() => {
+        if (tableReveal === null || mySeat === null) return []
+        const mine = tableReveal.perSeat[mySeat] ?? []
+        // A card may sit in two declarations at once (four jacks and a run
+        // through the jack): it flies once.
+        return Array.from(new Set(mine.flatMap((declaration) => declaration.cards)))
+    }, [tableReveal, mySeat])
+    const hasMyCards = myDeclaredCards.length > 0
+    useEffect(() => {
+        if (tableReveal === null || !hasMyCards) {
+            setMyCards("inHand")
+            setCardFlights(null)
+            return
+        }
+        if (!tableReveal.leaving) {
+            setMyCards(reducedMotion ? "onFelt" : "flyingOut")
+        } else {
+            setMyCards((prev) => (prev === "onFelt" && !reducedMotion ? "flyingBack" : "inHand"))
+        }
+    }, [tableReveal, hasMyCards, reducedMotion])
+    useLayoutEffect(() => {
+        if (myCards !== "flyingOut" && myCards !== "flyingBack") {
+            setCardFlights(null)
+            return
+        }
+        const hand = handRootRef.current
+        const felt = feltDeclRef.current
+        const flights: { card: Card; from: FlightRect; to: FlightRect }[] = []
+        for (const card of myDeclaredCards) {
+            const inHand = hand?.querySelector<HTMLElement>(`[data-card="${card}"]`)?.getBoundingClientRect()
+            const onFelt = felt?.querySelector<HTMLElement>(`[data-decl-card="${card}"]`)?.getBoundingClientRect()
+            if (!inHand || !onFelt || inHand.width === 0 || onFelt.width === 0) continue
+            flights.push(myCards === "flyingOut" ? { card, from: inHand, to: onFelt } : { card, from: onFelt, to: inHand })
+        }
+        if (flights.length === 0) {
+            // Nothing measurable (a slot not in the DOM): no flight, the
+            // cards are simply where they are going.
+            setCardFlights(null)
+            setMyCards(myCards === "flyingOut" ? "onFelt" : "inHand")
+            return
+        }
+        flightsLanded.current = 0
+        setCardFlights(flights)
+    }, [myCards, myDeclaredCards])
+    const onCardFlightDone = () => {
+        flightsLanded.current += 1
+        if (cardFlights === null || flightsLanded.current < cardFlights.length) return
+        setCardFlights(null)
+        setMyCards((prev) => (prev === "flyingOut" ? "onFelt" : prev === "flyingBack" ? "inHand" : prev))
+    }
+    const hiddenHandCards = useMemo<ReadonlySet<Card>>(
+        () => (myCards === "inHand" ? NO_HIDDEN_CARDS : new Set(myDeclaredCards)),
+        [myCards, myDeclaredCards],
+    )
+    /* Play does not resume on this screen until the felt is clear and my
+       hand is whole again: the server opens play at the deadline, but for
+       the ~half second the cards take to go home the turn marks stay off
+       and the hand stays disabled (owner, 2026-10-11). */
+    const playResumed = tableReveal === null && myCards === "inHand"
 
     /* "Gledanje štihova" (game/README.md §1.8). Whether we may look at all is
        the SERVER's answer: `view.trickHistory` is null when the room's rule
@@ -1060,9 +1246,9 @@ export default function GameRoomPage() {
     }
 
     // "Igra računa zvanja…" only until they have been SHOWN. Once the reveal
-    // has happened (popup up, or already closed) the wait that is left is the
-    // server's common start line, and saying the game is still calculating
-    // what is on screen was simply wrong (2026-09-20, user report).
+    // has happened (cards on the felt, or already gone) the wait that is left
+    // is the server's common start line, and saying the game is still
+    // calculating what is on screen was simply wrong (2026-09-20, user report).
     const declSeen = revealed !== null || (view !== null && declShownDeal === view.dealNo)
     if (socket.declarationsPending) {
         tone = "idle"
@@ -1086,8 +1272,8 @@ export default function GameRoomPage() {
        text is a polite live region for screen-reader users. */
     let phaseNotice: { title: string; hint?: string } | null = null
     // Same rule as the status pill: not once the declarations have been
-    // shown and the popup closed — "Provjeravaju se zvanja" over a table
-    // that just displayed them was nonsense (2026-10-08, owner).
+    // laid on the felt — "Provjeravaju se zvanja" over a table that is
+    // displaying them was nonsense (2026-10-08, owner).
     if (active === null && socket.declarationsPending && !declSeen) {
         phaseNotice = { title: t("game.phase.declarations") }
     }
@@ -1107,7 +1293,10 @@ export default function GameRoomPage() {
        placed twice, in the two mutually exclusive slots below (`SHORT`
        screens keep it next to the status pill; everyone else at the very
        bottom). */
-    const bottomBar = declarePromptOpen ? (
+    // …and NOTHING while the declarations lie on the felt and until my own
+    // are back in the hand (2026-10-12, owner): the cards say it all, and
+    // the reactions return with play.
+    const bottomBar = !playResumed ? null : declarePromptOpen ? (
         <DeclarePrompt
             checked={declareChecked}
             onChange={answerDeclare}
@@ -1128,35 +1317,244 @@ export default function GameRoomPage() {
         />
     )
 
+    /* The same slot's two halves for the LANDSCAPE table (2026-10-12), which
+       has no bottom bar: the question is a capsule over the felt, the
+       reactions hide behind a round button. Same gating as `bottomBar`. */
+    const landscapeDeclarePrompt = playResumed && declarePromptOpen ? (
+        <DeclarePrompt
+            compact
+            checked={declareChecked}
+            onChange={answerDeclare}
+            deadline={socket.declaringUntil}
+            durationMs={DEFAULTS.declarePromptMs}
+            disabled={socket.status !== "open"}
+            reducedMotion={reducedMotion}
+        />
+    ) : null
+    const landscapeReactions = playResumed && !declarePromptOpen && !declaringNow && mySeat !== null && view?.phase !== "BIDDING"
+        ? { disabled: socket.status !== "open", onReact: (reaction: Reaction) => socket.sendReaction(reaction) }
+        : null
+
+    /* `!turnShown`: the trick I just won is still being held and swept. The
+       server already made it my lead, so a tap went through — and the card
+       left my hand but could not land on the felt until the sweep finished:
+       for a second it was nowhere (2026-09-20, user report). `!playResumed`:
+       the declared cards are still on the felt or on their way back
+       (2026-10-11) — the hand is whole first. */
+    const handDisabled = busy || !turnShown || !playResumed || declarationsOpen || tricksOpen || belaAsk !== null
+
+    // Keyed by the deal so a rematch's first reveal mounts fresh (its deal-in
+    // plays once, on mount). The landscape table has its own slot map.
+    const declarationsLayer = tableReveal && (
+        <DeclarationsOnTable
+            key={tableReveal.dealNo}
+            perSeat={tableReveal.perSeat}
+            scoringTeam={tableReveal.scoringTeam}
+            mySeat={mySeat}
+            leaving={tableReveal.leaving}
+            myCardsHidden={myCards !== "onFelt"}
+            reducedMotion={reducedMotion}
+            rootRef={feltDeclRef}
+            slotFor={landscape ? landscapeDeclSlot : undefined}
+            scale={landscape ? "0.78" : undefined}
+            layout={landscape ? "landscape" : undefined}
+        />
+    )
+
+    /* Everything that floats over the table, on BOTH layouts: the banners and
+       flashes are `position: absolute` in whatever relative box holds them,
+       the rest are portals. One list, so the landscape table can never miss
+       an overlay the portrait column has. */
+    const overlays = view === null ? null : (
+        <>
+            {/* "Veza je pala": a popup FLOATING over the top of the table,
+                above the score panel (2026-10-03, owner) — it used to sit in
+                the flex column between header and score, shoving the whole
+                table down while it was showing. Renders null unless the
+                connection is down or just restored. */}
+            <Box position="absolute" top="2" left="0" right="0" px="2" zIndex={30} pointerEvents="none">
+                <ReconnectBanner holdUntil={socket.holdUntil} status={socket.status} />
+            </Box>
+
+            {/* Overlays sit on the WHOLE felt, not inside the seats block:
+                that block is deliberately bounded now, and a declarations
+                list is taller than it. */}
+            {phaseNotice && (
+                <Flex
+                    position="absolute"
+                    inset="0"
+                    align="center"
+                    justify="center"
+                    pointerEvents="none"
+                    zIndex={7}
+                >
+                    <HStack
+                        {...GLASS}
+                        borderColor="brand.300"
+                        rounded="full"
+                        px="4"
+                        py="2"
+                        gap="2"
+                        boxShadow="0 0 30px rgba(0,0,0,0.5)"
+                    >
+                        <Box role="status" aria-live="polite" aria-atomic="true">
+                            <Text fontSize="sm" fontWeight="bold" color={INK} textAlign="center">
+                                {phaseNotice.title}
+                            </Text>
+                            {phaseNotice.hint && (
+                                <Text fontSize="xs" color={INK_MUTED} textAlign="center">
+                                    {phaseNotice.hint}
+                                </Text>
+                            )}
+                        </Box>
+                    </HStack>
+                </Flex>
+            )}
+
+            {/* Keyed by the room: walking into ANOTHER game as a spectator
+                greets again, a re-render does not. */}
+            {mySeat === null && <SpectatorIntro key={room.id} reducedMotion={reducedMotion} />}
+
+            {/* The full read-back, on request only (the button in the
+                header): the reveal itself is on the felt. */}
+            {declarationsVisible && (
+                <DeclarationsReveal
+                    perSeat={view.declarations}
+                    scoringTeam={view.declarationsScoringTeam}
+                    seats={room.seats}
+                    mySeat={mySeat}
+                    declarationPoints={view.declarationPoints}
+                    belaDeclared={view.belaDeclared}
+                    trumpSuit={trumpSuit}
+                    onDismiss={() => setDeclarationsOpen(false)}
+                />
+            )}
+
+            {tricksOpen && (
+                <TrickHistory
+                    tricks={view.trickHistory ?? null}
+                    trickReview={room.trickReview}
+                    seats={room.seats}
+                    mySeat={mySeat}
+                    onDismiss={() => setTricksOpen(false)}
+                />
+            )}
+
+            {trumpFlash && (
+                <TrumpFlash seats={room.seats} seat={trumpFlash.seat} suit={trumpFlash.suit} glyphRef={flashGlyphRef} />
+            )}
+            {trumpFlight && (
+                <TrumpFlight
+                    suit={trumpFlight.suit}
+                    size={TRUMP_FLASH_SUIT_SIZE}
+                    from={trumpFlight.from}
+                    to={trumpFlight.to}
+                    onDone={() => {
+                        setTrumpFlight(null)
+                        setTrumpGlyph("landed")
+                    }}
+                />
+            )}
+            {/* My declared cards in transit, hand ↔ felt (2026-10-11). One
+                clone per card, staggered; out is the three-beat throw, back
+                the plain flight; the last to land flips `myCards`. */}
+            {cardFlights?.map((flight, i) => (
+                <CardFlight
+                    key={`${flight.card}-${myCards}`}
+                    card={flight.card}
+                    from={flight.from}
+                    to={flight.to}
+                    direction={MY_CARD_DIRECTION}
+                    throwIn={myCards === "flyingOut"}
+                    delayMs={i * CARD_STEP_MS}
+                    onDone={onCardFlightDone}
+                />
+            ))}
+            {bela && <BelaFlash seats={room.seats} seat={bela.seat} />}
+            {belot && (
+                <BelotFlash
+                    seats={room.seats}
+                    seat={belot.seat}
+                    mySeat={mySeat}
+                    suit={belot.suit}
+                    reducedMotion={reducedMotion}
+                />
+            )}
+
+            {/* The question, over the hand tray and nothing else. `BelaFlash`
+                above is the answer landing: it is what confirms to the whole
+                table that the choice took. */}
+            {belaAsk !== null && (
+                <BelaPrompt
+                    onDeclare={() => answerBela(true)}
+                    onDecline={() => answerBela(false)}
+                />
+            )}
+
+            <DealSummary
+                open={view.phase === "DEAL_DONE" && idle}
+                dealScore={view.dealScore}
+                myTeam={myTeam}
+                busy={busy}
+                canContinue={mySeat !== null}
+                onNextDeal={() => socket.send({ t: "game.nextDeal" })}
+            />
+        </>
+    )
+
+    /* The HUD's clock: one server-synchronised countdown drives the seat
+       ring, the capsule and the pill on both layouts. */
+    const clockActive = !isBotTurn && turnDeadline !== null && (socket.turnDurationMs ?? 0) > 0
+    const pillCountdown = clockActive && !socket.declarationsPending ? turnCountdown : null
+
     return (
         <Flex
             ref={tableScale.ref}
             style={tableScale.style}
             className="fold-game-board"
             direction="column"
-            position="relative"
-            // The room lobby needs the same mobile bleed as the felt. The
-            // app container already owns a 16 px inset; keeping it *and* the
-            // room panel's inset made a narrow phone spend over 50 px on
-            // empty margins before a chair could begin.
-            w={{ base: "calc(100% + 32px)", md: "100%" }}
-            // The column widens with the screen now (DESIGN §6): 720 px was
-            // one number for a phone, a tablet and a 27-inch monitor, and on
-            // the last two it left the table marooned in the middle of a wide
-            // window. The steps are deliberately small — a card table read
-            // from one seat has a natural size, and past ~900 px the seats
-            // stop being one glance apart.
-            maxW={{ base: "720px", md: "760px", lg: "880px", xl: "900px" }}
-            mx={{ base: "-16px", md: "auto" }}
-            mt={{ base: inLobbyPhase ? "0" : "-24px", md: "0" }}
-            h={{
-                base: inLobbyPhase
-                    ? `calc(100dvh - ${CONTENT_STICKY_TOP.base})`
-                    : `calc(100dvh - ${NAVBAR_SAFE_TOP.base})`,
-                md: `calc(100dvh - ${CONTENT_STICKY_TOP.md})`,
-            }}
-            mb="-24px"
             overflow="hidden"
+            {...(landscape
+                ? {
+                    // THE WHOLE SCREEN (2026-10-12): App.tsx renders no
+                    // navbar, footer or tab bar around the landscape table,
+                    // so the room pins itself to the viewport and the felt
+                    // runs edge to edge, cutout included — the layout pays
+                    // the safe areas from the inside.
+                    position: "fixed" as const,
+                    inset: "0",
+                    w: "auto",
+                    maxW: "none",
+                    mx: "0",
+                    mt: "0",
+                    mb: "0",
+                    h: "auto",
+                }
+                : {
+                    position: "relative" as const,
+                    // The room lobby needs the same mobile bleed as the felt. The
+                    // app container already owns a 16 px inset; keeping it *and* the
+                    // room panel's inset made a narrow phone spend over 50 px on
+                    // empty margins before a chair could begin.
+                    w: { base: "calc(100% + 32px)", md: "100%" },
+                    // The column widens with the screen now (DESIGN §6): 720 px was
+                    // one number for a phone, a tablet and a 27-inch monitor, and on
+                    // the last two it left the table marooned in the middle of a wide
+                    // window. The steps are deliberately small — a card table read
+                    // from one seat has a natural size, and past ~900 px the seats
+                    // stop being one glance apart.
+                    maxW: { base: "720px", md: "760px", lg: "880px", xl: "900px" },
+                    mx: { base: "-16px", md: "auto" },
+                    // The lobby used to keep the page's 24 px top gutter; its head
+                    // box now hangs straight from the navbar on a phone (2026-10-08,
+                    // owner), so both phases pull up over the gutter the same way.
+                    mt: { base: "-24px", md: "0" },
+                    h: {
+                        base: `calc(100dvh - ${NAVBAR_SAFE_TOP.base})`,
+                        md: `calc(100dvh - ${CONTENT_STICKY_TOP.md})`,
+                    },
+                    mb: "-24px",
+                })}
             css={{
                 /* NOTHING ON THE TABLE IS TEXT TO SELECT (2026-09-20, user
                    report: a long press on a card or a name brought up iOS's
@@ -1226,7 +1624,70 @@ export default function GameRoomPage() {
                     </Box>
                 </>
             ) : (
-                view && (
+                view && (landscape ? (
+                    <GameRoomLandscape
+                        room={room}
+                        view={shownView ?? view}
+                        reducedMotion={reducedMotion}
+                        connecting={socket.status !== "open"}
+                        table={{
+                            turnDeadline: socket.turnDeadline,
+                            turnDurationMs: socket.turnDurationMs,
+                            trickCards,
+                            holdingSeat,
+                            flyIn,
+                            collectTo,
+                            showTurn: turnShown && playResumed,
+                            bids,
+                            reactions: bubbles,
+                            declarations: declarationsLayer,
+                        }}
+                        turn={{
+                            tone,
+                            label: turnLabel,
+                            countdown: turnCountdown,
+                            clockActive,
+                            pillCountdown,
+                            pillHidden: declarationsVisible || !turnShown,
+                        }}
+                        score={{ trumpGlyph, trumpGlyphRef: badgeGlyphRef }}
+                        hand={mySeat === null ? null : {
+                            cards: displayedHand,
+                            legal: view.legalMoves,
+                            phase: displayedHandPhase,
+                            layoutKey: `${room.id}:${view.dealNo}:${mySeat}`,
+                            disabled: handDisabled,
+                            hiddenCards: hiddenHandCards,
+                            onPlay: playCard,
+                            onInvalidPlay: rejectCard,
+                            rootRef: handRootRef,
+                        }}
+                        myReaction={mySeat === null ? null : bubbles[mySeat] ?? null}
+                        bidding={isBidding ? {
+                            busy,
+                            onBid: (trump: Suit) => {
+                                clearMissedTurn()
+                                socket.send({ t: "game.bid", trump })
+                            },
+                            onPass: () => {
+                                clearMissedTurn()
+                                socket.send({ t: "game.pass" })
+                            },
+                        } : null}
+                        declarePrompt={landscapeDeclarePrompt}
+                        reactions={landscapeReactions}
+                        actions={{
+                            declarationsEnabled: view.declarationsRevealed,
+                            onDeclarations: () => setDeclarationsOpen((value) => !value),
+                            tricksPlayed: room.trickReview !== "off" ? view.tricksWon.A + view.tricksWon.B : null,
+                            onTricks: () => setTricksOpen((value) => !value),
+                            onSettings: () => setSettingsOpen(true),
+                            leaveTo: `${gameLobbyPath}${mock ? "?mock=1" : ""}`,
+                        }}
+                    >
+                        {overlays}
+                    </GameRoomLandscape>
+                ) : (
                     <Flex
                         direction="column"
                         flex="1"
@@ -1238,16 +1699,6 @@ export default function GameRoomPage() {
                         boxShadow="none"
                         {...PLAY_AREA}
                     >
-                        {/* "Veza je pala": a popup FLOATING over the top of
-                            the table, above the score panel (2026-10-03,
-                            owner) — it used to sit in the flex column
-                            between header and score, shoving the whole
-                            table down while it was showing. Renders null
-                            unless the connection is down or just restored. */}
-                        <Box position="absolute" top="2" left="0" right="0" px="2" zIndex={30} pointerEvents="none">
-                            <ReconnectBanner holdUntil={socket.holdUntil} status={socket.status} />
-                        </Box>
-
                         {/* No horizontal padding on this wrapper: the score
                             panel's bottom hairline is the delimiter between
                             the score and the playing surface, and a delimiter
@@ -1323,9 +1774,10 @@ export default function GameRoomPage() {
                                 flyIn={flyIn}
                                 collectTo={collectTo}
                                 reducedMotion={reducedMotion}
-                                showTurn={turnShown}
+                                showTurn={turnShown && playResumed}
                                 bids={bids}
                                 reactions={bubbles}
+                                declarations={declarationsLayer}
                                 corner={room.trickReview !== "off" && view.tricksWon.A + view.tricksWon.B > 0 ? (
                                     <TricksPill
                                         tricksPlayed={view.tricksWon.A + view.tricksWon.B}
@@ -1334,104 +1786,6 @@ export default function GameRoomPage() {
                                 ) : null}
                             />
                         </Flex>
-
-                        {/* Overlays sit on the WHOLE felt, not inside the
-                            seats block: that block is deliberately bounded
-                            now, and a declarations list is taller than it. */}
-                        {phaseNotice && (
-                            <Flex
-                                position="absolute"
-                                inset="0"
-                                align="center"
-                                justify="center"
-                                pointerEvents="none"
-                                zIndex={7}
-                            >
-                                <HStack
-                                    {...GLASS}
-                                    borderColor="brand.300"
-                                    rounded="full"
-                                    px="4"
-                                    py="2"
-                                    gap="2"
-                                    boxShadow="0 0 30px rgba(0,0,0,0.5)"
-                                >
-                                    <Box role="status" aria-live="polite" aria-atomic="true">
-                                        <Text fontSize="sm" fontWeight="bold" color={INK} textAlign="center">
-                                            {phaseNotice.title}
-                                        </Text>
-                                        {phaseNotice.hint && (
-                                            <Text fontSize="xs" color={INK_MUTED} textAlign="center">
-                                                {phaseNotice.hint}
-                                            </Text>
-                                        )}
-                                    </Box>
-                                </HStack>
-                            </Flex>
-                        )}
-
-                        {/* Keyed by the room: walking into ANOTHER game as a
-                            spectator greets again, a re-render does not. */}
-                        {mySeat === null && <SpectatorIntro key={room.id} reducedMotion={reducedMotion} />}
-
-                        {declarationsVisible && (
-                            <DeclarationsReveal
-                                perSeat={declarationsOpen ? view.declarations : revealed!.perSeat}
-                                scoringTeam={declarationsOpen ? view.declarationsScoringTeam : revealed!.scoringTeam}
-                                seats={room.seats}
-                                mySeat={mySeat}
-                                declarationPoints={declarationsOpen ? view.declarationPoints : undefined}
-                                belaDeclared={declarationsOpen ? view.belaDeclared : null}
-                                trumpSuit={declarationsOpen ? trumpSuit : null}
-                                onDismiss={() => { setDeclHidden(true); setDeclarationsOpen(false) }}
-                            />
-                        )}
-
-                        {tricksOpen && (
-                            <TrickHistory
-                                tricks={view.trickHistory ?? null}
-                                trickReview={room.trickReview}
-                                seats={room.seats}
-                                mySeat={mySeat}
-                                onDismiss={() => setTricksOpen(false)}
-                            />
-                        )}
-
-                        {trumpFlash && (
-                            <TrumpFlash seats={room.seats} seat={trumpFlash.seat} suit={trumpFlash.suit} glyphRef={flashGlyphRef} />
-                        )}
-                        {trumpFlight && (
-                            <TrumpFlight
-                                suit={trumpFlight.suit}
-                                size={TRUMP_FLASH_SUIT_SIZE}
-                                from={trumpFlight.from}
-                                to={trumpFlight.to}
-                                onDone={() => {
-                                    setTrumpFlight(null)
-                                    setTrumpGlyph("landed")
-                                }}
-                            />
-                        )}
-                        {bela && <BelaFlash seats={room.seats} seat={bela.seat} />}
-                        {belot && (
-                            <BelotFlash
-                                seats={room.seats}
-                                seat={belot.seat}
-                                mySeat={mySeat}
-                                suit={belot.suit}
-                                reducedMotion={reducedMotion}
-                            />
-                        )}
-
-                        {/* The question, over the hand tray and nothing else.
-                            `BelaFlash` above is the answer landing: it is what
-                            confirms to the whole table that the choice took. */}
-                        {belaAsk !== null && (
-                            <BelaPrompt
-                                onDeclare={() => answerBela(true)}
-                                onDecline={() => answerBela(false)}
-                            />
-                        )}
 
                         {/* Always mounted, never conditionally on `isBotTurn`
                             (2026-09-20, user report): the bar is a fixed
@@ -1445,7 +1799,7 @@ export default function GameRoomPage() {
                             draws the bar empty on a bot's turn. */}
                         <TurnProgressBar
                             countdown={turnCountdown}
-                            active={!isBotTurn && turnDeadline !== null && (socket.turnDurationMs ?? 0) > 0}
+                            active={clockActive}
                             reducedMotion={reducedMotion}
                         />
 
@@ -1471,7 +1825,7 @@ export default function GameRoomPage() {
                                 <TurnPill
                                     tone={tone}
                                     label={turnLabel}
-                                    countdown={!isBotTurn && turnDeadline !== null && (socket.turnDurationMs ?? 0) > 0 && !socket.declarationsPending ? turnCountdown : null}
+                                    countdown={pillCountdown}
                                     reducedMotion={reducedMotion}
                                 />
                             </Box>
@@ -1489,6 +1843,7 @@ export default function GameRoomPage() {
                             box (below), vertically centred on the hand's own
                             left edge. */}
                         <Box
+                            ref={handRootRef}
                             position="relative"
                             px="2"
                             pt="0"
@@ -1508,13 +1863,9 @@ export default function GameRoomPage() {
                                     legal={view.legalMoves}
                                     phase={displayedHandPhase}
                                     layoutKey={`${room.id}:${view.dealNo}:${mySeat}`}
-                                    // `!turnShown`: the trick I just won is still being
-                                    // held and swept. The server already made it my
-                                    // lead, so a tap went through — and the card
-                                    // left my hand but could not land on the felt
-                                    // until the sweep finished: for a second it was
-                                    // nowhere (2026-09-20, user report).
-                                    disabled={busy || !turnShown || declarationsOpen || tricksOpen || belaAsk !== null || (!!revealed && !declHidden)}
+                                    // See `handDisabled` above (the sweep, the reveal).
+                                    disabled={handDisabled}
+                                    hiddenCards={hiddenHandCards}
                                     onPlay={playCard}
                                     onInvalidPlay={rejectCard}
                                 />
@@ -1571,13 +1922,13 @@ export default function GameRoomPage() {
                                         occupant={room.seats[mySeat].occupant}
                                         name={occupantName(room.seats[mySeat].occupant, t("game.seat.empty"))}
                                         size={myAvatarSize}
-                                        isTurn={turnShown && view.turn === mySeat}
+                                        isTurn={turnShown && playResumed && view.turn === mySeat}
                                         isDealer={view.dealer === mySeat}
                                         // Same medallion the felt's seats wear, so
                                         // "I called this deal" reads the same way
                                         // wherever the caller happens to be sitting.
                                         callerTrump={!trumpHidden && view.bidding.caller === mySeat ? view.bidding.trump : null}
-                                        countdown={turnShown && view.turn === mySeat ? turnCountdown : null}
+                                        countdown={turnShown && playResumed && view.turn === mySeat ? turnCountdown : null}
                                         reaction={bubbles[mySeat] ?? null}
                                         // Same convention as the felt's own left-flank
                                         // seat (Table.tsx): pins the bubble's LEFT edge
@@ -1636,17 +1987,9 @@ export default function GameRoomPage() {
                             )}
                         </Box>
 
-                        <DealSummary
-                            open={view.phase === "DEAL_DONE" && idle}
-                            dealScore={view.dealScore}
-                            myTeam={myTeam}
-                            busy={busy}
-                            canContinue={mySeat !== null}
-                            onNextDeal={() => socket.send({ t: "game.nextDeal" })}
-                        />
-
+                        {overlays}
                     </Flex>
-                )
+                ))
             )}
 
             {/* Informational only, and never stacked on the end-of-game

@@ -19,12 +19,17 @@ export default function TurnProgressBar({
     countdown,
     active,
     reducedMotion = false,
+    size = "md",
 }: {
     countdown: TurnCountdown
     active: boolean
     reducedMotion?: boolean
+    /** `lg` (the landscape table's bottom-left corner, 2026-10-12): a
+     *  180 × 8 px capsule, filling its block, over the turn words. */
+    size?: "md" | "lg"
 }) {
     const { t } = useTranslation()
+    const large = size === "lg"
     const percent = Math.round(countdown.fraction * 100)
     const label = t("game.table.turnTimeLeft", { seconds: countdown.seconds })
 
@@ -35,16 +40,16 @@ export default function TurnProgressBar({
         // it fades to the bare hairline track it used to be.
         <Flex
             w="100%"
-            maxW="160px"
-            minH="6px"
-            mx="auto"
-            px="2"
+            maxW={large ? "180px" : "160px"}
+            minH={large ? "8px" : "6px"}
+            mx={large ? "0" : "auto"}
+            px={large ? "0" : "2"}
             align="center"
             flexShrink={0}
         >
             <Box
                 flex="1"
-                h="6px"
+                h={large ? "8px" : "6px"}
                 rounded="full"
                 borderWidth="1px"
                 borderColor={active ? (countdown.urgent ? "danger" : "brand.300") : "border.subtle"}

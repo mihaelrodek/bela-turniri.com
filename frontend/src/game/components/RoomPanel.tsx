@@ -109,12 +109,25 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 review). Without it the settings and exit icons reach the
                 panel's own right edge. */}
             <Box
-                bg="bg.panel"
+                // A tint, not the page's own cream (2026-10-08, owner): on
+                // the phone the two sheets are flush with the page and were
+                // invisible against it. `brand.subtle` follows the colour
+                // mode; the chips inside move to `bg.panel` to stay legible.
+                bg="brand.subtle"
                 borderWidth="1px"
                 borderColor="border.subtle"
                 rounded="2xl"
                 p={{ base: "2", md: "3" }}
                 shadow="sm"
+                // On a phone this box is a SHEET hanging from the header
+                // (2026-10-08, owner): edge to edge, flush with the chrome
+                // above, only its bottom corners rounded. `mx` cancels the
+                // panel's inset; the content keeps its old distance from
+                // the screen edge through the wider `px`. md+ unchanged.
+                mx={{ base: "-1.5", md: "0" }}
+                px={{ base: "3.5", md: "3" }}
+                roundedTop={{ base: "0", md: "2xl" }}
+                borderTopWidth={{ base: "0", md: "1px" }}
             >
                 <HStack justify="space-between" gap="3" align="start">
                     <Box minW="0">
@@ -136,7 +149,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 <Flex wrap="wrap" gap="1.5" mt="2">
                     {ruleFacts.map((fact) => (
                         <HStack key={fact.key} gap="1" flexShrink={0} h="26px" px="2"
-                            rounded="full" bg="bg.subtle" borderWidth="1px" borderColor="border.subtle">
+                            rounded="full" bg="bg.panel" borderWidth="1px" borderColor="border.subtle">
                             <Box color="brand.500" flexShrink={0} fontSize="xs" display="flex">{fact.icon}</Box>
                             <Text fontSize="2xs" fontWeight="semibold" whiteSpace="nowrap">
                                 {fact.label}
@@ -147,7 +160,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 <Flex wrap="wrap" gap="1.5" mt="1.5">
                     {viewingFacts.map((fact) => (
                         <HStack key={fact.key} gap="1" flexShrink={0} h="26px" px="2"
-                            rounded="full" bg="bg.subtle" borderWidth="1px" borderColor="border.subtle">
+                            rounded="full" bg="bg.panel" borderWidth="1px" borderColor="border.subtle">
                             <Box color="brand.500" flexShrink={0} fontSize="xs" display="flex">{fact.icon}</Box>
                             <Text fontSize="2xs" fontWeight="semibold" whiteSpace="nowrap">
                                 {fact.label}
@@ -261,10 +274,19 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 panel's own bottom padding (2026-09-20, user request) so the
                 start button clears iOS Safari's floating bottom toolbar /
                 the home indicator in the installed PWA. */}
+            {/* …and on a phone this one rises from the floor the same way
+                (2026-10-08, owner): edge to edge, down to the screen's bottom
+                edge, paying the home-indicator inset itself, only its top
+                corners rounded. `mb="-1.5"` cancels the panel's own bottom
+                inset. md+ unchanged. */}
             <VStack mt="auto" align="stretch" gap={{ base: "1", md: "1.5" }} p={{ base: "1.5", md: "2.5" }}
-                pb={{ base: "1.5", md: "2.5" }}
-                mb={{ base: "calc(12px + var(--safe-bottom))", md: "2" }}
-                bg="bg.panel" rounded="2xl" borderWidth="1px" borderColor="border.subtle">
+                px={{ base: "3", md: "2.5" }}
+                pb={{ base: "calc(10px + var(--safe-bottom))", md: "2.5" }}
+                mx={{ base: "-1.5", md: "0" }}
+                mb={{ base: "-1.5", md: "2" }}
+                bg="brand.subtle" rounded="2xl" borderWidth="1px" borderColor="border.subtle"
+                roundedBottom={{ base: "0", md: "2xl" }}
+                borderBottomWidth={{ base: "0", md: "1px" }}>
                 {/* Side by side on every width now (2026-09-20, user
                     request): the two toggles stacked burned a whole row on a
                     phone for a decision each answers in one word.

@@ -176,13 +176,14 @@ export function TricksPill({
  * the badge has to hang off the top-right CORNER, which needs the button to
  * be the positioned ancestor. So this is a `chakra.button`.
  */
-function PillButton({
+export function PillButton({
     label,
     title,
     badge,
     badgeLabel,
     ariaLabel,
     disabled = false,
+    vertical = false,
     onClick,
 }: {
     label: string
@@ -194,6 +195,9 @@ function PillButton({
     badgeLabel: string
     ariaLabel?: string
     disabled?: boolean
+    /** The landscape table's left rail (2026-10-12): the same pill stood on
+     *  end, its text running bottom-to-top, so the strip is a few px wide. */
+    vertical?: boolean
     onClick: () => void
 }) {
     return (
@@ -202,11 +206,15 @@ function PillButton({
             position="relative"
             display="inline-flex"
             alignItems="center"
+            justifyContent="center"
             gap="0.5"
-            h={{ base: "24px", md: "28px" }}
-            minW="32px"
-            minH={{ base: "24px", md: "28px" }}
-            px="2.5"
+            h={vertical ? "auto" : { base: "24px", md: "28px" }}
+            w={vertical ? "26px" : undefined}
+            minW={vertical ? "26px" : "32px"}
+            minH={vertical ? "72px" : { base: "24px", md: "28px" }}
+            px={vertical ? "0" : "2.5"}
+            py={vertical ? "2.5" : "0"}
+            css={vertical ? { writingMode: "vertical-rl", transform: "rotate(180deg)" } : undefined}
             rounded="full"
             bg="transparent"
             // The one hairline the whole panel allows itself: the same

@@ -6,6 +6,7 @@ import type { Declaration, Suit, Team } from "@bela/engine"
 import { useTranslation } from "../../i18n"
 import { otherTeam, SEATS, teamOf } from "../util/seats"
 import { makeCard, suitKey } from "../util/cards"
+import { seatName, totalPoints } from "../util/declarations"
 import PlayingCard, { SuitIcon } from "./PlayingCard"
 import BelotShowcase from "./BelotShowcase"
 import PlayerAvatar from "./PlayerAvatar"
@@ -32,20 +33,16 @@ import { OVERLAY_SAFE_INSET } from "../../components/navChrome"
    line saying so and how much went with it; their own cards are theirs to
    know, but nobody else's are shown, and no cards are drawn for that line.
 
-   It dismisses itself after the event queue's dwell or through its close button,
-   whichever comes first: the automatic opening preview is brief and
-   must never be something you have to close.
+   NO LONGER THE REVEAL ITSELF (2026-10-11, owner): the moment of the reveal
+   is played on the felt — the scoring pair's cards lie in front of their
+   seats for the server's no-play window, each group with its "+N" badge
+   (`DeclarationsOnTable`), and nothing is said in words. This overlay is
+   only what the "Pregled zvanja" button opens afterwards, from
+   `view.declarations`, for anyone who wants the full read back: it never
+   opens on its own any more and closes through its button or a tap on the
+   backdrop. `seatName` / `totalPoints` moved to `util/declarations.ts`,
+   shared with the two on-table pieces.
    ────────────────────────────────────────────────────────────────────── */
-
-function seatName(seats: RoomState["seats"], seat: Seat, fallback: string): string {
-    const occupant = seats[seat]?.occupant
-    if (!occupant) return fallback
-    return occupant.kind === "BOT" ? occupant.name : occupant.user.name
-}
-
-function totalPoints(declarations: readonly Declaration[]): number {
-    return declarations.reduce((sum, d) => sum + d.points, 0)
-}
 
 /** The "Bela!" flash — 20 points for K+Q of trump, announced as it is played. */
 export function BelaFlash({ seats, seat }: { seats: RoomState["seats"]; seat: Seat }) {
@@ -358,6 +355,20 @@ export default function DeclarationsReveal({
                 overflowY="auto"
                 position="relative"
                 boxShadow="0 18px 40px rgba(0,0,0,0.55)"
+                // A small lift as it arrives (2026-10-08, owner: "just a
+                // little motion") — the backdrop's fade alone made the
+                // list simply exist. Same overshoot curve as the trump
+                // flash; the system's reduced-motion setting is honoured
+                // through the media query in the keyframe block.
+                css={{
+                    ...GLASS_STRONG.css,
+                    animation: "declRevealPop 220ms cubic-bezier(0.22, 1.2, 0.36, 1) backwards",
+                    "@keyframes declRevealPop": {
+                        from: { transform: "translateY(10px) scale(0.96)", opacity: 0 },
+                        to: { transform: "translateY(0) scale(1)", opacity: 1 },
+                    },
+                    "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+                }}
                 onClick={(event) => event.stopPropagation()}
             >
                 {onDismiss && (

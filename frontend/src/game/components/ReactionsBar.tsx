@@ -61,9 +61,19 @@ const EASE_CLOSE = "cubic-bezier(0.4, 0, 1, 1)"
 export default function ReactionsBar({
     disabled = false,
     onReact,
+    showToggle = true,
+    vertical = false,
 }: {
     disabled?: boolean
     onReact: (reaction: Reaction) => void
+    /** A column instead of a row, growing UPWARD from its first button
+     *  (the landscape table's popover, 2026-10-12): fixed 40 px circles,
+     *  `column-reverse` so the first reaction sits nearest the smile. */
+    vertical?: boolean
+    /** False when something else already opens and closes the row — the
+     *  landscape table's round smile button (2026-10-12), which shows this
+     *  bar as a popover: the bar's own toggle would be a second one. */
+    showToggle?: boolean
 }) {
     const { t } = useTranslation()
     const [restingUntil, setRestingUntil] = useState(0)
@@ -98,48 +108,31 @@ export default function ReactionsBar({
        the seven buttons share the width (`flex: 1 1 0`, capped at 56 px) and
        become pills instead of a small cluster in the middle. From `sm` up
        they are the fixed 44 px circles they always were. */
+    const circle = vertical
+        ? { w: "40px", h: "40px", flex: "none", minW: "40px", maxW: "40px", fontSize: "18px" }
+        : {
+            w: { base: "auto", sm: "44px" },
+            flex: { base: "1 1 0", sm: "none" },
+            minW: "34px",
+            maxW: { base: "56px", sm: "44px" },
+            h: { base: "34px", sm: "44px" },
+            fontSize: { base: "16px", sm: "18px" },
+        }
+
     return (
         <Flex
+            direction={vertical ? "column-reverse" : "row"}
             justify="center"
             align="center"
             gap={{ base: "1.5", sm: "1.5" }}
-            w={{ base: "full", sm: "auto" }}
-            px="2"
+            w={vertical ? "auto" : { base: "full", sm: "auto" }}
+            px={vertical ? "0" : "2"}
             aria-label={t("game.table.reactions")}
             role="group"
         >
-            <chakra.button
-                type="button"
-                {...GLASS}
-                w={{ base: "auto", sm: "44px" }}
-                flex={{ base: "1 1 0", sm: "none" }}
-                minW="34px"
-                maxW={{ base: "56px", sm: "44px" }}
-                h={{ base: "34px", sm: "44px" }}
-                rounded="full"
-                display="flex"
-                alignItems="center"
-                justifyContent="center"
-                fontSize={{ base: "16px", sm: "18px" }}
-                lineHeight="1"
-                color={INK_MUTED}
-                cursor="pointer"
-                _hover={{ bg: "bg.muted" }}
-                _active={{ bg: "bg.muted" }}
-                _focusVisible={{ outline: "2px solid", outlineColor: "brand.300", outlineOffset: "2px" }}
-                transition="background 0.12s ease, transform 0.18s ease"
-                transform={!expanded && !reducedMotion ? "rotate(-12deg)" : undefined}
-                aria-label={t("game.table.reactionsToggle")}
-                aria-expanded={expanded}
-                onClick={() => setExpanded((v) => !v)}
-            >
-                <FiSmile aria-hidden="true" />
-            </chakra.button>
-
-            {REACTIONS.map((reaction, index) => (
+            {showToggle && (
                 <chakra.button
                     type="button"
-                    key={reaction}
                     {...GLASS}
                     w={{ base: "auto", sm: "44px" }}
                     flex={{ base: "1 1 0", sm: "none" }}
@@ -152,6 +145,32 @@ export default function ReactionsBar({
                     justifyContent="center"
                     fontSize={{ base: "16px", sm: "18px" }}
                     lineHeight="1"
+                    color={INK_MUTED}
+                    cursor="pointer"
+                    _hover={{ bg: "bg.muted" }}
+                    _active={{ bg: "bg.muted" }}
+                    _focusVisible={{ outline: "2px solid", outlineColor: "brand.300", outlineOffset: "2px" }}
+                    transition="background 0.12s ease, transform 0.18s ease"
+                    transform={!expanded && !reducedMotion ? "rotate(-12deg)" : undefined}
+                    aria-label={t("game.table.reactionsToggle")}
+                    aria-expanded={expanded}
+                    onClick={() => setExpanded((v) => !v)}
+                >
+                    <FiSmile aria-hidden="true" />
+                </chakra.button>
+            )}
+
+            {REACTIONS.map((reaction, index) => (
+                <chakra.button
+                    type="button"
+                    key={reaction}
+                    {...GLASS}
+                    {...circle}
+                    rounded="full"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    lineHeight="1"
                     opacity={!expanded ? 0 : resting ? 0.45 : 1}
                     pointerEvents={expanded ? "auto" : "none"}
                     aria-hidden={!expanded}
@@ -163,7 +182,9 @@ export default function ReactionsBar({
                     _focusVisible={{ outline: "2px solid", outlineColor: "brand.300", outlineOffset: "2px" }}
                     transform={expanded || reducedMotion
                         ? "none"
-                        : `translateX(${-6 * (index + 1)}px) scale(0.4)`}
+                        : vertical
+                            ? `translateY(${6 * (index + 1)}px) scale(0.4)`
+                            : `translateX(${-6 * (index + 1)}px) scale(0.4)`}
                     transition={motion(index, expanded, reducedMotion)}
                     aria-label={t("game.table.sendReaction", {
                         reaction: t(REACTION_TEXT_KEYS[reaction]),

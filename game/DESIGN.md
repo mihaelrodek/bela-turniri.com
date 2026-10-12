@@ -345,6 +345,44 @@ njega kao mali `+150`, `brand.200`, `textStyle="mono"`.
   `game.declaration.*`): za stolom to nitko ne izgovara, karte *jesu* zvanje,
   a bodovi su odmah do njih.
 
+### 5.2a Zvanja se **polažu na stol** (2026-10-11, ideja vlasnika; 2026-10-12 drugi prolaz)
+Otkrivanje zvanja više **ne otvara** `DeclarationsReveal`; taj overlay ostaje
+samo iza gumba „PREGLED ZVANJA” u zaglavlju semafora. Trenutak otkrivanja
+izgleda kao da je netko stvarno položio karte — **bez ijedne riječi**:
+nigdje ne piše „terca” ni „četiri dečka”, karte *jesu* zvanje, a broj je
+njegova vrijednost.
+- **Na filcu** (`DeclarationsOnTable.tsx`, slot `Table.declarations`): karte
+  zvanja svakog sjedala para koji boduje leže uz njegov avatar — gore red
+  ispod suigrača, bočno okomita lepeza (da se dvije četvorke ne sudare na
+  360 px), dolje uz rub. Uz svaku grupu, na kraju okrenutom prema sredini
+  stola i okomito centrirana, **mala pločica s bodovima** („+20”, „+150”):
+  mono, bold, boja para (`TEAM`), na `bg.panel` s tankim rubom. Ulazi
+  fade-om kad sjedne zadnja karta grupe i odlazi s kartama.
+- **Bacanje na stol** (2026-10-12, zahtjev vlasnika: „jače”): svaka tuđa
+  karta ide iz avatara u tri takta, jedna WAAPI animacija po karti s
+  offsetima — (a) **diže se** iz avatara dalje od sredine (+28 px, 1,06,
+  180 ms ease-out), (b) **stoji** 160 ms, (c) **baca se** na svoje mjesto
+  (280 ms, `cubic-bezier(0.22, 1.2, 0.36, 1)`, ljuljanje ±6° koje se smiri
+  u kut mjesta, mali overshoot). 50 ms razmaka po karti (`DECL_THROW_MS`
+  620, `DECL_THROW_STEP_MS` 50). Odlazak kad `declarationsPending` istekne
+  ostaje brzi deal-out prema avataru (220 ms, 40 ms po karti).
+- **Moje zvanje** (`CardFlight.tsx`, isti FLIP obrazac kao `TrumpFlight`):
+  prave karte iz ruke (`Hand` dobiva `hiddenCards` i `data-card`) idu na
+  svoje mjesto **istim trotaktnim bacanjem** (`CARD_THROW_MS` 620, klon
+  skaliran oko svoje sredine iz pravokutnika ruke u pravokutnik mjesta),
+  stoje tamo cijeli prozor, pa se vrate običnim letom (`CARD_RETURN_MS`
+  320, `CARD_STEP_MS` 50). Mjesta u ruci ostaju prazna dok su karte vani;
+  `playResumed` ne pušta potez (ni oznake poteza) dok zadnja karta nije
+  sletjela i vratila se; sloj se skida `DECL_EXIT_MS` (760 ms) nakon
+  zatvaranja prozora. Uz „Smanji animacije” karte i pločice se samo
+  pojave/nestanu.
+- **Dolje ništa.** Za vrijeme prozora (i dok se moje karte vraćaju) traka
+  ispod ruke je prazna — ni reakcije ni obavijest; reakcije se vrate s
+  potezom. (Prvi prolaz je ondje imao `DeclarationsNotice` s imenima
+  zvanja i ključeve `game.declaration.*`; oboje je uklonjeno 2026-10-12.)
+- Reconnect usred prozora ne dobiva ništa od ovoga (kao što ni popup prije
+  nije; pilula i dalje kaže „Igra računa zvanja…”).
+
 ### 5.3 `BelaPrompt`: „Zovi belu?” (2026-09-08)
 Zvanje bele više nije automatsko — igrača se **pita** (README §1.4). Pitanje je
 u cijelosti na klijentu: postavlja se kad igrač dodirne K ili Q aduta držeći
@@ -1088,3 +1126,242 @@ server stvarno upisao — a ne bodovi karata na ekranu: kod pada zvač upisuje 0
 uz njega se za to vrijeme skriva (već je u broju). Stranica otvorena usred
 `DEAL_DONE` kreće iz završnog stanja, bez ponavljanja. Uz smanjene animacije
 ostaje stara statična slika (broj dijeljenja + zbroj prije dijeljenja).
+
+### Landscape na telefonu — stol preko cijelog ekrana (2026-10-12)
+
+Telefon položen vodoravno na `/igra/soba/*` više ne dobiva stisnutu portretnu
+kolonu (stari `SHORT` raspored), nego **vlastiti raspored po uzoru na klasične
+bela aplikacije**: cijeli ekran je filc, bez okvira, bez semafora, bez
+navigacije.
+
+**Okidač.** Ruta sobe **i** `@media (orientation: landscape) and (max-height:
+560px)` **i stol je podignut** — jedna konstanta, `LANDSCAPE_TABLE_QUERY` u
+`game/landscapeQuery.ts` (bez ovisnosti, da `App.tsx` ne uvuče `tableStyles` u
+ulazni chunk; `tableStyles.LANDSCAPE_TABLE` je omot za `css`);
+`hooks/useLandscapeTable.ts` je ista stvar kao hook (`useLocation` +
+`matchMedia` + `landscapeTableStore`, sve kroz `useSyncExternalStore`).
+**Samo dok se igra** (treći prolaz, 2026-10-12): `GameRoomPage` u efektu piše
+`setTablePlaying(tableUp)` u `game/landscapeTableStore.ts` — isti test kao
+`inLobbyPhase` (soba, view, i ne LOBBY s ispražnjenim redom) — i vraća na
+`false` pri odmontiranju; čekaonica, završena partija (čim se zadnji štih
+pokupi i otvori se dijalog rezultata) i svaka druga ruta su obični raspored s
+NavBarom/footerom/tab-barom i kad je telefon položen. Portret i desktop od
+`md` naviše su netaknuti. `SHORT` ostaje za ono što je i dalje nisko, a
+landscape ne crta nijedan element koji nosi `SHORT` pravila, pa se nikad ne
+primjenjuju na isti element.
+
+**Krom se gasi.** `App.tsx` ne renderira `NavBar`, `SiteFooter` ni
+`MobileTabBar` dok je hook istinit; `GameChrome` ostaje jer je na stolu samo
+`GameRoomExitGuard` (dijalog bez otiska) — on presreće i X gumb u kutu.
+`GameRoomPage` se tada prikvači na viewport (`position: fixed; inset: 0`,
+`100dvh`, bez gornjeg odmaka). Sigurne zone: lijeva traka i desni kut plaćaju
+`--safe-left` / `--safe-right` (urez u landscapeu), lepeza `--safe-bottom`.
+
+**Raspored** (`pages/GameRoomLandscape.tsx`; stranica zadržava SVE stanje i
+efekte i samo mijenja aranžman komponenata):
+
+```
+┌  MI  |  ONI ─────────────────────────── [♥ Mimi] ⚙ ✕ ┐
+│ 91 +40 |  37          [partner ▮▮▮▮]                  │
+│  439   |  157                                         │
+│ ZVANJA ŠTIHOVI                                        │
+│     [prot. ▮▮▮]        ♠ ♥ štih          [▮▮▮ prot.]  │
+│                                                       │
+│ ━━━━━━━━━                                             │
+│ Tvoj potez     ╲ ╲ ╲ ╲ │ │ ╱ ╱ ╱ ╱  (moja lepeza)   ☺ │
+└───────────────────────────────────────────────────────┘
+```
+
+**Drugi do peti prolaz istog dana (povratne informacije vlasnika, testirano
+u Chrome devtools iPhone 16 852×393):** HUD je u **četiri kuta** — gore
+lijevo rezultat u tri centrirana retka + vodoravni tabovi centrirani pod
+njim, gore desno adut
++ zupčanik + X, dolje lijevo potez + sat, dolje desno reakcije (ili, dok
+traje, pitanje o zvanjima). Okomite trake više nema.
+
+- **Filc** `LANDSCAPE_FELT`: brand zelena radijalno (600→900), inset vinjeta,
+  `feTurbulence` tekstura `soft-light`. Cijeli stol je u `Theme
+  appearance="dark"`: filc je taman u oba moda, pa tinta, staklo i hairlinei
+  unutra uzimaju tamne vrijednosti tokena; portali (dijalozi, flashevi) ostaju
+  u modu stranice. Omotač nosi `data-landscape-felt` — **tu** bi išao
+  `perspective`/`rotateX` ako se 3D nagib ikad doda (u ovom prolazu ga nema,
+  vlasnik želi usporediti).
+- **Gore lijevo — rezultat u tri centrirana retka** (`ScoreLine` u
+  `GameRoomLandscape.tsx`, mono; peti prolaz): mreža `1fr auto 1fr` × 3
+  reda. Obje bočne kolone su `1fr` u kutiji koja se skuplja na sadržaj, pa
+  ispadnu jednako široke i „|” je točno u sredini bloka u svakom retku;
+  svaka bočna ćelija je centrirana u svojoj koloni. Red 1 = natpisi `MI | ONI`
+  (10 px, razmaknuta slova, `TEAM.us` / `TEAM.them`; Tim A/B za
+  gledatelja); red 2 = bodovi PODJELE, `33 +20 | 0` (15 px podebljano, „+N”
+  zvanja u boji para kad ih ima); red 3 = UKUPNO, `439 | 157` (11 px
+  prigušeno). Čita maskirani
+  `shownView`, pa se bonus ne vidi prije prikaza zvanja. Cijeli blok je JEDAN
+  gumb koji otvara Pregled zvanja (dok ima što otvoriti). Bez linija
+  napretka i bez natpisa pravila u landscapeu (kompaktni `ScoreBoard` iz
+  drugog prolaza je vraćen — bio je prevelik; redak iz trećeg prolaza je
+  bio predugačak).
+- **Tabovi pod rezultatom**: `ZVANJA` i (od prvog štiha) `ŠTIHOVI` kao
+  vodoravni `PillButton` iz `TableHeader.tsx` (mono, verzal, hairline, 24
+  px) u redu odmah pod rezultatom, **centrirani na os razdjelnika** (kutija
+  je `align="center"`, a razdjelnik je sredina rezultata); ista pravila
+  omogućavanja. Okomita traka
+  i `vertical` varijanta se više ne koriste na stolu.
+- **Gore desno — adut i zvač**: `TrumpBadge layout="inline"` — staklena
+  pilula `[♥ Mimi]` (znak 20 px + ime, hairline u boji zvačeva para preko
+  `callerTeam`), lijevo od zupčanika i X; prije zvanja ista pilula drži
+  siluetu lepeze. `trumpGlyphRef` je na znaku te pilule (ista `hidden` /
+  `landed` stanja), pa `TrumpFlight` slijeće gore desno. Medaljon na avataru
+  zvača ostaje.
+- **Lijeva margina** (`LANDSCAPE_RAIL_W` = 40 px) ostaje kao odmak filca od
+  ruba (bočna sjedala sjede tik unutar nje), ali više ne nosi ništa.
+- **Lepeza se MJERI, ne izvodi** (šesti prolaz, 2026-10-12): peti prolaz je
+  red licitacije i karticu pitanja smještao iz formula (zoom lepeze, širina
+  ćelije, gornji padding) — na vlasnikovom 852×393 red je legao NA karte, a
+  kartica od 276 px pokrila je dvije krajnje (lepeza je stvarno x ≈ 247–606,
+  ne procijenjenih 336 px: zakrenuti kutovi, zaokruživanja). Sad
+  `hooks/useFanRect.ts` mjeri stvarni okvir: min `top` i min `left` / max
+  `right` preko svih `[data-hand-slot]` okvira (svaki utor lepeze, i
+  poleđine talona i prazni; utori nose zakret, pa okviri već uključuju
+  nagnute kutove), plus dvije sonde nulte veličine na unutarnjim rubovima
+  donjih kutova (`max(6px, safe-left)` i zrcalno) — sigurne zone se čitaju
+  kao px, ne računaju. Sve u koordinatama korijena filca, objavljeno kao
+  `--fan-top`, `--fan-left`, `--fan-right`, `--corner-left`,
+  `--corner-right` na korijenu. Ponovno mjerenje: `ResizeObserver` na
+  korijenu i lepezi, `MutationObserver` na utorima (dijeljenje, odigrana
+  karta, talon), `animationend` / `transitionend` (dijeljenje se smirilo),
+  `resize` / `orientationchange` — sve sažeto u jedan rAF, očišćeno pri
+  odmontiranju. Do prvog mjerenja blokovi drže kutove (CSS ima fallback).
+  `computeLandscapeScale` i dalje samo određuje veličinu karata.
+- **Dolje lijevo — potez i sat**: `TurnProgressBar size="lg"` (kapsula
+  180 × 8 px) iznad `TurnPill bold` (`sm`, podebljano u svakom tonu, isti
+  tonovi boja, **centrirano** pod kapsulom — oboje dijele širinu bloka),
+  unutar `--safe-left`, iznad `--safe-bottom`. Širina je izmjerena: `min(180px,
+  --fan-left − --corner-left − 12px)`; ako je taj procjep uži od 120 px, blok
+  se diže IZNAD lijevog kraja lepeze (`bottom: 100% − --fan-top + 8px`,
+  `left: --fan-left`, 180 px). Nikad preko karte. Pilula više nije red u
+  koloni, pa je filc viši.
+- **Dolje desno — reakcije ILI pitanje o zvanjima**: dok je otvoren prozor
+  za odjavu zvanja, u kutu je `DeclarePrompt compact` — šesti prolaz: manja
+  kartica, pitanje `sm` podebljano, segment Ne | Da 30 px (48 px po strani),
+  padding px 3 / py 2, traka vremena kao **uvučena kapsula unutar kartice**
+  (4 px, puna unutarnja širina, zaobljena). Kartica popunjava širinu koju joj
+  da stranica, a ta je izmjerena: u kutu `min(220px, --corner-right −
+  --fan-right − 12px)`; ako je taj procjep uži od 170 px (uski telefoni),
+  kartica ide IZNAD desnog kraja lepeze (`bottom: 100% − --fan-top + 8px`,
+  desni rub na `--fan-right`, 220 px). **Nikad preko karte.** Smješko se u to
+  vrijeme **ne crta**, a i on slijedi isto pravilo (u kutu ako je između
+  njega i lepeze ≥ 12 px, inače iznad desnog kraja lepeze).
+  Nakon toga (isti `playResumed` gate kao portretni `bottomBar`) okrugli ☺
+  (38 px) otvara `ReactionsBar vertical showToggle={false}` kao **stupac koji
+  raste prema gore** (`column-reverse`, 40 px krugovi, prvi uz smješka,
+  desno poravnan); zatvara se nakon odabira, dodirom izvan, novim dijeljenjem
+  i kad se reakcije povuku. Popover se montira samo dok je otvoren, pa u
+  kutu nikad nema praznog kruga.
+- **„Zalutali krug” iz trećeg do petog prolaza** (prazan tamni krug
+  ~28 px sa svijetlim rubom: iznad ☺, pa lijevo od kartice pitanja, pa
+  točkica dolje lijevo): pretraga cijelog stabla stola i svih globalnih
+  widgeta nije našla element koji ga crta — kartica pitanja reže svoj sadržaj
+  (`overflow: hidden`), smješko i kartica se ne crtaju zajedno, popover
+  reakcija postoji samo dok je otvoren, a globalni FAB-ovi vraćaju `null` na
+  ruti igre. Krug se svaki put pojavio točno tamo gdje je sljedeći dodir
+  trebao pasti, što odgovara pokazivaču emulacije dodira u Chrome DevTools
+  (siv krug ~28 px u device modu). Provjera: snimka preko DevTools
+  „Capture screenshot” (ne crta pokazivač) ili pomaknuti miš izvan okvira.
+  **Zeleni ulomak** iznad lijevog vrha kartice bio je naš: traka vremena od
+  3 px uz sam gornji rub kartice, odrezana zaobljenim kutovima od 12 px —
+  sad je uvučena kapsula unutar kartice.
+- **Moja reakcija**: u portretu moj oblačić sjedi na mom avataru uz ruku; u
+  landscapeu tog avatara nema, pa stranica predaje `bubbles[mySeat]` kao
+  `myReaction`, a `GameRoomLandscape` crta isti `ReactionBubble` (sad
+  izvezen iz `Seat.tsx`, `align="center"` na anchoru 0 × 0) 7 px iznad vrha
+  lepeze, centrirano, `pointerEvents: none`, iznad karata (vlasnik: „zašto ne
+  vidim reakcije u landscapeu?”). Oblačići ostala tri sjedala idu kroz
+  `Table` → `Seat` kao u portretu (partner `beside`, bokovi `left`/`right`).
+- **Lepeza i kutovi se ne preklapaju**: `computeLandscapeScale` ostavlja
+  sa svake strane mjesta za blok od 180 px pri određivanju veličine karata,
+  ali gdje blokovi stvarno idu odlučuje izmjerena lepeza (gore) — blok kojem
+  kut ispadne preuzak diže se iznad kraja lepeze umjesto da prekrije kartu.
+- **Gornji desni kut**: (adut, gore) zupčanik (GameSettingsSheet) i X. X je
+  `Link` na lobby — tijekom igre ga `GameRoomExitGuard` presreće istim
+  dijalogom kao svaki drugi izlaz.
+- **Sjedala**: partner gore u sredini, protivnici lijevo/desno u visini štiha,
+  tik unutar trake — `Table` dobiva **vlastitu mapu anchora**
+  `LANDSCAPE_SEAT_ANCHORS` (`components/landscapeGeometry.ts`) i geometriju
+  `landscapeTableGeometry()`; portretni `SEAT_ANCHORS` nisu dirani. Svako
+  sjedalo ima **ruku poleđina ISPRED sebe, okrenutu sredini stola** (sedmi
+  prolaz, vlasnik — „kao klasične bela aplikacije”; prije je to bila
+  vodoravna traka uz avatar): kod bočnih sjedala **okomiti stupac** tik
+  unutar bloka sjedala (poleđine zakrenute 90°, duga os prema sredini,
+  složene niz stupac), centriran na AVATAR (`SEAT_AVATAR_CY` = 36 px od
+  vrha bloka); kod partnera **vodoravni red** tik ispod bloka (avatar +
+  ime), centriran. `Seat` prop `cardsLeft` iz `view.handSizes` (smanjuje se
+  kako se karte igraju), `fanPlacement` iz `LANDSCAPE_FAN_PLACEMENT`;
+  `SeatCardFan`: `sm` CardBack × 0,36 (20 × 32 px), korak 6 px (~70 %
+  preklopa), mali „nered” ±1,5° po uzorku (ne nasumično), 4 px od bloka.
+  Sve mjere (`SEAT_FAN_*`, `SEAT_FAN_DEPTH` = 37 px koliko lepeza strši iz
+  bloka) žive u `landscapeGeometry.ts` — iz istih brojeva crta se lepeza i
+  čiste se slotovi zvanja i proračun štiha. Prsten poteza, odbrojavanje,
+  „D”, medaljon aduta, čip licitacije i oblačić reakcije su isti.
+  `--seat-h` je ispravljen na stvarnih **85 px** (bilo 80; okvir poteza
+  10 + 2 + 2 + 1, avatar 48, ime 22), jer o donjem rubu bloka sad vise
+  partnerove poleđine i zvanja.
+- **Štih**: isti `TrickArea`, prisilno `md` (`pileSize`, jer landscape širina
+  pada s obje strane `md` breakpointa) × `--pile-k`. Smjerovi uleta
+  (`positionVector`) su ista četiri kompasa, pa karte i dalje dolaze sa strane
+  svog sjedala. Središte je `--cy-free` iznad DNA kutije (kao u portretu), ne
+  50 %: na 390 px visine centrirani prsten (partner 84 + hrpa 200 + ruka) ne
+  stane.
+- **Moja ruka**: `Hand layout="fan"` — istih osam utora (pravila 1, 2, 4 iz
+  §2.4), ali mreža čije su ćelije **52 %** karte (preklop; četvrti prolaz —
+  bilo 42 %), nagib **−6°…+6°** linearno oko donjeg ruba (bilo ±12°), luk
+  `FAN_SINK_PX` 0,5 (6 px na krajevima), crtano `sm` × `--hand-k`. **Bez
+  preporuke poteza**: legalna karta izgleda točno kao ostale (prvi je prolaz
+  podizao legalne karte, vlasnik to odbio istog dana — pravilo 2 vrijedi i u
+  lepezi). Nagib je na omotaču IZVAN utora koji animira, pa dijeljenje i FLIP
+  ne gaze mirujući kut. Prazni utori u lepezi su nevidljivi.
+- **Licitacija**: `BiddingPanel` (četiri boje + „Dalje”) **tik iznad
+  lepeze**, centriran na lepezu: `bottom: 100% − --fan-top + 10px`, `left:
+  (--fan-left + --fan-right) / 2` — stvarnih 10 px iznad NAJVIŠEG kuta karte
+  (šesti prolaz; izvedeni pomak petog prolaza legao je na karte).
+- **Zvanja na stolu**: `DeclarationsOnTable` dobiva `slotFor={landscapeDeclSlot}`,
+  `scale="0.78"` i `layout="landscape"`. Red pod partnerom i moj red na dnu
+  filca kao prije. **Partnerov red** (sedmi prolaz) počinje 8 px ispod
+  njegova reda poleđina: `top: --seat-h + SEAT_FAN_DEPTH + 8 px`.
+  **Bokovi** (šesti prolaz, vlasnik: stupac je ležao NA
+  lepezi poleđina protivnika i čitao se kao karte nagomilane na njegovu ruku):
+  karte jednog zvanja leže u **vodoravnom redu** s istim preklopom kao
+  ostali redovi, više zvanja istog sjedala slaže se kao redovi jedan ispod
+  drugog (razmak 8 px), svaki red sa svojim „+N” na unutarnjem kraju. Slot
+  počinje na **filcu**, 16 px iza stupca poleđina: `--seat-gutter +
+  --seat-w + SEAT_FAN_DEPTH + 16 px` od ruba (sedmi prolaz). Okomito
+  centrirano na `--table-cy`. Na 852×393: lijevi slot počinje na x = 229,
+  desni završava na x = 623, okomito oko y ≈ 192 (jedan red 157–227);
+  partnerov red počinje na y = 134 (jedan red do ≈ 204), centriran na x =
+  426. Trik je za vrijeme prikaza prazan, a partnerov red i bočni redovi
+  nikad nisu istovremeno na stolu (karte šalje samo par koji boduje).
+  Animacija bacanja (izlazak iz avatara, zastoj, bacanje) ostaje — mjeri se
+  od slota prema sjedalu, pa cilja nove slotove. `DeclarePrompt compact` je kapsula iznad lepeze; `CardFlight`
+  mjeri viewport rectove pa radi bez izmjena.
+- **Proračun** (`computeLandscapeScale` u `hooks/useTableScale.ts`): visina −
+  partner (4 + 85 = 89) − padding lepeze 18 (− 21 home indikator u PWA;
+  pilula poteza je u kutu i ne košta ništa) određuje **ruku** tako da je
+  karta u ruci 22 % šira od karte na stolu (`L_HAND_VS_PILE` = 1,22;
+  portret drži 0,92). **Štih plaća partnerove poleđine** (sedmi prolaz):
+  dobiva ostatak nakon ruke I reda poleđina (`L_TOP_FAN` = 37 + 4 px), pa
+  mu gornja karta uvijek čisti taj red; ispod `L_PILE_FLOOR` (0,6) prvo
+  popušta ruka (do 0,95), a tek preniski ekran spušta štih do `L_PILE_MIN`
+  (0,45). Širina ograničava hrpu (`W/2 − 221`: traka + razmak + bočno
+  sjedalo + stupac poleđina + zrak). Primjeri (ruka / štih): 852×393 →
+  **71 / 44 px** (vrh hrpe y ≈ 130, partnerove poleđine do 126); 844×390 →
+  70 / 44; 932×430 → 80 / 52; 667×375 → 62 / 43; 568×320 → 53 / 32 (tu ni
+  minimum ne stane — hrpa ~5 px ulazi u partnerove poleđine). Cijena je
+  vidljiva: štih je za trećinu manji nego u šestom prolazu (59 → 44 px na
+  852) — ako se to ne sviđa, ručica je `L_HAND_VS_PILE` (ruka prepušta dio
+  visine štihu).
+- **Zvanja: svaka grupa svoj bedž** (ispravak 2026-10-12, prijava vlasnika:
+  dvije terce = jedan „+20”). Bedž reda (partner / moj red) stajao je iza
+  posljednje karte grupe, pa je druga grupa istog sjedala legla preko bedža
+  prve. Sad je na **unutarnjem rubu** svoje grupe (donji rub pod partnerom,
+  gornji rub mog reda), centriran na grupu, `zIndex` iznad karata; razmak
+  između grupa 12 px. Bokovi i dalje nose bedž na unutarnjoj strani stupca.
+  Vrijedi za portretne i landscape slotove.

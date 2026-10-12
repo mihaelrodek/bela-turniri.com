@@ -4,6 +4,7 @@ import { homePath, isFullSiteOnlyPath, isGamesSite, mainSiteUrl } from './site'
 import { isNative } from './platform'
 import { Container, Flex, Text } from '@chakra-ui/react'
 import NavBar from './components/NavBar'
+import { useLandscapeTable } from './game/hooks/useLandscapeTable'
 import MobileTabBar from './components/MobileTabBar'
 import PushBootstrap from './components/PushBootstrap'
 import ThemeSync from './components/ThemeSync'
@@ -260,6 +261,15 @@ export default function App() {
     // router still owns the real location; `<Routes>` just renders this
     // one-frame-behind copy so the browser can snapshot the old page first.
     const displayed = useViewTransitionLocation()
+    /* The full-screen landscape table (2026-10-12, owner): on `/igra/soba/*`
+       on a phone held sideways, the NavBar, SiteFooter and MobileTabBar are
+       not rendered at all — the felt is the whole screen and the room page
+       pins itself to the viewport. `GameChrome` stays: on the table it is
+       only `GameRoomExitGuard`, a dialog with no footprint, and it is what
+       makes the table's own X ask "napustiti stol?" during play. The hook
+       is route + `matchMedia`, so a rotation back to portrait brings the
+       chrome straight back. */
+    const landscapeTable = useLandscapeTable()
     // Warm the heaviest "next click" chunk while the browser is idle. From the
     // tournaments list the overwhelmingly common navigation is into a
     // tournament's detail page, so we prefetch that lazy chunk after first
@@ -292,7 +302,7 @@ export default function App() {
                 sibling OUTSIDE this column: it's position:fixed, so its own
                 place in the DOM doesn't matter, only that it paints last. */}
             <Flex direction="column" minH="100dvh">
-                <NavBar />
+                {!landscapeTable && <NavBar />}
                 {/* Auto-subscribes the user to Web Push once we know who they
                     are. Also listens for SW notification-click navigation
                     messages and routes the SPA without a reload. */}
@@ -471,7 +481,7 @@ export default function App() {
                     on a page shorter than the viewport it gets pushed all the
                     way to the bottom of this flex column; on a longer page it
                     just sits right after the content, no extra gap. */}
-                <SiteFooter mt="auto" />
+                {!landscapeTable && <SiteFooter mt="auto" />}
             </Flex>
             {/* Mobile-only bottom tab bar — supplements the hamburger
                 drawer in NavBar. The drawer still handles the help-tour
@@ -480,7 +490,7 @@ export default function App() {
                 flex column above: it's position:fixed, so paint order is all
                 that matters, and keeping it a sibling means the column's
                 min-height math never has to account for it. */}
-            <MobileTabBar />
+            {!landscapeTable && <MobileTabBar />}
             {/* Seat-hold chrome: the exit prompt on a table, the "active room"
                 dock everywhere else. Sibling of the tab bar for the same
                 reason — it is position:fixed and only paint order matters. */}

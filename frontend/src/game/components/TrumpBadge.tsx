@@ -1,11 +1,11 @@
 import type { Ref } from "react"
-import { Box, Text, VStack } from "@chakra-ui/react"
+import { Box, HStack, Text, VStack } from "@chakra-ui/react"
 import { keyframes } from "@emotion/react"
 import type { Suit } from "@bela/protocol"
 import { useTranslation } from "../../i18n"
 import { suitKey } from "../util/cards"
 import SuitGlyph from "./SuitGlyph"
-import { INK, type TeamSide } from "./tableStyles"
+import { GLASS, INK, TEAM, type TeamSide } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
    TrumpBadge — the middle cell of the scoreboard (game/DESIGN.md §1 "Stol").
@@ -31,6 +31,8 @@ export type TrumpGlyphState = "plain" | "hidden" | "landed"
 
 /** The badge's mark size — the flight scales the overlay's mark down to it. */
 export const TRUMP_BADGE_SUIT_SIZE = 28
+/** …and in the landscape mini scoreboard (`compact`). */
+export const TRUMP_BADGE_COMPACT_SUIT_SIZE = 20
 
 /* Module-scope emotion keyframes — a nested "@keyframes" in Chakra's `css`
    prop does not run (game/DESIGN.md). Ends on the resting look, so a dead
@@ -63,6 +65,9 @@ export default function TrumpBadge({
     fallback,
     glyph = "plain",
     glyphRef,
+    compact = false,
+    layout = "stack",
+    callerTeam = null,
 }: {
     trump: Suit | null
     /** Who called it — omitted while nobody has. */
@@ -78,10 +83,44 @@ export default function TrumpBadge({
      *  the table's two team colours (`TEAM`, DESIGN §6). Null before anyone
      *  has called, when the cell has no side to take. */
     callerTeam?: TeamSide | null
+    /** A 20 px mark and the caller's name in one tight cell, no reserved
+     *  footprint (the landscape table, 2026-10-12). */
+    compact?: boolean
+    /** `inline` (landscape's top-right cluster, third pass 2026-10-12): a
+     *  glass PILL, `[♥ Mimi]`, the mark beside the name instead of above it,
+     *  with a hairline in the caller's team colour. Same glyph states, same
+     *  landing ref; before the call the pill holds the fan silhouette. */
+    layout?: "stack" | "inline"
 }) {
     const { t } = useTranslation()
+    const inline = layout === "inline"
+    const cell = compact || inline ? { ...CELL, minW: "0", minH: "0", px: "1", py: "0" } : CELL
+    const markSize = compact || inline ? TRUMP_BADGE_COMPACT_SUIT_SIZE : TRUMP_BADGE_SUIT_SIZE
+    const pill = inline
+        ? {
+            ...GLASS,
+            borderColor: callerTeam === null ? "border.subtle" : TEAM[callerTeam],
+            rounded: "full",
+            h: "28px",
+            px: "2",
+            gap: "1.5",
+        }
+        : null
 
     if (!trump) {
+        if (pill) {
+            return (
+                <HStack {...pill} role="img" aria-label={fallback} title={fallback}>
+                    <Box color="brand.fg" aria-hidden="true" display="flex">
+                        <svg viewBox="0 0 40 30" width="26" height="20" fill="var(--chakra-colors-brand-subtle)" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+                            <rect x="4" y="7" width="14" height="20" rx="2" transform="rotate(-14 11 17)" />
+                            <rect x="13" y="4" width="14" height="20" rx="2" />
+                            <rect x="22" y="7" width="14" height="20" rx="2" transform="rotate(14 29 17)" />
+                        </svg>
+                    </Box>
+                </HStack>
+            )
+        }
         // No border here (2026-09-20, user report: "zvanje aduta" read as an
         // odd pale outlined box floating between the scores). The trump-set
         // branch below already drops the border once a suit is called —
@@ -94,13 +133,13 @@ export default function TrumpBadge({
         // so it already holds a picture — three card outlines in the muted
         // ink, the size the mark will be. The words stay for screen readers.
         return (
-            <VStack {...CELL} gap="0" maxW="120px" role="img" aria-label={fallback} title={fallback}>
+            <VStack {...cell} gap="0" maxW="120px" role="img" aria-label={fallback} title={fallback}>
                 {/* Brand green in both modes: `brand.fg` for the outlines,
                     `brand.subtle` for the faces — semantic tokens, so the
                     silhouette follows the colour mode like the rest of the
                     panel. */}
                 <Box color="brand.fg" aria-hidden="true" display="flex">
-                    <svg viewBox="0 0 40 30" width="40" height="30" fill="var(--chakra-colors-brand-subtle)" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+                    <svg viewBox="0 0 40 30" width={compact ? "28" : "40"} height={compact ? "21" : "30"} fill="var(--chakra-colors-brand-subtle)" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
                         <rect x="4" y="7" width="14" height="20" rx="2" transform="rotate(-14 11 17)" />
                         <rect x="13" y="4" width="14" height="20" rx="2" />
                         <rect x="22" y="7" width="14" height="20" rx="2" transform="rotate(14 29 17)" />
@@ -110,10 +149,52 @@ export default function TrumpBadge({
         )
     }
 
+    if (pill) {
+        return (
+            <HStack
+                {...pill}
+                title={t(suitKey(trump))}
+                aria-label={
+                    callerName
+                        ? `${t("game.table.trumpSet", { suit: t(suitKey(trump)) })} · ${t("game.score.calledBy", { name: callerName })}`
+                        : t("game.table.trumpSet", { suit: t(suitKey(trump)) })
+                }
+            >
+                <Box
+                    ref={glyphRef}
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    flexShrink={0}
+                    visibility={glyph === "hidden" ? "hidden" : "visible"}
+                    animation={glyph === "landed" ? `${LAND_POP} ${LAND_POP_MS}ms cubic-bezier(0.22, 1.2, 0.36, 1)` : undefined}
+                    transformOrigin="center"
+                >
+                    <SuitGlyph suit={trump} size={markSize} />
+                </Box>
+                {callerName && (
+                    <Text
+                        fontSize="11px"
+                        lineHeight="1.2"
+                        fontWeight="bold"
+                        color={INK}
+                        lineClamp={1}
+                        maxW="110px"
+                        visibility={glyph === "hidden" ? "hidden" : "visible"}
+                        animation={glyph === "landed" ? `${LAND_POP} ${LAND_POP_MS}ms cubic-bezier(0.22, 1.2, 0.36, 1)` : undefined}
+                        transformOrigin="center"
+                    >
+                        {callerName}
+                    </Text>
+                )}
+            </HStack>
+        )
+    }
+
     return (
         <VStack
-            {...CELL}
-            gap="0.5"
+            {...cell}
+            gap={compact ? "0" : "0.5"}
             maxW="120px"
             title={t(suitKey(trump))}
             aria-label={
@@ -137,7 +218,7 @@ export default function TrumpBadge({
                 animation={glyph === "landed" ? `${LAND_POP} ${LAND_POP_MS}ms cubic-bezier(0.22, 1.2, 0.36, 1)` : undefined}
                 transformOrigin="center"
             >
-                <SuitGlyph suit={trump} size={TRUMP_BADGE_SUIT_SIZE} />
+                <SuitGlyph suit={trump} size={markSize} />
             </Box>
             {/* The name arrives WITH the mark (2026-10-08, owner): hidden
                 while the clone is in the air, same pop when it lands — a

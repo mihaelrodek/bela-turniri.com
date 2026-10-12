@@ -30,6 +30,8 @@ export default function TurnPill({
     label,
     countdown = null,
     reducedMotion = false,
+    bold = false,
+    align = "center",
 }: {
     tone: TurnTone
     label: string
@@ -37,6 +39,11 @@ export default function TurnPill({
      *  think pause, a wait on the server) — then the words stand bare. */
     countdown?: TurnCountdown | null
     reducedMotion?: boolean
+    /** Bold in every tone (the landscape table's bottom-left corner,
+     *  2026-10-12): the one line a sideways phone glances at between
+     *  tricks. Same size, same colours. */
+    bold?: boolean
+    align?: "start" | "center"
 }) {
     const skin = {
         you: { color: "brand.fg", weight: "bold" as const },
@@ -58,9 +65,9 @@ export default function TurnPill({
             // words, never the row's height.
             lineHeight="20px"
             h="20px"
-            fontWeight={skin.weight}
+            fontWeight={bold ? "bold" : skin.weight}
             color={urgent && counting ? "danger" : skin.color}
-            textAlign="center"
+            textAlign={align}
             lineClamp={1}
             transition="color 150ms ease"
             animation={urgent && counting && !reducedMotion ? `${URGENT_BLINK} 0.8s ease-in-out infinite` : undefined}

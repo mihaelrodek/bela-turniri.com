@@ -1,12 +1,13 @@
-import type { ReactNode } from "react"
+import type { CSSProperties, ReactNode } from "react"
 import { Box } from "@chakra-ui/react"
 import type { Card as CardId, PlayerView, RoomState, Seat as SeatId } from "@bela/protocol"
 import type { TrickCard } from "@bela/engine"
 import { useTurnCountdown } from "../hooks/useTurnCountdown"
-import { SEATS, SEAT_ANCHORS, positionOf, teamOf } from "../util/seats"
+import { SEATS, SEAT_ANCHORS, positionOf, teamOf, type TablePosition } from "../util/seats"
 import type { SeatBubble } from "./reactionBubbles"
 import SeatView, { type SeatBid } from "./Seat"
-import TrickArea from "./TrickArea"
+import TrickArea, { type PileSize } from "./TrickArea"
+import type { FanPlacement } from "./landscapeGeometry"
 import { tableGeometry } from "./tableStyles"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -46,6 +47,12 @@ export default function Table({
     bids,
     reactions,
     corner,
+    declarations,
+    anchors = SEAT_ANCHORS,
+    geometry,
+    pileSize,
+    seatCards = null,
+    fanPlacement,
 }: {
     room: RoomState
     view: PlayerView
@@ -72,6 +79,26 @@ export default function Table({
      *  been played (2026-10-08, owner). Empty on every layout: the top seat
      *  is centred and the flank seats sit at mid-height. */
     corner?: ReactNode
+    /** The declared cards lying on the felt during the reveal window
+     *  (`DeclarationsOnTable`, 2026-10-11). A slot rather than data: it is
+     *  rendered INSIDE this box because its slots are stated against the
+     *  geometry variables set right here, but what it shows and when is the
+     *  page's event business, not the table's. */
+    declarations?: ReactNode
+    /** Where each table position is pinned. The portrait map by default;
+     *  the landscape table passes `LANDSCAPE_SEAT_ANCHORS` (2026-10-12) —
+     *  its own map, so the portrait values are never edited for it. */
+    anchors?: Record<TablePosition, CSSProperties>
+    /** The geometry variables for this box, in place of `tableGeometry`. */
+    geometry?: Record<string, unknown>
+    /** Draw the trick at one fixed size (see `TrickArea`). */
+    pileSize?: PileSize
+    /** `view.handSizes`, when a seat should show a fan of card backs for the
+     *  cards it still holds (landscape, 2026-10-12). Null draws no fans. */
+    seatCards?: Record<SeatId, number> | null
+    /** Where each seat's fan lies — the side facing the middle
+     *  (`LANDSCAPE_FAN_PLACEMENT`, seventh pass 2026-10-12). */
+    fanPlacement?: Record<TablePosition, FanPlacement>
 }) {
     const mySeat = view.seat
     const botTurn = view.turn !== null && room.seats[view.turn]?.occupant?.kind === "BOT"
@@ -99,7 +126,7 @@ export default function Table({
             px="2"
             // Height, the seat gaps and the centre's offset, in one block.
             // A spectator gets a bottom seat and therefore a taller box.
-            css={tableGeometry(mySeat === null)}
+            css={geometry ?? tableGeometry(mySeat === null)}
         >
             {corner && (
                 <Box position="absolute" top="1" insetStart="2" zIndex={7}>
@@ -114,7 +141,10 @@ export default function Table({
                 flyIn={flyIn}
                 collectTo={collectTo}
                 reducedMotion={reducedMotion}
+                size={pileSize}
             />
+
+            {declarations}
 
             {SEATS.map((seat) => {
                 const position = positionOf(seat, mySeat)
@@ -122,7 +152,7 @@ export default function Table({
                 // Mine is in the bar under the felt; a spectator has no bar.
                 if (position === "bottom" && mySeat !== null) return null
                 return (
-                    <Box key={seat} position="absolute" zIndex={6} style={SEAT_ANCHORS[position]}>
+                    <Box key={seat} position="absolute" zIndex={6} style={anchors[position]}>
                         <SeatView
                             info={room.seats[seat]}
                             isMe={seat === mySeat}
@@ -141,6 +171,8 @@ export default function Table({
                             reactionAlign={position === "top" ? "beside" : position === "left" || position === "right" ? position : "center"}
                             reducedMotion={reducedMotion}
                             team={teamOf(seat) === myTeam ? "us" : "them"}
+                            cardsLeft={seatCards === null ? null : seatCards[seat]}
+                            fanPlacement={fanPlacement?.[position]}
                         />
                     </Box>
                 )
