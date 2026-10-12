@@ -3,6 +3,7 @@ import { Box, Flex, HStack, IconButton, Text, chakra } from "@chakra-ui/react"
 import { FiEye, FiSettings } from "react-icons/fi"
 import type { GameEndRule } from "@bela/protocol"
 import { useTranslation, usePlural } from "../../i18n"
+import LayoutToggleButton from "./LayoutToggleButton"
 import { INK, INK_MUTED, TEAM, type TeamSide } from "./tableStyles"
 
 /* Compact HUD controls. The room's rules (target score + end rule) sit over
@@ -43,6 +44,7 @@ export default function TableHeader({
     center,
     chips,
     spectators = null,
+    layoutToggle = false,
     onSettings,
 }: {
     targetScore: number
@@ -58,9 +60,17 @@ export default function TableHeader({
      *  (2026-09-29, user request — moved off the Zvanja/Štihovi row, where it
      *  read as one more action button rather than a status). */
     spectators?: number | null
+    /** The rotation button back to the full-screen table, left of the gear
+     *  (2026-10-12, owner). The page sets it only on a landscape phone whose
+     *  player chose the ordinary layout — nowhere else is there a table to
+     *  switch to. */
+    layoutToggle?: boolean
     onSettings: () => void
 }) {
     const { t } = useTranslation()
+    // Each button at the end is 32 px; the row keeps the same padding on
+    // both sides so its middle stays the screen's middle.
+    const endButtons = layoutToggle ? 2 : 1
 
     return (
         <Flex
@@ -71,7 +81,7 @@ export default function TableHeader({
             // not need 32 px of row, and the gear keeps its own 32 px tap
             // target by overhanging it.
             minH={{ base: "28px", md: "32px" }}
-            px="9"
+            px={endButtons === 1 ? "9" : "68px"}
             pt="0"
             flexShrink={0}
             minW="0"
@@ -82,11 +92,17 @@ export default function TableHeader({
             </HStack>
 
             {spectators !== null && (
-                <Box position="absolute" insetEnd="36px" top="50%" transform="translateY(-50%)">
+                <Box position="absolute" insetEnd={`${endButtons * 32 + 4}px`} top="50%" transform="translateY(-50%)">
                     <StatusChip label={t("game.table.spectatorCount", { count: spectators })}>
                         <FiEye aria-hidden="true" size={11} />
                         {spectators}
                     </StatusChip>
+                </Box>
+            )}
+
+            {layoutToggle && (
+                <Box position="absolute" insetEnd="32px" top="0">
+                    <LayoutToggleButton target="landscape" />
                 </Box>
             )}
 

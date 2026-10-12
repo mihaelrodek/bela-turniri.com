@@ -6,6 +6,7 @@ import type { RoomStatus, RoomSummary, TargetScore } from "@bela/protocol"
 import type { CreateGameOptions } from "../components/CreateGameDialog"
 import EmptyState from "../../components/EmptyState"
 import { MOBILE_TABBAR_CLEARANCE, NAVBAR_TOP } from "../../components/navChrome"
+import { SHORT_LANDSCAPE } from "../../utils/shortLandscape"
 import { useDocumentHead } from "../../hooks/useDocumentHead"
 import { useTranslation } from "../../i18n"
 import { showError } from "../../toaster"
@@ -403,7 +404,10 @@ export default function GameLobbyPage() {
     }
 
     return (
-        <Box maxW="1040px" mx="auto" pb={{ base: `calc(${MOBILE_TABBAR_CLEARANCE} + 96px)`, md: "8" }}>
+        <Box maxW="1040px" mx="auto" pb={{ base: `calc(${MOBILE_TABBAR_CLEARANCE} + 96px)`, md: "8" }}
+            // Phone held sideways (2026-10-12, owner): no tab bar to clear,
+            // only the (shorter) "Nova igra" dock below.
+            css={{ [SHORT_LANDSCAPE]: { pb: "calc(72px + var(--safe-bottom))" } }}>
             <VStack gap="6" align="stretch">
                 {/* Points bela-turniri.com visitors at bela.games — the
                     dedicated site for THIS SAME lobby (2026-09-23, owner
@@ -439,6 +443,9 @@ export default function GameLobbyPage() {
                     mx="-4"
                     px="4"
                     py="2"
+                    // On a phone held sideways a 72 px row pinned over ~350 px
+                    // of room list costs more than it gives: it scrolls away.
+                    css={{ [SHORT_LANDSCAPE]: { position: "static" } }}
                 >
                     <HStack gap="3" minW="0" flex="1">
                         {/* Until the server's `hello` names us, the same
@@ -646,6 +653,8 @@ export default function GameLobbyPage() {
                 px="4"
                 pt="8"
                 pb={`calc(${MOBILE_TABBAR_CLEARANCE} + 12px)`}
+                // Sideways there is no tab bar under it (2026-10-12, owner).
+                css={{ [SHORT_LANDSCAPE]: { pt: "4", pb: "calc(8px + var(--safe-bottom))" } }}
                 pointerEvents="none"
                 backgroundImage="linear-gradient(to bottom, transparent, var(--chakra-colors-bg-canvas) 45%)"
             >

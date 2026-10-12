@@ -7,6 +7,7 @@ import type { Phase, TrickCard } from "@bela/engine"
 import { useTranslation, usePlural } from "../../i18n"
 import BiddingPanel from "../components/BiddingPanel"
 import Hand from "../components/Hand"
+import LayoutToggleButton from "../components/LayoutToggleButton"
 import { LANDSCAPE_FAN_PLACEMENT, LANDSCAPE_RAIL, LANDSCAPE_SEAT_ANCHORS } from "../components/landscapeGeometry"
 import ReactionsBar from "../components/ReactionsBar"
 import type { SeatBubble } from "../components/reactionBubbles"
@@ -20,6 +21,7 @@ import TurnProgressBar from "../components/TurnProgressBar"
 import { GLASS, INK, INK_MUTED, LANDSCAPE_FELT, TEAM, landscapeTableGeometry } from "../components/tableStyles"
 import { useFanRect } from "../hooks/useFanRect"
 import type { TurnCountdown } from "../hooks/useTurnCountdown"
+import { useSettledScore } from "../hooks/useSettledScore"
 import { occupantName, otherTeam, teamOf } from "../util/seats"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -32,7 +34,7 @@ import { occupantName, otherTeam, teamOf } from "../util/seats"
    Nothing about the game is decided here — what the page hands in is what
    is drawn, and the handlers go straight back to it.
 
-       ┌  MI  |  ONI ─────────────────────────── [♥ Mimi] ⚙ ✕ ┐
+       ┌  MI  |  ONI ───────────────────────── [♥ Mimi] ⟳ ⚙ ✕ ┐
        │ 91 +40 |  37            [partner ▮▮▮▮]                 │
        │  439   |  157                                          │
        │ ZVANJA ŠTIHOVI                                         │
@@ -50,7 +52,8 @@ import { occupantName, otherTeam, teamOf } from "../util/seats"
    opening Pregled zvanja; the two tabs ("ZVANJA", "ŠTIHOVI": the same
    `PillButton` as the portrait header) centred on that axis right under it; top-right the trump pill
    `[♥ Mimi]` (`TrumpBadge inline`, where the trump flight lands) beside the
-   gear and the X; bottom-left the turn block — the 180 × 8 clock capsule
+   layout switch (⟳, back to the ordinary layout — `LayoutToggleButton`),
+   the gear and the X; bottom-left the turn block — the 180 × 8 clock capsule
    over the words, bold, centred under it; bottom-right the smile that opens
    the reactions as a COLUMN growing upward — or, for the four seconds of
    the opt-out window, the "Želiš li prijaviti zvanja?" card in its place
@@ -151,6 +154,10 @@ export interface GameRoomLandscapeProps {
     } | null
     actions: {
         declarationsEnabled: boolean
+        /** False hides the declarations pill outright (2026-10-12, owner): a
+         *  room without declarations has nothing to review until a bela is
+         *  called, and none at all when bela is off too. */
+        declarationsShown: boolean
         onDeclarations: () => void
         /** Null hides the tab (no trick yet, or the room forbids review). */
         tricksPlayed: number | null
@@ -285,16 +292,18 @@ export default function GameRoomLandscape({
                 gap="1"
                 zIndex={20}
             >
-                <ScoreLine view={view} myTeam={myTeam} onOpen={actions.declarationsEnabled ? actions.onDeclarations : undefined} />
+                <ScoreLine view={view} myTeam={myTeam} targetScore={room.targetScore} onOpen={actions.declarationsEnabled && actions.declarationsShown ? actions.onDeclarations : undefined} />
                 <HStack gap="1" justify="center">
-                    <PillButton
-                        label={t("game.declarations.title")}
-                        title={t("game.table.declarationsPill")}
-                        badge={null}
-                        badgeLabel={t("game.score.declarationBonus")}
-                        disabled={!actions.declarationsEnabled}
-                        onClick={actions.onDeclarations}
-                    />
+                    {actions.declarationsShown && (
+                        <PillButton
+                            label={t("game.declarations.title")}
+                            title={t("game.table.declarationsPill")}
+                            badge={null}
+                            badgeLabel={t("game.score.declarationBonus")}
+                            disabled={!actions.declarationsEnabled}
+                            onClick={actions.onDeclarations}
+                        />
+                    )}
                     {actions.tricksPlayed !== null && actions.tricksPlayed > 0 && (
                         <PillButton
                             label={t("game.tricks.title")}
@@ -452,6 +461,9 @@ export default function GameRoomLandscape({
                         callerTeam={caller === null ? null : teamOf(caller) === myTeam ? "us" : "them"}
                     />
                 </Box>
+                {/* Back to the ordinary layout (2026-10-12, owner): the
+                    player's own choice, remembered per device. */}
+                <LayoutToggleButton target="normal" size={36} />
                 <IconButton
                     size="sm"
                     minW="36px"
@@ -509,6 +521,7 @@ export default function GameRoomLandscape({
                         anchors={LANDSCAPE_SEAT_ANCHORS}
                         geometry={GEOMETRY}
                         pileSize="md"
+                        pileFlat
                         seatCards={view.handSizes}
                         fanPlacement={LANDSCAPE_FAN_PLACEMENT}
                     />
@@ -574,14 +587,42 @@ export default function GameRoomLandscape({
  * reveal. ONE tap target: it opens the declarations read-back while there
  * is one to open.
  */
-function ScoreLine({ view, myTeam, onOpen }: { view: PlayerView; myTeam: ReturnType<typeof teamOf>; onOpen?: () => void }) {
+function ScoreLine({ view, myTeam, targetScore, onOpen }: { view: PlayerView; myTeam: ReturnType<typeof teamOf>; targetScore: number; onOpen?: () => void }) {
     const { t } = useTranslation()
     const spectator = view.seat === null
     const them = otherTeam(myTeam)
-    const declarations = view.declarationPoints ?? { A: 0, B: 0 }
+    // The same end-of-deal pour as the portrait panel (2026-10-12, owner):
+    // the deal points run down into the match total.
+    const settled = useSettledScore(view)
     const usLabel = spectator ? t("game.score.teamA") : t("game.score.us")
     const themLabel = spectator ? t("game.score.teamB") : t("game.score.them")
-    const delimiter = <Text as="span" color={INK_MUTED} textAlign="center" fontSize="11px">|</Text>
+    // ONE tall rule down the middle instead of a "|" per row (2026-10-12,
+    // owner), spanning all four rows.
+    const delimiter = <Box gridColumn="2" gridRow="1 / 5" alignSelf="stretch" w="1px" my="0.5" bg={INK_MUTED} opacity={0.45} aria-hidden="true" />
+    // Between the deal and the match total, the portrait panel's 2 px bar
+    // running the total toward the target (2026-10-12, owner: "odvojiti
+    // delimiterom kao kod normalnog prikaza").
+    const bar = (side: "us" | "them", value: number, column: string) => {
+        const progress = Math.max(0, Math.min(1, targetScore > 0 ? value / targetScore : 0))
+        return (
+            <Box
+                gridColumn={column}
+                gridRow="3"
+                alignSelf="center"
+                justifySelf="stretch"
+                h="2px"
+                my="1"
+                rounded="full"
+                bg="border.subtle"
+                overflow="hidden"
+                display="flex"
+                flexDirection={side === "them" ? "row-reverse" : "row"}
+                aria-hidden="true"
+            >
+                <Box h="100%" rounded="full" bg={TEAM[side]} style={{ width: `${progress * 100}%` }} transition="width 160ms ease-out" />
+            </Box>
+        )
+    }
     const label = (text: string, side: "us" | "them") => (
         <Text as="span" color={TEAM[side]} fontWeight="bold" fontSize="10px" letterSpacing="widest" textAlign="center">
             {text.toUpperCase()}
@@ -637,16 +678,16 @@ function ScoreLine({ view, myTeam, onOpen }: { view: PlayerView; myTeam: ReturnT
             {/* Equal side columns with a floor: centred 3-digit deal points
                 leave ~28 px each side, enough for "+150" plus the gap, so a
                 bonus never reaches the delimiter. */}
-            <Grid templateColumns="minmax(84px, 1fr) auto minmax(84px, 1fr)" columnGap="2" rowGap="0" alignItems="baseline" justifyItems="center">
-                {label(usLabel, "us")}
+            <Grid templateColumns="minmax(84px, 1fr) 1px minmax(84px, 1fr)" columnGap="3" rowGap="0" alignItems="baseline" justifyItems="center">
                 {delimiter}
-                {label(themLabel, "them")}
-                {deal("us", view.currentDealPoints[myTeam], declarations[myTeam])}
-                {delimiter}
-                {deal("them", view.currentDealPoints[them], declarations[them])}
-                {total(view.score[myTeam])}
-                {delimiter}
-                {total(view.score[them])}
+                <Box gridColumn="1" gridRow="1">{label(usLabel, "us")}</Box>
+                <Box gridColumn="3" gridRow="1">{label(themLabel, "them")}</Box>
+                <Box gridColumn="1" gridRow="2">{deal("us", settled.deal(myTeam), settled.declarations(myTeam))}</Box>
+                <Box gridColumn="3" gridRow="2">{deal("them", settled.deal(them), settled.declarations(them))}</Box>
+                {bar("us", settled.total(myTeam), "1")}
+                {bar("them", settled.total(them), "3")}
+                <Box gridColumn="1" gridRow="4">{total(settled.total(myTeam))}</Box>
+                <Box gridColumn="3" gridRow="4">{total(settled.total(them))}</Box>
             </Grid>
         </chakra.button>
     )

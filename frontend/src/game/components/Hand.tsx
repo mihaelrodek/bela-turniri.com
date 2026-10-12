@@ -9,7 +9,7 @@ import { useGamePrefs } from "../hooks/useGamePrefs"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import PlayingCard, { CardBack } from "./PlayingCard"
 import { SHORT } from "./tableStyles"
-import { CARD_WIDTH, FAN_PAD_TOP, HAND_CARD_SIZE, SLOT_GAP, type HandCardSize } from "./handLayout"
+import { CARD_WIDTH, FAN_EXPOSURE, FAN_HANG, FAN_PAD_TOP, HAND_CARD_SIZE, SLOT_GAP, type HandCardSize } from "./handLayout"
 
 /* ──────────────────────────────────────────────────────────────────────────
    Hand — my cards, in a dark tray docked at the bottom of the table.
@@ -49,8 +49,12 @@ import { CARD_WIDTH, FAN_PAD_TOP, HAND_CARD_SIZE, SLOT_GAP, type HandCardSize } 
    the next and only its left strip shows; the slots lean −6°…+6° about
    their bottom edge and sink on a shallow curve toward the ends, like a hand
    actually held — flatter and wider since the fourth pass (2026-10-12,
-   owner: the first cut was "strongly curved" and the cards "narrow").
-   Drawn at `sm` and zoomed by `--hand-k` like the phone grid.
+   owner: the first cut was "strongly curved" and the cards "narrow"), and
+   since the eighth pass (2026-10-12, owner: "hard to tap") nearly straight,
+   each card's strip 85 % of it, and sunk `FAN_HANG` px past the bottom
+   edge of the screen — only the cards' feet, never the rank and suit in
+   their top corners. Drawn at `sm` and zoomed by `--hand-k` like the phone
+   grid.
    Rule 2 holds here too (2026-10-12, owner, second pass): a legal card
    looks exactly like the others — the first cut lifted it and that was a
    recommendation. The fan's lean lives on a wrapper OUTSIDE the slot that
@@ -99,13 +103,15 @@ const TALON_STEP_MS = 110
 /** A card moving to another slot when the hand is re-sorted around the talon. */
 const MOVE_MS = 380
 const MOVE_EASING = "cubic-bezier(0.22, 1, 0.36, 1)"
-/** The fan (landscape): how much of a card shows beside the next one. Keep
- *  in step with `L_FAN_W` in hooks/useTableScale.ts. */
-const FAN_EXPOSURE = 0.52
-/** The lean of the outermost slot, in degrees (linear across the eight),
- *  and the sink of the ends (× offset², so 6 px at the outermost slot). */
-const FAN_MAX_DEG = 6
-const FAN_SINK_PX = 0.5
+/** The fan (landscape): how much of a card shows beside the next one —
+ *  `FAN_EXPOSURE` in handLayout.ts, shared with `L_FAN_W` in
+ *  hooks/useTableScale.ts. The lean of the outermost slot, in degrees
+ *  (linear across the eight), and the sink of the ends (× offset², so
+ *  ~1.8 px at the outermost slot). Eighth pass (2026-10-12, owner: the
+ *  cards were hard to tap): nearly a straight row — 6° → 2.5°, sink
+ *  0.5 → 0.15 — with each strip wider (52 % → 75 % of a card). */
+const FAN_MAX_DEG = 2.5
+const FAN_SINK_PX = 0.15
 
 export type HandLayout = "grid" | "fan"
 
@@ -391,6 +397,11 @@ export default function Hand({
                     // has to take up its scaled size in the layout. A browser
                     // without `zoom` simply keeps the `sm` hand.
                     zoom: columns === 4 || fan ? "var(--hand-k, 1)" : undefined,
+                    // The fan's feet hang off the bottom edge (eighth pass,
+                    // 2026-10-12): a negative margin INSIDE the zoom, so it
+                    // is `FAN_HANG` × `--hand-k` on screen; the felt root's
+                    // `overflow: hidden` clips what hangs.
+                    marginBottom: fan && FAN_HANG > 0 ? `-${FAN_HANG}px` : undefined,
                 }}
             >
                 {slots.map((slot, index) => {

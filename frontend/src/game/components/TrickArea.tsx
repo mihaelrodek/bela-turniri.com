@@ -52,6 +52,15 @@ const REST_X: Record<PileSize, number> = { sm: 50, md: 66, ml: 78 }
  *  stay as they were. The seat clearances in tableStyles.ts are stated
  *  against these numbers and only ever had slack to gain. */
 const REST_Y: Record<PileSize, number> = { sm: 32, md: 42, ml: 50 }
+/** The landscape table's cross (2026-10-12, owner: "karte na stolu
+ *  premale"). Its trick is limited by HEIGHT — the partner's row of backs
+ *  above, my fan below — while the width has room to spare, so the cross is
+ *  squeezed vertically and spread sideways: the same band then fits a ~15 %
+ *  bigger card. Sideways 82 → 62 the same day (owner: "da nije tolki
+ *  razmak") — the side cards just touch the middle pair. Keep in step with `L_PILE_UPPER`/`L_PILE_LOWER`/
+ *  `L_PILE_HALF_W` (useTableScale.ts) and `landscapeTableGeometry`. */
+export const FLAT_REST_X = 62
+export const FLAT_REST_Y = 30
 /** Where a card starts its flight (off toward its owner). */
 const FLY_IN: Record<PileSize, number> = { sm: 130, md: 170, ml: 200 }
 /** Where the trick slides to when collected. */
@@ -66,6 +75,7 @@ function ThrownCard({
     order,
     mySeat,
     size,
+    flat,
     animateIn,
     collectTo,
     reducedMotion,
@@ -76,6 +86,8 @@ function ThrownCard({
     mySeat: Seat | null
     /** The card size the hand is drawing at this width. */
     size: PileSize
+    /** The landscape cross (`FLAT_REST_X`/`FLAT_REST_Y`). */
+    flat: boolean
     /** false = this card was already on the felt when we started looking. */
     animateIn: boolean
     collectTo: Seat | null
@@ -110,8 +122,10 @@ function ThrownCard({
         // The top seat's transient status chip sits immediately above the
         // trick. Pull only that card a little toward the centre so the chip
         // reads above it instead of touching its top edge.
-        const restY = position === "top" ? REST_Y[size] - 8 : REST_Y[size]
-        transform = `translate(-50%, -50%) translate(${vector.x * REST_X[size] + dx}px, ${vector.y * restY + dy}px) rotate(${tilt}deg)`
+        const baseY = flat ? FLAT_REST_Y : REST_Y[size]
+        const restX = flat ? FLAT_REST_X : REST_X[size]
+        const restY = position === "top" ? baseY - 8 : baseY
+        transform = `translate(-50%, -50%) translate(${vector.x * restX + dx}px, ${vector.y * restY + dy}px) rotate(${tilt}deg)`
     }
 
     return (
@@ -139,6 +153,7 @@ export default function TrickArea({
     collectTo = null,
     reducedMotion = false,
     size: sizeOverride,
+    flat = false,
 }: {
     /** Cards on the table — `view.trick.cards`, or the resolved trick while
      *  a TRICK_WON event is being shown. */
@@ -149,6 +164,8 @@ export default function TrickArea({
      *  `md` breakpoint, and its `--pile-k` is worked out against one drawn
      *  size, so it names that size here. */
     size?: PileSize
+    /** The landscape table's flatter, wider cross (2026-10-12). */
+    flat?: boolean
     /** Kept in the component contract for game-state callers. The current
      * design deliberately does not mark the card that is holding the trick. */
     holdingSeat?: Seat | null
@@ -203,6 +220,7 @@ export default function TrickArea({
                     order={index}
                     mySeat={mySeat}
                     size={size}
+                    flat={flat}
                     animateIn={entry.card === flyIn}
                     collectTo={collectTo}
                     reducedMotion={reducedMotion}

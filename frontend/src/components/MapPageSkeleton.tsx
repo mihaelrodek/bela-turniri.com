@@ -1,5 +1,5 @@
 import { Box, Flex, Grid, HStack, Skeleton, SkeletonCircle, VStack } from "@chakra-ui/react"
-import { MAP_DESKTOP_H, MAP_DESKTOP_MIN_H, MAP_MOBILE_H, MAP_MOBILE_MIN_H } from "./mapLayout"
+import { MAP_DESKTOP_H, MAP_DESKTOP_MIN_H, MAP_MOBILE_H, MAP_MOBILE_MIN_H, MAP_SHORT_LANDSCAPE_CSS } from "./mapLayout"
 
 /* ──────────────────────────────────────────────────────────────────────────
    MapPageSkeleton — /karta in grey while its lazy chunk (Leaflet and all)
@@ -51,6 +51,7 @@ export default function MapPageSkeleton() {
                     rounded="xl"
                     h={{ base: MAP_MOBILE_H, md: MAP_DESKTOP_H }}
                     minH={{ base: MAP_MOBILE_MIN_H, md: MAP_DESKTOP_MIN_H }}
+                    css={MAP_SHORT_LANDSCAPE_CSS}
                 />
             </Grid>
         </VStack>

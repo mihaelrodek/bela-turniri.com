@@ -38,11 +38,12 @@ import { SHORT, TEAM, WIDE, type TeamSide } from "./tableStyles"
    from its avatar in three beats, one WAAPI animation per card: it rises
    out of the avatar away from the centre (28 px further out, 1.06, 180 ms
    ease-out), hangs for 160 ms, then is thrown onto its slot — 280 ms on an
-   overshoot curve with a ±6° wobble settling to the slot's angle; 50 ms
-   between cards. The badge fades in as the group's last card lands. The
-   way OUT, when `leaving` goes true, stays the quick 220 ms deal-out
-   toward the avatar (40 ms a card), badge with it; the page unmounts this
-   `DECL_EXIT_MS` later. MY OWN cards do neither: they are the real cards
+   overshoot curve with a ±6° wobble settling to the slot's angle. ALL
+   cards of every declaration move AT ONCE (2026-10-12, owner: the
+   one-by-one stagger is gone) — one beat for the whole layer. The badges
+   fade in as the cards land. The way OUT, when `leaving` goes true, stays
+   the quick 220 ms deal-out toward the avatar, every card together, badge
+   with it; the page unmounts this `DECL_EXIT_MS` later. MY OWN cards do neither: they are the real cards
    of my hand flying over (`CardFlight`, driven by the page), so their
    group starts invisible (`myCardsHidden`) and shows — badge fading in —
    once the flight has landed. Reduced motion drops every animation.
@@ -53,11 +54,9 @@ const LIFT_MS = 180
 const HOLD_MS = 160
 const THROW_MS = 280
 export const DECL_THROW_MS = LIFT_MS + HOLD_MS + THROW_MS
-/** Stagger between two cards thrown in. */
-export const DECL_THROW_STEP_MS = 50
-/** Deal-out of another seat's cards when the window closes. */
+/** Deal-out of another seat's cards when the window closes — all at once,
+ *  like the throw-in (no per-card stagger since 2026-10-12, owner). */
 export const DECL_DEAL_MS = 220
-export const DECL_DEAL_STEP_MS = 40
 /** Where a card starts (and ends) at its avatar, from its slot. */
 const DEAL_DISTANCE = 36
 /** How much further out the rise takes it before the throw. */
@@ -197,27 +196,26 @@ export default function DeclarationsOnTable({
     const side: TeamSide = scoringTeam !== null && scoringTeam !== viewerTeam ? "them" : "us"
 
     /* Every card node of the OTHER seats, with the direction it is thrown
-       from and its stagger index, and every badge with the delay of its
-       group's last card — for the WAAPI passes below. */
-    const cardNodes = useRef(new Map<Card, { node: HTMLElement; dx: number; dy: number; index: number }>())
-    const badgeNodes = useRef(new Map<string, { node: HTMLElement; lastIndex: number; mine: boolean }>())
-    const registerCard = (card: Card, dx: number, dy: number, index: number) => (node: HTMLElement | null) => {
-        if (node) cardNodes.current.set(card, { node, dx, dy, index })
+       from, and every badge — for the WAAPI passes below. */
+    const cardNodes = useRef(new Map<Card, { node: HTMLElement; dx: number; dy: number }>())
+    const badgeNodes = useRef(new Map<string, { node: HTMLElement; mine: boolean }>())
+    const registerCard = (card: Card, dx: number, dy: number) => (node: HTMLElement | null) => {
+        if (node) cardNodes.current.set(card, { node, dx, dy })
         else cardNodes.current.delete(card)
     }
-    const registerBadge = (key: string, lastIndex: number, mine: boolean) => (node: HTMLElement | null) => {
-        if (node) badgeNodes.current.set(key, { node, lastIndex, mine })
+    const registerBadge = (key: string, mine: boolean) => (node: HTMLElement | null) => {
+        if (node) badgeNodes.current.set(key, { node, mine })
         else badgeNodes.current.delete(key)
     }
     const canAnimate = (node: HTMLElement) => typeof node.animate === "function"
 
-    // The throw-in, once, on mount; the other seats' badges follow their
-    // group's last card. (Effectively mount-only: the set of cards is fixed
+    // The throw-in, once, on mount — every card together; the other seats'
+    // badges fade in as they land. (Effectively mount-only: the set of cards is fixed
     // for the life of one reveal, and the page remounts the layer per reveal.)
     useEffect(() => {
         if (reducedMotion) return
         const animations: Animation[] = []
-        for (const { node, dx, dy, index } of cardNodes.current.values()) {
+        for (const { node, dx, dy } of cardNodes.current.values()) {
             if (!canAnimate(node)) continue
             const lift = (f: number) => `translate(${dx + dx / DEAL_DISTANCE * LIFT_PX * f}px, ${dy + dy / DEAL_DISTANCE * LIFT_PX * f}px)`
             animations.push(
@@ -234,16 +232,16 @@ export default function DeclarationsOnTable({
                         { offset: (LIFT_MS + HOLD_MS + THROW_MS * 0.7) / DECL_THROW_MS, transform: `translate(${dx * 0.08}px, ${dy * 0.08}px) rotate(${-WOBBLE_DEG}deg) scale(1.03)`, opacity: 1, easing: THROW_EASING },
                         { offset: 1, transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1 },
                     ],
-                    { duration: DECL_THROW_MS, delay: index * DECL_THROW_STEP_MS, fill: "both" },
+                    { duration: DECL_THROW_MS, fill: "both" },
                 ),
             )
         }
-        for (const { node, lastIndex, mine } of badgeNodes.current.values()) {
+        for (const { node, mine } of badgeNodes.current.values()) {
             if (mine || !canAnimate(node)) continue
             animations.push(
                 node.animate([{ opacity: 0 }, { opacity: 1 }], {
                     duration: BADGE_MS,
-                    delay: lastIndex * DECL_THROW_STEP_MS + DECL_THROW_MS,
+                    delay: DECL_THROW_MS,
                     easing: "ease-out",
                     fill: "both",
                 }),
@@ -270,7 +268,7 @@ export default function DeclarationsOnTable({
     useEffect(() => {
         if (!leaving || reducedMotion) return
         const animations: Animation[] = []
-        for (const { node, dx, dy, index } of cardNodes.current.values()) {
+        for (const { node, dx, dy } of cardNodes.current.values()) {
             if (!canAnimate(node)) {
                 node.style.opacity = "0"
                 continue
@@ -281,7 +279,7 @@ export default function DeclarationsOnTable({
                         { transform: "translate(0, 0)", opacity: 1 },
                         { transform: `translate(${dx}px, ${dy}px)`, opacity: 0 },
                     ],
-                    { duration: DECL_DEAL_MS, delay: index * DECL_DEAL_STEP_MS, easing: "ease-in", fill: "forwards" },
+                    { duration: DECL_DEAL_MS, easing: "ease-in", fill: "forwards" },
                 ),
             )
         }
@@ -326,7 +324,6 @@ export default function DeclarationsOnTable({
                 const seatFlow = landscapeFlank ? "column" : FLOW[position]
                 const mine = seat === mySeat
                 const vector = positionVector(position)
-                let index = 0
                 return (
                     <Flex
                         key={seat}
@@ -350,7 +347,6 @@ export default function DeclarationsOnTable({
                     >
                         {declarations.map((declaration) => {
                             const groupKey = `${seat}:${declaration.cards.join("-")}`
-                            const firstIndex = index
                             return (
                                 <Flex
                                     key={groupKey}
@@ -360,12 +356,11 @@ export default function DeclarationsOnTable({
                                     flexShrink={0}
                                 >
                                     {declaration.cards.map((card, i) => {
-                                        const order = index++
                                         return (
                                             <Box
                                                 key={card}
                                                 data-decl-card={card}
-                                                ref={mine ? undefined : registerCard(card, vector.x * DEAL_DISTANCE, vector.y * DEAL_DISTANCE, order)}
+                                                ref={mine ? undefined : registerCard(card, vector.x * DEAL_DISTANCE, vector.y * DEAL_DISTANCE)}
                                                 flexShrink={0}
                                                 w={`${cardW}px`}
                                                 h={`${cardH}px`}
@@ -385,7 +380,7 @@ export default function DeclarationsOnTable({
                                         invisible (the fade sets it) unless
                                         nothing animates at all. */}
                                     <Flex
-                                        ref={registerBadge(groupKey, firstIndex + declaration.cards.length - 1, mine)}
+                                        ref={registerBadge(groupKey, mine)}
                                         as="span"
                                         position="absolute"
                                         zIndex={1}

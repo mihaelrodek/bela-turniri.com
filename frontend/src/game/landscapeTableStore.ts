@@ -41,3 +41,51 @@ function getServerSnapshot(): boolean {
 export function useTablePlaying(): boolean {
     return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 }
+
+/* ── the player's own choice of layout (2026-10-12, owner) ───────────────
+   A landscape phone gets the full-screen table by default; the rotation
+   button in the room (`LayoutToggleButton`) lets the player go back to the
+   ordinary layout and return. `preferNormal` is that override: when true,
+   `useLandscapeTable` is false whatever the screen. Per device, in
+   `localStorage` — every access wrapped, a private window or blocked
+   storage simply means "the default", never a throw. */
+const PREFER_NORMAL_KEY = "bela:game:preferNormalLayout"
+
+function readPreferNormal(): boolean {
+    try {
+        return typeof window !== "undefined" && window.localStorage.getItem(PREFER_NORMAL_KEY) === "1"
+    } catch {
+        return false
+    }
+}
+
+let preferNormal = readPreferNormal()
+const preferListeners = new Set<() => void>()
+
+/** Set (and remember on this device) the player's layout override. */
+export function setPreferNormalLayout(value: boolean): void {
+    if (preferNormal === value) return
+    preferNormal = value
+    try {
+        if (value) window.localStorage.setItem(PREFER_NORMAL_KEY, "1")
+        else window.localStorage.removeItem(PREFER_NORMAL_KEY)
+    } catch {
+        // Storage unavailable: the choice holds for this page's life only.
+    }
+    for (const listener of preferListeners) listener()
+}
+
+function subscribePrefer(listener: () => void): () => void {
+    preferListeners.add(listener)
+    return () => preferListeners.delete(listener)
+}
+
+function getPreferSnapshot(): boolean {
+    return preferNormal
+}
+
+/** True while the player has asked for the ordinary layout on a landscape
+ *  phone. */
+export function usePreferNormalLayout(): boolean {
+    return useSyncExternalStore(subscribePrefer, getPreferSnapshot, getServerSnapshot)
+}

@@ -25,19 +25,43 @@ export const NAVBAR_H = { base: 48, md: 52 } as const
  *  (index.html) resolves to 0px wherever neither source applies (Android,
  *  desktop, an ordinary browser tab), so this is a no-op everywhere except a
  *  notched iPhone running the installed PWA or an edge-to-edge Android app. */
+/*
+ *  2026-10-12, owner: the lengths read `--nav-h` / `--nav-pin` (src/index.css)
+ *  instead of baking in the px. Those variables equal NAVBAR_H at both
+ *  breakpoints, so nothing moves on a portrait phone or a desktop; on a phone
+ *  held sideways (`utils/shortLandscape.ts`) the bar is 40 px and scrolls
+ *  away, and every consumer follows without knowing about that mode:
+ *  `--nav-h` (the bar's height, for "fit the viewport under the bar" maths)
+ *  drops to 40 px, `--nav-pin` (where sticky things pin) drops to 0. */
 export const NAVBAR_SAFE_TOP = {
-    base: `calc(${NAVBAR_H.base}px + var(--safe-top))`,
-    md: `calc(${NAVBAR_H.md}px + var(--safe-top))`,
+    base: "calc(var(--nav-h) + var(--safe-top))",
+    md: "calc(var(--nav-h) + var(--safe-top))",
 }
 
-/** Same, as CSS lengths — for `top` on a sticky element. */
-export const NAVBAR_TOP = NAVBAR_SAFE_TOP
+/** Where a sticky element pins under the bar, as CSS lengths — for `top`.
+ *  The bar's height except on a phone held sideways, where the bar is not
+ *  sticky and this is just the safe-area inset. */
+export const NAVBAR_TOP = {
+    base: "calc(var(--nav-pin) + var(--safe-top))",
+    md: "calc(var(--nav-pin) + var(--safe-top))",
+}
 
 /** Navbar + the app Container's top padding (py={6} → 24px): where a card
- *  pinned inside the content column should come to rest. */
+ *  pinned inside the content column should come to rest. Pins, so it reads
+ *  `--nav-pin` like NAVBAR_TOP. */
 export const CONTENT_STICKY_TOP = {
-    base: `calc(${NAVBAR_H.base + 24}px + var(--safe-top))`,
-    md: `calc(${NAVBAR_H.md + 24}px + var(--safe-top))`,
+    base: "calc(var(--nav-pin) + 24px + var(--safe-top))",
+    md: "calc(var(--nav-pin) + 24px + var(--safe-top))",
+}
+
+/** Navbar + the app Container's top padding as a LAYOUT height — where the
+ *  content column starts, for "fill the rest of the viewport" maths
+ *  (`calc(100dvh - CONTENT_TOP.md)`). Same as CONTENT_STICKY_TOP except on a
+ *  phone held sideways, where the bar is 40 px and not pinned: a sticky
+ *  card rests at 24 px, but the column still starts under the bar. */
+export const CONTENT_TOP = {
+    base: "calc(var(--nav-h) + 24px + var(--safe-top))",
+    md: "calc(var(--nav-h) + 24px + var(--safe-top))",
 }
 
 /** Where the shared toaster (`src/toaster.ts`) should start its "top"

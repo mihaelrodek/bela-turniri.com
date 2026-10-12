@@ -24,6 +24,7 @@ import { InstallAppButton } from "./InstallAppButton"
 import LanguagePicker from "./LanguagePicker"
 import LiveDot from "./LiveDot"
 import { NAVBAR_H } from "./navChrome"
+import { SHORT_LANDSCAPE, SHORT_LANDSCAPE_QUERY } from "../utils/shortLandscape"
 import { open as openWhatsNew, useHasUnseenWhatsNew } from "../whatsNew/store"
 import { usePrefetchRoute } from "../hooks/usePrefetchRoute"
 import NewBadge from "./NewBadge"
@@ -54,6 +55,30 @@ const BAR_H = {
     base: `${NAVBAR_H.base - 1}px`,
     md: `${NAVBAR_H.md - 1}px`,
 }
+
+/* ── Phone held sideways (2026-10-12, owner) ────────────────────────────────
+   360–430 px of height on a 667–932 px wide screen: the desktop row is the
+   one that renders (whatever the width — the mobile top bar and the bottom
+   tab bar both step aside), squeezed to 40 px (`--nav-h` in index.css; 39 +
+   the hairline), with smaller pills, the mark without its wordmark and no
+   bela.games chip. The header also stops being sticky there, so a scroll
+   gives the height back to the page. */
+const SL_BAR_H = "39px"
+/** Narrow side of the landscape range (an older 667 px phone up to the
+ *  ~850 px of most current ones): the pill labels go visually hidden and the
+ *  capsule is icons only. The label stays in the DOM as the link's name. */
+const SL_ICONS_ONLY = `@media ${SHORT_LANDSCAPE_QUERY} and (max-width: 899px)`
+const SR_ONLY = {
+    position: "absolute",
+    width: "1px",
+    height: "1px",
+    padding: "0",
+    margin: "-1px",
+    overflow: "hidden",
+    clip: "rect(0, 0, 0, 0)",
+    whiteSpace: "nowrap",
+    borderWidth: "0",
+} as const
 
 /**
  * One pill inside the desktop nav capsule below.
@@ -126,12 +151,14 @@ function NavButton({
             onClick={onClick}
             onPointerEnter={prefetch}
             onFocus={prefetch}
+            css={{ [SHORT_LANDSCAPE]: { h: "28px", minW: "28px", px: "2", fontSize: "xs" } }}
         >
             <RouterLink to={to}>
                 {/* The icon is decorative here — the link's own text is the
                     accessible name, so no aria-label and no title. */}
                 {icon && <Box as="span" display="inline-flex" flexShrink="0" aria-hidden="true">{icon}</Box>}
-                <Box as="span" position="relative" display="inline-flex" alignItems="center">
+                <Box as="span" position="relative" display="inline-flex" alignItems="center"
+                    css={{ [SL_ICONS_ONLY]: SR_ONLY }}>
                     {children}
                     {!isActive && !liveBadge && isNew && <NewBadge ml="1.5" />}
                 </Box>
@@ -234,6 +261,7 @@ function NavCapsule({ children, tourAnchor }: { children: React.ReactNode; tourA
             borderColor="border.subtle"
             rounded="full"
             p="1"
+            css={{ [SHORT_LANDSCAPE]: { p: "2px" } }}
         >
             {children}
         </HStack>
@@ -429,6 +457,7 @@ function GuestMenu({ tourAnchor }: { tourAnchor?: string }) {
                     variant="ghost"
                     rounded="full"
                     data-tour={tourAnchor}
+                    css={{ [SHORT_LANDSCAPE]: { h: "28px", w: "28px", minW: "28px" } }}
                 >
                     <FiMenu />
                 </IconButton>
@@ -546,7 +575,8 @@ function UserMenu({ tourAnchor, compact }: { tourAnchor?: string; compact?: bool
  */
 function GamesSiteLinkChip() {
     return (
-        <Button asChild size="sm" variant="outline" rounded="full" color="fg.muted" borderColor="border.subtle">
+        <Button asChild size="sm" variant="outline" rounded="full" color="fg.muted" borderColor="border.subtle"
+            css={{ [SHORT_LANDSCAPE]: { display: "none" } }}>
             <chakra.a
                 href={GAMES_ORIGIN}
                 target="_blank"
@@ -584,7 +614,8 @@ function AuthArea({ compact, tourAnchor }: { compact?: boolean; tourAnchor?: str
         // redundant noise.
         return (
             <HStack gap="1.5">
-                <Button asChild size="sm" variant="solid" colorPalette="blue">
+                <Button asChild size="sm" variant="solid" colorPalette="blue"
+                    css={{ [SHORT_LANDSCAPE]: { h: "28px", px: "2.5", fontSize: "xs" } }}>
                     <RouterLink to="/prijava">{t("common.nav.login")}</RouterLink>
                 </Button>
                 <GuestMenu tourAnchor={tourAnchor} />
@@ -830,7 +861,8 @@ function GamesSideMenu({ tourAnchor }: { tourAnchor?: string }) {
 function GamesMobileBar({ tourAnchor }: { tourAnchor?: string }) {
     const { t } = useTranslation()
     return (
-        <Flex display={{ base: "flex", md: "none" }} h={BAR_H} align="center" position="relative">
+        <Flex display={{ base: "flex", md: "none" }} h={BAR_H} align="center" position="relative"
+            css={{ [SHORT_LANDSCAPE]: { display: "none" } }}>
             <RouterLink to={homePath} aria-label={t("common.nav.brandAriaLabel", { site: siteName })} style={{ display: "inline-flex" }}>
                 <BrandMark alt="" h="30px" w="auto" />
             </RouterLink>
@@ -966,6 +998,10 @@ export default function NavBar() {
             // edge-to-edge, where Capacitor's own `--safe-area-inset-top`
             // still carries the real value.
             style={{ paddingTop: "var(--safe-top)" }}
+            // Phone held sideways: scrolls away with the page (2026-10-12,
+            // owner) — `--nav-pin` (index.css) drops to 0 there, so the
+            // sticky things that pin under the bar pin to the top instead.
+            css={{ [SHORT_LANDSCAPE]: { position: "static" } }}
         >
             {/* py={0}: the row height is pinned by BAR_H instead, so the
                 rendered header matches NAVBAR_H to the pixel (plus the safe-area
@@ -989,6 +1025,9 @@ export default function NavBar() {
                     gridTemplateColumns="1fr auto 1fr"
                     alignItems="center"
                     gap={3}
+                    // Shown at every width on a phone held sideways — the
+                    // mobile bar and the bottom tab bar step aside there.
+                    css={{ [SHORT_LANDSCAPE]: { display: "grid", h: SL_BAR_H, gap: "2" } }}
                 >
                     <Box>
                         {/* Brand mark — rendered as a plain link, NOT a Button.
@@ -1018,10 +1057,13 @@ export default function NavBar() {
                                     alt=""
                                     h={{ base: "28px", md: "32px" }}
                                     w="auto"
+                                    css={{ [SHORT_LANDSCAPE]: { h: "24px" } }}
                                 />
                                 <Box
                                     as="span"
                                     display={{ base: "none", sm: "inline" }}
+                                    // The link's aria-label still names the site.
+                                    css={{ [SHORT_LANDSCAPE]: { display: "none" } }}
                                     fontFamily="heading"
                                     fontWeight="semibold"
                                     letterSpacing="-0.015em"
@@ -1088,7 +1130,8 @@ export default function NavBar() {
                 {isGamesSite ? (
                     <GamesMobileBar tourAnchor={isMobile ? "help-install" : undefined} />
                 ) : (
-                    <Flex display={{ base: "flex", md: "none" }} h={BAR_H} align="center" gap="1">
+                    <Flex display={{ base: "flex", md: "none" }} h={BAR_H} align="center" gap="1"
+                        css={{ [SHORT_LANDSCAPE]: { display: "none" } }}>
                         <chakra.a
                             asChild
                             display="inline-flex"

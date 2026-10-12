@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react"
 import { useLocation } from "react-router-dom"
 import { LANDSCAPE_TABLE_QUERY } from "../landscapeQuery"
-import { useTablePlaying } from "../landscapeTableStore"
+import { usePreferNormalLayout, useTablePlaying } from "../landscapeTableStore"
 
 /* ──────────────────────────────────────────────────────────────────────────
    useLandscapeTable — is THIS screen the full-screen landscape table?
@@ -20,6 +20,10 @@ import { useTablePlaying } from "../landscapeTableStore"
    the tree; `GameRoomPage` reads it to swap the column for
    `GameRoomLandscape`. Portrait and md+ desktop are untouched: the query is
    false there, and so is this.
+
+   A fourth fact (2026-10-12, owner): the player has not asked for the
+   ordinary layout with the rotation button (`preferNormal` in
+   `landscapeTableStore`, remembered per device).
    ────────────────────────────────────────────────────────────────────── */
 
 const ROOM_PREFIX = "/igra/soba/"
@@ -45,10 +49,12 @@ export function useLandscapeTableMedia(): boolean {
     return useSyncExternalStore(subscribe, snapshot, serverSnapshot)
 }
 
-/** True on a game-room route on a landscape phone while the table is up. */
+/** True on a game-room route on a landscape phone while the table is up,
+ *  unless the player switched to the ordinary layout. */
 export function useLandscapeTable(): boolean {
     const { pathname } = useLocation()
     const landscape = useLandscapeTableMedia()
     const playing = useTablePlaying()
-    return landscape && playing && pathname.startsWith(ROOM_PREFIX)
+    const preferNormal = usePreferNormalLayout()
+    return landscape && playing && !preferNormal && pathname.startsWith(ROOM_PREFIX)
 }

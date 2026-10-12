@@ -10,6 +10,30 @@ import { TEAM } from "./tableStyles"
 import PlayerAvatar from "./PlayerAvatar"
 import GameOption from "./GameOption"
 import { SeatKarmaPill, SeatStatPill } from "./GameStatsPills"
+import { SHORT_LANDSCAPE } from "../../utils/shortLandscape"
+import { useShortLandscape } from "../../hooks/useShortLandscape"
+
+/* ── Phone held sideways (2026-10-12, owner) ────────────────────────────────
+   ~350 px of height under the 40 px bar: the panel becomes two columns —
+   the room card on top of the controls on the left, the four chairs on the
+   right — so every chair and "Pokreni igru" are on screen without a scroll.
+   Styling rides on `SHORT_LANDSCAPE` media blocks (no render needed); only
+   the avatar size and the stat pills' direction need the hook. Portrait and
+   desktop never match. */
+const SL_GRID = {
+    [SHORT_LANDSCAPE]: {
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.25fr)",
+        gridTemplateRows: "auto auto 1fr auto",
+        columnGap: "3",
+        rowGap: "1.5",
+        p: "2",
+    },
+} as const
+/** Left column, one row each: card, "all seats taken" note, controls,
+ *  spectators line. */
+const slCell = (row: number) => ({ [SHORT_LANDSCAPE]: { gridColumn: "1", gridRow: String(row) } })
+const SL_CHIP = { [SHORT_LANDSCAPE]: { h: "22px" } } as const
 
 export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit, onAddBot,
     onRemoveBot, onReady, onStart, onLeave, onPrivacyChange, onSettings }: {
@@ -33,6 +57,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
     onSettings: () => void
 }) {
     const { t } = useTranslation()
+    const shortLandscape = useShortLandscape()
     // Seating is collaborative: anyone currently in the room may fill an
     // empty chair with a bot or clear a bot before the game starts. The server
     // enforces the same membership-and-lobby guard. Privacy and starting are
@@ -102,7 +127,8 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
     ]
 
     return (
-        <VStack gap={{ base: "1.5", md: "3" }} align="stretch" p={{ base: "1.5", md: "4" }} pt={{ base: "0", md: "1" }} flex="1" minH="0">
+        <VStack gap={{ base: "1.5", md: "3" }} align="stretch" p={{ base: "1.5", md: "4" }} pt={{ base: "0", md: "1" }} flex="1" minH="0"
+            css={SL_GRID}>
             {/* No `pr="8"` any more: that gutter existed only to keep the
                 title clear of the absolutely-positioned chat toggle, and the
                 room text chat is gone for good (2026-09-20, app-store
@@ -128,10 +154,21 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 px={{ base: "3.5", md: "3" }}
                 roundedTop={{ base: "0", md: "2xl" }}
                 borderTopWidth={{ base: "0", md: "1px" }}
+                css={{
+                    [SHORT_LANDSCAPE]: {
+                        ...slCell(1)[SHORT_LANDSCAPE],
+                        mx: "0",
+                        px: "3",
+                        py: "2",
+                        borderTopRadius: "2xl",
+                        borderTopWidth: "1px",
+                    },
+                }}
             >
                 <HStack justify="space-between" gap="3" align="start">
                     <Box minW="0">
-                        <Heading fontSize={{ base: "lg", md: "xl" }} lineHeight="short" overflowWrap="anywhere">
+                        <Heading fontSize={{ base: "lg", md: "xl" }} lineHeight="short" overflowWrap="anywhere"
+                            css={{ [SHORT_LANDSCAPE]: { fontSize: "md" } }}>
                             {room.name}
                         </Heading>
                     </Box>
@@ -146,10 +183,10 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                     tiles plus a separate visibility row ate ~200px of a
                     phone screen for facts nobody needed to read as a table.
                     Chips wrap as needed within each group. */}
-                <Flex wrap="wrap" gap="1.5" mt="2">
+                <Flex wrap="wrap" gap="1.5" mt="2" css={{ [SHORT_LANDSCAPE]: { mt: "1.5", gap: "1" } }}>
                     {ruleFacts.map((fact) => (
                         <HStack key={fact.key} gap="1" flexShrink={0} h="26px" px="2"
-                            rounded="full" bg="bg.panel" borderWidth="1px" borderColor="border.subtle">
+                            rounded="full" bg="bg.panel" borderWidth="1px" borderColor="border.subtle" css={SL_CHIP}>
                             <Box color="brand.500" flexShrink={0} fontSize="xs" display="flex">{fact.icon}</Box>
                             <Text fontSize="2xs" fontWeight="semibold" whiteSpace="nowrap">
                                 {fact.label}
@@ -157,10 +194,10 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                         </HStack>
                     ))}
                 </Flex>
-                <Flex wrap="wrap" gap="1.5" mt="1.5">
+                <Flex wrap="wrap" gap="1.5" mt="1.5" css={{ [SHORT_LANDSCAPE]: { mt: "1", gap: "1" } }}>
                     {viewingFacts.map((fact) => (
                         <HStack key={fact.key} gap="1" flexShrink={0} h="26px" px="2"
-                            rounded="full" bg="bg.panel" borderWidth="1px" borderColor="border.subtle">
+                            rounded="full" bg="bg.panel" borderWidth="1px" borderColor="border.subtle" css={SL_CHIP}>
                             <Box color="brand.500" flexShrink={0} fontSize="xs" display="flex">{fact.icon}</Box>
                             <Text fontSize="2xs" fontWeight="semibold" whiteSpace="nowrap">
                                 {fact.label}
@@ -171,14 +208,14 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 {/* Visibility on its own row (2026-09-20, user request): it is
                     the one chip that is an ACTION when private (copy the
                     code), and in the rules' flow it read as one more rule. */}
-                <Flex mt="1.5">
+                <Flex mt="1.5" css={{ [SHORT_LANDSCAPE]: { mt: "1" } }}>
                     {room.private ? (
                         <Button size="xs" h="26px" minH="0" px="2" rounded="full" variant="subtle" colorPalette="brand"
-                            fontFamily="mono" fontVariantNumeric="tabular-nums" flexShrink={0} onClick={copyCode}>
+                            fontFamily="mono" fontVariantNumeric="tabular-nums" flexShrink={0} onClick={copyCode} css={SL_CHIP}>
                             <FiCopy /> {t("game.room.codeLabel", { code: room.code })}
                         </Button>
                     ) : (
-                        <Badge h="26px" display="inline-flex" alignItems="center" gap="1" rounded="full" px="2" flexShrink={0} variant="subtle" colorPalette="gray">
+                        <Badge h="26px" display="inline-flex" alignItems="center" gap="1" rounded="full" px="2" flexShrink={0} variant="subtle" colorPalette="gray" css={SL_CHIP}>
                             <FiGlobe /> {t("game.room.public")}
                         </Badge>
                     )}
@@ -189,7 +226,8 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 are. This banner once appeared for every seatless member — at a
                 table with three empty chairs and no way to take one. */}
             {mySeat === null && myUid !== null && freeSeats.length === 0 && (
-                <Box p="2.5" rounded="lg" bg="bg.subtle" borderWidth="1px" borderColor="border.subtle">
+                <Box p="2.5" rounded="lg" bg="bg.subtle" borderWidth="1px" borderColor="border.subtle"
+                    css={{ [SHORT_LANDSCAPE]: { ...slCell(2)[SHORT_LANDSCAPE], p: "1.5" } }}>
                     <Text fontSize="sm" color="fg.muted">{t("game.room.spectatingFull")}</Text>
                 </Box>
             )}
@@ -199,7 +237,9 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 chips and the whole empty half of the screen was between them
                 and the buttons. `my="auto"` splits that space above and below,
                 which puts the four chairs where the eye lands. */}
-            <Stack my="auto" gap={{ base: "2", md: "3" }}>
+            <Stack my="auto" gap={{ base: "2", md: "3" }}
+                // Right column, all rows; `my="auto"` still centres it there.
+                css={{ [SHORT_LANDSCAPE]: { gridColumn: "2", gridRow: "1 / 5", gap: "2" } }}>
                 {teams.map((seats, index) => (
                     /* No card, no heading: the pair is grouped by a thin
                        team-coloured rail on each chair (2026-09-20, user
@@ -209,7 +249,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                        phone. The gap between the two team stacks is wider
                        than the gap within one, so the grouping still reads
                        at a glance. */
-                    <VStack key={index} align="stretch" gap={{ base: "1", md: "1.5" }}
+                    <VStack key={index} align="stretch" gap={{ base: "1", md: "1.5" }} css={{ [SHORT_LANDSCAPE]: { gap: "1" } }}
                         role="group" aria-label={t("game.room.pairAria", { n: index + 1 })}>
                         {seats.map((seat) => {
                             const occupant = room.seats[seat].occupant
@@ -225,9 +265,10 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                                 <HStack key={seat} justify="space-between" align="center" gap={{ base: "2", md: "3" }} p={{ base: "2", md: "2.5" }}
                                     pe={{ base: "2.5", md: "3" }}
                                     rounded="xl" bg="bg.subtle" minH={{ base: "64px", md: "76px" }}
-                                    borderInlineStartWidth="4px" borderInlineStartColor={index === 0 ? TEAM.us : TEAM.them}>
+                                    borderInlineStartWidth="4px" borderInlineStartColor={index === 0 ? TEAM.us : TEAM.them}
+                                    css={{ [SHORT_LANDSCAPE]: { minH: "48px", p: "1.5", pe: "2", gap: "2" } }}>
                                     <HStack gap={{ base: "2", md: "3" }} minW="0">
-                                        <PlayerAvatar size="md" empty={!occupant} emptyIcon={<CardsIcon size={20} />} name={occupant?.kind === "PLAYER" ? occupant.user.name : occupant?.name}
+                                        <PlayerAvatar size={shortLandscape ? "sm" : "md"} empty={!occupant} emptyIcon={<CardsIcon size={shortLandscape ? 16 : 20} />} name={occupant?.kind === "PLAYER" ? occupant.user.name : occupant?.name}
                                             avatarUrl={occupant?.kind === "PLAYER" ? occupant.user.avatarUrl : undefined}
                                             avatarPreset={occupant?.kind === "PLAYER"
                                                 ? occupant.user.avatarPreset
@@ -235,7 +276,8 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                                                     ? occupant.avatarPreset ?? botAvatarPreset(occupant.name)
                                                     : undefined} />
                                         <VStack flex="1" align="start" gap="0" minW="0">
-                                            <Text fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineClamp={1}>
+                                            <Text fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineClamp={1}
+                                                css={{ [SHORT_LANDSCAPE]: { fontSize: "sm", lineHeight: "short" } }}>
                                                 {occupant?.kind === "PLAYER" ? occupant.user.name : occupant?.name ?? t("game.room.waitingSeat")}
                                             </Text>
                                             {/* Bots already say "Bot" in their name (e.g. "Bot Mate") — a
@@ -247,10 +289,10 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                                         </VStack>
                                     </HStack>
                                     {occupant?.kind === "PLAYER" && (occupant.user.gameStats || occupant.user.karma != null) && (
-                                        <VStack ms="auto" flexShrink={0} gap="1" align="center">
+                                        <Stack direction={shortLandscape ? "row" : "column"} ms="auto" flexShrink={0} gap="1" align="center">
                                             {occupant.user.gameStats && <SeatStatPill stats={occupant.user.gameStats} />}
                                             <SeatKarmaPill karma={occupant.user.karma} reliability={occupant.user.reliability} />
-                                        </VStack>
+                                        </Stack>
                                     )}
                                     <HStack justify="end" gap="2">
                                         {!occupant && mySeat === null && onSit && (
@@ -286,7 +328,21 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                 mb={{ base: "-1.5", md: "2" }}
                 bg="brand.subtle" rounded="2xl" borderWidth="1px" borderColor="border.subtle"
                 roundedBottom={{ base: "0", md: "2xl" }}
-                borderBottomWidth={{ base: "0", md: "1px" }}>
+                borderBottomWidth={{ base: "0", md: "1px" }}
+                // Left column, under the card, on the floor of it.
+                css={{
+                    [SHORT_LANDSCAPE]: {
+                        ...slCell(3)[SHORT_LANDSCAPE],
+                        alignSelf: "end",
+                        mx: "0",
+                        mb: "0",
+                        mt: "0",
+                        p: "1.5",
+                        pb: "calc(6px + var(--safe-bottom))",
+                        borderBottomRadius: "2xl",
+                        borderBottomWidth: "1px",
+                    },
+                }}>
                 {/* Side by side on every width now (2026-09-20, user
                     request): the two toggles stacked burned a whole row on a
                     phone for a decision each answers in one word.
@@ -304,7 +360,8 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                         </Box>
                     )}
                 </Stack>
-                {mySeat !== null && <Button size="md" colorPalette="brand" disabled={disabled || !canStart} onClick={onStart}><FiPlay />{t("game.room.launch")}</Button>}
+                {mySeat !== null && <Button size="md" colorPalette="brand" disabled={disabled || !canStart} onClick={onStart}
+                    css={{ [SHORT_LANDSCAPE]: { h: "36px" } }}><FiPlay />{t("game.room.launch")}</Button>}
                 {/* NO HINT UNDER THE BUTTON (2026-09-09, user request).
                     "Za početak popuni sva četiri mjesta" and "Čeka se da svi
                     budu spremni" both went: the four chairs are drawn right
@@ -313,7 +370,7 @@ export default function RoomPanel({ room, mySeat, myUid, disabled = false, onSit
                     start button is disabled either way. A sentence restating a
                     picture is a sentence nobody reads twice. */}
             </VStack>
-            {room.spectators.length > 0 && <Text fontSize="xs" color="fg.muted">{t("game.room.spectators")}: {room.spectators.map((u) => u.name).join(", ")}</Text>}
+            {room.spectators.length > 0 && <Text fontSize="xs" color="fg.muted" css={slCell(4)}>{t("game.room.spectators")}: {room.spectators.map((u) => u.name).join(", ")}</Text>}
         </VStack>
     )
 }

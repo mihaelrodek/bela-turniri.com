@@ -8,7 +8,7 @@ import type { DealScore, PlayerView, Seat, Team } from "@bela/engine"
 import { useAuth } from "../../auth/authContextValue"
 import { useTranslation } from "../../i18n"
 import { gameLobbyPath } from "../../site"
-import { CONTENT_STICKY_TOP, NAVBAR_SAFE_TOP } from "../../components/navChrome"
+import { CONTENT_TOP, NAVBAR_SAFE_TOP } from "../../components/navChrome"
 import BiddingPanel, { ROW_H } from "../components/BiddingPanel"
 import DeclarationsReveal from "../components/DeclarationsReveal"
 import ScoreBoard from "../components/ScoreBoard"
@@ -325,7 +325,7 @@ export default function PracticeGame({ reducedMotion, onLessons }: {
             mt={{ base: "-24px", md: "0" }}
             h={{
                 base: `calc(100dvh - ${NAVBAR_SAFE_TOP.base})`,
-                md: `calc(100dvh - ${CONTENT_STICKY_TOP.md})`,
+                md: `calc(100dvh - ${CONTENT_TOP.md})`,
             }}
             mb="-24px"
             overflow="hidden"

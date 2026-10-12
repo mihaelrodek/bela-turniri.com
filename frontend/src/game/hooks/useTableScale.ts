@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react"
-import { PHONE_GRID_H, PHONE_GRID_W } from "../components/handLayout"
+import { FAN_EXPOSURE, FAN_HANG, PHONE_GRID_H, PHONE_GRID_W } from "../components/handLayout"
 import { SEAT_FAN_DEPTH } from "../components/landscapeGeometry"
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -148,25 +148,38 @@ const L_HAND_PAD = 18
 /** Hand card width relative to a trick card's, landscape: 1.22, i.e. the
  *  hand a fifth WIDER than the trick (owner, fourth pass — "cards look
  *  small/narrow"; portrait keeps `HAND_VS_PILE` 0.92). Gives ~72 px cards
- *  at 844 × 390 (trick 59), ~82 at 932 × 430 (trick 67), the trick paying. */
+ *  at 844 × 390 (trick 59), ~82 at 932 × 430 (trick 67), the trick paying.
+ *  Since the eighth pass the fan is capped at `L_HAND_MAX` (≈64 px cards),
+ *  so on most phones the hand stops at the cap and the trick takes the
+ *  height it frees; this ratio only rules on screens below the cap. */
 const L_HAND_VS_PILE = 1.22
-/** One `sm` card's height, the fan's drawn size. */
-const L_HAND_H = 90
+/** What the fan costs in height at its drawn size: one `sm` card (90) less
+ *  the part that hangs off the bottom edge (`FAN_HANG`, eighth pass
+ *  2026-10-12). */
+const L_HAND_H = 90 - FAN_HANG
+/** The fan's ceiling (eighth pass, 2026-10-12, owner — "cards may be
+ *  smaller, but easier to tap"): ~64 px cards, each showing a 48 px strip
+ *  (was up to 1.6, i.e. 71 px cards with 37 px strips on 852 × 393). */
+const L_HAND_MAX = 1.15
 /** The trick's preferred floor (43 px cards) and its hard minimum (32 px),
  *  see the end of `computeLandscapeScale`. */
 const L_PILE_FLOOR = 0.6
 const L_PILE_MIN = 0.45
-/** The `md` pile above its centre (REST_Y 42 + half a 116 card) … */
-const L_PILE_UPPER = 100
-/** … and the room kept under it (`--cy-free` at scale 1, as in portrait). */
-const L_PILE_LOWER = 112
+/** The flat `md` cross above its centre (`FLAT_REST_Y` 30 + half a 116
+ *  card; was REST_Y 42 → 100 before 2026-10-12, owner: "karte na stolu
+ *  premale") … */
+const L_PILE_UPPER = 88
+/** … and the room kept under it (`--cy-free` at scale 1). */
+const L_PILE_LOWER = 100
+/** Half the flat cross's width (`FLAT_REST_X` 62 + half a 72 card). */
+const L_PILE_HALF_W = 98
 /** Rail (40) + gutter (44) + flank seat (92) + its column of backs
  *  (`SEAT_FAN_DEPTH`) + 8 px of air: half the screen minus this is what
  *  half the pile may span. */
 const L_FLANK = 40 + 44 + 92 + SEAT_FAN_DEPTH + 8
-/** The 8-card fan's drawn width: one card plus seven 52 % strips (`Hand`'s
- *  `FAN_EXPOSURE` — keep the two in step). */
-const L_FAN_W = 56 * (1 + 7 * 0.52)
+/** The 8-card fan's drawn width: one card plus seven strips of
+ *  `FAN_EXPOSURE` (85 %), the cell width `Hand` rounds to. */
+const L_FAN_W = 56 + 7 * Math.round(56 * FAN_EXPOSURE)
 /** The bottom corners (fourth pass, 2026-10-12): the turn block at the
  *  left wants up to 180 px plus its inset and air, so the fan's WIDTH
  *  budget leaves that much free on both sides. This only sizes the cards:
@@ -193,8 +206,8 @@ export function computeLandscapeScale(
     const balanced = avail / (L_HAND_H + (L_PILE_UPPER + L_PILE_LOWER) * pilePerHand)
     const corner = L_CORNER_AIR + Math.max(0, Math.min(L_CORNER_MAX, width / 2 - L_CORNER_OFF))
     const handByWidth = (width - 2 * corner) / L_FAN_W
-    const pileByWidth = (width / 2 - L_FLANK) / PILE_HALF_W
-    const hand = clamp(0.95, Math.min(balanced, handByWidth), 1.6)
+    const pileByWidth = (width / 2 - L_FLANK) / L_PILE_HALF_W
+    const hand = clamp(0.95, Math.min(balanced, handByWidth), L_HAND_MAX)
     // The trick gets what is left once the hand AND the partner's row of
     // backs are paid for. The hand is kept big (fourth pass) as long as the
     // trick can still be drawn at `L_PILE_FLOOR`; below that the HAND gives

@@ -1,4 +1,5 @@
 import { NAVBAR_H } from "./navChrome"
+import { SHORT_LANDSCAPE } from "../utils/shortLandscape"
 
 /* Map page geometry, shared by MapPage (inside the lazy, Leaflet-carrying
    chunk) and MapPageSkeleton (in the entry bundle, shown while that chunk
@@ -34,3 +35,14 @@ export const MAP_DESKTOP_MIN_H = "420px"
  */
 export const MAP_MOBILE_H = "52dvh"
 export const MAP_MOBILE_MIN_H = "340px"
+
+/**
+ * Phone held sideways (2026-10-12, owner): 360–430 px of height, where the
+ * desktop numbers above leave either a ~190 px slit or the 420 px floor —
+ * taller than the screen. The map takes the screen minus a strip, so there
+ * is always a bit of page (not map) to drag the page with — the 40 px navbar
+ * scrolls away above it. For the map box's (and its skeleton's) `css`.
+ */
+export const MAP_SHORT_LANDSCAPE_CSS = {
+    [SHORT_LANDSCAPE]: { h: "calc(100dvh - 72px)", minH: "220px" },
+} as const

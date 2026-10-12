@@ -1,6 +1,7 @@
 import { Box, HStack, Text, VStack } from "@chakra-ui/react"
 import { formatDate, formatTime } from "../utils/format"
 import { useTranslation } from "../i18n"
+import { SHORT_LANDSCAPE } from "../utils/shortLandscape"
 import {
     NEAR_THRESHOLD_KM,
     WEEKDAY_KEYS,
@@ -164,6 +165,9 @@ export default function CalendarMonthGrid({
                             minW="0"
                             minH={hasItems ? { base: "48px", md: "76px" } : { base: "40px", md: "52px" }}
                             p={{ base: "1", md: "1.5" }}
+                            // Phone held sideways (2026-10-12, owner): six
+                            // desktop-height weeks were taller than the screen.
+                            css={{ [SHORT_LANDSCAPE]: { minH: hasItems ? "56px" : "40px", p: "1" } }}
                             rounded="md"
                             cursor="pointer"
                             borderWidth={isToday ? "2px" : "1px"}

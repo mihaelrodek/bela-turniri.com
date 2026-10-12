@@ -6,7 +6,8 @@ import type { Card, Reaction, RoomState, Seat, Suit } from "@bela/protocol"
 import { DEFAULTS } from "@bela/protocol"
 import { trickWinner } from "@bela/engine"
 import type { Declaration, Team, TrickCard } from "@bela/engine"
-import { CONTENT_STICKY_TOP, NAVBAR_SAFE_TOP } from "../../components/navChrome"
+import { CONTENT_TOP, NAVBAR_SAFE_TOP } from "../../components/navChrome"
+import { SHORT_LANDSCAPE } from "../../utils/shortLandscape"
 import { useDocumentHead } from "../../hooks/useDocumentHead"
 import { useTranslation } from "../../i18n"
 import { showError, toaster } from "../../toaster"
@@ -15,8 +16,8 @@ import BiddingPanel, { ROW_H } from "../components/BiddingPanel"
 import DealSummary from "../components/DealSummary"
 import DeclarePrompt from "../components/DeclarePrompt"
 import DeclarationsReveal, { BelaFlash, BelotFlash, TrumpFlash, TRUMP_FLASH_SUIT_SIZE } from "../components/DeclarationsReveal"
-import DeclarationsOnTable, { DECL_DEAL_MS, DECL_DEAL_STEP_MS } from "../components/DeclarationsOnTable"
-import CardFlight, { CARD_RETURN_MS, CARD_STEP_MS } from "../components/CardFlight"
+import DeclarationsOnTable, { DECL_DEAL_MS } from "../components/DeclarationsOnTable"
+import CardFlight, { CARD_RETURN_MS } from "../components/CardFlight"
 import TrumpFlight, { type FlightRect } from "../components/TrumpFlight"
 import type { TrumpGlyphState } from "../components/TrumpBadge"
 import GameOverDialog from "../components/GameOverDialog"
@@ -56,8 +57,9 @@ import { playHaptic } from "../util/haptics"
 import { installAudioUnlock, playSound, primeAudio } from "../util/sounds"
 import { useKeepAwake } from "../hooks/useKeepAwake"
 import { useTableScale } from "../hooks/useTableScale"
-import { useLandscapeTable } from "../hooks/useLandscapeTable"
-import { setTablePlaying } from "../landscapeTableStore"
+import { useLandscapeTable, useLandscapeTableMedia } from "../hooks/useLandscapeTable"
+import RotateToPortrait from "../components/RotateToPortrait"
+import { setTablePlaying, usePreferNormalLayout } from "../landscapeTableStore"
 import { landscapeDeclSlot } from "../components/landscapeGeometry"
 import GameRoomLandscape from "./GameRoomLandscape"
 import { gameLobbyPath } from "../../site"
@@ -113,15 +115,15 @@ const TURN_HURRY_TICKS_MS = [3000, 2000, 1000] as const
 const TRUMP_FLASH_MS = 1500
 
 /** After the reveal window closes, the felt keeps the declaration cards this
- *  long while the other seats' deal back to their avatars (220 ms + 40 ms a
- *  card) and my own fly home (320 ms + 50 ms a card) — eight cards is the
- *  most one seat can lay (four jacks and a run through the jack). Longer
- *  than either tail so neither is cut off; the hand is gated until BOTH are
- *  done (`playResumed`). The THROW onto the felt at the start (620 ms + 50
- *  ms a card, `CARD_THROW_MS` / `DECL_THROW_MS`) needs no budget of its
- *  own: it lands well inside the server's 5 s window, and `playResumed`
- *  waits for my cards to have landed and returned regardless. */
-const DECL_EXIT_MS = Math.max(DECL_DEAL_MS, CARD_RETURN_MS) + Math.max(DECL_DEAL_STEP_MS, CARD_STEP_MS) * 8 + 40
+ *  long while the other seats' deal back to their avatars (220 ms) and my
+ *  own fly home (320 ms) — every card at once, no per-card stagger since
+ *  2026-10-12 (owner). Longer than either tail so neither is cut off; the
+ *  hand is gated until BOTH are done (`playResumed`). The THROW onto the
+ *  felt at the start (620 ms, `CARD_THROW_MS` / `DECL_THROW_MS`) needs no
+ *  budget of its own: it lands well inside the server's 5 s window, and
+ *  `playResumed` waits for my cards to have landed and returned
+ *  regardless. */
+const DECL_EXIT_MS = Math.max(DECL_DEAL_MS, CARD_RETURN_MS) + 40
 
 /** My seat is the bottom one: my cards rise DOWN, away from the centre. */
 const MY_CARD_DIRECTION = positionVector("bottom")
@@ -180,6 +182,10 @@ export default function GameRoomPage() {
        components (`GameRoomLandscape`), and the root pinned to the viewport
        because App.tsx renders no chrome around us then. */
     const landscape = useLandscapeTable()
+    // The phone IS sideways, whatever layout the player chose: the ordinary
+    // header then offers the way back to the full-screen table (2026-10-12).
+    const landscapeMedia = useLandscapeTableMedia()
+    const preferNormal = usePreferNormalLayout()
 
     const socket = useGameSocket({ roomId, mock })
     const slowConnection = useSlowConnection(socket.status)
@@ -1320,6 +1326,10 @@ export default function GameRoomPage() {
     /* The same slot's two halves for the LANDSCAPE table (2026-10-12), which
        has no bottom bar: the question is a capsule over the felt, the
        reactions hide behind a round button. Same gating as `bottomBar`. */
+    /* "Pregled zvanja" only where there can be something to review
+       (2026-10-12, owner): a room without declarations shows no pill at all
+       — and only once a bela has been called this deal, when bela is on. */
+    const declarationsShown = view !== null && (!room.noDeclarations || view.belaDeclared !== null)
     const landscapeDeclarePrompt = playResumed && declarePromptOpen ? (
         <DeclarePrompt
             compact
@@ -1456,9 +1466,10 @@ export default function GameRoomPage() {
                 />
             )}
             {/* My declared cards in transit, hand ↔ felt (2026-10-11). One
-                clone per card, staggered; out is the three-beat throw, back
-                the plain flight; the last to land flips `myCards`. */}
-            {cardFlights?.map((flight, i) => (
+                clone per card, all moving at once (no stagger, 2026-10-12,
+                owner); out is the three-beat throw, back the plain flight;
+                the last to land flips `myCards`. */}
+            {cardFlights?.map((flight) => (
                 <CardFlight
                     key={`${flight.card}-${myCards}`}
                     card={flight.card}
@@ -1466,7 +1477,6 @@ export default function GameRoomPage() {
                     to={flight.to}
                     direction={MY_CARD_DIRECTION}
                     throwIn={myCards === "flyingOut"}
-                    delayMs={i * CARD_STEP_MS}
                     onDone={onCardFlightDone}
                 />
             ))}
@@ -1551,7 +1561,7 @@ export default function GameRoomPage() {
                     mt: { base: "-24px", md: "0" },
                     h: {
                         base: `calc(100dvh - ${NAVBAR_SAFE_TOP.base})`,
-                        md: `calc(100dvh - ${CONTENT_STICKY_TOP.md})`,
+                        md: `calc(100dvh - ${CONTENT_TOP.md})`,
                     },
                     mb: "-24px",
                 })}
@@ -1571,6 +1581,24 @@ export default function GameRoomPage() {
                     userSelect: "text",
                     WebkitUserSelect: "text",
                 },
+                /* Phone held sideways, ordinary layout (2026-10-12, owner): the
+                   lobby — or a table the player turned back to the normal
+                   layout — hangs straight from the 40 px bar at every width
+                   and is exactly the rest of the screen tall, so the page
+                   itself never scrolls and the bar stays on screen. Width
+                   follows the container (its insets clear a side notch),
+                   no 720–900 px cap: RoomPanel goes two-column there. */
+                ...(landscape
+                    ? {}
+                    : {
+                          [SHORT_LANDSCAPE]: {
+                              w: "100%",
+                              maxW: "none",
+                              mx: "0",
+                              mt: "-24px",
+                              h: "calc(100dvh - var(--nav-h) - var(--safe-top))",
+                          },
+                      }),
                 ...(inLobbyPhase
                     ? {}
                     : {
@@ -1583,6 +1611,10 @@ export default function GameRoomPage() {
                       }),
             }}
         >
+            {/* The ordinary layout asked for while the phone is still held
+                sideways (2026-10-12, owner): no squashed table, a request to
+                turn the phone instead. */}
+            {landscapeMedia && preferNormal && tableUp && <RotateToPortrait />}
             {inLobbyPhase ? (
                 <>
                     {/* `display: flex` so the panel can fill this box and put
@@ -1678,6 +1710,7 @@ export default function GameRoomPage() {
                         reactions={landscapeReactions}
                         actions={{
                             declarationsEnabled: view.declarationsRevealed,
+                            declarationsShown,
                             onDeclarations: () => setDeclarationsOpen((value) => !value),
                             tricksPlayed: room.trickReview !== "off" ? view.tricksWon.A + view.tricksWon.B : null,
                             onTricks: () => setTricksOpen((value) => !value),
@@ -1710,12 +1743,12 @@ export default function GameRoomPage() {
                                 view={shownView ?? view}
                                 seats={room.seats}
                                 targetScore={room.targetScore}
-                                onBackgroundClick={view.declarationsRevealed ? () => setDeclarationsOpen((value) => !value) : undefined}
+                                onBackgroundClick={view.declarationsRevealed && declarationsShown ? () => setDeclarationsOpen((value) => !value) : undefined}
                                 header={
                                     <TableHeader
                                         targetScore={room.targetScore}
                                         gameEndRule={room.gameEndRule}
-                                        center={
+                                        center={!declarationsShown ? <Box /> : (
                                             <TableActions
                                                 declarationsEnabled={view.declarationsRevealed}
                                                 // Same masked figure the score panel reads
@@ -1728,7 +1761,7 @@ export default function GameRoomPage() {
                                                 }}
                                                 onDeclarations={() => setDeclarationsOpen((value) => !value)}
                                             />
-                                        }
+                                        )}
                                         chips={
                                             <>
                                                 {/* Spinner only: the status flips with every
@@ -1740,6 +1773,7 @@ export default function GameRoomPage() {
                                             </>
                                         }
                                         spectators={room.allowSpectators ? room.spectators.length : null}
+                                        layoutToggle={landscapeMedia}
                                         onSettings={() => setSettingsOpen(true)}
                                     />
                                 }

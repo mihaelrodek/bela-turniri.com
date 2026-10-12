@@ -4,6 +4,7 @@ import { Link as RouterLink, useLocation } from "react-router-dom"
 import { useTranslation } from "../i18n"
 import { isGameRoute, publicOrigin } from "../site"
 import KodekCredit from "./KodekCredit"
+import { SHORT_LANDSCAPE } from "../utils/shortLandscape"
 
 /** "https://bela-turniri.com" → "bela-turniri.com" (or whichever games twin
  *  the visitor is on — see `publicOrigin` in site.ts) — the copyright line
@@ -88,6 +89,19 @@ export default function SiteFooter(props: BoxProps) {
             position={{ base: "static", md: "sticky" }}
             bottom="0"
             zIndex={{ md: "sticky" }}
+            // A phone held sideways (2026-10-12, owner): ~55 px of a 390 px
+            // screen was this strip, pinned. There it is an ordinary
+            // last-in-flow block — reached only at the end of the content —
+            // and shows its links at every width (the bottom tab bar it used
+            // to reserve room for is not drawn in this mode).
+            css={{
+                [SHORT_LANDSCAPE]: {
+                    position: "static",
+                    mb: "0",
+                    borderTopWidth: "1px",
+                    bg: "bg.panel",
+                },
+            }}
             {...props}
         >
             <Flex
@@ -102,6 +116,7 @@ export default function SiteFooter(props: BoxProps) {
                 wrap="wrap"
                 fontSize="xs"
                 color="fg.muted"
+                css={{ [SHORT_LANDSCAPE]: { display: "flex", py: "1", gap: "3", fontSize: "2xs", "& a": { py: "1" } } }}
             >
                 {/* Who built it, on the far left (2026-09-29, owner). */}
                 <KodekCredit />

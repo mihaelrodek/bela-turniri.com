@@ -268,7 +268,7 @@ export const LANDSCAPE_RAIL_W = 40
  * has no room for a centred ring (partner 84 + pile 200 + pile 200 + hand),
  * so the pile rests just above the pill and whatever slack is left is felt
  * between it and the partner. `--cy-free` follows `--pile-k`, which
- * `computeLandscapeScale` works out from the real screen — keep 112/100 in
+ * `computeLandscapeScale` works out from the real screen — keep 100/88 in
  * step with `L_PILE_LOWER` / `L_PILE_UPPER` in hooks/useTableScale.ts.
  */
 export function landscapeTableGeometry() {
@@ -284,11 +284,13 @@ export function landscapeTableGeometry() {
         "--seat-h": "85px",
         "--seat-gutter": `${LANDSCAPE_RAIL_W + 4}px`,
         "--seat-overlap": "0px",
-        "--seat-clear-x": "calc(var(--pile-k, 1) * 104px)",
-        "--seat-clear-y": "calc(var(--pile-k, 1) * 100px)",
+        // The flat cross (2026-10-12, `FLAT_REST_X`/`FLAT_REST_Y` in
+        // TrickArea): 62 + 36 sideways, 30 + 58 up and down, + 12 below.
+        "--seat-clear-x": "calc(var(--pile-k, 1) * 98px)",
+        "--seat-clear-y": "calc(var(--pile-k, 1) * 88px)",
         "--seat-x": "var(--seat-clear-x)",
         "--seat-y": "var(--seat-clear-y)",
-        "--cy-free": "calc(var(--pile-k, 1) * 112px)",
+        "--cy-free": "calc(var(--pile-k, 1) * 100px)",
         "--cy-bottom": "var(--cy-free)",
         "--table-cy": "calc(100% - var(--cy-free))",
         "--table-w": "100%",

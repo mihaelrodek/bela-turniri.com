@@ -29,7 +29,7 @@ import {
 import type { TournamentCard } from "../types/tournaments"
 import { fetchTournaments } from "../api/tournaments"
 import { qk } from "../queryClient"
-import { MAP_DESKTOP_H, MAP_DESKTOP_MIN_H, MAP_MOBILE_H, MAP_MOBILE_MIN_H } from "../components/mapLayout"
+import { MAP_DESKTOP_H, MAP_DESKTOP_MIN_H, MAP_MOBILE_H, MAP_MOBILE_MIN_H, MAP_SHORT_LANDSCAPE_CSS } from "../components/mapLayout"
 import { useUserLocation } from "../hooks/useUserLocation"
 import { formatDistanceKm, haversineKm } from "../utils/distance"
 import { formatDateShort, formatTime } from "../utils/format"
@@ -924,6 +924,7 @@ export default function MapPage() {
                     shadow="sm"
                     h={{ base: MAP_MOBILE_H, md: MAP_DESKTOP_H }}
                     minH={{ base: MAP_MOBILE_MIN_H, md: MAP_DESKTOP_MIN_H }}
+                    css={MAP_SHORT_LANDSCAPE_CSS}
                     bg="bg.muted"
                     position="relative"
                 >

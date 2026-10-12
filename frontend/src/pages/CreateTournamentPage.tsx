@@ -30,7 +30,7 @@ import "react-datepicker/dist/react-datepicker.css"
 import "../datepicker.css"
 
 import { createTournament } from "../api/tournaments"
-import { CONTENT_STICKY_TOP, NAVBAR_TOP } from "../components/navChrome"
+import { CONTENT_TOP, NAVBAR_TOP } from "../components/navChrome"
 import { TournamentRulesEditorLazy } from "../components/rules/lazyRules"
 import { LocationAutocomplete } from "../components/LocationAutocomplete"
 import LoadTournamentTemplateDialog from "../components/LoadTournamentTemplateDialog"
@@ -532,7 +532,7 @@ export default function CreateTournamentPage() {
                scrollbar, no dead space under the buttons. */
             display="flex"
             flexDirection="column"
-            minH={{ base: `calc(100dvh - ${CONTENT_STICKY_TOP.base})`, md: `calc(100dvh - ${CONTENT_STICKY_TOP.md})` }}
+            minH={{ base: `calc(100dvh - ${CONTENT_TOP.base})`, md: `calc(100dvh - ${CONTENT_TOP.md})` }}
             mb="-24px"
         >
             {/* ===================== Step indicator =====================

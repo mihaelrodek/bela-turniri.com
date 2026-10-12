@@ -51,6 +51,7 @@ export default function Table({
     anchors = SEAT_ANCHORS,
     geometry,
     pileSize,
+    pileFlat = false,
     seatCards = null,
     fanPlacement,
 }: {
@@ -93,6 +94,8 @@ export default function Table({
     geometry?: Record<string, unknown>
     /** Draw the trick at one fixed size (see `TrickArea`). */
     pileSize?: PileSize
+    /** The landscape table's flatter cross (see `TrickArea`). */
+    pileFlat?: boolean
     /** `view.handSizes`, when a seat should show a fan of card backs for the
      *  cards it still holds (landscape, 2026-10-12). Null draws no fans. */
     seatCards?: Record<SeatId, number> | null
@@ -142,6 +145,7 @@ export default function Table({
                 collectTo={collectTo}
                 reducedMotion={reducedMotion}
                 size={pileSize}
+                flat={pileFlat}
             />
 
             {declarations}

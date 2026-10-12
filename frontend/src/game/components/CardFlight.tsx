@@ -26,7 +26,8 @@ import type { FlightRect } from "./TrumpFlight"
    160 ms hold in the air; (c) the THROW onto its slot — 280 ms on an
    overshoot curve, with a ±6° wobble that settles into the slot's own
    angle. Coming BACK is the plain 320 ms flight it always was. Cards
-   leaving together are 50 ms apart.
+   leaving (or returning) together move AT ONCE — no per-card stagger
+   (2026-10-12, owner: a declaration lands as one group).
 
    The clone is drawn at `sm` and SCALED, both at take-off and at landing:
    the hand card is `sm` × `--hand-k` on a phone and `md`/`ml` on the web,
@@ -53,8 +54,6 @@ const THROW_EASING = "cubic-bezier(0.22, 1.2, 0.36, 1)"
 export const CARD_THROW_MS = LIFT_MS + HOLD_MS + THROW_MS
 /** The way back into the hand — one plain move. */
 export const CARD_RETURN_MS = 320
-/** Stagger between two of my cards leaving (or returning) together. */
-export const CARD_STEP_MS = 50
 
 export default function CardFlight({
     card,

@@ -4,7 +4,7 @@ import { Box, Button, Dialog, HStack, IconButton, Portal, Text, VStack } from "@
 import { FiArrowRight, FiPlus, FiRotateCcw, FiSave, FiShare2, FiX } from "react-icons/fi"
 
 import ConfirmDialog from "../../components/ConfirmDialog"
-import { CONTENT_STICKY_TOP, NAVBAR_H } from "../../components/navChrome"
+import { CONTENT_STICKY_TOP } from "../../components/navChrome"
 import { useAuth } from "../../auth/authContextValue"
 import { useDocumentHead } from "../../hooks/useDocumentHead"
 import { usePlural, useTranslation } from "../../i18n"
@@ -107,8 +107,9 @@ const linkPulse = keyframes`
    ────────────────────────────────────────────────────────────────────── */
 
 /** Navbar + the app Container's own `py={6}`, so the mobile column can be
- *  told to fill exactly the space that is left. */
-const PAGE_CHROME = `calc(${NAVBAR_H.base}px + 48px + var(--safe-top))`
+ *  told to fill exactly the space that is left. `--nav-h` (index.css) is
+ *  NAVBAR_H.base here, and the 40 px bar on a phone held sideways. */
+const PAGE_CHROME = "calc(var(--nav-h) + 48px + var(--safe-top))"
 
 /* The fixed action bar's geometry now lives in `../actionBar` — the active-game
    dock has to clear it too, and two components guessing the same number is how

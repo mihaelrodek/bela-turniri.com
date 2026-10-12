@@ -102,3 +102,30 @@
     --cardline: #D9CEBB;
     --art-opacity: .07;
 }
+
+/* ── Navbar height, as variables (2026-10-12, owner) ─────────────────────
+   `--nav-h` is the navbar row's rendered height (`components/navChrome.ts`
+   NAVBAR_H: 48 px below md, 52 px from md); `--nav-pin` is where a sticky
+   element pins under it — the same number, except on a phone held
+   sideways, where the bar shrinks to 40 px and stops being sticky (it
+   scrolls away with the page), so sticky things pin to the very top.
+   The landscape query is `utils/shortLandscape.ts` SHORT_LANDSCAPE_QUERY —
+   change both together. */
+:root {
+    --nav-h: 48px;
+    --nav-pin: 48px;
+}
+
+@media screen and (min-width: 48rem) {
+    :root {
+        --nav-h: 52px;
+        --nav-pin: 52px;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+    :root {
+        --nav-h: 40px;
+        --nav-pin: 0px;
+    }
+}

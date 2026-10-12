@@ -363,17 +363,20 @@ njegova vrijednost.
   offsetima — (a) **diže se** iz avatara dalje od sredine (+28 px, 1,06,
   180 ms ease-out), (b) **stoji** 160 ms, (c) **baca se** na svoje mjesto
   (280 ms, `cubic-bezier(0.22, 1.2, 0.36, 1)`, ljuljanje ±6° koje se smiri
-  u kut mjesta, mali overshoot). 50 ms razmaka po karti (`DECL_THROW_MS`
-  620, `DECL_THROW_STEP_MS` 50). Odlazak kad `declarationsPending` istekne
-  ostaje brzi deal-out prema avataru (220 ms, 40 ms po karti).
+  u kut mjesta, mali overshoot). `DECL_THROW_MS` 620. **Sve karte svih
+  zvanja kreću ISTOVREMENO** (2026-10-12, vlasnik: ne jedna po jedna) —
+  jedan takt za cijeli sloj, pločice fade-om kad karte sjednu. Odlazak kad
+  `declarationsPending` istekne ostaje brzi deal-out prema avataru
+  (220 ms), također sve karte odjednom.
 - **Moje zvanje** (`CardFlight.tsx`, isti FLIP obrazac kao `TrumpFlight`):
   prave karte iz ruke (`Hand` dobiva `hiddenCards` i `data-card`) idu na
   svoje mjesto **istim trotaktnim bacanjem** (`CARD_THROW_MS` 620, klon
   skaliran oko svoje sredine iz pravokutnika ruke u pravokutnik mjesta),
   stoje tamo cijeli prozor, pa se vrate običnim letom (`CARD_RETURN_MS`
-  320, `CARD_STEP_MS` 50). Mjesta u ruci ostaju prazna dok su karte vani;
+  320) — sve moje karte odjednom, bez razmaka po karti (2026-10-12).
+  Mjesta u ruci ostaju prazna dok su karte vani;
   `playResumed` ne pušta potez (ni oznake poteza) dok zadnja karta nije
-  sletjela i vratila se; sloj se skida `DECL_EXIT_MS` (760 ms) nakon
+  sletjela i vratila se; sloj se skida `DECL_EXIT_MS` (360 ms) nakon
   zatvaranja prozora. Uz „Smanji animacije” karte i pločice se samo
   pojave/nestanu.
 - **Dolje ništa.** Za vrijeme prozora (i dok se moje karte vraćaju) traka
@@ -1150,6 +1153,19 @@ NavBarom/footerom/tab-barom i kad je telefon položen. Portret i desktop od
 landscape ne crta nijedan element koji nosi `SHORT` pravila, pa se nikad ne
 primjenjuju na isti element.
 
+**Ručni prekidač** (2026-10-12, vlasnik): `components/LayoutToggleButton.tsx`
+(ikona `MdScreenRotation`, ghost, `game.table.layoutNormal` /
+`layoutLandscape`) piše `preferNormal` u `landscapeTableStore`
+(`setPreferNormalLayout`, pamti se po uređaju u `localStorage`
+`bela:game:preferNormalLayout`, svaki pristup u try/catch). Dok je
+`preferNormal` istinit, `useLandscapeTable` je lažan — i `App.tsx` vraća
+krom, i soba crta obični raspored. Gumb je u landscape stolu u gornjem
+desnom kutu lijevo od zupčanika (36 px kao susjedi); u običnom rasporedu
+`TableHeader layoutToggle` stavlja ga lijevo od zupčanika (32 px, brojač
+gledatelja se pomiče za 32 px, red dobiva simetričan `px` 68 px) — **samo**
+dok vrijedi `useLandscapeTableMedia()` (telefon položen), drugdje nema
+stola na koji bi se vratilo.
+
 **Krom se gasi.** `App.tsx` ne renderira `NavBar`, `SiteFooter` ni
 `MobileTabBar` dok je hook istinit; `GameChrome` ostaje jer je na stolu samo
 `GameRoomExitGuard` (dijalog bez otiska) — on presreće i X gumb u kutu.
@@ -1308,13 +1324,25 @@ traje, pitanje o zvanjima). Okomite trake više nema.
 - **Štih**: isti `TrickArea`, prisilno `md` (`pileSize`, jer landscape širina
   pada s obje strane `md` breakpointa) × `--pile-k`. Smjerovi uleta
   (`positionVector`) su ista četiri kompasa, pa karte i dalje dolaze sa strane
-  svog sjedala. Središte je `--cy-free` iznad DNA kutije (kao u portretu), ne
+  svog sjedala. **Spljošteni križ** (`pileFlat`, 2026-10-12, vlasnik:
+  "karte na stolu premale"): `FLAT_REST_X` 62 / `FLAT_REST_Y` 30 umjesto
+  66 / 42 — štih je ograničen visinom, ne širinom, pa se križ stisne
+  okomito i raširi vodoravno; budžet `L_PILE_UPPER`/`L_PILE_LOWER` 88/100
+  (bio 100/112), `--seat-clear-x/y` 98/88, `--cy-free` 100 × `--pile-k`.
+  Na 852×393 `--pile-k` 0,77 → 0,86 (karte štiha 55 → 62 px).
+  Središte je `--cy-free` iznad DNA kutije (kao u portretu), ne
   50 %: na 390 px visine centrirani prsten (partner 84 + hrpa 200 + ruka) ne
   stane.
 - **Moja ruka**: `Hand layout="fan"` — istih osam utora (pravila 1, 2, 4 iz
-  §2.4), ali mreža čije su ćelije **52 %** karte (preklop; četvrti prolaz —
-  bilo 42 %), nagib **−6°…+6°** linearno oko donjeg ruba (bilo ±12°), luk
-  `FAN_SINK_PX` 0,5 (6 px na krajevima), crtano `sm` × `--hand-k`. **Bez
+  §2.4), ali mreža čije su ćelije **75 %** karte (`FAN_EXPOSURE` u
+  `handLayout.ts`, dijeli ga i proračun; osmi prolaz, vlasnik: „teško se
+  tapka” — bilo 52 %, prije toga 42 %), gotovo ravan red: nagib
+  **−2,5°…+2,5°** linearno oko donjeg ruba (bilo ±6°, prije ±12°), luk
+  `FAN_SINK_PX` 0,15 (~1,8 px na krajevima; bilo 0,5 / 6 px), crtano `sm` ×
+  `--hand-k`. Lepeza **visi preko donjeg ruba** ekrana: `FAN_HANG` = 18
+  crtanih px (× `--hand-k`) negativne margine unutar `zoom`a, korijen filca
+  reže višak — samo „noge” karata, broj i boja u gornjim kutovima uvijek se
+  vide; `--safe-bottom` se i dalje plaća prije toga. **Bez
   preporuke poteza**: legalna karta izgleda točno kao ostale (prvi je prolaz
   podizao legalne karte, vlasnik to odbio istog dana — pravilo 2 vrijedi i u
   lepezi). Nagib je na omotaču IZVAN utora koji animira, pa dijeljenje i FLIP
@@ -1346,7 +1374,14 @@ traje, pitanje o zvanjima). Okomite trake više nema.
   partner (4 + 85 = 89) − padding lepeze 18 (− 21 home indikator u PWA;
   pilula poteza je u kutu i ne košta ništa) određuje **ruku** tako da je
   karta u ruci 22 % šira od karte na stolu (`L_HAND_VS_PILE` = 1,22;
-  portret drži 0,92). **Štih plaća partnerove poleđine** (sedmi prolaz):
+  portret drži 0,92). Osmi prolaz (2026-10-12): ruka košta `L_HAND_H` =
+  90 − `FAN_HANG` = 72 crtana px visine, širina lepeze je `L_FAN_W` =
+  56 + 7 × 42 = 350, a ruka ima strop **`L_HAND_MAX` = 1,15** (~64 px
+  karte, traka 48 px) — na 852×393 ruka 71 → **64 px** (traka 37 → 48 px,
+  lepeza 330 → 402 px široka, vidljivo 114 → 83 px visoko), a štih dobiva
+  oslobođenu visinu (`--pile-k` 0,62 → 0,77); 667×375 → ruka 53 px (dno
+  0,95 — širina ne dopušta više, traka 40 px; kutni blokovi se dižu iznad
+  krajeva lepeze). Brojevi u primjerima ispod su iz sedmog prolaza. **Štih plaća partnerove poleđine** (sedmi prolaz):
   dobiva ostatak nakon ruke I reda poleđina (`L_TOP_FAN` = 37 + 4 px), pa
   mu gornja karta uvijek čisti taj red; ispod `L_PILE_FLOOR` (0,6) prvo
   popušta ruka (do 0,95), a tek preniski ekran spušta štih do `L_PILE_MIN`

@@ -12,6 +12,7 @@ import LiveDot from "./LiveDot"
 import NewBadge from "./NewBadge"
 import { preloadVectorBasemap } from "../utils/mapPreload"
 import { mapPageFactory } from "../routes/lazyPages"
+import { SHORT_LANDSCAPE } from "../utils/shortLandscape"
 
 /**
  * "Live" (app-icon-style) count badge on the centre disc's top-right
@@ -299,6 +300,10 @@ export default function MobileTabBar() {
             // navigation surface.
             data-tour="nav-items"
             display={{ base: "flex", md: "none" }}
+            // A phone held sideways (2026-10-12, owner) has no height for a
+            // 64 px bar on its floor: the compact NavBar row carries the same
+            // five destinations there, whatever the width (see NavBar.tsx).
+            css={{ [SHORT_LANDSCAPE]: { display: "none" } }}
             position="fixed"
             left="0"
             right="0"

@@ -40,6 +40,7 @@ import { haversineKm } from "../utils/distance"
 import { intlTag } from "../utils/format"
 import { useDocumentHead } from "../hooks/useDocumentHead"
 import { useSearchHotkey } from "../hooks/useSearchHotkey"
+import { SHORT_LANDSCAPE } from "../utils/shortLandscape"
 import { showError } from "../toaster"
 import { useTranslation, usePlural } from "../i18n"
 import EmptyState from "../components/EmptyState"
@@ -262,6 +263,12 @@ function FilterLabel({ children }: { children: React.ReactNode }) {
     )
 }
 
+/** Filteri / Sortiraj on a phone held sideways (2026-10-12): 36 px, the
+ *  desktop's 230 px sort floor dropped so the row can shrink them. */
+const SL_TOOL_BUTTON = {
+    [SHORT_LANDSCAPE]: { h: "36px", minW: "0", px: "2.5", fontSize: "sm" },
+} as const
+
 /** One half of the Mreža/Popis segmented control. The label is hidden on
  *  phones, so the accessible name has to come from `aria-label` — without it
  *  the button has no name at all at 390px. */
@@ -297,7 +304,7 @@ function ViewToggleButton({
             _hover={active ? undefined : { color: "fg.ink" }}
         >
             {icon}
-            <Box as="span" display={{ base: "none", md: "inline" }}>{label}</Box>
+            <Box as="span" display={{ base: "none", md: "inline" }} css={{ [SHORT_LANDSCAPE]: { display: "none" } }}>{label}</Box>
         </chakra.button>
     )
 }
@@ -841,12 +848,18 @@ export default function TournamentsPage() {
                     from the DOM and stalled the guided tour at the previous
                     step. */}
                 {!loading && (
-                    <Box data-tour="turniri-filters" mb="4">
+                    <Box data-tour="turniri-filters" mb="4" css={{ [SHORT_LANDSCAPE]: { mb: "3" } }}>
+                        {/* Phone held sideways (2026-10-12, owner): ONE row
+                            at every width, all 36 px tall, every control but
+                            the search reduced to its icon (the names stay as
+                            aria-labels), so the row fits 600–900 px without
+                            clipping the view switcher. */}
                         {/* One row on md+; on phones the search and the create
                             button take the full width and the three remaining
                             controls share the row beneath them (see the notes
                             on each control). */}
-                        <Stack direction={{ base: "column", md: "row" }} gap="2" align="stretch">
+                        <Stack direction={{ base: "column", md: "row" }} gap="2" align="stretch"
+                            css={{ [SHORT_LANDSCAPE]: { flexDirection: "row" } }}>
                             {/* Search + "Kreiraj turnir" share a row at every
                                 width. The create button moved OUT of both
                                 navigations (it is an action, not a place) and
@@ -863,6 +876,7 @@ export default function TournamentsPage() {
                                 // the md row still can't squeeze the query box
                                 // down to nothing.
                                 minW={{ base: "100%", md: "304px" }}
+                                css={{ [SHORT_LANDSCAPE]: { minW: "200px" } }}
                             >
                                 <Box position="relative" flex="1" minW="0">
                                     <Box
@@ -879,6 +893,7 @@ export default function TournamentsPage() {
                                     <Input
                                         ref={searchRef}
                                         h={{ base: "42px", md: "44px" }}
+                                        css={{ [SHORT_LANDSCAPE]: { h: "36px" } }}
                                         pl="10"
                                         pr="16"
                                         bg="bg.panel"
@@ -958,6 +973,7 @@ export default function TournamentsPage() {
                                     fontWeight="semibold"
                                     aria-label={tt("common.nav.kreirajTurnir")}
                                     title={tt("common.nav.kreirajTurnir")}
+                                    css={{ [SHORT_LANDSCAPE]: { h: "36px", w: "36px", minW: "36px", px: "0" } }}
                                 >
                                     <RouterLink to="/turniri/novi">
                                         <Box as="span" display="inline-flex" flexShrink="0" aria-hidden="true">
@@ -969,7 +985,8 @@ export default function TournamentsPage() {
                                             turnir" stays as the accessible name
                                             above, where a screen reader has no
                                             row to read it from. */}
-                                        <Box as="span" display={{ base: "inline", md: "none", lg: "inline" }}>
+                                        <Box as="span" display={{ base: "inline", md: "none", lg: "inline" }}
+                                            css={{ [SHORT_LANDSCAPE]: { display: "none" } }}>
                                             {tt("common.mobileNav.kreiraj")}
                                         </Box>
                                     </RouterLink>
@@ -997,6 +1014,7 @@ export default function TournamentsPage() {
                                     fontWeight="semibold"
                                     onClick={() => setFiltersOpen((v) => !v)}
                                     aria-expanded={filtersOpen}
+                                    css={SL_TOOL_BUTTON}
                                     title={filtersOpen
                                         ? tt("pages.tournaments.filters.toggleHide")
                                         : tt("pages.tournaments.filters.toggleShow")}
@@ -1040,6 +1058,7 @@ export default function TournamentsPage() {
                                             // phones it shrinks freely instead.
                                             minW={{ base: "0", md: "230px" }}
                                             flexShrink="1"
+                                            css={SL_TOOL_BUTTON}
                                             variant="outline"
                                             colorPalette="gray"
                                             bg="bg.panel"
@@ -1114,6 +1133,7 @@ export default function TournamentsPage() {
                                     ml="auto"
                                     role="group"
                                     aria-label={tt("pages.tournaments.view.label")}
+                                    css={{ [SHORT_LANDSCAPE]: { h: "36px" } }}
                                 >
                                     <ViewToggleButton
                                         active={view === "grid"}

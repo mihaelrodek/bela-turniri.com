@@ -23,6 +23,18 @@ export const SLOT_GAP = 6
  *  pass); this is only `Hand`'s own padding. */
 export const FAN_PAD_TOP = 16
 
+/** The landscape fan's overlap (eighth pass, 2026-10-12, owner — "hard to
+ *  tap"): each card shows this share of its width beside the next one (was
+ *  0.52; 0.75 → 0.85 in the ninth pass, owner: "karte još malo raširi"). Read by `Hand` for the grid cell and by `computeLandscapeScale`
+ *  for the fan's width, so the two cannot drift apart. */
+export const FAN_EXPOSURE = 0.85
+/** How far the fan's cards sink past the bottom edge, in DRAWN px (× the
+ *  fan's `--hand-k` on screen). 18 in the eighth pass, 10 in the ninth,
+ *  0 since the tenth (2026-10-12, owner: "pomakni karte prema gore") — the
+ *  whole card is on screen again; kept as a constant so the scale budget
+ *  (`L_HAND_H`) and `Hand` keep reading one number. */
+export const FAN_HANG = 0
+
 /** The two-row phone grid at its DRAWN size (`sm`), before `--hand-k`. */
 export const PHONE_GRID_W = CARD_WIDTH.sm * 4 + SLOT_GAP * 3
 /** Two rows of mađarice (`MADJARICA_HEIGHT.sm` = 90) and the gap between. */
